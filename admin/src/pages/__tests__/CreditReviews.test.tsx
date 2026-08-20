@@ -4,7 +4,7 @@ import { api } from "../../api";
 import CreditReviews from "../CreditReviews";
 
 vi.mock("../../api", () => ({ api: {
-  ratingProposals: vi.fn(), requestAdminStepUp: vi.fn(), completeAdminStepUp: vi.fn(), confirmRatingProposal: vi.fn(),
+  ratingProposals: vi.fn(), shadowComparisons: vi.fn(), requestAdminStepUp: vi.fn(), completeAdminStepUp: vi.fn(), confirmRatingProposal: vi.fn(),
 } }));
 
 describe("credit rating reviews", () => {
@@ -15,6 +15,7 @@ describe("credit rating reviews", () => {
       evidence: { averageDso: 28, cleanInvoiceCount: 3 },
       creditProfile: { retailer: { name: "Mahesh Store" } },
     }] });
+    vi.mocked(api.shadowComparisons).mockResolvedValue({ comparisons: [] });
     vi.mocked(api.requestAdminStepUp).mockResolvedValue({ challengeId: "challenge-1" });
     vi.mocked(api.completeAdminStepUp).mockResolvedValue({ accessToken: "elevated" });
     vi.mocked(api.confirmRatingProposal).mockResolvedValue({});

@@ -118,6 +118,9 @@ export const api = {
   ratingProposals: () => request("/admin/credit/rating-proposals"),
   confirmRatingProposal: (id: string, reason: string) =>
     post(`/admin/credit/rating-proposals/${id}/confirm`, { reason }),
+  shadowComparisons: () => request("/admin/credit/shadow-comparisons"),
+  setShadowDisposition: (id: string, disposition: string) =>
+    patch(`/admin/credit/shadow-comparisons/${id}`, { disposition }),
 
   staff: () => request("/admin/staff"),
   roles: () => request("/admin/roles"),

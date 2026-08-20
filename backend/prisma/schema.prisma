@@ -137,6 +137,11 @@ enum RatingProposalStatus {
   dismissed
 }
 
+enum CreditRolloutMode {
+  shadow
+  enforce
+}
+
 model Payment {
   id                    String                @id @default(uuid())
   retailerId            String
@@ -179,35 +184,36 @@ model Tier {
 }
 
 model Retailer {
-  id                     String                 @id @default(uuid())
-  name                   String
-  shopAddress            String
-  phone                  String                 @unique
-  tierId                 String
-  tier                   Tier                   @relation(fields: [tierId], references: [id])
-  creditLimit            Decimal                @default(0) @db.Decimal(12, 2)
-  currentBalance         Decimal                @default(0) @db.Decimal(12, 2)
+  id                        String                     @id @default(uuid())
+  name                      String
+  shopAddress               String
+  phone                     String                     @unique
+  tierId                    String
+  tier                      Tier                       @relation(fields: [tierId], references: [id])
+  creditLimit               Decimal                    @default(0) @db.Decimal(12, 2)
+  currentBalance            Decimal                    @default(0) @db.Decimal(12, 2)
   // Derived: recomputed from unsettled past-due invoices by recomputeOverdue().
   // Stored so list screens don't have to age every retailer's ledger on read.
-  overdueAmount          Decimal                @default(0) @db.Decimal(12, 2)
+  overdueAmount             Decimal                    @default(0) @db.Decimal(12, 2)
   /// Overrides the tier's payment term when set.
-  paymentTermDays        Int?
-  salesRepId             String?
-  salesRep               SalesRep?              @relation(fields: [salesRepId], references: [id])
-  sapCustomerId          String?
-  orders                 Order[]
-  ledgerEntries          LedgerEntry[]
-  priceOverrides         PriceOverride[]
-  notifications          Notification[]
-  payments               Payment[]
-  invoices               Invoice[]
-  financialLedgerEntries FinancialLedgerEntry[]
-  creditNotes            CreditNote[]
-  reconciliationIssues   ReconciliationIssue[]
-  creditProfile          CreditProfile?
-  creditAssessments      CreditAssessment[]
-  approvalRequests       ApprovalRequest[]
-  createdAt              DateTime               @default(now())
+  paymentTermDays           Int?
+  salesRepId                String?
+  salesRep                  SalesRep?                  @relation(fields: [salesRepId], references: [id])
+  sapCustomerId             String?
+  orders                    Order[]
+  ledgerEntries             LedgerEntry[]
+  priceOverrides            PriceOverride[]
+  notifications             Notification[]
+  payments                  Payment[]
+  invoices                  Invoice[]
+  financialLedgerEntries    FinancialLedgerEntry[]
+  creditNotes               CreditNote[]
+  reconciliationIssues      ReconciliationIssue[]
+  creditProfile             CreditProfile?
+  creditAssessments         CreditAssessment[]
+  approvalRequests          ApprovalRequest[]
+  creditDecisionComparisons CreditDecisionComparison[]
+  createdAt                 DateTime                   @default(now())
 }
 
 model AdminUser {
@@ -449,10 +455,13 @@ model SapOutbox {
 }
 
 model AppConfig {
-  id                    String  @id @default("singleton")
-  freeDeliveryThreshold Decimal @db.Decimal(12, 2)
-  minOrderValue         Decimal @db.Decimal(12, 2)
-  supportPhone          String
+  id                            String            @id @default("singleton")
+  freeDeliveryThreshold         Decimal           @db.Decimal(12, 2)
+  minOrderValue                 Decimal           @db.Decimal(12, 2)
+  supportPhone                  String
+  creditRolloutMode             CreditRolloutMode @default(shadow)
+  creditPolicyApprovedAt        DateTime?
+  creditPolicyApprovedByStaffId String?
 }
 
 model Product {
@@ -506,25 +515,26 @@ model PriceOverride {
 }
 
 model Order {
-  id                     String                  @id @default(uuid())
+  id                        String                     @id @default(uuid())
   // Human-facing reference shown to retailers (rendered as GGN-00001).
-  orderNo                Int                     @unique @default(autoincrement())
-  retailerId             String
-  retailer               Retailer                @relation(fields: [retailerId], references: [id])
-  placedBy               PlacedBy                @default(retailer)
-  placedByRepId          String?
-  status                 OrderStatus             @default(placed)
-  orderTotal             Decimal                 @db.Decimal(12, 2)
-  expectedDeliveryAt     DateTime?
-  sapSalesOrderId        String?
-  items                  OrderItem[]
-  delivery               Delivery?
-  invoice                Invoice?
-  ledgerEntries          LedgerEntry[]
-  creditAssessments      CreditAssessment[]
-  approvalRequests       ApprovalRequest[]
-  dispatchAuthorizations DispatchAuthorization[]
-  createdAt              DateTime                @default(now())
+  orderNo                   Int                        @unique @default(autoincrement())
+  retailerId                String
+  retailer                  Retailer                   @relation(fields: [retailerId], references: [id])
+  placedBy                  PlacedBy                   @default(retailer)
+  placedByRepId             String?
+  status                    OrderStatus                @default(placed)
+  orderTotal                Decimal                    @db.Decimal(12, 2)
+  expectedDeliveryAt        DateTime?
+  sapSalesOrderId           String?
+  items                     OrderItem[]
+  delivery                  Delivery?
+  invoice                   Invoice?
+  ledgerEntries             LedgerEntry[]
+  creditAssessments         CreditAssessment[]
+  approvalRequests          ApprovalRequest[]
+  dispatchAuthorizations    DispatchAuthorization[]
+  creditDecisionComparisons CreditDecisionComparison[]
+  createdAt                 DateTime                   @default(now())
 }
 
 model OrderItem {
@@ -811,24 +821,45 @@ model RatingHistory {
 }
 
 model CreditAssessment {
-  id                     String                  @id @default(uuid())
+  id                     String                    @id @default(uuid())
   retailerId             String
-  retailer               Retailer                @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  retailer               Retailer                  @relation(fields: [retailerId], references: [id], onDelete: Restrict)
   orderId                String?
-  order                  Order?                  @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  order                  Order?                    @relation(fields: [orderId], references: [id], onDelete: Restrict)
   policyVersionId        String
-  policyVersion          CreditPolicyVersion     @relation(fields: [policyVersionId], references: [id], onDelete: Restrict)
+  policyVersion          CreditPolicyVersion       @relation(fields: [policyVersionId], references: [id], onDelete: Restrict)
   result                 CreditAssessmentResult
   requiredPermission     String?
-  projectedExposure      Decimal                 @db.Decimal(14, 2)
+  projectedExposure      Decimal                   @db.Decimal(14, 2)
   snapshot               Json
   reasons                Json
   approvalRequests       ApprovalRequest[]
   dispatchAuthorizations DispatchAuthorization[]
-  createdAt              DateTime                @default(now())
+  comparison             CreditDecisionComparison?
+  createdAt              DateTime                  @default(now())
 
   @@index([retailerId, createdAt])
   @@index([orderId, createdAt])
+}
+
+model CreditDecisionComparison {
+  id                    String                 @id @default(uuid())
+  retailerId            String
+  retailer              Retailer               @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  orderId               String?
+  order                 Order?                 @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  assessmentId          String                 @unique
+  assessment            CreditAssessment       @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
+  rolloutMode           CreditRolloutMode
+  legacyResult          String
+  engineResult          CreditAssessmentResult
+  effectiveResult       String
+  mismatch              Boolean
+  creditTeamDisposition String?
+  createdAt             DateTime               @default(now())
+
+  @@index([mismatch, createdAt])
+  @@index([retailerId, createdAt])
 }
 
 model ApprovalRequest {

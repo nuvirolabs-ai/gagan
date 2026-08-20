@@ -81,16 +81,16 @@ export function assessOrder(policy: CreditPolicy, snapshot: CreditSnapshot, orde
 
 ## Task 7: Run shadow mode and policy comparison
 
-- [ ] Add a feature flag that records but does not enforce new decisions.
-- [ ] Produce a per-order comparison record between legacy behavior, engine decision, and Credit Team disposition.
-- [ ] Add an exportable queue of mismatches with reason codes; no BI dashboard.
-- [ ] Require signed policy approval before enabling enforcement.
-- [ ] Commit: `feat: support credit engine shadow rollout`.
+- [x] Add a feature flag that records but does not enforce new decisions.
+- [x] Produce a per-order comparison record between legacy behavior, engine decision, and Credit Team disposition.
+- [x] Add an exportable queue of mismatches with reason codes; no BI dashboard.
+- [x] Require signed policy approval before enabling enforcement.
+- [x] Commit: `feat: support credit engine shadow rollout`.
 
 ## Exit gate
 
-- [ ] Every SOP decision/edge case maps to a passing named test.
-- [ ] Pending exposure and concurrent orders cannot bypass limits.
-- [ ] Web and staff app decide one authoritative request.
-- [ ] SLA/dispute default states are automated.
-- [ ] Dispatch requires a current authorization.
+- [x] Every SOP decision/edge case maps to a passing named test.
+- [x] Pending exposure and concurrent orders cannot bypass limits.
+- [x] Web and staff app decide one authoritative request.
+- [x] SLA/dispute default states are automated.
+- [x] Dispatch requires a current authorization.

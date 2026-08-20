@@ -13,6 +13,14 @@ const ids = {
 };
 
 beforeAll(async () => {
+  await prisma.appConfig.update({
+    where: { id: "singleton" },
+    data: {
+      creditRolloutMode: "enforce",
+      creditPolicyApprovedAt: new Date(),
+      creditPolicyApprovedByStaffId: "test-credit-lead",
+    },
+  });
   await prisma.tier.create({ data: { id: ids.tier, name: `Credit test ${run}` } });
   await prisma.product.create({
     data: { id: ids.product, name: `Credit product ${run}`, category: "test" },
@@ -78,6 +86,7 @@ afterAll(async () => {
   await prisma.approvalEscalation.deleteMany({ where: { approvalRequest: { retailerId: { in: retailerIds } } } });
   await prisma.approvalDispute.deleteMany({ where: { approvalRequest: { retailerId: { in: retailerIds } } } });
   await prisma.approvalRequest.deleteMany({ where: { retailerId: { in: retailerIds } } });
+  await prisma.creditDecisionComparison.deleteMany({ where: { retailerId: { in: retailerIds } } });
   await prisma.creditAssessment.deleteMany({ where: { retailerId: { in: retailerIds } } });
   await prisma.invoice.deleteMany({ where: { retailerId: { in: retailerIds } } });
   await prisma.orderItem.deleteMany({ where: { orderId: { in: orderIds } } });
@@ -88,6 +97,10 @@ afterAll(async () => {
   await prisma.variant.delete({ where: { id: ids.variant } });
   await prisma.product.delete({ where: { id: ids.product } });
   await prisma.tier.delete({ where: { id: ids.tier } });
+  await prisma.appConfig.update({
+    where: { id: "singleton" },
+    data: { creditRolloutMode: "shadow", creditPolicyApprovedAt: null, creditPolicyApprovedByStaffId: null },
+  });
   await prisma.$disconnect();
 });
 

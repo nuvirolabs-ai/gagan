@@ -8,8 +8,13 @@ export default function CreditReviews() {
   const [challengeId, setChallengeId] = useState("");
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
+  const [comparisons, setComparisons] = useState<any[]>([]);
   const load = async () => {
-    try { setProposals((await api.ratingProposals()).proposals); }
+    try {
+      const [ratingResult, shadowResult] = await Promise.all([api.ratingProposals(), api.shadowComparisons()]);
+      setProposals(ratingResult.proposals);
+      setComparisons(shadowResult.comparisons);
+    }
     catch (err: any) { setError(err.message); }
   };
   useEffect(() => { void load(); }, []);
@@ -42,5 +47,6 @@ export default function CreditReviews() {
         {selected === proposal.id ? <div className="step-up-box"><label className="field"><span>Verification code</span><input aria-label="Verification code" maxLength={6} value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))} /></label><button disabled={otp.length !== 6} onClick={() => void confirm()}>Verify and confirm</button></div> : <button onClick={() => void begin(proposal.id)}>Confirm rating</button>}
       </section>
     )}
+    {comparisons.length > 0 ? <><h2>Shadow-mode mismatches</h2><p className="page-sub">Legacy and policy decisions differed. Export is available from the CSV endpoint.</p>{comparisons.map((item) => <div className="card between" key={item.id}><div><strong>{item.retailer.name}</strong><div className="muted small">Legacy {item.legacyResult} · Engine {item.engineResult}</div></div><span className="pill status-suspended">Review</span></div>)}</> : null}
   </div>;
 }

@@ -6,12 +6,15 @@ import Orders from "./pages/Orders";
 import Retailers from "./pages/Retailers";
 import Ledger from "./pages/Ledger";
 import Catalog from "./pages/Catalog";
+import Staff from "./pages/Staff";
+import StaffDetail from "./pages/StaffDetail";
 
 const NAV = [
   { to: "/orders", label: "Order queue" },
   { to: "/retailers", label: "Retailers" },
   { to: "/ledger", label: "Ledger" },
   { to: "/catalog", label: "Catalog" },
+  { to: "/staff", label: "Staff access" },
 ];
 
 function Shell() {
@@ -46,6 +49,8 @@ function Shell() {
           <Route path="/ledger" element={<Ledger />} />
           <Route path="/ledger/:retailerId" element={<Ledger />} />
           <Route path="/catalog" element={<Catalog />} />
+          <Route path="/staff" element={<Staff />} />
+          <Route path="/staff/:staffId" element={<StaffDetail />} />
           <Route path="*" element={<Navigate to="/orders" replace />} />
         </Routes>
       </main>

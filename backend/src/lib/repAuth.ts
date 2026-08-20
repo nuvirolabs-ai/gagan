@@ -1,15 +1,13 @@
-import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
 import { prisma } from "./prisma";
-
-const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
+import { Permissions } from "../modules/identity/roleCatalog";
+import { SessionError } from "../modules/identity/sessionService";
+import { lazyIdentitySessionService } from "../modules/identity/sessionRuntime";
+import { staffAppAccess } from "../modules/identity/staffAppAccess";
 
 export interface RepRequest extends Request {
   repId?: string;
-}
-
-export function signRepToken(repId: string): string {
-  return jwt.sign({ repId, scope: "rep" }, JWT_SECRET, { expiresIn: "30d" });
+  staffId?: string;
 }
 
 export async function requireRep(req: RepRequest, res: Response, next: NextFunction) {
@@ -18,29 +16,34 @@ export async function requireRep(req: RepRequest, res: Response, next: NextFunct
     return res.status(401).json({ error: "Missing Authorization header" });
   }
 
-  let payload: { repId: string; scope?: string };
   try {
-    payload = jwt.verify(header.slice(7), JWT_SECRET) as { repId: string; scope?: string };
-  } catch {
-    return res.status(401).json({ error: "Invalid or expired token" });
-  }
-
-  if (payload.scope !== "rep") {
-    return res.status(403).json({ error: "Sales rep access required" });
-  }
-
-  try {
-    const rep = await prisma.salesRep.findUnique({
-      where: { id: payload.repId },
-      select: { id: true },
+    const claims = await lazyIdentitySessionService.authenticateAccessToken(
+      header.slice(7),
+      "staff"
+    );
+    const staff = await prisma.staffUser.findUnique({
+      where: { id: claims.sub },
+      select: { id: true, salesRepId: true },
     });
-    if (!rep) return res.status(401).json({ error: "Session no longer valid" });
-  } catch (err) {
-    return next(err);
+    const access = staffAppAccess(claims.permissions, staff?.salesRepId ?? null);
+    if (!claims.permissions.includes(Permissions.ORDER_CREATE_FOR_RETAILER)) {
+      return res.status(403).json({
+        error: "permission_required",
+        permission: Permissions.ORDER_CREATE_FOR_RETAILER,
+      });
+    }
+    if (!staff?.salesRepId || !access.canUseSalesWorkspace) {
+      return res.status(403).json({ error: "salesperson_required" });
+    }
+    req.staffId = staff.id;
+    req.repId = staff.salesRepId;
+    next();
+  } catch (error) {
+    if (error instanceof SessionError) {
+      return res.status(error.status).json({ error: error.code });
+    }
+    next(error);
   }
-
-  req.repId = payload.repId;
-  next();
 }
 
 /**

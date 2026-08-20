@@ -7,6 +7,18 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum StaffStatus {
+  active
+  suspended
+  revoked
+}
+
+enum IdentityRealm {
+  retailer
+  staff
+  admin
+}
+
 enum OrderStatus {
   placed
   confirmed
@@ -41,20 +53,20 @@ enum PaymentChannel {
 }
 
 model Payment {
-  id          String         @id @default(uuid())
-  retailerId  String
-  retailer    Retailer       @relation(fields: [retailerId], references: [id])
-  amount      Decimal        @db.Decimal(12, 2)
-  status      PaymentStatus  @default(pending)
-  channel     PaymentChannel @default(online)
+  id            String         @id @default(uuid())
+  retailerId    String
+  retailer      Retailer       @relation(fields: [retailerId], references: [id])
+  amount        Decimal        @db.Decimal(12, 2)
+  status        PaymentStatus  @default(pending)
+  channel       PaymentChannel @default(online)
   /// Which adapter handled it ("mock", "razorpay", …). Null for manual entries.
-  provider    String?
+  provider      String?
   /// The provider's own id for this attempt — used to reconcile webhooks.
-  providerRef String?        @unique
+  providerRef   String?        @unique
   failureReason String?
   ledgerEntries LedgerEntry[]
-  createdAt   DateTime       @default(now())
-  settledAt   DateTime?
+  createdAt     DateTime       @default(now())
+  settledAt     DateTime?
 
   @@index([retailerId, status])
 }
@@ -66,47 +78,48 @@ enum PodType {
 }
 
 model Tier {
-  id          String       @id @default(uuid())
-  name        String       @unique
-  description String?
+  id              String      @id @default(uuid())
+  name            String      @unique
+  description     String?
   /// Default credit period in days; a retailer may override it.
-  paymentTermDays Int      @default(15)
-  retailers   Retailer[]
-  priceList   PriceList[]
-  createdAt   DateTime     @default(now())
+  paymentTermDays Int         @default(15)
+  retailers       Retailer[]
+  priceList       PriceList[]
+  createdAt       DateTime    @default(now())
 }
 
 model Retailer {
-  id             String        @id @default(uuid())
-  name           String
-  shopAddress    String
-  phone          String        @unique
-  tierId         String
-  tier           Tier          @relation(fields: [tierId], references: [id])
-  creditLimit    Decimal       @default(0) @db.Decimal(12, 2)
-  currentBalance Decimal       @default(0) @db.Decimal(12, 2)
+  id              String          @id @default(uuid())
+  name            String
+  shopAddress     String
+  phone           String          @unique
+  tierId          String
+  tier            Tier            @relation(fields: [tierId], references: [id])
+  creditLimit     Decimal         @default(0) @db.Decimal(12, 2)
+  currentBalance  Decimal         @default(0) @db.Decimal(12, 2)
   // Derived: recomputed from unsettled past-due invoices by recomputeOverdue().
   // Stored so list screens don't have to age every retailer's ledger on read.
-  overdueAmount  Decimal       @default(0) @db.Decimal(12, 2)
+  overdueAmount   Decimal         @default(0) @db.Decimal(12, 2)
   /// Overrides the tier's payment term when set.
   paymentTermDays Int?
-  salesRepId     String?
-  salesRep       SalesRep?     @relation(fields: [salesRepId], references: [id])
-  sapCustomerId  String?
-  orders         Order[]
-  ledgerEntries  LedgerEntry[]
-  priceOverrides PriceOverride[]
-  notifications  Notification[]
-  payments       Payment[]
-  createdAt      DateTime      @default(now())
+  salesRepId      String?
+  salesRep        SalesRep?       @relation(fields: [salesRepId], references: [id])
+  sapCustomerId   String?
+  orders          Order[]
+  ledgerEntries   LedgerEntry[]
+  priceOverrides  PriceOverride[]
+  notifications   Notification[]
+  payments        Payment[]
+  createdAt       DateTime        @default(now())
 }
 
 model AdminUser {
-  id           String   @id @default(uuid())
-  email        String   @unique
+  id           String     @id @default(uuid())
+  email        String     @unique
   name         String
   passwordHash String
-  createdAt    DateTime @default(now())
+  staffUser    StaffUser?
+  createdAt    DateTime   @default(now())
 }
 
 model SalesRep {
@@ -115,6 +128,147 @@ model SalesRep {
   phone     String
   photoUrl  String?
   retailers Retailer[]
+  staffUser StaffUser?
+}
+
+model StaffUser {
+  id               String           @id @default(uuid())
+  name             String
+  phone            String           @unique
+  email            String           @unique
+  employeeRef      String?          @unique
+  status           StaffStatus      @default(active)
+  salesRepId       String?          @unique
+  salesRep         SalesRep?        @relation(fields: [salesRepId], references: [id])
+  adminUserId      String?          @unique
+  adminUser        AdminUser?       @relation(fields: [adminUserId], references: [id])
+  roles            StaffRole[]
+  delegationsGiven RoleDelegation[] @relation("Delegator")
+  delegationsHeld  RoleDelegation[] @relation("Delegatee")
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([status])
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  name        String           @unique
+  description String?
+  staff       StaffRole[]
+  permissions RolePermission[]
+  delegations RoleDelegation[]
+  createdAt   DateTime         @default(now())
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  name        String           @unique
+  description String?
+  roles       RolePermission[]
+  createdAt   DateTime         @default(now())
+}
+
+model StaffRole {
+  staffId    String
+  roleId     String
+  staff      StaffUser @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  role       Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  assignedAt DateTime  @default(now())
+
+  @@id([staffId, roleId])
+  @@index([roleId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model RoleDelegation {
+  id               String    @id @default(uuid())
+  delegatorStaffId String
+  delegateeStaffId String
+  roleId           String
+  delegator        StaffUser @relation("Delegator", fields: [delegatorStaffId], references: [id])
+  delegatee        StaffUser @relation("Delegatee", fields: [delegateeStaffId], references: [id])
+  role             Role      @relation(fields: [roleId], references: [id])
+  startsAt         DateTime
+  endsAt           DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@index([delegateeStaffId, startsAt, endsAt])
+  @@index([delegatorStaffId])
+  @@index([roleId])
+}
+
+model DeviceSession {
+  id               String            @id @default(uuid())
+  realm            IdentityRealm
+  subjectId        String
+  tokenFamilyId    String
+  refreshTokenHash String            @unique
+  deviceName       String?
+  userAgent        String?
+  ipHash           String?
+  createdAt        DateTime          @default(now())
+  lastUsedAt       DateTime          @default(now())
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  stepUpChallenges StepUpChallenge[]
+
+  @@index([realm, subjectId, revokedAt])
+  @@index([tokenFamilyId])
+  @@index([expiresAt])
+}
+
+model OtpChallenge {
+  id                String        @id @default(uuid())
+  realm             IdentityRealm
+  phone             String
+  codeHash          String
+  requestIpHash     String?
+  attempts          Int           @default(0)
+  maxAttempts       Int           @default(5)
+  expiresAt         DateTime
+  resendAvailableAt DateTime
+  consumedAt        DateTime?
+  createdAt         DateTime      @default(now())
+
+  @@index([realm, phone, createdAt])
+  @@index([expiresAt])
+}
+
+model StepUpChallenge {
+  id         String        @id @default(uuid())
+  sessionId  String
+  session    DeviceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  codeHash   String
+  attempts   Int           @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime      @default(now())
+
+  @@index([sessionId, expiresAt])
+}
+
+model AuditEvent {
+  id           String   @id @default(uuid())
+  actorStaffId String?
+  action       String
+  subjectType  String
+  subjectId    String
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  @@index([actorStaffId, createdAt])
+  @@index([subjectType, subjectId, createdAt])
 }
 
 model Notification {
@@ -205,29 +359,29 @@ model AppConfig {
 }
 
 model Product {
-  id            String     @id @default(uuid())
+  id            String    @id @default(uuid())
   name          String
   category      String
   imageUrl      String?
   sapMaterialId String?
   variants      Variant[]
-  createdAt     DateTime   @default(now())
+  createdAt     DateTime  @default(now())
 }
 
 // A variant is one sellable case: `unitSize` x `unitsPerCase` (e.g. "1 kg" x 30).
 // PriceList.price is the price of the whole case.
 model Variant {
-  id           String      @id @default(uuid())
-  productId    String
-  product      Product     @relation(fields: [productId], references: [id])
-  unitSize     String
-  unit         String
-  unitsPerCase Int         @default(1)
+  id             String          @id @default(uuid())
+  productId      String
+  product        Product         @relation(fields: [productId], references: [id])
+  unitSize       String
+  unit           String
+  unitsPerCase   Int             @default(1)
   // Numeric weight of a single unit. Needed to invoice off delivered weight
   // (spec §5.6): price/kg = casePrice / (unitWeightKg * unitsPerCase).
-  unitWeightKg Decimal     @default(1) @db.Decimal(10, 3)
-  priceList    PriceList[]
-  orderItems   OrderItem[]
+  unitWeightKg   Decimal         @default(1) @db.Decimal(10, 3)
+  priceList      PriceList[]
+  orderItems     OrderItem[]
   priceOverrides PriceOverride[]
 }
 
@@ -255,63 +409,63 @@ model PriceOverride {
 }
 
 model Order {
-  id             String        @id @default(uuid())
+  id                 String        @id @default(uuid())
   // Human-facing reference shown to retailers (rendered as GGN-00001).
-  orderNo        Int           @unique @default(autoincrement())
-  retailerId     String
-  retailer       Retailer      @relation(fields: [retailerId], references: [id])
-  placedBy       PlacedBy      @default(retailer)
-  placedByRepId  String?
-  status         OrderStatus   @default(placed)
-  orderTotal     Decimal       @db.Decimal(12, 2)
+  orderNo            Int           @unique @default(autoincrement())
+  retailerId         String
+  retailer           Retailer      @relation(fields: [retailerId], references: [id])
+  placedBy           PlacedBy      @default(retailer)
+  placedByRepId      String?
+  status             OrderStatus   @default(placed)
+  orderTotal         Decimal       @db.Decimal(12, 2)
   expectedDeliveryAt DateTime?
-  sapSalesOrderId String?
-  items          OrderItem[]
-  delivery       Delivery?
-  ledgerEntries  LedgerEntry[]
-  createdAt      DateTime      @default(now())
+  sapSalesOrderId    String?
+  items              OrderItem[]
+  delivery           Delivery?
+  ledgerEntries      LedgerEntry[]
+  createdAt          DateTime      @default(now())
 }
 
 model OrderItem {
-  id            String   @id @default(uuid())
-  orderId       String
-  order         Order    @relation(fields: [orderId], references: [id])
-  variantId     String
-  variant       Variant  @relation(fields: [variantId], references: [id])
-  qtyOrdered    Int
-  unitPrice     Decimal  @db.Decimal(12, 2)
-  qtyDelivered  Int?
+  id              String   @id @default(uuid())
+  orderId         String
+  order           Order    @relation(fields: [orderId], references: [id])
+  variantId       String
+  variant         Variant  @relation(fields: [variantId], references: [id])
+  qtyOrdered      Int
+  unitPrice       Decimal  @db.Decimal(12, 2)
+  qtyDelivered    Int?
   weightDelivered Decimal? @db.Decimal(12, 3)
 }
 
 model Delivery {
-  id             String    @id @default(uuid())
-  orderId        String    @unique
-  order          Order     @relation(fields: [orderId], references: [id])
-  routeId        String?
-  deliverySlot   DateTime?
-  podType        PodType?
-  podCapturedAt  DateTime?
-  actualWeight   Decimal?  @db.Decimal(12, 3)
+  id            String    @id @default(uuid())
+  orderId       String    @unique
+  order         Order     @relation(fields: [orderId], references: [id])
+  routeId       String?
+  deliverySlot  DateTime?
+  podType       PodType?
+  podCapturedAt DateTime?
+  actualWeight  Decimal?  @db.Decimal(12, 3)
 }
 
 model LedgerEntry {
-  id          String     @id @default(uuid())
-  retailerId  String
-  retailer    Retailer   @relation(fields: [retailerId], references: [id])
-  orderId     String?
-  order       Order?     @relation(fields: [orderId], references: [id])
-  paymentId   String?
-  payment     Payment?   @relation(fields: [paymentId], references: [id])
-  type        LedgerType
-  amount      Decimal    @db.Decimal(12, 2)
-  balanceAfter Decimal   @db.Decimal(12, 2)
+  id            String     @id @default(uuid())
+  retailerId    String
+  retailer      Retailer   @relation(fields: [retailerId], references: [id])
+  orderId       String?
+  order         Order?     @relation(fields: [orderId], references: [id])
+  paymentId     String?
+  payment       Payment?   @relation(fields: [paymentId], references: [id])
+  type          LedgerType
+  amount        Decimal    @db.Decimal(12, 2)
+  balanceAfter  Decimal    @db.Decimal(12, 2)
   // Invoices only: when payment falls due, and how much of it has been settled
   // by payments so far. An invoice is overdue when dueDate has passed and
   // settledAmount is still short of amount.
   dueDate       DateTime?
-  settledAmount Decimal   @default(0) @db.Decimal(12, 2)
-  createdAt   DateTime   @default(now())
+  settledAmount Decimal    @default(0) @db.Decimal(12, 2)
+  createdAt     DateTime   @default(now())
 
   @@index([retailerId, type, dueDate])
 }

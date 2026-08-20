@@ -1,48 +1,105 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { signRepToken, requireRep, assignedRetailer, RepRequest } from "../lib/repAuth";
+import { requireRep, assignedRetailer, RepRequest } from "../lib/repAuth";
 import { createOrderForRetailer } from "../lib/orders";
+import { normalizeIndianPhone } from "../modules/identity/otpService";
+import { lazyIdentityOtpService } from "../modules/identity/otpRuntime";
+import { createOtpRouter } from "../modules/identity/otpRoutes";
+import { createSessionRouter } from "../modules/identity/sessionRoutes";
+import { lazyIdentitySessionService } from "../modules/identity/sessionRuntime";
+import {
+  createRequireSession,
+  type IdentityAuthedRequest,
+} from "../modules/identity/sessionAuth";
 
 const router = Router();
-const MOCK_OTP = process.env.MOCK_OTP || "123456";
 
 /* ---------------------------------- auth --------------------------------- */
 
-router.post("/auth/otp/request", async (req, res) => {
-  const parsed = z.object({ phone: z.string().min(10).max(15) }).safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Invalid phone" });
+async function findStaffAccount(phoneInput: string) {
+  const normalized = normalizeIndianPhone(phoneInput);
+  return prisma.staffUser.findFirst({
+    where: {
+      phone: { in: [normalized, normalized.slice(3)] },
+      status: "active",
+    },
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      email: true,
+      salesRep: { select: { id: true, name: true, phone: true } },
+    },
+  });
+}
 
-  const rep = await prisma.salesRep.findFirst({ where: { phone: parsed.data.phone } });
-  if (!rep) return res.status(404).json({ error: "No sales rep registered with this phone" });
+router.use(
+  "/auth",
+  createOtpRouter({
+    realm: "staff",
+    otpService: lazyIdentityOtpService,
+    findAccount: findStaffAccount,
+    issueIdentity: async (staff, req) => {
+      const session = await lazyIdentitySessionService.createSession({
+        realm: "staff",
+        subjectId: staff.id,
+        deviceName: req.header("x-device-name") ?? undefined,
+        userAgent: req.header("user-agent") ?? undefined,
+      });
+      const claims = lazyIdentitySessionService.verifyAccessToken(session.accessToken, "staff");
+      return {
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+        session: { id: session.session.id, expiresAt: session.session.expiresAt },
+        staff: {
+          id: staff.id,
+          name: staff.name,
+          phone: staff.phone,
+          email: staff.email,
+          permissions: claims.permissions,
+        },
+        rep: staff.salesRep,
+      };
+    },
+  })
+);
 
-  console.log(`[mock rep OTP] ${parsed.data.phone} -> ${MOCK_OTP}`);
-  res.json({ ok: true, message: "OTP sent (mocked)" });
-});
+router.use(
+  "/auth",
+  createSessionRouter({
+    realm: "staff",
+    sessions: lazyIdentitySessionService,
+    otpService: lazyIdentityOtpService,
+    resolvePhone: async (staffId) => {
+      const staff = await prisma.staffUser.findUniqueOrThrow({
+        where: { id: staffId },
+        select: { phone: true },
+      });
+      return staff.phone;
+    },
+  })
+);
 
-router.post("/auth/otp/verify", async (req, res) => {
-  const parsed = z
-    .object({ phone: z.string().min(10).max(15), otp: z.string() })
-    .safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
-  if (parsed.data.otp !== MOCK_OTP) return res.status(401).json({ error: "Incorrect OTP" });
+const requireStaffSession = createRequireSession("staff", lazyIdentitySessionService);
 
-  const rep = await prisma.salesRep.findFirst({ where: { phone: parsed.data.phone } });
-  if (!rep) return res.status(404).json({ error: "No sales rep registered with this phone" });
-
+router.get("/me", requireStaffSession, async (req: IdentityAuthedRequest, res) => {
+  const staff = await prisma.staffUser.findUnique({
+    where: { id: req.identityAuth!.subjectId },
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      email: true,
+      salesRep: { select: { id: true, name: true, phone: true } },
+    },
+  });
+  if (!staff) return res.status(401).json({ error: "Session no longer valid" });
+  const { salesRep, ...identity } = staff;
   res.json({
-    token: signRepToken(rep.id),
-    rep: { id: rep.id, name: rep.name, phone: rep.phone },
+    staff: { ...identity, permissions: req.staffAuth!.permissions },
+    rep: salesRep,
   });
-});
-
-router.get("/me", requireRep, async (req: RepRequest, res) => {
-  const rep = await prisma.salesRep.findUnique({
-    where: { id: req.repId },
-    select: { id: true, name: true, phone: true },
-  });
-  if (!rep) return res.status(401).json({ error: "Session no longer valid" });
-  res.json({ rep });
 });
 
 /* -------------------------------- retailers ------------------------------- */

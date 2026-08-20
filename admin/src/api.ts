@@ -1,9 +1,14 @@
 const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
-const TOKEN_KEY = "gagan_admin_token";
+let accessToken: string | null = null;
+let refreshPromise: Promise<string> | null = null;
 
-export const getToken = () => localStorage.getItem(TOKEN_KEY);
-export const setToken = (t: string) => localStorage.setItem(TOKEN_KEY, t);
-export const clearToken = () => localStorage.removeItem(TOKEN_KEY);
+export const getAccessToken = () => accessToken;
+export const setAccessToken = (token: string) => {
+  accessToken = token;
+};
+export const clearAccessToken = () => {
+  accessToken = null;
+};
 
 let onUnauthorized: (() => void) | null = null;
 export const setUnauthorizedHandler = (fn: (() => void) | null) => {
@@ -20,20 +25,62 @@ export class ApiError extends Error {
   }
 }
 
-async function request(path: string, options: RequestInit = {}) {
+async function parseResponse(res: Response) {
+  return res.json().catch(() => ({}));
+}
+
+async function refreshAccessToken() {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      const res = await fetch(`${BASE_URL}/admin/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Gagan-Client": "admin-web",
+        },
+      });
+      const body = await parseResponse(res);
+      if (!res.ok || typeof body.accessToken !== "string") {
+        clearAccessToken();
+        throw new ApiError(res.status, body);
+      }
+      setAccessToken(body.accessToken);
+      return body.accessToken;
+    })().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
+async function request(
+  path: string,
+  options: RequestInit = {},
+  auth = true,
+  allowRefresh = true
+) {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string> | undefined),
   };
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
+  if (auth && accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
-  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
-  const body = await res.json().catch(() => ({}));
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...options,
+    headers,
+    credentials: "include",
+  });
+  const body = await parseResponse(res);
 
-  if (res.status === 401) {
-    clearToken();
-    onUnauthorized?.();
+  if (res.status === 401 && auth && allowRefresh) {
+    try {
+      await refreshAccessToken();
+      return request(path, options, auth, false);
+    } catch {
+      clearAccessToken();
+      onUnauthorized?.();
+    }
   }
   if (!res.ok) throw new ApiError(res.status, body);
   return body;
@@ -41,10 +88,33 @@ async function request(path: string, options: RequestInit = {}) {
 
 const post = (path: string, body?: unknown) =>
   request(path, { method: "POST", body: body ? JSON.stringify(body) : undefined });
+const patch = (path: string, body: unknown) =>
+  request(path, { method: "PATCH", body: JSON.stringify(body) });
+const remove = (path: string) => request(path, { method: "DELETE" });
 
 export const api = {
-  login: (email: string, password: string) => post("/admin/auth/login", { email, password }),
+  login: (email: string, password: string) =>
+    request(
+      "/admin/auth/login",
+      { method: "POST", body: JSON.stringify({ email, password }) },
+      false
+    ),
+  refresh: refreshAccessToken,
+  logout: () => post("/admin/auth/logout"),
   me: () => request("/admin/auth/me"),
+
+  staff: () => request("/admin/staff"),
+  roles: () => request("/admin/roles"),
+  createStaff: (data: unknown) => post("/admin/staff", data),
+  setStaffStatus: (id: string, status: "active" | "suspended" | "revoked") =>
+    patch(`/admin/staff/${id}/status`, { status }),
+  assignStaffRole: (id: string, roleId: string) =>
+    post(`/admin/staff/${id}/roles`, { roleId }),
+  removeStaffRole: (id: string, roleId: string) =>
+    remove(`/admin/staff/${id}/roles/${roleId}`),
+  createDelegation: (delegateeId: string, data: unknown) =>
+    post(`/admin/staff/${delegateeId}/delegations`, data),
+  revokeDelegation: (id: string) => remove(`/admin/staff/delegations/${id}`),
 
   orders: (status?: string) => request(`/admin/orders${status ? `?status=${status}` : ""}`),
   order: (id: string) => request(`/admin/orders/${id}`),

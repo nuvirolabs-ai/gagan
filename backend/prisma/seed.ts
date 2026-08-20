@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { recomputeOverdue } from "../src/lib/ageing";
+import { ROLE_DEFINITIONS } from "../src/modules/identity/roleCatalog";
 
 const prisma = new PrismaClient();
 
@@ -12,6 +13,16 @@ function daysFromNow(n: number) {
 
 async function main() {
   // Wipe transactional data so the seed is repeatable.
+  await prisma.stepUpChallenge.deleteMany();
+  await prisma.deviceSession.deleteMany();
+  await prisma.otpChallenge.deleteMany();
+  await prisma.roleDelegation.deleteMany();
+  await prisma.staffRole.deleteMany();
+  await prisma.rolePermission.deleteMany();
+  await prisma.auditEvent.deleteMany();
+  await prisma.staffUser.deleteMany();
+  await prisma.permission.deleteMany();
+  await prisma.role.deleteMany();
   await prisma.sapOutbox.deleteMany();
   await prisma.sapSyncState.deleteMany();
   await prisma.ledgerEntry.deleteMany();
@@ -42,7 +53,7 @@ async function main() {
     data: { name: "Ravi Kumar", phone: "9812345670" },
   });
 
-  await prisma.adminUser.upsert({
+  const admin = await prisma.adminUser.upsert({
     where: { email: "admin@gagan.test" },
     update: {},
     create: {
@@ -50,6 +61,53 @@ async function main() {
       name: "Ops Admin",
       passwordHash: await bcrypt.hash("admin123", 10),
     },
+  });
+
+  const permissionIds = new Map<string, string>();
+  for (const permissionName of new Set(ROLE_DEFINITIONS.flatMap((role) => role.permissions))) {
+    const permission = await prisma.permission.create({ data: { name: permissionName } });
+    permissionIds.set(permissionName, permission.id);
+  }
+
+  const roleIds = new Map<string, string>();
+  for (const definition of ROLE_DEFINITIONS) {
+    const role = await prisma.role.create({
+      data: {
+        name: definition.name,
+        description: definition.description,
+        permissions: {
+          create: definition.permissions.map((permissionName) => ({
+            permissionId: permissionIds.get(permissionName)!,
+          })),
+        },
+      },
+    });
+    roleIds.set(role.name, role.id);
+  }
+
+  const salesStaff = await prisma.staffUser.create({
+    data: {
+      name: rep.name,
+      phone: rep.phone,
+      email: "ravi@gagan.test",
+      employeeRef: "SALES-001",
+      salesRepId: rep.id,
+    },
+  });
+  const platformAdmin = await prisma.staffUser.create({
+    data: {
+      name: admin.name,
+      phone: "919999999998",
+      email: admin.email,
+      employeeRef: "ADMIN-001",
+      adminUserId: admin.id,
+    },
+  });
+  await prisma.staffRole.createMany({
+    data: [
+      { staffId: salesStaff.id, roleId: roleIds.get("salesperson")! },
+      { staffId: platformAdmin.id, roleId: roleIds.get("platform_admin")! },
+    ],
   });
 
   await prisma.appConfig.upsert({
@@ -219,7 +277,7 @@ async function main() {
   });
 
   const overdue = await recomputeOverdue(prisma, retailer.id);
-  console.log("Seed complete. Test retailer phone: 9999999999, mock OTP: 123456");
+  console.log("Seed complete. Test retailer phone: 9999999999.");
   console.log(`Opening balance Rs${runningBalance}, of which Rs${overdue} is overdue.`);
 }
 

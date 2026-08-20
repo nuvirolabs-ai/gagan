@@ -102,6 +102,17 @@ export const api = {
   refresh: refreshAccessToken,
   logout: () => post("/admin/auth/logout"),
   me: () => request("/admin/auth/me"),
+  requestAdminStepUp: () => post("/admin/auth/step-up/request"),
+  async completeAdminStepUp(challengeId: string, otp: string) {
+    const result = await post("/admin/auth/step-up", { challengeId, otp });
+    setAccessToken(result.accessToken);
+    return result;
+  },
+
+  approvals: () => request("/admin/approvals"),
+  approval: (id: string) => request(`/admin/approvals/${id}`),
+  decideApproval: (id: string, result: "approved" | "rejected", reason?: string) =>
+    post(`/admin/approvals/${id}/decision`, { result, reason }),
 
   staff: () => request("/admin/staff"),
   roles: () => request("/admin/roles"),

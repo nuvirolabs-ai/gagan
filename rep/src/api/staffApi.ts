@@ -16,7 +16,19 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
     async logout() {
       try { await post("/rep/auth/logout"); } finally { await store.clear(); }
     },
+    requestStepUp: () => post("/rep/auth/step-up/request"),
+    async completeStepUp(challengeId: string, otp: string) {
+      const result = await post("/rep/auth/step-up", { challengeId, otp });
+      const existing = await store.load();
+      if (!existing || typeof result.accessToken !== "string") throw new Error("invalid_step_up_session");
+      await store.save({ accessToken: result.accessToken, refreshToken: existing.refreshToken });
+      return result;
+    },
     me: () => request("/rep/me"),
+    approvals: () => request("/rep/approvals"),
+    approval: (id: string) => request(`/rep/approvals/${id}`),
+    decideApproval: (id: string, result: "approved" | "rejected", reason?: string) =>
+      post(`/rep/approvals/${id}/decision`, { result, reason }),
     retailers: () => request("/rep/retailers"),
     retailer: (id: string) => request(`/rep/retailers/${id}`),
     catalogFor: (id: string) => request(`/rep/retailers/${id}/catalog`),

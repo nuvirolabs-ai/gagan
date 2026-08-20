@@ -7,11 +7,14 @@ const mocks = vi.hoisted(() => ({
   findOrderOrThrow: vi.fn(),
   transaction: vi.fn(),
   createInvoice: vi.fn(),
+  findAuthorization: vi.fn(),
+  updateOrder: vi.fn(),
 }));
 
 vi.mock("../../../lib/prisma", () => ({
   prisma: {
-    order: { findUnique: mocks.findOrder, findUniqueOrThrow: mocks.findOrderOrThrow },
+    order: { findUnique: mocks.findOrder, findUniqueOrThrow: mocks.findOrderOrThrow, update: mocks.updateOrder },
+    dispatchAuthorization: { findFirst: mocks.findAuthorization },
     $transaction: mocks.transaction,
   },
 }));
@@ -23,7 +26,21 @@ vi.mock("../invoiceService", () => ({ createInvoiceForDelivery: mocks.createInvo
 import adminOrderRoutes from "../../../routes/admin/orders";
 
 describe("delivery API cutover", () => {
+  it("cannot confirm an order without current dispatch authorization", async () => {
+    mocks.findOrder.mockResolvedValue({ id: "order-held", status: "placed" });
+    mocks.findAuthorization.mockResolvedValue(null);
+    const app = express();
+    app.use(express.json(), adminOrderRoutes);
+
+    const response = await request(app).post("/orders/order-held/approve");
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ error: "dispatch_authorization_required" });
+    expect(mocks.updateOrder).not.toHaveBeenCalled();
+  });
+
   it("completes POD through exactly-once invoice creation", async () => {
+    mocks.findAuthorization.mockResolvedValue({ id: "authorization-1" });
     mocks.findOrder.mockResolvedValue({
       id: "order-1",
       retailerId: "retailer-1",
@@ -71,6 +88,7 @@ describe("delivery API cutover", () => {
   });
 
   it("returns the existing invoice when the POD request is retried", async () => {
+    mocks.findAuthorization.mockResolvedValue({ id: "authorization-1" });
     mocks.findOrder.mockResolvedValue({
       id: "order-1",
       retailerId: "retailer-1",

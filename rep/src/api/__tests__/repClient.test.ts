@@ -21,4 +21,21 @@ describe("staff auth API", () => {
     expect(store.save).toHaveBeenCalledWith({ accessToken: "access", refreshToken: "refresh" });
     expect(result.staff.permissions).toEqual(["collection.submit"]);
   });
+
+  it("keeps the refresh token when step-up replaces the access token", async () => {
+    const request = vi.fn()
+      .mockResolvedValueOnce({ challengeId: "step-1" })
+      .mockResolvedValueOnce({ accessToken: "elevated" });
+    const store = {
+      load: vi.fn().mockResolvedValue({ accessToken: "old", refreshToken: "refresh" }),
+      save: vi.fn(),
+      clear: vi.fn(),
+    };
+    const api = createStaffApi(request, store);
+
+    await api.requestStepUp();
+    await api.completeStepUp("step-1", "123456");
+
+    expect(store.save).toHaveBeenCalledWith({ accessToken: "elevated", refreshToken: "refresh" });
+  });
 });

@@ -61,6 +61,14 @@ async function transition(orderId: string, to: OrderStatus, res: any) {
   const problem = assertTransition(order.status, to);
   if (problem) return res.status(409).json({ error: problem });
 
+  if (to !== "rejected") {
+    const authorization = await prisma.dispatchAuthorization.findFirst({
+      where: { orderId, status: "active" },
+      select: { id: true },
+    });
+    if (!authorization) return res.status(409).json({ error: "dispatch_authorization_required" });
+  }
+
   const updated = await prisma.order.update({
     where: { id: orderId },
     data: { status: to },
@@ -87,6 +95,11 @@ router.post("/dispatch/:orderId/assign", async (req, res) => {
 
   const problem = assertTransition(order.status, "out_for_delivery");
   if (problem) return res.status(409).json({ error: problem });
+  const authorization = await prisma.dispatchAuthorization.findFirst({
+    where: { orderId: order.id, status: "active" },
+    select: { id: true },
+  });
+  if (!authorization) return res.status(409).json({ error: "dispatch_authorization_required" });
 
   const slot = parsed.data.deliverySlot ? new Date(parsed.data.deliverySlot) : null;
 
@@ -95,6 +108,10 @@ router.post("/dispatch/:orderId/assign", async (req, res) => {
       where: { orderId: order.id },
       update: { routeId: parsed.data.routeId, deliverySlot: slot },
       create: { orderId: order.id, routeId: parsed.data.routeId, deliverySlot: slot },
+    });
+    await tx.dispatchAuthorization.update({
+      where: { id: authorization.id },
+      data: { status: "used", usedAt: new Date() },
     });
     return tx.order.update({
       where: { id: order.id },
@@ -142,6 +159,11 @@ router.post("/dispatch/:orderId/pod", async (req, res) => {
   const problem =
     order.status === "delivered" ? null : assertTransition(order.status, "delivered");
   if (problem) return res.status(409).json({ error: problem });
+  const authorization = await prisma.dispatchAuthorization.findFirst({
+    where: { orderId: order.id, status: { in: ["active", "used"] } },
+    select: { id: true },
+  });
+  if (!authorization) return res.status(409).json({ error: "dispatch_authorization_required" });
 
   const knownItemIds = new Set(order.items.map((i) => i.id));
   const unknown = parsed.data.items.filter((i) => !knownItemIds.has(i.orderItemId));

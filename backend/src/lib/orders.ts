@@ -150,7 +150,22 @@ export async function createOrderForRetailer(
           approvalType: approvalType(decision),
           requiredPermission: decision.requiredPermission,
           requestedByStaffId: placedBy === "rep" ? placedByRepId ?? null : null,
+          requestReason: decision.reasons.join(","),
           deadlineAt: decision.deadline,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          actorStaffId: placedBy === "rep" ? placedByRepId ?? null : null,
+          action: "approval.requested",
+          subjectType: "approval_request",
+          subjectId: request.id,
+          metadata: json({
+            orderId: order.id,
+            retailerId,
+            requiredPermission: decision.requiredPermission,
+            reasons: decision.reasons,
+          }),
         },
       });
       return { ok: true, order, decision, approvalRequest: request };

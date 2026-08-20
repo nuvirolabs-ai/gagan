@@ -56,12 +56,12 @@ export function assessOrder(policy: CreditPolicy, snapshot: CreditSnapshot, orde
 
 ## Task 4: Implement approval service and dual-client queue
 
-- [ ] Write tests for second invoice, third invoice, backup delegation, repeated queue routing, concurrent decisions, mandatory rejection reason, and step-up authentication.
-- [ ] Implement create/list/detail/decide endpoints using permission checks.
-- [ ] Make approval re-run credit assessment and issue a versioned dispatch authorization.
-- [ ] Add admin queue/detail and staff Today/approval cards consuming the same API.
-- [ ] Add notification events for request, nearing SLA, decision, and escalation.
-- [ ] Commit: `feat: add shared web and mobile approval workflow`.
+- [x] Write tests for second invoice, third invoice, backup delegation, repeated queue routing, concurrent decisions, mandatory rejection reason, and step-up authentication.
+- [x] Implement create/list/detail/decide endpoints using permission checks.
+- [x] Make approval re-run credit assessment and issue a versioned dispatch authorization.
+- [x] Add admin queue/detail and staff Today/approval cards consuming the same API.
+- [ ] Add notification events for request, nearing SLA, decision, and escalation. Request/decision events are complete; nearing-SLA/escalation events belong to Task 5.
+- [x] Commit: `feat: add shared web and mobile approval workflow`.
 
 ## Task 5: Implement SLA escalation and disputes
 

@@ -10,7 +10,8 @@ function wholeDaysBetween(earlier: Date, later: Date) {
 export async function buildCreditSnapshot(
   tx: Prisma.TransactionClient,
   retailerId: string,
-  now = new Date()
+  now = new Date(),
+  excludeOrderId?: string
 ): Promise<CreditSnapshot> {
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const [retailer, profile, invoices, invoiceCount, pending, approvalCount] = await Promise.all([
@@ -26,7 +27,11 @@ export async function buildCreditSnapshot(
     }),
     tx.invoice.count({ where: { retailerId, status: { not: "voided" } } }),
     tx.order.aggregate({
-      where: { retailerId, status: { in: [...RESERVED_ORDER_STATUSES] } },
+      where: {
+        retailerId,
+        status: { in: [...RESERVED_ORDER_STATUSES] },
+        ...(excludeOrderId ? { id: { not: excludeOrderId } } : {}),
+      },
       _sum: { orderTotal: true },
     }),
     tx.approvalRequest.count({ where: { retailerId, createdAt: { gte: monthStart } } }),

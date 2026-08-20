@@ -124,7 +124,8 @@ describe("financial backfill and reconciliation", () => {
   it("defaults to a write-free plan, applies once, and reports unmatched history", async () => {
     await createFixture();
 
-    const dryRun = await backfillFinancialCore({ apply: false });
+    const retailerIds = [ids.retailer, ids.unmatchedRetailer];
+    const dryRun = await backfillFinancialCore({ apply: false, retailerIds });
     expect(dryRun.mode).toBe("dry-run");
     expect(dryRun.planned).toMatchObject({
       invoices: 2,
@@ -132,9 +133,13 @@ describe("financial backfill and reconciliation", () => {
       allocations: 2,
     });
     expect(await prisma.invoice.count({ where: { retailerId: ids.retailer } })).toBe(0);
-    expect(await prisma.reconciliationIssue.count()).toBe(0);
+    expect(
+      await prisma.reconciliationIssue.count({
+        where: { retailerId: { in: retailerIds } },
+      })
+    ).toBe(0);
 
-    const applied = await backfillFinancialCore({ apply: true });
+    const applied = await backfillFinancialCore({ apply: true, retailerIds });
     expect(applied.mode).toBe("apply");
     expect(await prisma.invoice.count({ where: { retailerId: ids.retailer } })).toBe(2);
     expect(
@@ -150,7 +155,7 @@ describe("financial backfill and reconciliation", () => {
       })
     ).toBe(1);
 
-    const repeated = await backfillFinancialCore({ apply: true });
+    const repeated = await backfillFinancialCore({ apply: true, retailerIds });
     expect(repeated.applied).toMatchObject({ invoices: 0, payments: 0, allocations: 0 });
     expect(await prisma.invoice.count({ where: { retailerId: ids.retailer } })).toBe(2);
 

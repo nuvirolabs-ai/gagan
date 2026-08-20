@@ -16,6 +16,13 @@ import { useRep } from "../context/RepContext";
 import { colors, radius, spacing, shadow, inr } from "../theme";
 import { StatusPill } from "../components/ui";
 
+const LEDGER_LABELS: Record<string, string> = {
+  invoice: "Invoice",
+  payment: "Payment received",
+  credit_note: "Credit note",
+  payment_reversal: "Payment reversed",
+};
+
 export default function RepRetailerDetailScreen({ route, navigation }: any) {
   const { retailerId } = route.params;
   const { setActiveRetailer } = useRep();
@@ -172,7 +179,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
               >
                 <View style={{ flex: 1 }}>
                   <Text style={styles.rowTitle}>
-                    {e.type === "invoice" ? "Invoice" : "Payment received"}
+                    {LEDGER_LABELS[e.type] ?? "Ledger entry"}
                   </Text>
                   <Text style={styles.rowSub}>
                     {new Date(e.createdAt).toLocaleDateString("en-IN", {
@@ -184,10 +191,15 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
                 <Text
                   style={[
                     styles.rowValue,
-                    { color: e.type === "invoice" ? colors.danger : colors.green },
+                    {
+                      color:
+                        (e.direction ? e.direction === "debit" : e.type === "invoice")
+                          ? colors.danger
+                          : colors.green,
+                    },
                   ]}
                 >
-                  {e.type === "invoice" ? "+" : "−"}
+                  {e.direction ? (e.direction === "debit" ? "+" : "−") : e.type === "invoice" ? "+" : "−"}
                   {inr(Number(e.amount))}
                 </Text>
               </View>

@@ -126,10 +126,14 @@ export async function issueCreditNote(input: IssueCreditNoteInput) {
         });
 
         if (appliedToOutstanding > 0) {
-          const legacyInvoice = await tx.ledgerEntry.findFirst({
-            where: { orderId: invoice.orderId, type: "invoice" },
-            orderBy: { createdAt: "asc" },
-          });
+          const legacyInvoice = invoice.legacyLedgerEntryId
+            ? await tx.ledgerEntry.findUnique({
+                where: { id: invoice.legacyLedgerEntryId },
+              })
+            : await tx.ledgerEntry.findFirst({
+                where: { orderId: invoice.orderId, type: "invoice" },
+                orderBy: { createdAt: "asc" },
+              });
           if (!legacyInvoice) throw new FinancialCorrectionError("legacy_invoice_missing");
           await tx.ledgerEntry.update({
             where: { id: legacyInvoice.id },

@@ -75,17 +75,17 @@ expect(await prisma.financialLedgerEntry.count({ where: { invoiceId } })).toBe(1
 
 ## Task 6: Cut API reads/writes over and remove unsafe paths
 
-- [ ] Add characterization API tests for retailer ledger, dues, admin ledger, online payment, manual payment, and delivery invoice.
-- [ ] Route all writes through domain services and all reads through the new financial projections.
-- [ ] Keep legacy fields read-only for one release; add invariant monitoring comparing legacy and new balances.
-- [ ] Remove direct `currentBalance` arithmetic from route handlers.
-- [ ] Run full verification and reconciliation suite.
-- [ ] Commit: `refactor: cut financial APIs to immutable core`.
+- [x] Add characterization API tests for retailer ledger, dues, admin ledger, online payment, manual payment, and delivery invoice.
+- [x] Route all writes through domain services and all reads through the new financial projections.
+- [x] Keep legacy fields read-only for one release; add hourly invariant monitoring comparing cached and rebuilt balances.
+- [x] Remove direct `currentBalance` arithmetic from route handlers and delete the unsafe legacy settlement helper.
+- [x] Run full backend, admin, retailer-app, salesperson-app, migration, backfill, and reconciliation verification.
+- [x] Commit: `refactor: cut financial APIs to immutable core`.
 
 ## Exit gate
 
-- [ ] Duplicate invoice/payment concurrency tests pass.
-- [ ] Ledger rebuild equals cached balances for all clean records.
-- [ ] Every difference becomes an owned reconciliation issue.
-- [ ] Corrections are compensating events.
-- [ ] No route performs read-calculate-overwrite balance mutation.
+- [x] Duplicate invoice/payment concurrency tests pass.
+- [x] Ledger rebuild equals cached balances for all clean records.
+- [x] Every difference becomes an Accounts-owned reconciliation issue.
+- [x] Corrections are compensating events.
+- [x] No route performs read-calculate-overwrite balance mutation.

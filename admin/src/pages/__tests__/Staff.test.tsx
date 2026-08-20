@@ -106,11 +106,16 @@ describe("staff administration", () => {
       expect(api.assignStaffRole).toHaveBeenCalledWith("staff-ravi", "role-coordinate")
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Suspend access" }));
+    const suspendButton = screen.getByRole("button", { name: "Suspend access" });
+    await waitFor(() => expect(suspendButton).toBeEnabled());
+    fireEvent.click(suspendButton);
     await waitFor(() =>
       expect(api.setStaffStatus).toHaveBeenCalledWith("staff-ravi", "suspended")
     );
 
+    await waitFor(() =>
+      expect(screen.getByLabelText("Authority owner")).toBeEnabled()
+    );
     fireEvent.change(screen.getByLabelText("Authority owner"), { target: { value: "staff-meera" } });
     fireEvent.change(screen.getByLabelText("Delegated role"), { target: { value: "role-coordinate" } });
     fireEvent.change(screen.getByLabelText("Starts"), { target: { value: "2026-08-20T10:00" } });

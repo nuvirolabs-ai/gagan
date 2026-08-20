@@ -11,6 +11,6 @@ export function findExistingInvoice(
     where: {
       OR: [{ orderId: input.orderId }, { idempotencyKey: input.idempotencyKey }],
     },
-    include: { lines: true, ledgerEntry: true },
+    include: { lines: true, ledgerEntry: true, legacyLedgerEntry: true },
   });
 }

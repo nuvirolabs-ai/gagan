@@ -127,6 +127,27 @@ async function createOnce(input: CreateInvoiceForDeliveryInput): Promise<Invoice
       const dueDate = addDays(input.occurredAt, termDays);
       const itemById = new Map(order.items.map((item) => [item.id, item]));
 
+      if (input.proof) {
+        const actualWeight = breakdown.lines.reduce(
+          (sum, line) => sum + (line.billedWeightKg ?? 0),
+          0
+        );
+        await tx.delivery.upsert({
+          where: { orderId: order.id },
+          update: {
+            podType: input.proof.podType,
+            podCapturedAt: input.proof.capturedAt,
+            actualWeight,
+          },
+          create: {
+            orderId: order.id,
+            podType: input.proof.podType,
+            podCapturedAt: input.proof.capturedAt,
+            actualWeight,
+          },
+        });
+      }
+
       const invoice = await tx.invoice.create({
         data: {
           retailerId: order.retailerId,
@@ -198,7 +219,7 @@ async function createOnce(input: CreateInvoiceForDeliveryInput): Promise<Invoice
 
       return tx.invoice.findUniqueOrThrow({
         where: { id: invoice.id },
-        include: { lines: true, ledgerEntry: true },
+        include: { lines: true, ledgerEntry: true, legacyLedgerEntry: true },
       });
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted }

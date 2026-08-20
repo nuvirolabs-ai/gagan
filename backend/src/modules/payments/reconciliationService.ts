@@ -64,8 +64,9 @@ function round2(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-async function buildBackfillPlans(): Promise<RetailerBackfillPlan[]> {
+async function buildBackfillPlans(retailerIds?: string[]): Promise<RetailerBackfillPlan[]> {
   const retailers = await prisma.retailer.findMany({
+    where: retailerIds ? { id: { in: retailerIds } } : undefined,
     orderBy: { id: "asc" },
     include: {
       tier: { select: { paymentTermDays: true } },
@@ -340,10 +341,12 @@ async function financialSnapshot() {
   };
 }
 
-export async function backfillFinancialCore(options: { apply?: boolean } = {}) {
+export async function backfillFinancialCore(
+  options: { apply?: boolean; retailerIds?: string[] } = {}
+) {
   const apply = options.apply === true;
   const financialBefore = await financialSnapshot();
-  const plans = await buildBackfillPlans();
+  const plans = await buildBackfillPlans(options.retailerIds);
   const applicable = plans.filter((plan) => !plan.blocked);
   const issues = plans.flatMap((plan) => plan.issues);
   const planned = {
@@ -427,6 +430,9 @@ export async function backfillFinancialCore(options: { apply?: boolean } = {}) {
   }
 
   const legacy = await prisma.ledgerEntry.groupBy({
+    where: options.retailerIds
+      ? { retailerId: { in: options.retailerIds } }
+      : undefined,
     by: ["type"],
     _count: { _all: true },
     _sum: { amount: true },

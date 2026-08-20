@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -36,6 +36,7 @@ describe("immutable financial schema", () => {
     expect(field("Invoice", "idempotencyKey").isUnique).toBe(true);
     expect(field("FinancialLedgerEntry", "paymentId").isUnique).toBe(true);
     expect(field("FinancialLedgerEntry", "idempotencyKey").isUnique).toBe(true);
+    expect(field("Payment", "unallocatedAmount").type).toBe("Decimal");
   });
 
   it("uses production money and weight precision", () => {
@@ -58,5 +59,18 @@ describe("immutable financial schema", () => {
     expect(migration).toContain('CHECK ("total" >= 0)');
     expect(migration).toContain('CHECK ("outstandingAmount" >= 0 AND "outstandingAmount" <= "total")');
     expect(migration).toContain('CHECK ("amount" > 0)');
+  });
+
+  it("prevents a negative unallocated payment amount", () => {
+    const migrationsDir = join(process.cwd(), "prisma/migrations");
+    const migrationSql = readdirSync(migrationsDir)
+      .map((entry) => join(migrationsDir, entry, "migration.sql"))
+      .filter((path) => existsSync(path))
+      .map((path) => readFileSync(path, "utf8"))
+      .join("\n");
+
+    expect(migrationSql).toContain(
+      'CONSTRAINT "Payment_unallocated_nonnegative_check" CHECK ("unallocatedAmount" >= 0)'
+    );
   });
 });

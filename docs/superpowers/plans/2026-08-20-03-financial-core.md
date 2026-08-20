@@ -47,13 +47,13 @@ expect(await prisma.financialLedgerEntry.count({ where: { invoiceId } })).toBe(1
 
 ## Task 3: Implement exactly-once payment settlement and allocations
 
-- [ ] Write concurrent webhook tests where two verified callbacks race; expect one successful transition, one payment ledger credit, and one allocation set.
-- [ ] Implement conditional pending-to-succeeded update and serializable settlement.
-- [ ] Allocate oldest invoice date first and persist every allocation.
-- [ ] Preserve overpayment only as explicit customer credit; reject accidental manual overpayment unless `allowAdvanceCredit` permission/reason is supplied.
-- [ ] Add unique constraints linking settlement ledger entry to payment.
-- [ ] Run unit, integration, and concurrency tests.
-- [ ] Commit: `feat: settle payments exactly once`.
+- [x] Write concurrent webhook tests where two verified callbacks race; expect one successful transition, one payment ledger credit, and one allocation set.
+- [x] Implement conditional pending-to-succeeded settlement with PostgreSQL payment and retailer row locks plus bounded conflict retry.
+- [x] Allocate oldest invoice date first and persist every allocation.
+- [x] Preserve overpayment only as explicit customer credit; reject accidental manual overpayment unless `allowAdvanceCredit` permission/reason is supplied.
+- [x] Add unique constraints linking settlement ledger entry to payment.
+- [x] Run unit, integration, and concurrency tests.
+- [x] Commit: `feat: settle payments exactly once`.
 
 ## Task 4: Add reversals, credit notes, and append-only corrections
 

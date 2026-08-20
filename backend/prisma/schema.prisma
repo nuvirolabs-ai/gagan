@@ -94,6 +94,7 @@ model Payment {
   /// The provider's own id for this attempt — used to reconcile webhooks.
   providerRef           String?               @unique
   failureReason         String?
+  unallocatedAmount     Decimal               @default(0) @db.Decimal(14, 2)
   ledgerEntries         LedgerEntry[]
   allocations           PaymentAllocation[]
   evidence              PaymentEvidence[]

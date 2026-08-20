@@ -52,21 +52,55 @@ enum PaymentChannel {
   manual
 }
 
+enum InvoiceStatus {
+  open
+  partially_paid
+  paid
+  voided
+}
+
+enum FinancialDirection {
+  debit
+  credit
+}
+
+enum FinancialLedgerKind {
+  invoice
+  payment
+  credit_note
+  payment_reversal
+}
+
+enum CreditNoteStatus {
+  issued
+  reversed
+}
+
+enum ReconciliationIssueStatus {
+  open
+  resolved
+  ignored
+}
+
 model Payment {
-  id            String         @id @default(uuid())
-  retailerId    String
-  retailer      Retailer       @relation(fields: [retailerId], references: [id])
-  amount        Decimal        @db.Decimal(12, 2)
-  status        PaymentStatus  @default(pending)
-  channel       PaymentChannel @default(online)
+  id                    String                @id @default(uuid())
+  retailerId            String
+  retailer              Retailer              @relation(fields: [retailerId], references: [id])
+  amount                Decimal               @db.Decimal(12, 2)
+  status                PaymentStatus         @default(pending)
+  channel               PaymentChannel        @default(online)
   /// Which adapter handled it ("mock", "razorpay", …). Null for manual entries.
-  provider      String?
+  provider              String?
   /// The provider's own id for this attempt — used to reconcile webhooks.
-  providerRef   String?        @unique
-  failureReason String?
-  ledgerEntries LedgerEntry[]
-  createdAt     DateTime       @default(now())
-  settledAt     DateTime?
+  providerRef           String?               @unique
+  failureReason         String?
+  ledgerEntries         LedgerEntry[]
+  allocations           PaymentAllocation[]
+  evidence              PaymentEvidence[]
+  reversals             PaymentReversal[]
+  settlementLedgerEntry FinancialLedgerEntry?
+  createdAt             DateTime              @default(now())
+  settledAt             DateTime?
 
   @@index([retailerId, status])
 }
@@ -89,28 +123,32 @@ model Tier {
 }
 
 model Retailer {
-  id              String          @id @default(uuid())
-  name            String
-  shopAddress     String
-  phone           String          @unique
-  tierId          String
-  tier            Tier            @relation(fields: [tierId], references: [id])
-  creditLimit     Decimal         @default(0) @db.Decimal(12, 2)
-  currentBalance  Decimal         @default(0) @db.Decimal(12, 2)
+  id                     String                 @id @default(uuid())
+  name                   String
+  shopAddress            String
+  phone                  String                 @unique
+  tierId                 String
+  tier                   Tier                   @relation(fields: [tierId], references: [id])
+  creditLimit            Decimal                @default(0) @db.Decimal(12, 2)
+  currentBalance         Decimal                @default(0) @db.Decimal(12, 2)
   // Derived: recomputed from unsettled past-due invoices by recomputeOverdue().
   // Stored so list screens don't have to age every retailer's ledger on read.
-  overdueAmount   Decimal         @default(0) @db.Decimal(12, 2)
+  overdueAmount          Decimal                @default(0) @db.Decimal(12, 2)
   /// Overrides the tier's payment term when set.
-  paymentTermDays Int?
-  salesRepId      String?
-  salesRep        SalesRep?       @relation(fields: [salesRepId], references: [id])
-  sapCustomerId   String?
-  orders          Order[]
-  ledgerEntries   LedgerEntry[]
-  priceOverrides  PriceOverride[]
-  notifications   Notification[]
-  payments        Payment[]
-  createdAt       DateTime        @default(now())
+  paymentTermDays        Int?
+  salesRepId             String?
+  salesRep               SalesRep?              @relation(fields: [salesRepId], references: [id])
+  sapCustomerId          String?
+  orders                 Order[]
+  ledgerEntries          LedgerEntry[]
+  priceOverrides         PriceOverride[]
+  notifications          Notification[]
+  payments               Payment[]
+  invoices               Invoice[]
+  financialLedgerEntries FinancialLedgerEntry[]
+  creditNotes            CreditNote[]
+  reconciliationIssues   ReconciliationIssue[]
+  createdAt              DateTime               @default(now())
 }
 
 model AdminUser {
@@ -422,20 +460,22 @@ model Order {
   sapSalesOrderId    String?
   items              OrderItem[]
   delivery           Delivery?
+  invoice            Invoice?
   ledgerEntries      LedgerEntry[]
   createdAt          DateTime      @default(now())
 }
 
 model OrderItem {
-  id              String   @id @default(uuid())
+  id              String        @id @default(uuid())
   orderId         String
-  order           Order    @relation(fields: [orderId], references: [id])
+  order           Order         @relation(fields: [orderId], references: [id])
   variantId       String
-  variant         Variant  @relation(fields: [variantId], references: [id])
+  variant         Variant       @relation(fields: [variantId], references: [id])
   qtyOrdered      Int
-  unitPrice       Decimal  @db.Decimal(12, 2)
+  unitPrice       Decimal       @db.Decimal(12, 2)
   qtyDelivered    Int?
-  weightDelivered Decimal? @db.Decimal(12, 3)
+  weightDelivered Decimal?      @db.Decimal(12, 3)
+  invoiceLines    InvoiceLine[]
 }
 
 model Delivery {
@@ -468,4 +508,147 @@ model LedgerEntry {
   createdAt     DateTime   @default(now())
 
   @@index([retailerId, type, dueDate])
+}
+
+model Invoice {
+  id                String                @id @default(uuid())
+  invoiceNumber     Int                   @unique @default(autoincrement())
+  retailerId        String
+  retailer          Retailer              @relation(fields: [retailerId], references: [id])
+  orderId           String                @unique
+  order             Order                 @relation(fields: [orderId], references: [id])
+  invoiceDate       DateTime
+  dueDate           DateTime
+  currency          String                @default("INR")
+  subtotal          Decimal               @db.Decimal(14, 2)
+  taxTotal          Decimal               @default(0) @db.Decimal(14, 2)
+  total             Decimal               @db.Decimal(14, 2)
+  outstandingAmount Decimal               @db.Decimal(14, 2)
+  status            InvoiceStatus         @default(open)
+  idempotencyKey    String                @unique
+  sapInvoiceId      String?               @unique
+  lines             InvoiceLine[]
+  allocations       PaymentAllocation[]
+  ledgerEntry       FinancialLedgerEntry?
+  creditNotes       CreditNote[]
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  @@index([retailerId, status, dueDate])
+}
+
+model InvoiceLine {
+  id                  String     @id @default(uuid())
+  invoiceId           String
+  invoice             Invoice    @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  orderItemId         String?
+  orderItem           OrderItem? @relation(fields: [orderItemId], references: [id])
+  descriptionSnapshot String
+  itemCodeSnapshot    String?
+  deliveredCases      Int?
+  deliveredWeightKg   Decimal?   @db.Decimal(14, 3)
+  unitPrice           Decimal    @db.Decimal(14, 2)
+  lineTotal           Decimal    @db.Decimal(14, 2)
+  createdAt           DateTime   @default(now())
+
+  @@unique([invoiceId, orderItemId])
+}
+
+model PaymentAllocation {
+  id        String   @id @default(uuid())
+  paymentId String
+  payment   Payment  @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  invoiceId String
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  amount    Decimal  @db.Decimal(14, 2)
+  createdAt DateTime @default(now())
+
+  @@unique([paymentId, invoiceId])
+  @@index([invoiceId, createdAt])
+}
+
+model FinancialLedgerEntry {
+  id                String              @id @default(uuid())
+  sequence          BigInt              @unique @default(autoincrement())
+  retailerId        String
+  retailer          Retailer            @relation(fields: [retailerId], references: [id])
+  invoiceId         String?             @unique
+  invoice           Invoice?            @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  paymentId         String?             @unique
+  payment           Payment?            @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  creditNoteId      String?             @unique
+  creditNote        CreditNote?         @relation(fields: [creditNoteId], references: [id], onDelete: Restrict)
+  paymentReversalId String?             @unique
+  paymentReversal   PaymentReversal?    @relation(fields: [paymentReversalId], references: [id], onDelete: Restrict)
+  direction         FinancialDirection
+  kind              FinancialLedgerKind
+  amount            Decimal             @db.Decimal(14, 2)
+  balanceAfter      Decimal             @db.Decimal(14, 2)
+  idempotencyKey    String              @unique
+  occurredAt        DateTime
+  metadata          Json?
+  createdAt         DateTime            @default(now())
+
+  @@index([retailerId, sequence])
+}
+
+model PaymentEvidence {
+  id          String   @id @default(uuid())
+  paymentId   String
+  payment     Payment  @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  objectKey   String   @unique
+  checksum    String
+  contentType String
+  sizeBytes   Int
+  createdAt   DateTime @default(now())
+
+  @@index([paymentId, createdAt])
+}
+
+model CreditNote {
+  id              String                @id @default(uuid())
+  retailerId      String
+  retailer        Retailer              @relation(fields: [retailerId], references: [id])
+  invoiceId       String
+  invoice         Invoice               @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  amount          Decimal               @db.Decimal(14, 2)
+  reason          String
+  status          CreditNoteStatus      @default(issued)
+  idempotencyKey  String                @unique
+  sapCreditNoteId String?               @unique
+  ledgerEntry     FinancialLedgerEntry?
+  createdAt       DateTime              @default(now())
+
+  @@index([invoiceId, createdAt])
+}
+
+model PaymentReversal {
+  id             String                @id @default(uuid())
+  paymentId      String
+  payment        Payment               @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  amount         Decimal               @db.Decimal(14, 2)
+  reason         String
+  idempotencyKey String                @unique
+  ledgerEntry    FinancialLedgerEntry?
+  createdAt      DateTime              @default(now())
+
+  @@index([paymentId, createdAt])
+}
+
+model ReconciliationIssue {
+  id             String                    @id @default(uuid())
+  retailerId     String?
+  retailer       Retailer?                 @relation(fields: [retailerId], references: [id])
+  kind           String
+  referenceType  String
+  referenceId    String
+  expectedAmount Decimal?                  @db.Decimal(14, 2)
+  actualAmount   Decimal?                  @db.Decimal(14, 2)
+  status         ReconciliationIssueStatus @default(open)
+  details        Json?
+  createdAt      DateTime                  @default(now())
+  resolvedAt     DateTime?
+
+  @@unique([kind, referenceType, referenceId])
+  @@index([status, createdAt])
 }

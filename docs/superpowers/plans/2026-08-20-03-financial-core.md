@@ -23,11 +23,11 @@
 
 ## Task 1: Add immutable financial schema
 
-- [ ] Write migration tests for unique `Invoice.orderId`, unique provider event/reference, unique settlement marker, allocation bounds, reversal links, and append-only ledger constraints enforced by services.
-- [ ] Add `Invoice`, `InvoiceLine`, `PaymentAllocation`, `FinancialLedgerEntry`, `PaymentEvidence`, `CreditNote`, `PaymentReversal`, and `ReconciliationIssue`.
-- [ ] Represent money as Decimal(14,2), weights as Decimal(14,3), and use explicit debit/credit direction.
-- [ ] Apply migration to a disposable database and run schema tests.
-- [ ] Commit: `feat: add immutable financial schema`.
+- [x] Write migration tests for unique `Invoice.orderId`, unique provider event/reference, unique settlement marker, allocation bounds, reversal links, and append-only ledger constraints enforced by services.
+- [x] Add `Invoice`, `InvoiceLine`, `PaymentAllocation`, `FinancialLedgerEntry`, `PaymentEvidence`, `CreditNote`, `PaymentReversal`, and `ReconciliationIssue`.
+- [x] Represent money as Decimal(14,2), weights as Decimal(14,3), and use explicit debit/credit direction.
+- [x] Apply migration to a disposable database and run schema tests.
+- [x] Commit: `feat: add immutable financial schema`.
 
 ## Task 2: Implement exactly-once invoice creation
 

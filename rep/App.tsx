@@ -16,6 +16,9 @@ import RepRetailerDetailScreen from "./src/screens/RepRetailerDetailScreen";
 import RepCatalogScreen from "./src/screens/RepCatalogScreen";
 import RepAccountScreen from "./src/screens/RepAccountScreen";
 import StaffHomeScreen from "./src/screens/StaffHomeScreen";
+import ApprovalsScreen from "./src/screens/ApprovalsScreen";
+import ApprovalDetailScreen from "./src/screens/ApprovalDetailScreen";
+import RatingReviewsScreen from "./src/screens/RatingReviewsScreen";
 import { staffCapabilities } from "./src/auth/staffCapabilities";
 
 const Stack = createNativeStackNavigator();
@@ -52,7 +55,7 @@ function RepTabs() {
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
         tabBarIcon: ({ color, size }) => (
           <Ionicons
-            name={route.name === "Retailers" ? "storefront-outline" : route.name === "Work" ? "briefcase-outline" : "person-outline"}
+            name={route.name === "Retailers" ? "storefront-outline" : route.name === "Work" ? "briefcase-outline" : route.name === "Approvals" ? "shield-checkmark-outline" : "person-outline"}
             size={size}
             color={color}
           />
@@ -64,6 +67,7 @@ function RepTabs() {
       ) : (
         <Tab.Screen name="Work" component={StaffHomeScreen} />
       )}
+      {capabilities.canApprove && <Tab.Screen name="Approvals" component={ApprovalsScreen} />}
       <Tab.Screen name="Account" component={RepAccountScreen} />
     </Tab.Navigator>
   );
@@ -107,6 +111,16 @@ function RootNavigator() {
                 options={{ title: "New order", headerBackTitle: "Back" }}
               />
             </>
+          )}
+          {capabilities.canApprove && (
+            <Stack.Screen
+              name="ApprovalDetail"
+              component={ApprovalDetailScreen}
+              options={{ title: "Approval", headerBackTitle: "Approvals" }}
+            />
+          )}
+          {capabilities.canReviewRatings && (
+            <Stack.Screen name="RatingReviews" component={RatingReviewsScreen} options={{ title: "Rating reviews", headerBackTitle: "Approvals" }} />
           )}
         </>
       )}

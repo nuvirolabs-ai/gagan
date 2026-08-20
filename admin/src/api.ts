@@ -102,6 +102,30 @@ export const api = {
   refresh: refreshAccessToken,
   logout: () => post("/admin/auth/logout"),
   me: () => request("/admin/auth/me"),
+  requestAdminStepUp: () => post("/admin/auth/step-up/request"),
+  async completeAdminStepUp(challengeId: string, otp: string) {
+    const result = await post("/admin/auth/step-up", { challengeId, otp });
+    setAccessToken(result.accessToken);
+    return result;
+  },
+
+  approvals: () => request("/admin/approvals"),
+  approval: (id: string) => request(`/admin/approvals/${id}`),
+  decideApproval: (id: string, result: "approved" | "rejected", reason?: string) =>
+    post(`/admin/approvals/${id}/decision`, { result, reason }),
+  raiseApprovalDispute: (id: string, writtenPosition: string) =>
+    post(`/admin/approvals/${id}/disputes`, { writtenPosition }),
+  resolveApprovalDispute: (id: string, outcome: "approved" | "rejected", resolution: string) =>
+    post(`/admin/approval-disputes/${id}/resolve`, { outcome, resolution }),
+  ratingProposals: () => request("/admin/credit/rating-proposals"),
+  kycPending: () => request("/admin/credit/kyc-pending"),
+  confirmKyc: (retailerId: string, evidenceReference: string, reason: string) =>
+    post(`/admin/credit/kyc/${retailerId}/confirm`, { evidenceReference, reason }),
+  confirmRatingProposal: (id: string, reason: string) =>
+    post(`/admin/credit/rating-proposals/${id}/confirm`, { reason }),
+  shadowComparisons: () => request("/admin/credit/shadow-comparisons"),
+  setShadowDisposition: (id: string, disposition: string) =>
+    patch(`/admin/credit/shadow-comparisons/${id}`, { disposition }),
 
   staff: () => request("/admin/staff"),
   roles: () => request("/admin/roles"),

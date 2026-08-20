@@ -240,11 +240,17 @@ router.post("/orders", requireRep, async (req: RepRequest, res) => {
     retailer.id,
     parsed.data.items,
     "rep",
-    req.repId
+    req.repId,
+    req.staffId
   );
   if (!result.ok) return res.status(result.status).json(result.body);
 
-  res.status(201).json({ order: result.order });
+  res.status(201).json({
+    order: result.order,
+    creditDecision: result.decision,
+    approvalRequest: result.approvalRequest ?? null,
+    dispatchAuthorization: result.dispatchAuthorization ?? null,
+  });
 });
 
 export default router;

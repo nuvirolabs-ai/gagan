@@ -7,10 +7,9 @@ type Db = PrismaClient | Prisma.TransactionClient;
 const MAX_ATTEMPTS = 5;
 
 /**
- * Queue an order for posting to SAP. Called on the same transaction that
- * creates the order, so an order can never exist without its outbox row — that
- * is what makes "post every app order into SAP" (spec §7) safe across restarts
- * and outages.
+ * Queue an authorized order for posting to SAP. Automatically allowed orders
+ * enqueue during creation; approval-held orders enqueue in the same transaction
+ * as the final approval and dispatch authorization.
  */
 export async function enqueueSalesOrder(db: Db, orderId: string): Promise<void> {
   const order = await db.order.findUnique({

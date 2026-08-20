@@ -83,6 +83,65 @@ enum ReconciliationIssueStatus {
   ignored
 }
 
+enum CreditRating {
+  N
+  A
+  B
+  C
+  D
+  E
+  F
+}
+
+enum BillingPattern {
+  unknown
+  regular
+  irregular
+}
+
+enum CreditAssessmentResult {
+  allowed
+  approval_required
+  blocked
+}
+
+enum ApprovalStatus {
+  open
+  escalated
+  approved
+  rejected
+  cancelled
+}
+
+enum ApprovalDecisionResult {
+  approved
+  rejected
+}
+
+enum ApprovalDisputeStatus {
+  open
+  resolved
+  escalated
+}
+
+enum DispatchAuthorizationStatus {
+  active
+  used
+  invalidated
+  expired
+}
+
+enum RatingProposalStatus {
+  pending
+  confirmed
+  dismissed
+}
+
+enum CreditRolloutMode {
+  shadow
+  enforce
+}
+
 model Payment {
   id                    String                @id @default(uuid())
   retailerId            String
@@ -125,32 +184,36 @@ model Tier {
 }
 
 model Retailer {
-  id                     String                 @id @default(uuid())
-  name                   String
-  shopAddress            String
-  phone                  String                 @unique
-  tierId                 String
-  tier                   Tier                   @relation(fields: [tierId], references: [id])
-  creditLimit            Decimal                @default(0) @db.Decimal(12, 2)
-  currentBalance         Decimal                @default(0) @db.Decimal(12, 2)
+  id                        String                     @id @default(uuid())
+  name                      String
+  shopAddress               String
+  phone                     String                     @unique
+  tierId                    String
+  tier                      Tier                       @relation(fields: [tierId], references: [id])
+  creditLimit               Decimal                    @default(0) @db.Decimal(12, 2)
+  currentBalance            Decimal                    @default(0) @db.Decimal(12, 2)
   // Derived: recomputed from unsettled past-due invoices by recomputeOverdue().
   // Stored so list screens don't have to age every retailer's ledger on read.
-  overdueAmount          Decimal                @default(0) @db.Decimal(12, 2)
+  overdueAmount             Decimal                    @default(0) @db.Decimal(12, 2)
   /// Overrides the tier's payment term when set.
-  paymentTermDays        Int?
-  salesRepId             String?
-  salesRep               SalesRep?              @relation(fields: [salesRepId], references: [id])
-  sapCustomerId          String?
-  orders                 Order[]
-  ledgerEntries          LedgerEntry[]
-  priceOverrides         PriceOverride[]
-  notifications          Notification[]
-  payments               Payment[]
-  invoices               Invoice[]
-  financialLedgerEntries FinancialLedgerEntry[]
-  creditNotes            CreditNote[]
-  reconciliationIssues   ReconciliationIssue[]
-  createdAt              DateTime               @default(now())
+  paymentTermDays           Int?
+  salesRepId                String?
+  salesRep                  SalesRep?                  @relation(fields: [salesRepId], references: [id])
+  sapCustomerId             String?
+  orders                    Order[]
+  ledgerEntries             LedgerEntry[]
+  priceOverrides            PriceOverride[]
+  notifications             Notification[]
+  payments                  Payment[]
+  invoices                  Invoice[]
+  financialLedgerEntries    FinancialLedgerEntry[]
+  creditNotes               CreditNote[]
+  reconciliationIssues      ReconciliationIssue[]
+  creditProfile             CreditProfile?
+  creditAssessments         CreditAssessment[]
+  approvalRequests          ApprovalRequest[]
+  creditDecisionComparisons CreditDecisionComparison[]
+  createdAt                 DateTime                   @default(now())
 }
 
 model AdminUser {
@@ -392,10 +455,14 @@ model SapOutbox {
 }
 
 model AppConfig {
-  id                    String  @id @default("singleton")
-  freeDeliveryThreshold Decimal @db.Decimal(12, 2)
-  minOrderValue         Decimal @db.Decimal(12, 2)
-  supportPhone          String
+  id                            String            @id @default("singleton")
+  freeDeliveryThreshold         Decimal           @db.Decimal(12, 2)
+  minOrderValue                 Decimal           @db.Decimal(12, 2)
+  supportPhone                  String
+  creditRolloutMode             CreditRolloutMode @default(shadow)
+  creditPolicyApprovedAt        DateTime?
+  creditPolicyApprovedByStaffId String?
+  creditPolicyApprovedVersion   Int?
 }
 
 model Product {
@@ -449,22 +516,26 @@ model PriceOverride {
 }
 
 model Order {
-  id                 String        @id @default(uuid())
+  id                        String                     @id @default(uuid())
   // Human-facing reference shown to retailers (rendered as GGN-00001).
-  orderNo            Int           @unique @default(autoincrement())
-  retailerId         String
-  retailer           Retailer      @relation(fields: [retailerId], references: [id])
-  placedBy           PlacedBy      @default(retailer)
-  placedByRepId      String?
-  status             OrderStatus   @default(placed)
-  orderTotal         Decimal       @db.Decimal(12, 2)
-  expectedDeliveryAt DateTime?
-  sapSalesOrderId    String?
-  items              OrderItem[]
-  delivery           Delivery?
-  invoice            Invoice?
-  ledgerEntries      LedgerEntry[]
-  createdAt          DateTime      @default(now())
+  orderNo                   Int                        @unique @default(autoincrement())
+  retailerId                String
+  retailer                  Retailer                   @relation(fields: [retailerId], references: [id])
+  placedBy                  PlacedBy                   @default(retailer)
+  placedByRepId             String?
+  status                    OrderStatus                @default(placed)
+  orderTotal                Decimal                    @db.Decimal(12, 2)
+  expectedDeliveryAt        DateTime?
+  sapSalesOrderId           String?
+  items                     OrderItem[]
+  delivery                  Delivery?
+  invoice                   Invoice?
+  ledgerEntries             LedgerEntry[]
+  creditAssessments         CreditAssessment[]
+  approvalRequests          ApprovalRequest[]
+  dispatchAuthorizations    DispatchAuthorization[]
+  creditDecisionComparisons CreditDecisionComparison[]
+  createdAt                 DateTime                   @default(now())
 }
 
 model OrderItem {
@@ -673,4 +744,228 @@ model ReconciliationIssue {
 
   @@unique([kind, referenceType, referenceId])
   @@index([status, createdAt])
+}
+
+model CreditPolicyVersion {
+  id                String             @id @default(uuid())
+  version           Int                @unique
+  name              String
+  active            Boolean            @default(false)
+  rules             Json
+  reasonCatalog     Json
+  approvedByStaffId String?
+  approvedAt        DateTime?
+  assessments       CreditAssessment[]
+  ratingProposals   RatingProposal[]
+  createdAt         DateTime           @default(now())
+
+  @@index([active])
+}
+
+model CreditProfile {
+  id                 String           @id @default(uuid())
+  retailerId         String           @unique
+  retailer           Retailer         @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  rating             CreditRating     @default(N)
+  billingPattern     BillingPattern   @default(unknown)
+  accountCreatedAt   DateTime         @default(now())
+  kycVerifiedAt      DateTime?
+  kycVerifiedByStaffId String?
+  kycEvidence        Json?
+  ratingConfirmedAt  DateTime?
+  nextReviewAt       DateTime?
+  cleanInvoiceCount  Int              @default(0)
+  advancePaymentOnly Boolean          @default(false)
+  lockedAt           DateTime?
+  lockReason         String?
+  ratingHistory      RatingHistory[]
+  ratingProposals    RatingProposal[]
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+}
+
+model RatingProposal {
+  id                 String               @id @default(uuid())
+  creditProfileId    String
+  creditProfile      CreditProfile        @relation(fields: [creditProfileId], references: [id], onDelete: Restrict)
+  policyVersionId    String
+  policyVersion      CreditPolicyVersion  @relation(fields: [policyVersionId], references: [id], onDelete: Restrict)
+  previousRating     CreditRating
+  proposedRating     CreditRating
+  trigger            String
+  evidence           Json
+  status             RatingProposalStatus @default(pending)
+  idempotencyKey     String               @unique
+  proposedAt         DateTime             @default(now())
+  confirmedByStaffId String?
+  confirmedAt        DateTime?
+  dismissedByStaffId String?
+  dismissedAt        DateTime?
+
+  @@index([status, proposedAt])
+  @@index([creditProfileId, proposedAt])
+}
+
+model RatingHistory {
+  id                 String         @id @default(uuid())
+  sequence           BigInt         @unique @default(autoincrement())
+  creditProfileId    String
+  creditProfile      CreditProfile  @relation(fields: [creditProfileId], references: [id], onDelete: Restrict)
+  fromRating         CreditRating?
+  toRating           CreditRating
+  billingPattern     BillingPattern
+  reason             String
+  evidence           Json
+  confirmedByStaffId String
+  effectiveAt        DateTime
+  createdAt          DateTime       @default(now())
+
+  @@index([creditProfileId, sequence])
+}
+
+model CreditAssessment {
+  id                     String                    @id @default(uuid())
+  retailerId             String
+  retailer               Retailer                  @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  orderId                String?
+  order                  Order?                    @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  policyVersionId        String
+  policyVersion          CreditPolicyVersion       @relation(fields: [policyVersionId], references: [id], onDelete: Restrict)
+  result                 CreditAssessmentResult
+  requiredPermission     String?
+  projectedExposure      Decimal                   @db.Decimal(14, 2)
+  snapshot               Json
+  reasons                Json
+  approvalRequests       ApprovalRequest[]
+  dispatchAuthorizations DispatchAuthorization[]
+  comparison             CreditDecisionComparison?
+  createdAt              DateTime                  @default(now())
+
+  @@index([retailerId, createdAt])
+  @@index([orderId, createdAt])
+}
+
+model CreditDecisionComparison {
+  id                    String                 @id @default(uuid())
+  retailerId            String
+  retailer              Retailer               @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  orderId               String?
+  order                 Order?                 @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  assessmentId          String                 @unique
+  assessment            CreditAssessment       @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
+  rolloutMode           CreditRolloutMode
+  legacyResult          String
+  engineResult          CreditAssessmentResult
+  effectiveResult       String
+  mismatch              Boolean
+  creditTeamDisposition String?
+  createdAt             DateTime               @default(now())
+
+  @@index([mismatch, createdAt])
+  @@index([retailerId, createdAt])
+}
+
+model ApprovalRequest {
+  id                     String                  @id @default(uuid())
+  retailerId             String
+  retailer               Retailer                @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  orderId                String?
+  order                  Order?                  @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  assessmentId           String
+  assessment             CreditAssessment        @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
+  subjectType            String
+  subjectId              String
+  approvalType           String
+  requiredPermission     String
+  status                 ApprovalStatus          @default(open)
+  requestedByStaffId     String?
+  requestReason          String?
+  deadlineAt             DateTime?
+  acknowledgedAt         DateTime?
+  decidedAt              DateTime?
+  escalatedAt            DateTime?
+  decision               ApprovalDecision?
+  escalations            ApprovalEscalation[]
+  disputes               ApprovalDispute[]
+  dispatchAuthorizations DispatchAuthorization[]
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+
+  @@index([status, createdAt])
+  @@index([requiredPermission, status, createdAt])
+  @@index([retailerId, createdAt])
+}
+
+model ApprovalDecision {
+  id                String                 @id @default(uuid())
+  approvalRequestId String                 @unique
+  approvalRequest   ApprovalRequest        @relation(fields: [approvalRequestId], references: [id], onDelete: Restrict)
+  result            ApprovalDecisionResult
+  actorStaffId      String
+  reason            String?
+  stepUpSessionId   String
+  createdAt         DateTime               @default(now())
+}
+
+model ApprovalEscalation {
+  id                String          @id @default(uuid())
+  approvalRequestId String
+  approvalRequest   ApprovalRequest @relation(fields: [approvalRequestId], references: [id], onDelete: Restrict)
+  fromPermission    String
+  toPermission      String
+  reasonCode        String
+  createdAt         DateTime        @default(now())
+
+  @@index([approvalRequestId, createdAt])
+}
+
+model ApprovalDispute {
+  id                  String                @id @default(uuid())
+  approvalRequestId   String
+  approvalRequest     ApprovalRequest       @relation(fields: [approvalRequestId], references: [id], onDelete: Restrict)
+  status              ApprovalDisputeStatus @default(open)
+  raisedByStaffId     String
+  writtenPosition     String
+  counterPosition     String?
+  resolvedByStaffId   String?
+  resolution          String?
+  outcome             ApprovalDecisionResult?
+  acknowledgmentDueAt DateTime
+  acknowledgedAt      DateTime?
+  decisionDueAt       DateTime?
+  resolvedAt          DateTime?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  @@index([status, acknowledgmentDueAt])
+  @@index([approvalRequestId, createdAt])
+}
+
+model DispatchAuthorization {
+  id                String                      @id @default(uuid())
+  orderId           String
+  order             Order                       @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  version           Int
+  assessmentId      String
+  assessment        CreditAssessment            @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
+  approvalRequestId String?
+  approvalRequest   ApprovalRequest?            @relation(fields: [approvalRequestId], references: [id], onDelete: Restrict)
+  status            DispatchAuthorizationStatus @default(active)
+  issuedByStaffId   String?
+  reason            String
+  expiresAt         DateTime?
+  usedAt            DateTime?
+  invalidatedAt     DateTime?
+  createdAt         DateTime                    @default(now())
+
+  @@unique([orderId, version])
+  @@index([orderId, status])
+}
+
+model WorkingCalendar {
+  id           String   @id @default(uuid())
+  date         DateTime @unique @db.Date
+  isWorkingDay Boolean
+  label        String?
+  createdAt    DateTime @default(now())
 }

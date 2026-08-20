@@ -19,7 +19,12 @@ router.post("/orders", requireAuth, async (req: AuthedRequest, res) => {
   const result = await createOrderForRetailer(req.retailerId!, parsed.data.items, "retailer");
   if (!result.ok) return res.status(result.status).json(result.body);
 
-  res.status(201).json({ order: result.order });
+  res.status(201).json({
+    order: result.order,
+    creditDecision: result.decision,
+    approvalRequest: result.approvalRequest ?? null,
+    dispatchAuthorization: result.dispatchAuthorization ?? null,
+  });
 });
 
 router.get("/orders", requireAuth, async (req: AuthedRequest, res) => {

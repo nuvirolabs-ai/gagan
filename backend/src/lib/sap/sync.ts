@@ -1,6 +1,7 @@
 import { SapEntity } from "@prisma/client";
 import { prisma } from "../prisma";
 import { getSapConnector } from "./index";
+import { nextQuarterlyCheckpoint } from "../../modules/credit/reviewSchedule";
 
 export interface SyncOutcome {
   entity: SapEntity;
@@ -94,17 +95,55 @@ export function syncCustomers() {
         // Without a phone the retailer could never sign in, so skip rather than
         // create an unusable record.
         if (!row.phone) continue;
-        await prisma.retailer.create({
-          data: {
-            name: row.name,
-            phone: row.phone,
-            shopAddress: row.shopAddress ?? "",
-            tierId: tier?.id ?? (await prisma.tier.findFirstOrThrow()).id,
-            creditLimit: row.creditLimit ?? 0,
-            sapCustomerId: row.sapCustomerId,
-          },
+        await prisma.$transaction(async (tx) => {
+          const retailer = await tx.retailer.create({
+            data: {
+              name: row.name,
+              phone: row.phone!,
+              shopAddress: row.shopAddress ?? "",
+              tierId: tier?.id ?? (await tx.tier.findFirstOrThrow()).id,
+              creditLimit: row.creditLimit ?? 0,
+              sapCustomerId: row.sapCustomerId,
+            },
+          });
+          const nextReviewAt = nextQuarterlyCheckpoint(retailer.createdAt);
+          await tx.creditProfile.create({
+            data: { retailerId: retailer.id, rating: "N", accountCreatedAt: retailer.createdAt, nextReviewAt },
+          });
         });
         created++;
+        continue;
+      }
+
+      if (existing.sapCustomerId && existing.sapCustomerId !== row.sapCustomerId) {
+        await prisma.reconciliationIssue.upsert({
+          where: {
+            kind_referenceType_referenceId: {
+              kind: "duplicate_sap_account",
+              referenceType: "retailer",
+              referenceId: existing.id,
+            },
+          },
+          update: {
+            status: "open",
+            resolvedAt: null,
+            details: {
+              existingSapCustomerId: existing.sapCustomerId,
+              incomingSapCustomerId: row.sapCustomerId,
+            },
+          },
+          create: {
+            retailerId: existing.id,
+            kind: "duplicate_sap_account",
+            referenceType: "retailer",
+            referenceId: existing.id,
+            ownerRole: "credit_team",
+            details: {
+              existingSapCustomerId: existing.sapCustomerId,
+              incomingSapCustomerId: row.sapCustomerId,
+            },
+          },
+        });
         continue;
       }
 
@@ -117,6 +156,16 @@ export function syncCustomers() {
           shopAddress: row.shopAddress ?? existing.shopAddress,
           ...(tier ? { tierId: tier.id } : {}),
           ...(row.creditLimit != null ? { creditLimit: row.creditLimit } : {}),
+        },
+      });
+      await prisma.creditProfile.upsert({
+        where: { retailerId: existing.id },
+        update: {},
+        create: {
+          retailerId: existing.id,
+          rating: "N",
+          accountCreatedAt: existing.createdAt,
+          nextReviewAt: nextQuarterlyCheckpoint(existing.createdAt),
         },
       });
       if (wasUnlinked) linked++;

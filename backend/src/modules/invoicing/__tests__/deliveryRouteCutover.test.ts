@@ -1,17 +1,20 @@
 import express from "express";
 import request from "supertest";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   findOrder: vi.fn(),
   findOrderOrThrow: vi.fn(),
   transaction: vi.fn(),
   createInvoice: vi.fn(),
+  findAuthorization: vi.fn(),
+  updateOrder: vi.fn(),
 }));
 
 vi.mock("../../../lib/prisma", () => ({
   prisma: {
-    order: { findUnique: mocks.findOrder, findUniqueOrThrow: mocks.findOrderOrThrow },
+    order: { findUnique: mocks.findOrder, findUniqueOrThrow: mocks.findOrderOrThrow, update: mocks.updateOrder },
+    dispatchAuthorization: { findFirst: mocks.findAuthorization },
     $transaction: mocks.transaction,
   },
 }));
@@ -23,7 +26,40 @@ vi.mock("../invoiceService", () => ({ createInvoiceForDelivery: mocks.createInvo
 import adminOrderRoutes from "../../../routes/admin/orders";
 
 describe("delivery API cutover", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("cannot confirm an order without current dispatch authorization", async () => {
+    mocks.findOrder.mockResolvedValue({ id: "order-held", status: "placed" });
+    mocks.findAuthorization.mockResolvedValue(null);
+    const app = express();
+    app.use(express.json(), adminOrderRoutes);
+
+    const response = await request(app).post("/orders/order-held/approve");
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ error: "dispatch_authorization_required" });
+    expect(mocks.updateOrder).not.toHaveBeenCalled();
+  });
+
+  it("does not dispatch when rating invalidation wins the authorization race", async () => {
+    mocks.findOrder.mockResolvedValue({ id: "order-race", status: "packed" });
+    mocks.findAuthorization.mockResolvedValue({ id: "authorization-race" });
+    mocks.transaction.mockImplementationOnce(async (work) => work({
+      dispatchAuthorization: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
+    }));
+    const app = express();
+    app.use(express.json(), adminOrderRoutes);
+
+    const response = await request(app)
+      .post("/dispatch/order-race/assign")
+      .send({ routeId: "route-1" });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ error: "dispatch_authorization_expired" });
+  });
+
   it("completes POD through exactly-once invoice creation", async () => {
+    mocks.findAuthorization.mockResolvedValue({ id: "authorization-1" });
     mocks.findOrder.mockResolvedValue({
       id: "order-1",
       retailerId: "retailer-1",
@@ -71,6 +107,7 @@ describe("delivery API cutover", () => {
   });
 
   it("returns the existing invoice when the POD request is retried", async () => {
+    mocks.findAuthorization.mockResolvedValue({ id: "authorization-1" });
     mocks.findOrder.mockResolvedValue({
       id: "order-1",
       retailerId: "retailer-1",

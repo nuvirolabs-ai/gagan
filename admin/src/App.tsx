@@ -9,19 +9,25 @@ import Catalog from "./pages/Catalog";
 import Staff from "./pages/Staff";
 import StaffDetail from "./pages/StaffDetail";
 import Corrections from "./pages/Corrections";
+import Approvals from "./pages/Approvals";
+import CreditReviews from "./pages/CreditReviews";
 
 const NAV = [
-  { to: "/orders", label: "Order queue", permission: "staff.manage" },
-  { to: "/retailers", label: "Retailers", permission: "staff.manage" },
-  { to: "/ledger", label: "Ledger", permission: "staff.manage" },
-  { to: "/catalog", label: "Catalog", permission: "staff.manage" },
-  { to: "/corrections", label: "Corrections", permission: "financial.correct" },
-  { to: "/staff", label: "Staff access", permission: "staff.manage" },
+  { to: "/approvals", label: "Approvals", permissions: ["approval.second_invoice", "approval.third_invoice", "collection.confirm", "legal.decide"] },
+  { to: "/credit-reviews", label: "Credit reviews", permissions: ["credit.rating_confirm"] },
+  { to: "/orders", label: "Order queue", permissions: ["staff.manage"] },
+  { to: "/retailers", label: "Retailers", permissions: ["staff.manage"] },
+  { to: "/ledger", label: "Ledger", permissions: ["staff.manage"] },
+  { to: "/catalog", label: "Catalog", permissions: ["staff.manage"] },
+  { to: "/corrections", label: "Corrections", permissions: ["financial.correct"] },
+  { to: "/staff", label: "Staff access", permissions: ["staff.manage"] },
 ];
 
 function Shell() {
   const { admin, permissions, logout } = useAuth();
-  const availableNav = NAV.filter((item) => permissions.includes(item.permission));
+  const availableNav = NAV.filter((item) =>
+    item.permissions.some((permission) => permissions.includes(permission))
+  );
   const landingPath = availableNav[0]?.to ?? "/no-access";
 
   return (
@@ -48,6 +54,8 @@ function Shell() {
 
       <main className="main">
         <Routes>
+          <Route path="/approvals" element={<Approvals />} />
+          <Route path="/credit-reviews" element={<CreditReviews />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/retailers" element={<Retailers />} />
           <Route path="/ledger" element={<Ledger />} />

@@ -7,3 +7,15 @@ export function nextQuarterlyCheckpoint(after: Date) {
   }
   return new Date(Date.UTC(year + 1, 0, 1));
 }
+
+export function shouldAdvanceMissedCheckpoint(input: {
+  nextReviewAt: Date | null;
+  now: Date;
+  requiresConfirmation: boolean;
+  currentRating: string;
+  proposedRating: string;
+}) {
+  const willQueueConfirmation =
+    input.requiresConfirmation && input.proposedRating !== input.currentRating;
+  return input.nextReviewAt != null && input.nextReviewAt <= input.now && !willQueueConfirmation;
+}

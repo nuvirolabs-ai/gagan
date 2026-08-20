@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { calculateRatingProposal } from "./ratingLifecycle";
-import { nextQuarterlyCheckpoint } from "./reviewSchedule";
+import { nextQuarterlyCheckpoint, shouldAdvanceMissedCheckpoint } from "./reviewSchedule";
 
 export class RatingServiceError extends Error {
   constructor(public code: string, public status: number) {
@@ -137,10 +137,13 @@ export class RatingService {
           (invoice) => Number(invoice.outstandingAmount) > 0
         ),
       });
-      const advanceMissedCheckpoint =
-        profile.nextReviewAt != null &&
-        profile.nextReviewAt <= now &&
-        !proposal.requiresConfirmation;
+      const advanceMissedCheckpoint = shouldAdvanceMissedCheckpoint({
+        nextReviewAt: profile.nextReviewAt,
+        now,
+        requiresConfirmation: proposal.requiresConfirmation,
+        currentRating: profile.rating,
+        proposedRating: proposal.proposedRating,
+      });
       await prisma.creditProfile.update({
         where: { id: profile.id },
         data: {

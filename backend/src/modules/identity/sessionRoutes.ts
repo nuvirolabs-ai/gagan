@@ -1,8 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { Router, type NextFunction, type Request, type Response } from "express";
+import {
+  Router,
+  type CookieOptions,
+  type NextFunction,
+  type Request,
+  type Response,
+} from "express";
 import { z } from "zod";
 import { asyncRoute } from "../../platform/http/asyncRoute";
-import { OtpError, type OtpChallengeRecord } from "./otpService";
+import { OtpError } from "./otpService";
 import type { OtpRouteService } from "./otpRoutes";
 import {
   createRequireSession,
@@ -28,11 +34,60 @@ export interface SessionRouteService extends SessionAuthenticator {
   ): Promise<{ accessToken: string; stepUpUntil: Date }>;
 }
 
+export interface RefreshCookieConfig {
+  name: string;
+  secure: boolean;
+  path?: string;
+  csrfHeader?: { name: string; value: string };
+}
+
 interface SessionRouterOptions {
   realm: SessionRealm;
   sessions: SessionRouteService;
   otpService: OtpRouteService;
   resolvePhone(subjectId: string): Promise<string>;
+  refreshCookie?: RefreshCookieConfig;
+}
+
+const REFRESH_COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+function refreshCookieOptions(config: RefreshCookieConfig): CookieOptions {
+  return {
+    httpOnly: true,
+    secure: config.secure,
+    sameSite: "strict",
+    path: config.path ?? "/",
+    maxAge: REFRESH_COOKIE_MAX_AGE_MS,
+  };
+}
+
+export function setRefreshCookie(
+  res: Response,
+  token: string,
+  config: RefreshCookieConfig
+) {
+  res.cookie(config.name, token, refreshCookieOptions(config));
+}
+
+export function clearRefreshCookie(res: Response, config: RefreshCookieConfig) {
+  const options = refreshCookieOptions(config);
+  delete options.maxAge;
+  res.clearCookie(config.name, options);
+}
+
+function readCookie(req: Request, name: string): string | undefined {
+  const encoded = req.headers.cookie
+    ?.split(";")
+    .map((part) => part.trim().split("="))
+    .find(([key]) => key === name)
+    ?.slice(1)
+    .join("=");
+  if (!encoded) return undefined;
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    return undefined;
+  }
 }
 
 function publicSession(session: DeviceSessionRecord) {
@@ -61,9 +116,27 @@ export function createSessionRouter(options: SessionRouterOptions) {
   router.post(
     "/refresh",
     asyncRoute(async (req, res) => {
-      const parsed = z.object({ refreshToken: z.string().min(20) }).safeParse(req.body);
+      if (
+        options.refreshCookie?.csrfHeader &&
+        req.get(options.refreshCookie.csrfHeader.name) !==
+          options.refreshCookie.csrfHeader.value
+      ) {
+        return res.status(403).json({ error: "csrf_check_failed" });
+      }
+      const candidate = options.refreshCookie
+        ? readCookie(req, options.refreshCookie.name)
+        : req.body?.refreshToken;
+      const parsed = z.string().min(20).safeParse(candidate);
       if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
-      res.json(publicSessionResult(await options.sessions.refresh(parsed.data.refreshToken)));
+      const result = await options.sessions.refresh(parsed.data);
+      if (options.refreshCookie) {
+        setRefreshCookie(res, result.refreshToken, options.refreshCookie);
+        const publicResult = publicSessionResult(result);
+        const { refreshToken: _privateRefreshToken, ...cookieResult } = publicResult;
+        res.json(cookieResult);
+        return;
+      }
+      res.json(publicSessionResult(result));
     })
   );
 
@@ -77,6 +150,7 @@ export function createSessionRouter(options: SessionRouterOptions) {
         options.realm,
         identity.subjectId
       );
+      if (options.refreshCookie) clearRefreshCookie(res, options.refreshCookie);
       res.status(204).send();
     })
   );
@@ -86,6 +160,7 @@ export function createSessionRouter(options: SessionRouterOptions) {
     requireSession,
     asyncRoute(async (req: IdentityAuthedRequest, res) => {
       await options.sessions.revokeAll(options.realm, req.identityAuth!.subjectId);
+      if (options.refreshCookie) clearRefreshCookie(res, options.refreshCookie);
       res.status(204).send();
     })
   );

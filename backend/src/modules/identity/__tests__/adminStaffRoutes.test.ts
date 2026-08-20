@@ -31,15 +31,26 @@ function setup(permissions = ["staff.manage"]) {
 }
 
 describe("admin staff API", () => {
-  it("denies staff administration without staff.manage", async () => {
+  it.each([
+    ["list staff", (app: express.Express) => request(app).get("/staff")],
+    ["list roles", (app: express.Express) => request(app).get("/roles")],
+    ["create staff", (app: express.Express) => request(app).post("/staff").send({})],
+    ["change status", (app: express.Express) => request(app).patch("/staff/staff-1/status").send({})],
+    ["assign role", (app: express.Express) => request(app).post("/staff/staff-1/roles").send({})],
+    ["remove role", (app: express.Express) => request(app).delete("/staff/staff-1/roles/role-1")],
+    ["create delegation", (app: express.Express) => request(app).post("/staff/staff-1/delegations").send({})],
+    ["revoke delegation", (app: express.Express) => request(app).delete("/staff/delegations/delegation-1")],
+  ])("denies %s without staff.manage", async (_name, buildRequest) => {
     const { app, service } = setup([]);
-    const response = await request(app).get("/staff");
+    const response = await buildRequest(app);
     expect(response.status).toBe(403);
     expect(response.body).toEqual({
       error: "permission_required",
       permission: "staff.manage",
     });
-    expect(service.listStaff).not.toHaveBeenCalled();
+    for (const operation of Object.values(service)) {
+      expect(operation).not.toHaveBeenCalled();
+    }
   });
 
   it("lists roles and staff", async () => {

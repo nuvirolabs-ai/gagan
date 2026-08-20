@@ -7,7 +7,7 @@ import { colors, radius, spacing, shadow, TAB_BAR_SPACE } from "../theme";
 import { ScreenHeader } from "../components/ui";
 
 export default function RepAccountScreen() {
-  const { rep, logout } = useRep();
+  const { staff, rep, logout } = useRep();
 
   const confirmLogout = () =>
     Alert.alert("Log out?", "You'll need your phone number and an OTP to sign back in.", [
@@ -22,7 +22,7 @@ export default function RepAccountScreen() {
       <View style={styles.card}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>
-            {(rep?.name ?? "?")
+            {(staff?.name ?? "?")
               .split(" ")
               .map((p) => p[0])
               .slice(0, 2)
@@ -30,19 +30,20 @@ export default function RepAccountScreen() {
           </Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.name}>{rep?.name ?? "—"}</Text>
-          <Text style={styles.sub}>{rep?.phone ?? ""}</Text>
+          <Text style={styles.name}>{staff?.name ?? "—"}</Text>
+          <Text style={styles.sub}>{staff?.phone ?? ""}</Text>
         </View>
         <View style={styles.roleBadge}>
-          <Text style={styles.roleText}>SALES REP</Text>
+          <Text style={styles.roleText}>{rep ? "SALES" : "STAFF"}</Text>
         </View>
       </View>
 
       <View style={styles.note}>
         <Ionicons name="information-circle-outline" size={16} color={colors.green} />
         <Text style={styles.noteText}>
-          Orders you place are recorded against your name and use each retailer's own tier pricing
-          and credit limit.
+          {rep
+            ? "Orders you place are recorded against your name and use each retailer's own pricing and credit limit."
+            : "Your work areas are controlled by permissions assigned by your administrator."}
         </Text>
       </View>
 

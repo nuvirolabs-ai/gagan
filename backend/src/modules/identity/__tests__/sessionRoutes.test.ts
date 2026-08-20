@@ -17,7 +17,7 @@ const claims = {
   exp: 2,
 };
 
-function setup() {
+function setup(refreshCookie = false) {
   const now = new Date("2026-08-20T10:00:00.000Z");
   const session = {
     id: "session-1",
@@ -60,6 +60,13 @@ function setup() {
       sessions,
       otpService,
       resolvePhone: async () => "+919812345670",
+      refreshCookie: refreshCookie
+        ? {
+            name: "gagan_admin_refresh",
+            secure: true,
+            csrfHeader: { name: "x-gagan-client", value: "admin-web" },
+          }
+        : undefined,
     })
   );
   return { app, otpService, sessions };
@@ -80,6 +87,29 @@ describe("session routes", () => {
     });
     expect(response.body.session).not.toHaveProperty("refreshTokenHash");
     expect(response.body.session).not.toHaveProperty("tokenFamilyId");
+  });
+
+  it("rotates admin refresh tokens through an HttpOnly cookie", async () => {
+    const { app, sessions } = setup(true);
+    const rejected = await request(app)
+      .post("/refresh")
+      .set("Cookie", "gagan_admin_refresh=old-refresh-token-that-is-long");
+    expect(rejected.status).toBe(403);
+    expect(rejected.body).toEqual({ error: "csrf_check_failed" });
+
+    const response = await request(app)
+      .post("/refresh")
+      .set("x-gagan-client", "admin-web")
+      .set("Cookie", "gagan_admin_refresh=old-refresh-token-that-is-long");
+
+    expect(response.status).toBe(200);
+    expect(sessions.refresh).toHaveBeenCalledWith("old-refresh-token-that-is-long");
+    expect(response.body.accessToken).toBe("new-access");
+    expect(response.body).not.toHaveProperty("refreshToken");
+    expect(response.headers["set-cookie"][0]).toContain("gagan_admin_refresh=new-refresh");
+    expect(response.headers["set-cookie"][0]).toContain("HttpOnly");
+    expect(response.headers["set-cookie"][0]).toContain("Secure");
+    expect(response.headers["set-cookie"][0]).toContain("SameSite=Strict");
   });
 
   it("lists and revokes only through an authenticated identity", async () => {

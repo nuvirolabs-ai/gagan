@@ -8,18 +8,21 @@ import { lazyIdentityOtpService } from "../modules/identity/otpRuntime";
 import { createOtpRouter } from "../modules/identity/otpRoutes";
 import { createSessionRouter } from "../modules/identity/sessionRoutes";
 import { lazyIdentitySessionService } from "../modules/identity/sessionRuntime";
+import {
+  createRequireSession,
+  type IdentityAuthedRequest,
+} from "../modules/identity/sessionAuth";
 
 const router = Router();
 
 /* ---------------------------------- auth --------------------------------- */
 
-async function findStaffRep(phoneInput: string) {
+async function findStaffAccount(phoneInput: string) {
   const normalized = normalizeIndianPhone(phoneInput);
   return prisma.staffUser.findFirst({
     where: {
       phone: { in: [normalized, normalized.slice(3)] },
       status: "active",
-      salesRepId: { not: null },
     },
     select: {
       id: true,
@@ -36,9 +39,8 @@ router.use(
   createOtpRouter({
     realm: "staff",
     otpService: lazyIdentityOtpService,
-    findAccount: findStaffRep,
+    findAccount: findStaffAccount,
     issueIdentity: async (staff, req) => {
-      if (!staff.salesRep) throw new Error("Staff account is not linked to a salesperson");
       const session = await lazyIdentitySessionService.createSession({
         realm: "staff",
         subjectId: staff.id,
@@ -79,13 +81,25 @@ router.use(
   })
 );
 
-router.get("/me", requireRep, async (req: RepRequest, res) => {
-  const rep = await prisma.salesRep.findUnique({
-    where: { id: req.repId },
-    select: { id: true, name: true, phone: true },
+const requireStaffSession = createRequireSession("staff", lazyIdentitySessionService);
+
+router.get("/me", requireStaffSession, async (req: IdentityAuthedRequest, res) => {
+  const staff = await prisma.staffUser.findUnique({
+    where: { id: req.identityAuth!.subjectId },
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      email: true,
+      salesRep: { select: { id: true, name: true, phone: true } },
+    },
   });
-  if (!rep) return res.status(401).json({ error: "Session no longer valid" });
-  res.json({ rep });
+  if (!staff) return res.status(401).json({ error: "Session no longer valid" });
+  const { salesRep, ...identity } = staff;
+  res.json({
+    staff: { ...identity, permissions: req.staffAuth!.permissions },
+    rep: salesRep,
+  });
 });
 
 /* -------------------------------- retailers ------------------------------- */

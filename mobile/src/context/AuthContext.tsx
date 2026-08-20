@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { api, getToken, setToken, clearToken, setUnauthorizedHandler } from "../api/client";
+import { api, retailerSessionStore, setUnauthorizedHandler } from "../api/client";
 
 interface RetailerInfo {
   id: string;
@@ -19,6 +19,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [retailer, setRetailer] = useState<RetailerInfo | null>(null);
+  const [challengeId, setChallengeId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,8 +31,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // this must resolve to the real record rather than a placeholder.
   useEffect(() => {
     (async () => {
-      const token = await getToken();
-      if (!token) {
+      const session = await retailerSessionStore.load();
+      if (!session) {
         setLoading(false);
         return;
       }
@@ -39,7 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const res = await api.me();
         setRetailer(res.retailer);
       } catch {
-        await clearToken();
+        await retailerSessionStore.clear();
         setRetailer(null);
       } finally {
         setLoading(false);
@@ -48,18 +49,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const requestOtp = async (phone: string) => {
-    await api.requestOtp(phone);
+    const result = await api.requestOtp(phone);
+    if (typeof result.challengeId !== "string") throw new Error("Could not start OTP challenge");
+    setChallengeId(result.challengeId);
   };
 
   const verifyOtp = async (phone: string, otp: string) => {
-    const res = await api.verifyOtp(phone, otp);
-    await setToken(res.token);
+    if (!challengeId) throw new Error("Request a new OTP first");
+    const res = await api.verifyOtp(challengeId, phone, otp);
+    setChallengeId(null);
     setRetailer({ id: res.retailer.id, name: res.retailer.name, phone });
   };
 
   const logout = async () => {
-    await clearToken();
-    setRetailer(null);
+    try {
+      await api.logout();
+    } finally {
+      setChallengeId(null);
+      setRetailer(null);
+    }
   };
 
   return (

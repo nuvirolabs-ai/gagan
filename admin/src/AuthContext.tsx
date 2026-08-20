@@ -1,5 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { api, getToken, setToken, clearToken, setUnauthorizedHandler } from "./api";
+import {
+  api,
+  setAccessToken,
+  clearAccessToken,
+  setUnauthorizedHandler,
+} from "./api";
 import { AuthContext, type Admin } from "./auth-context";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -11,28 +16,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => setUnauthorizedHandler(null);
   }, []);
 
-  // Restore the session on reload by validating the stored token.
+  // The browser only persists the HttpOnly refresh cookie. Access stays in memory.
   useEffect(() => {
-    if (!getToken()) {
-      setLoading(false);
-      return;
-    }
-    api
-      .me()
-      .then((res) => setAdmin(res.admin))
-      .catch(() => clearToken())
-      .finally(() => setLoading(false));
+    (async () => {
+      try {
+        await api.refresh();
+        const res = await api.me();
+        setAdmin(res.admin);
+      } catch {
+        clearAccessToken();
+        setAdmin(null);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
 
   const login = async (email: string, password: string) => {
     const res = await api.login(email, password);
-    setToken(res.token);
+    setAccessToken(res.accessToken);
     setAdmin(res.admin);
   };
 
-  const logout = () => {
-    clearToken();
-    setAdmin(null);
+  const logout = async () => {
+    try {
+      await api.logout();
+    } finally {
+      clearAccessToken();
+      setAdmin(null);
+    }
   };
 
   return (

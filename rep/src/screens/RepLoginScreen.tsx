@@ -87,8 +87,6 @@ export default function RepLoginScreen() {
           <>
             <Text style={styles.label}>
               Enter the code sent to {phone}
-              {"\n"}
-              <Text style={styles.devHint}>Dev mode: use 123456</Text>
             </Text>
             <TextInput
               style={[styles.input, styles.otpInput]}
@@ -149,7 +147,6 @@ const styles = StyleSheet.create({
   roleText: { fontSize: 10.5, fontWeight: "800", color: colors.green, letterSpacing: 1 },
 
   label: { fontSize: 13.5, color: colors.inkMuted, marginBottom: spacing.md, lineHeight: 19 },
-  devHint: { color: colors.gold, fontWeight: "700", fontSize: 12 },
   input: {
     borderWidth: 1,
     borderColor: colors.border,

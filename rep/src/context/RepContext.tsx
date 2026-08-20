@@ -1,9 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import {
   repApi,
-  getRepToken,
-  setRepToken,
-  clearRepToken,
+  staffSessionStore,
   setRepUnauthorizedHandler,
 } from "../api/repClient";
 import { CartLine } from "../types";
@@ -14,8 +12,17 @@ interface Rep {
   phone: string;
 }
 
+export interface StaffIdentity {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  permissions: string[];
+}
+
 interface RepContextValue {
   rep: Rep | null;
+  staff: StaffIdentity | null;
   loading: boolean;
   login: (phone: string, otp: string) => Promise<void>;
   requestOtp: (phone: string) => Promise<void>;
@@ -36,27 +43,34 @@ const RepContext = createContext<RepContextValue | undefined>(undefined);
 
 export function RepProvider({ children }: { children: React.ReactNode }) {
   const [rep, setRep] = useState<Rep | null>(null);
+  const [staff, setStaff] = useState<StaffIdentity | null>(null);
+  const [challengeId, setChallengeId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeRetailerId, setActiveRetailerId] = useState<string | null>(null);
   const [lines, setLines] = useState<CartLine[]>([]);
 
   useEffect(() => {
-    setRepUnauthorizedHandler(() => setRep(null));
+    setRepUnauthorizedHandler(() => {
+      setRep(null);
+      setStaff(null);
+    });
     return () => setRepUnauthorizedHandler(null);
   }, []);
 
   useEffect(() => {
     (async () => {
-      const token = await getRepToken();
-      if (!token) {
+      const session = await staffSessionStore.load();
+      if (!session) {
         setLoading(false);
         return;
       }
       try {
         const res = await repApi.me();
+        setStaff(res.staff);
         setRep(res.rep);
       } catch {
-        await clearRepToken();
+        await staffSessionStore.clear();
+        setStaff(null);
         setRep(null);
       } finally {
         setLoading(false);
@@ -65,20 +79,29 @@ export function RepProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const requestOtp = async (phone: string) => {
-    await repApi.requestOtp(phone);
+    const result = await repApi.requestOtp(phone);
+    if (typeof result.challengeId !== "string") throw new Error("Could not start OTP challenge");
+    setChallengeId(result.challengeId);
   };
 
   const login = async (phone: string, otp: string) => {
-    const res = await repApi.verifyOtp(phone, otp);
-    await setRepToken(res.token);
+    if (!challengeId) throw new Error("Request a new OTP first");
+    const res = await repApi.verifyOtp(challengeId, phone, otp);
+    setChallengeId(null);
+    setStaff(res.staff);
     setRep(res.rep);
   };
 
   const logout = async () => {
-    await clearRepToken();
-    setRep(null);
-    setActiveRetailerId(null);
-    setLines([]);
+    try {
+      await repApi.logout();
+    } finally {
+      setChallengeId(null);
+      setStaff(null);
+      setRep(null);
+      setActiveRetailerId(null);
+      setLines([]);
+    }
   };
 
   // Switching retailer must drop the basket: prices are resolved per retailer's
@@ -115,6 +138,7 @@ export function RepProvider({ children }: { children: React.ReactNode }) {
     <RepContext.Provider
       value={{
         rep,
+        staff,
         loading,
         login,
         requestOtp,

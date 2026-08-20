@@ -15,6 +15,8 @@ import RepRetailersScreen from "./src/screens/RepRetailersScreen";
 import RepRetailerDetailScreen from "./src/screens/RepRetailerDetailScreen";
 import RepCatalogScreen from "./src/screens/RepCatalogScreen";
 import RepAccountScreen from "./src/screens/RepAccountScreen";
+import StaffHomeScreen from "./src/screens/StaffHomeScreen";
+import { staffCapabilities } from "./src/auth/staffCapabilities";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -38,6 +40,8 @@ const stackScreenOptions = {
 };
 
 function RepTabs() {
+  const { staff } = useRep();
+  const capabilities = staffCapabilities(staff?.permissions ?? []);
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -48,21 +52,26 @@ function RepTabs() {
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
         tabBarIcon: ({ color, size }) => (
           <Ionicons
-            name={route.name === "Retailers" ? "storefront-outline" : "person-outline"}
+            name={route.name === "Retailers" ? "storefront-outline" : route.name === "Work" ? "briefcase-outline" : "person-outline"}
             size={size}
             color={color}
           />
         ),
       })}
     >
-      <Tab.Screen name="Retailers" component={RepRetailersScreen} />
+      {capabilities.canOrderForRetailers ? (
+        <Tab.Screen name="Retailers" component={RepRetailersScreen} />
+      ) : (
+        <Tab.Screen name="Work" component={StaffHomeScreen} />
+      )}
       <Tab.Screen name="Account" component={RepAccountScreen} />
     </Tab.Navigator>
   );
 }
 
 function RootNavigator() {
-  const { rep, loading } = useRep();
+  const { staff, loading } = useRep();
+  const capabilities = staffCapabilities(staff?.permissions ?? []);
 
   if (loading) {
     return (
@@ -76,7 +85,7 @@ function RootNavigator() {
 
   return (
     <Stack.Navigator screenOptions={stackScreenOptions}>
-      {!rep ? (
+      {!staff ? (
         <Stack.Screen name="Login" component={RepLoginScreen} options={{ headerShown: false }} />
       ) : (
         <>
@@ -85,16 +94,20 @@ function RootNavigator() {
             component={RepTabs}
             options={{ headerShown: false, title: "Retailers" }}
           />
-          <Stack.Screen
-            name="RepRetailerDetail"
-            component={RepRetailerDetailScreen}
-            options={{ title: "Retailer", headerBackTitle: "Retailers" }}
-          />
-          <Stack.Screen
-            name="RepCatalog"
-            component={RepCatalogScreen}
-            options={{ title: "New order", headerBackTitle: "Back" }}
-          />
+          {capabilities.canOrderForRetailers && (
+            <>
+              <Stack.Screen
+                name="RepRetailerDetail"
+                component={RepRetailerDetailScreen}
+                options={{ title: "Retailer", headerBackTitle: "Retailers" }}
+              />
+              <Stack.Screen
+                name="RepCatalog"
+                component={RepCatalogScreen}
+                options={{ title: "New order", headerBackTitle: "Back" }}
+              />
+            </>
+          )}
         </>
       )}
     </Stack.Navigator>

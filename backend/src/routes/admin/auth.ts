@@ -6,6 +6,10 @@ import { requireAdmin, AdminRequest } from "../../lib/adminAuth";
 import { createSessionRouter } from "../../modules/identity/sessionRoutes";
 import { lazyIdentitySessionService } from "../../modules/identity/sessionRuntime";
 import { lazyIdentityOtpService } from "../../modules/identity/otpRuntime";
+import {
+  adminRefreshCookieConfig,
+  sendAdminSession,
+} from "../../modules/identity/adminSession";
 
 const router = Router();
 
@@ -37,11 +41,10 @@ router.post("/auth/login", async (req, res) => {
     userAgent: req.header("user-agent") ?? undefined,
   });
 
-  res.json({
-    accessToken: session.accessToken,
-    refreshToken: session.refreshToken,
-    session: { id: session.session.id, expiresAt: session.session.expiresAt },
-    admin: { id: admin.id, name: admin.name, email: admin.email },
+  sendAdminSession(res, session, {
+    id: admin.id,
+    name: admin.name,
+    email: admin.email,
   });
 });
 
@@ -59,6 +62,7 @@ router.use(
     realm: "admin",
     sessions: lazyIdentitySessionService,
     otpService: lazyIdentityOtpService,
+    refreshCookie: adminRefreshCookieConfig(),
     resolvePhone: async (staffId) => {
       const staff = await prisma.staffUser.findUniqueOrThrow({
         where: { id: staffId },

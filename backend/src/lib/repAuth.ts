@@ -3,6 +3,7 @@ import { prisma } from "./prisma";
 import { Permissions } from "../modules/identity/roleCatalog";
 import { SessionError } from "../modules/identity/sessionService";
 import { lazyIdentitySessionService } from "../modules/identity/sessionRuntime";
+import { staffAppAccess } from "../modules/identity/staffAppAccess";
 
 export interface RepRequest extends Request {
   repId?: string;
@@ -20,17 +21,20 @@ export async function requireRep(req: RepRequest, res: Response, next: NextFunct
       header.slice(7),
       "staff"
     );
+    const staff = await prisma.staffUser.findUnique({
+      where: { id: claims.sub },
+      select: { id: true, salesRepId: true },
+    });
+    const access = staffAppAccess(claims.permissions, staff?.salesRepId ?? null);
     if (!claims.permissions.includes(Permissions.ORDER_CREATE_FOR_RETAILER)) {
       return res.status(403).json({
         error: "permission_required",
         permission: Permissions.ORDER_CREATE_FOR_RETAILER,
       });
     }
-    const staff = await prisma.staffUser.findUnique({
-      where: { id: claims.sub },
-      select: { id: true, salesRepId: true },
-    });
-    if (!staff?.salesRepId) return res.status(403).json({ error: "salesperson_required" });
+    if (!staff?.salesRepId || !access.canUseSalesWorkspace) {
+      return res.status(403).json({ error: "salesperson_required" });
+    }
     req.staffId = staff.id;
     req.repId = staff.salesRepId;
     next();

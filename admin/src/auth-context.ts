@@ -10,7 +10,7 @@ export interface AuthValue {
   admin: Admin | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthValue | undefined>(undefined);

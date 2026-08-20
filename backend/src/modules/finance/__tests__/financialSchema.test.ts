@@ -25,10 +25,22 @@ describe("immutable financial schema", () => {
       "PaymentEvidence",
       "CreditNote",
       "PaymentReversal",
+      "PaymentReversalAllocation",
       "ReconciliationIssue",
     ]) {
       model(name);
     }
+  });
+
+  it("represents full reversal state and immutable allocation reversals", () => {
+    const paymentStatus = Prisma.dmmf.datamodel.enums.find(
+      (candidate) => candidate.name === "PaymentStatus"
+    );
+    expect(paymentStatus?.values.map((value) => value.name)).toContain("reversed");
+    expect(field("PaymentReversalAllocation", "paymentAllocationId").type).toBe(
+      "String"
+    );
+    expect(field("PaymentReversal", "unallocatedAmount").type).toBe("Decimal");
   });
 
   it("enforces one invoice per order and one settlement ledger event per payment", () => {
@@ -71,6 +83,12 @@ describe("immutable financial schema", () => {
 
     expect(migrationSql).toContain(
       'CONSTRAINT "Payment_unallocated_nonnegative_check" CHECK ("unallocatedAmount" >= 0)'
+    );
+    expect(migrationSql).toContain(
+      'CONSTRAINT "PaymentReversal_unallocated_bounds_check" CHECK ("unallocatedAmount" >= 0 AND "unallocatedAmount" <= "amount")'
+    );
+    expect(migrationSql).toContain(
+      'CONSTRAINT "PaymentReversalAllocation_amount_positive_check" CHECK ("amount" > 0)'
     );
   });
 });

@@ -29,4 +29,12 @@ describe("identity role catalog", () => {
       ROLE_DEFINITIONS.find((role) => role.name === "platform_admin")?.permissions
     ).toContain(Permissions.STAFF_MANAGE);
   });
+
+  it("limits financial corrections to Accounts and platform administrators", () => {
+    const holders = ROLE_DEFINITIONS.filter((role) =>
+      role.permissions.includes(Permissions.FINANCIAL_CORRECT)
+    ).map((role) => role.name);
+
+    expect(holders).toEqual(["accounts", "platform_admin"]);
+  });
 });

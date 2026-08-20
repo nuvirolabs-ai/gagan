@@ -8,6 +8,7 @@ export interface Admin {
 
 export interface AuthValue {
   admin: Admin | null;
+  permissions: string[];
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;

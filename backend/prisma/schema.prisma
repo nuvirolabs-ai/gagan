@@ -43,6 +43,7 @@ enum PaymentStatus {
   succeeded
   failed
   cancelled
+  reversed
 }
 
 enum PaymentChannel {
@@ -562,6 +563,7 @@ model PaymentAllocation {
   invoiceId String
   invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
   amount    Decimal  @db.Decimal(14, 2)
+  reversals PaymentReversalAllocation[]
   createdAt DateTime @default(now())
 
   @@unique([paymentId, invoiceId])
@@ -624,16 +626,31 @@ model CreditNote {
 }
 
 model PaymentReversal {
-  id             String                @id @default(uuid())
-  paymentId      String
-  payment        Payment               @relation(fields: [paymentId], references: [id], onDelete: Restrict)
-  amount         Decimal               @db.Decimal(14, 2)
-  reason         String
-  idempotencyKey String                @unique
-  ledgerEntry    FinancialLedgerEntry?
-  createdAt      DateTime              @default(now())
+  id                  String                      @id @default(uuid())
+  paymentId           String
+  payment             Payment                     @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  amount              Decimal                     @db.Decimal(14, 2)
+  unallocatedAmount   Decimal                     @default(0) @db.Decimal(14, 2)
+  reason              String
+  idempotencyKey      String                      @unique
+  allocationReversals PaymentReversalAllocation[]
+  ledgerEntry         FinancialLedgerEntry?
+  createdAt           DateTime                    @default(now())
 
   @@index([paymentId, createdAt])
+}
+
+model PaymentReversalAllocation {
+  id                  String            @id @default(uuid())
+  paymentReversalId   String
+  paymentReversal     PaymentReversal   @relation(fields: [paymentReversalId], references: [id], onDelete: Restrict)
+  paymentAllocationId String
+  paymentAllocation   PaymentAllocation @relation(fields: [paymentAllocationId], references: [id], onDelete: Restrict)
+  amount              Decimal           @db.Decimal(14, 2)
+  createdAt           DateTime          @default(now())
+
+  @@unique([paymentReversalId, paymentAllocationId])
+  @@index([paymentAllocationId, createdAt])
 }
 
 model ReconciliationIssue {

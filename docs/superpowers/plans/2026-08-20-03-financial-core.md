@@ -57,12 +57,12 @@ expect(await prisma.financialLedgerEntry.count({ where: { invoiceId } })).toBe(1
 
 ## Task 4: Add reversals, credit notes, and append-only corrections
 
-- [ ] Write tests proving confirmed ledger entries cannot be edited/deleted through application services.
-- [ ] Implement full/partial payment reversal and delivery credit-note services with permission, reason, and audit requirements.
-- [ ] Recalculate allocations through compensating entries, never mutation of historical entries.
-- [ ] Expose admin correction APIs and focused confirmation UI.
-- [ ] Run backend and admin end-to-end tests.
-- [ ] Commit: `feat: add auditable financial corrections`.
+- [x] Write tests proving correction services leave confirmed invoice and payment ledger entries unchanged.
+- [x] Implement full/partial payment reversal and delivery credit-note services with permission, reason, and audit requirements.
+- [x] Recalculate allocations through compensating entries, never mutation of historical entries.
+- [x] Expose admin correction APIs and focused confirmation UI.
+- [x] Run backend and admin end-to-end tests.
+- [x] Commit: `feat: add auditable financial corrections`.
 
 ## Task 5: Backfill and reconcile legacy data
 

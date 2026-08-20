@@ -8,24 +8,28 @@ import Ledger from "./pages/Ledger";
 import Catalog from "./pages/Catalog";
 import Staff from "./pages/Staff";
 import StaffDetail from "./pages/StaffDetail";
+import Corrections from "./pages/Corrections";
 
 const NAV = [
-  { to: "/orders", label: "Order queue" },
-  { to: "/retailers", label: "Retailers" },
-  { to: "/ledger", label: "Ledger" },
-  { to: "/catalog", label: "Catalog" },
-  { to: "/staff", label: "Staff access" },
+  { to: "/orders", label: "Order queue", permission: "staff.manage" },
+  { to: "/retailers", label: "Retailers", permission: "staff.manage" },
+  { to: "/ledger", label: "Ledger", permission: "staff.manage" },
+  { to: "/catalog", label: "Catalog", permission: "staff.manage" },
+  { to: "/corrections", label: "Corrections", permission: "financial.correct" },
+  { to: "/staff", label: "Staff access", permission: "staff.manage" },
 ];
 
 function Shell() {
-  const { admin, logout } = useAuth();
+  const { admin, permissions, logout } = useAuth();
+  const availableNav = NAV.filter((item) => permissions.includes(item.permission));
+  const landingPath = availableNav[0]?.to ?? "/no-access";
 
   return (
     <div className="layout">
       <aside className="sidebar">
         <div className="brand">GAGAN</div>
         <div className="brand-sub">NUTRITION. DELIVERED.</div>
-        {NAV.map((n) => (
+        {availableNav.map((n) => (
           <NavLink
             key={n.to}
             to={n.to}
@@ -51,7 +55,12 @@ function Shell() {
           <Route path="/catalog" element={<Catalog />} />
           <Route path="/staff" element={<Staff />} />
           <Route path="/staff/:staffId" element={<StaffDetail />} />
-          <Route path="*" element={<Navigate to="/orders" replace />} />
+          <Route path="/corrections" element={<Corrections />} />
+          <Route
+            path="/no-access"
+            element={<div className="card empty-state">No portal permissions are assigned.</div>}
+          />
+          <Route path="*" element={<Navigate to={landingPath} replace />} />
         </Routes>
       </main>
     </div>

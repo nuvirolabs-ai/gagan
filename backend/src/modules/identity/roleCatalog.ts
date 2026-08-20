@@ -7,6 +7,7 @@ export const Permissions = {
   CREDIT_BLOCK: "credit.block",
   COLLECTION_SUBMIT: "collection.submit",
   COLLECTION_CONFIRM: "collection.confirm",
+  FINANCIAL_CORRECT: "financial.correct",
   DISPATCH_EXECUTE: "dispatch.execute",
   LEGAL_DECIDE: "legal.decide",
   STAFF_MANAGE: "staff.manage",
@@ -53,7 +54,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
   {
     name: "accounts",
     description: "Confirms verified collections before financial posting.",
-    permissions: [Permissions.COLLECTION_CONFIRM],
+    permissions: [Permissions.COLLECTION_CONFIRM, Permissions.FINANCIAL_CORRECT],
   },
   {
     name: "dispatch",

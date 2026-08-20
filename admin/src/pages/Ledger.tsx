@@ -2,6 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, inr } from "../api";
 
+const LEDGER_LABELS: Record<string, string> = {
+  invoice: "Invoice",
+  payment: "Payment",
+  credit_note: "Credit note",
+  payment_reversal: "Payment reversal",
+};
+
 export default function Ledger() {
   const { retailerId } = useParams();
   const [retailers, setRetailers] = useState<any[]>([]);
@@ -46,7 +53,7 @@ export default function Ledger() {
     }
     setBusy(true);
     try {
-      await api.recordPayment(selected!, value);
+      await api.recordPayment(selected!, value, crypto.randomUUID());
       setNotice(`Payment of ${inr(value)} recorded`);
       setAmount("");
       setError(null);
@@ -154,21 +161,23 @@ export default function Ledger() {
                         })}
                       </td>
                       <td>
-                        <span className={`pill ${e.type === "invoice" ? "placed" : "delivered"}`}>
-                          {e.type === "invoice" ? "Invoice" : "Payment"}
+                        <span className={`pill ${(e.direction ? e.direction === "debit" : e.type === "invoice") ? "placed" : "delivered"}`}>
+                          {LEDGER_LABELS[e.kind] ?? "Ledger entry"}
                         </span>
                       </td>
                       <td className="muted small">
-                        {e.order ? `GGN-${String(e.order.orderNo).padStart(5, "0")}` : "—"}
+                        {e.invoice
+                          ? `Invoice #${e.invoice.invoiceNumber}`
+                          : e.payment?.id ?? "—"}
                       </td>
                       <td
                         className="right"
                         style={{
                           fontWeight: 700,
-                          color: e.type === "invoice" ? "var(--danger)" : "var(--green)",
+                          color: (e.direction ? e.direction === "debit" : e.type === "invoice") ? "var(--danger)" : "var(--green)",
                         }}
                       >
-                        {e.type === "invoice" ? "+" : "−"}
+                        {e.direction ? (e.direction === "debit" ? "+" : "−") : e.type === "invoice" ? "+" : "−"}
                         {inr(Number(e.amount))}
                       </td>
                       <td className="right">{inr(Number(e.balanceAfter))}</td>

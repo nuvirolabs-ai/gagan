@@ -10,9 +10,10 @@ import { EmptyState } from "../components/ui";
 
 interface Entry {
   id: string;
-  type: "invoice" | "payment";
-  amount: string;
-  balanceAfter: string;
+  type: "invoice" | "payment" | "credit_note" | "payment_reversal";
+  direction: "debit" | "credit";
+  amount: string | number;
+  balanceAfter: string | number;
   createdAt: string;
 }
 
@@ -108,18 +109,24 @@ export default function LedgerScreen() {
           <Text style={styles.sectionHeader}>{section.title}</Text>
         )}
         renderItem={({ item }) => {
-          const isInvoice = item.type === "invoice";
+          const isDebit = item.direction ? item.direction === "debit" : item.type === "invoice";
+          const label = {
+            invoice: "Invoice",
+            payment: "Payment received",
+            credit_note: "Credit note",
+            payment_reversal: "Payment reversed",
+          }[item.type];
           return (
             <View style={styles.entry}>
-              <View style={[styles.entryIcon, isInvoice ? styles.iconInvoice : styles.iconPayment]}>
+              <View style={[styles.entryIcon, isDebit ? styles.iconInvoice : styles.iconPayment]}>
                 <MaterialCommunityIcons
-                  name={isInvoice ? "file-document-outline" : "cash-check"}
+                  name={isDebit ? "file-document-outline" : "cash-check"}
                   size={17}
-                  color={isInvoice ? "#8A6A12" : colors.green}
+                  color={isDebit ? "#8A6A12" : colors.green}
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.entryType}>{isInvoice ? "Invoice" : "Payment received"}</Text>
+                <Text style={styles.entryType}>{label}</Text>
                 <Text style={styles.entryDate}>
                   {new Date(item.createdAt).toLocaleDateString("en-IN", {
                     day: "numeric",
@@ -130,9 +137,9 @@ export default function LedgerScreen() {
               </View>
               <View style={{ alignItems: "flex-end" }}>
                 <Text
-                  style={[styles.entryAmount, { color: isInvoice ? colors.danger : colors.green }]}
+                  style={[styles.entryAmount, { color: isDebit ? colors.danger : colors.green }]}
                 >
-                  {isInvoice ? "+" : "−"}
+                  {isDebit ? "+" : "−"}
                   {inr(Number(item.amount))}
                 </Text>
                 <Text style={styles.entryBalance}>Bal {inr(Number(item.balanceAfter))}</Text>

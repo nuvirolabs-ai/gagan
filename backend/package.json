@@ -17,7 +17,9 @@
     "start:worker": "node dist/worker.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "ts-node prisma/seed.ts"
+    "prisma:seed": "ts-node prisma/seed.ts",
+    "financial:backfill": "ts-node --transpile-only scripts/backfillFinancialCore.ts",
+    "financial:reconcile": "ts-node --transpile-only scripts/reconcileFinancialCore.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.19.1",

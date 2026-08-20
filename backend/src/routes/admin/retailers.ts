@@ -2,8 +2,15 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
 import { requireAdmin } from "../../lib/adminAuth";
-import { ageingFor, ageAllRetailers } from "../../lib/ageing";
-import { settlePayment } from "../../lib/settlement";
+import { ageAllRetailers } from "../../lib/ageing";
+import {
+  financialAgeingFor,
+  financialLedgerFor,
+} from "../../modules/finance/financialQueries";
+import {
+  PaymentSettlementError,
+  settleSucceededPayment,
+} from "../../modules/payments/paymentService";
 
 const router = Router();
 router.use(requireAdmin);
@@ -120,12 +127,8 @@ router.delete("/retailers/:id/price-override/:variantId", async (req, res) => {
 router.get("/retailers/:id/ledger", async (req, res) => {
   const [retailer, entries, ageing] = await Promise.all([
     prisma.retailer.findUnique({ where: { id: req.params.id } }),
-    prisma.ledgerEntry.findMany({
-      where: { retailerId: req.params.id },
-      orderBy: { createdAt: "desc" },
-      include: { order: { select: { orderNo: true } } },
-    }),
-    ageingFor(prisma, req.params.id),
+    financialLedgerFor(prisma, req.params.id),
+    financialAgeingFor(prisma, req.params.id),
   ]);
   if (!retailer) return res.status(404).json({ error: "Retailer not found" });
 
@@ -134,13 +137,7 @@ router.get("/retailers/:id/ledger", async (req, res) => {
     creditLimit: Number(retailer.creditLimit),
     overdueAmount: Number(retailer.overdueAmount),
     ageing,
-    entries: entries.map((e) => ({
-      ...e,
-      outstanding:
-        e.type === "invoice"
-          ? Math.max(Number(e.amount) - Number(e.settledAmount), 0)
-          : null,
-    })),
+    entries,
   });
 });
 
@@ -153,6 +150,7 @@ router.post("/ageing/run", async (_req, res) => {
 const paymentSchema = z.object({
   retailerId: z.string(),
   amount: z.number().positive(),
+  idempotencyKey: z.string().trim().min(8).max(100),
 });
 
 /**
@@ -167,26 +165,46 @@ router.post("/payments", async (req, res) => {
   const retailer = await prisma.retailer.findUnique({ where: { id: parsed.data.retailerId } });
   if (!retailer) return res.status(404).json({ error: "Retailer not found" });
 
-  const result = await prisma.$transaction(async (tx) => {
-    const payment = await tx.payment.create({
-      data: {
-        retailerId: retailer.id,
-        amount: parsed.data.amount,
-        status: "succeeded",
-        channel: "manual",
-        settledAt: new Date(),
-      },
-    });
-    const settled = await settlePayment(tx, {
+  const providerRef = `manual:${parsed.data.idempotencyKey}`;
+  const payment = await prisma.payment.upsert({
+    where: { providerRef },
+    update: {},
+    create: {
       retailerId: retailer.id,
       amount: parsed.data.amount,
-      paymentId: payment.id,
-    });
-    const updated = await tx.retailer.findUniqueOrThrow({ where: { id: retailer.id } });
-    return { payment, ...settled, retailer: updated };
+      status: "pending",
+      channel: "manual",
+      provider: "manual",
+      providerRef,
+    },
   });
-
-  res.json(result);
+  if (
+    payment.retailerId !== retailer.id ||
+    Number(payment.amount) !== parsed.data.amount
+  ) {
+    return res.status(409).json({ error: "idempotency_key_conflict" });
+  }
+  try {
+    const settled = await settleSucceededPayment({
+      paymentId: payment.id,
+      occurredAt: new Date(),
+    });
+    const updated = await prisma.retailer.findUnique({ where: { id: retailer.id } });
+    res.json({ payment: { ...payment, status: "succeeded" }, ...settled, retailer: updated });
+  } catch (error) {
+    await prisma.payment.updateMany({
+      where: { id: payment.id, status: "pending" },
+      data: {
+        status: "failed",
+        failureReason:
+          error instanceof PaymentSettlementError ? error.code : "manual_settlement_failed",
+      },
+    });
+    if (error instanceof PaymentSettlementError) {
+      return res.status(409).json({ error: error.code });
+    }
+    throw error;
+  }
 });
 
 router.get("/tiers", async (_req, res) => {

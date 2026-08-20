@@ -2,7 +2,7 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
-import { requireAdmin, AdminRequest } from "../../lib/adminAuth";
+import { requireAdminIdentity, AdminRequest } from "../../lib/adminAuth";
 import { createSessionRouter } from "../../modules/identity/sessionRoutes";
 import { lazyIdentitySessionService } from "../../modules/identity/sessionRuntime";
 import { lazyIdentityOtpService } from "../../modules/identity/otpRuntime";
@@ -48,7 +48,7 @@ router.post("/auth/login", async (req, res) => {
   });
 });
 
-router.get("/auth/me", requireAdmin, async (req: AdminRequest, res) => {
+router.get("/auth/me", requireAdminIdentity, async (req: AdminRequest, res) => {
   const admin = await prisma.adminUser.findUnique({
     where: { id: req.adminId },
     select: { id: true, name: true, email: true },

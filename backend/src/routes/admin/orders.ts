@@ -3,9 +3,10 @@ import { z } from "zod";
 import { OrderStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { requireAdmin } from "../../lib/adminAuth";
-import { buildInvoice } from "../../lib/invoicing";
-import { paymentTermDays, addDays, recomputeOverdue } from "../../lib/ageing";
-import { enqueueInvoice } from "../../lib/sap/outbox";
+import {
+  createInvoiceForDelivery,
+  InvoiceCreationError,
+} from "../../modules/invoicing/invoiceService";
 
 const router = Router();
 router.use(requireAdmin);
@@ -136,7 +137,10 @@ router.post("/dispatch/:orderId/pod", async (req, res) => {
   });
   if (!order) return res.status(404).json({ error: "Order not found" });
 
-  const problem = assertTransition(order.status, "delivered");
+  // A provider or mobile client may retry after the first request committed.
+  // Let the invoice service return the existing document for delivered orders.
+  const problem =
+    order.status === "delivered" ? null : assertTransition(order.status, "delivered");
   if (problem) return res.status(409).json({ error: problem });
 
   const knownItemIds = new Set(order.items.map((i) => i.id));
@@ -148,69 +152,39 @@ router.post("/dispatch/:orderId/pod", async (req, res) => {
     });
   }
 
-  const byId = new Map(parsed.data.items.map((i) => [i.orderItemId, i]));
+  if (parsed.data.items.length !== order.items.length) {
+    return res.status(400).json({ error: "Every order line needs a delivery result" });
+  }
 
-  const result = await prisma.$transaction(async (tx) => {
-    for (const item of order.items) {
-      const captured = byId.get(item.id);
-      if (!captured) continue;
-      await tx.orderItem.update({
-        where: { id: item.id },
-        data: {
-          qtyDelivered: captured.qtyDelivered,
-          weightDelivered: captured.weightDeliveredKg ?? null,
-        },
-      });
-    }
-
-    const items = await tx.orderItem.findMany({
-      where: { orderId: order.id },
-      include: { variant: { select: { unitsPerCase: true, unitWeightKg: true } } },
+  const occurredAt = new Date();
+  try {
+    const invoice = await createInvoiceForDelivery({
+      orderId: order.id,
+      occurredAt,
+      idempotencyKey: `delivery:${order.id}`,
+      lines: parsed.data.items.map((item) => ({
+        orderItemId: item.orderItemId,
+        deliveredCases: item.qtyDelivered,
+        deliveredWeightKg: item.weightDeliveredKg,
+      })),
+      proof: { podType: parsed.data.podType, capturedAt: occurredAt },
     });
-    const invoice = buildInvoice(items);
-
-    const totalWeight = invoice.lines.reduce((sum, l) => sum + (l.billedWeightKg ?? 0), 0);
-    await tx.delivery.upsert({
-      where: { orderId: order.id },
-      update: { podType: parsed.data.podType, podCapturedAt: new Date(), actualWeight: totalWeight },
-      create: {
-        orderId: order.id,
-        podType: parsed.data.podType,
-        podCapturedAt: new Date(),
-        actualWeight: totalWeight,
-      },
-    });
-
-    const balanceAfter = Number(order.retailer.currentBalance) + invoice.total;
-    // The credit clock starts at delivery, since that's when the invoice exists.
-    const termDays = await paymentTermDays(tx, order.retailerId);
-    const ledgerEntry = await tx.ledgerEntry.create({
-      data: {
-        retailerId: order.retailerId,
-        orderId: order.id,
-        type: "invoice",
-        amount: invoice.total,
-        balanceAfter,
-        dueDate: addDays(new Date(), termDays),
-      },
-    });
-    await tx.retailer.update({
-      where: { id: order.retailerId },
-      data: { currentBalance: balanceAfter },
-    });
-    await recomputeOverdue(tx, order.retailerId);
-    await enqueueInvoice(tx, ledgerEntry.id);
-
-    const updated = await tx.order.update({
+    const updated = await prisma.order.findUniqueOrThrow({
       where: { id: order.id },
-      data: { status: "delivered" },
       include: orderInclude,
     });
-
-    return { order: updated, invoice, ledgerEntry, balanceAfter };
-  });
-
-  res.json(result);
+    res.json({
+      order: updated,
+      invoice,
+      ledgerEntry: invoice.legacyLedgerEntry,
+      balanceAfter: Number(invoice.ledgerEntry?.balanceAfter ?? 0),
+    });
+  } catch (error) {
+    if (error instanceof InvoiceCreationError) {
+      return res.status(error.code.endsWith("_not_found") ? 404 : 409).json({ error: error.code });
+    }
+    throw error;
+  }
 });
 
 export default router;

@@ -17,11 +17,12 @@ vi.mock("../api", () => ({
 }));
 
 function Probe() {
-  const { admin, loading, logout } = useAuth();
+  const { admin, permissions, loading, logout } = useAuth();
   if (loading) return <span>Loading</span>;
   return (
     <div>
       <span>{admin?.name ?? "Signed out"}</span>
+      <span>{permissions.join(",")}</span>
       <button onClick={logout}>Log out</button>
     </div>
   );
@@ -33,6 +34,7 @@ describe("admin auth context", () => {
     vi.mocked(api.refresh).mockResolvedValue("fresh-access");
     vi.mocked(api.me).mockResolvedValue({
       admin: { id: "admin-1", name: "Ops Admin", email: "admin@gagan.test" },
+      permissions: ["financial.correct"],
     });
     vi.mocked(api.logout).mockResolvedValue({});
   });
@@ -42,6 +44,7 @@ describe("admin auth context", () => {
     expect(await screen.findByText("Ops Admin")).toBeInTheDocument();
     expect(api.refresh).toHaveBeenCalledOnce();
     expect(api.me).toHaveBeenCalledOnce();
+    expect(screen.getByText("financial.correct")).toBeInTheDocument();
   });
 
   it("revokes the server session before clearing in-memory access", async () => {

@@ -138,8 +138,33 @@ export const api = {
   setPriceOverride: (id: string, variantId: string, price: number) =>
     post(`/admin/retailers/${id}/price-override`, { variantId, price }),
   ledger: (id: string) => request(`/admin/retailers/${id}/ledger`),
-  recordPayment: (retailerId: string, amount: number) =>
-    post("/admin/payments", { retailerId, amount }),
+  recordPayment: (retailerId: string, amount: number, idempotencyKey: string) =>
+    post("/admin/payments", { retailerId, amount, idempotencyKey }),
+  correctionTargets: () => request("/admin/financial/correction-targets"),
+  issueCreditNote: (
+    invoiceId: string,
+    amount: number,
+    reason: string,
+    idempotencyKey: string
+  ) =>
+    post("/admin/financial/credit-notes", {
+      invoiceId,
+      amount,
+      reason,
+      idempotencyKey,
+    }),
+  reversePayment: (
+    paymentId: string,
+    amount: number,
+    reason: string,
+    idempotencyKey: string
+  ) =>
+    post("/admin/financial/payment-reversals", {
+      paymentId,
+      amount,
+      reason,
+      idempotencyKey,
+    }),
 
   tiers: () => request("/admin/tiers"),
   products: () => request("/admin/products"),

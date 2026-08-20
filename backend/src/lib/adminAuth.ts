@@ -9,7 +9,12 @@ export interface AdminRequest extends StaffAuthedRequest {
   adminId?: string;
 }
 
-export async function requireAdmin(req: AdminRequest, res: Response, next: NextFunction) {
+async function authenticateAdmin(
+  req: AdminRequest,
+  res: Response,
+  next: NextFunction,
+  requiredPermission?: string
+) {
   const header = req.headers.authorization;
   if (!header?.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Missing Authorization header" });
@@ -20,10 +25,10 @@ export async function requireAdmin(req: AdminRequest, res: Response, next: NextF
       header.slice(7),
       "admin"
     );
-    if (!claims.permissions.includes(Permissions.STAFF_MANAGE)) {
+    if (requiredPermission && !claims.permissions.includes(requiredPermission)) {
       return res.status(403).json({
         error: "permission_required",
-        permission: Permissions.STAFF_MANAGE,
+        permission: requiredPermission,
       });
     }
     const staff = await prisma.staffUser.findUnique({
@@ -46,4 +51,18 @@ export async function requireAdmin(req: AdminRequest, res: Response, next: NextF
     }
     next(error);
   }
+}
+
+/** Authenticate a linked admin-portal identity without granting any operation. */
+export async function requireAdminIdentity(
+  req: AdminRequest,
+  res: Response,
+  next: NextFunction
+) {
+  return authenticateAdmin(req, res, next);
+}
+
+/** Existing admin surfaces remain restricted until each gets a narrow permission. */
+export async function requireAdmin(req: AdminRequest, res: Response, next: NextFunction) {
+  return authenticateAdmin(req, res, next, Permissions.STAFF_MANAGE);
 }

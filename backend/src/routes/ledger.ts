@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../lib/auth";
+import { financialLedgerFor } from "../modules/finance/financialQueries";
 
 const router = Router();
 
@@ -10,16 +11,13 @@ router.get("/ledger/:retailerId", requireAuth, async (req: AuthedRequest, res) =
   }
   const [retailer, entries] = await Promise.all([
     prisma.retailer.findUnique({ where: { id: req.params.retailerId } }),
-    prisma.ledgerEntry.findMany({
-      where: { retailerId: req.params.retailerId },
-      orderBy: { createdAt: "desc" },
-    }),
+    financialLedgerFor(prisma, req.params.retailerId),
   ]);
   if (!retailer) return res.status(404).json({ error: "Retailer not found" });
 
   res.json({
-    currentBalance: retailer.currentBalance,
-    creditLimit: retailer.creditLimit,
+    currentBalance: Number(retailer.currentBalance),
+    creditLimit: Number(retailer.creditLimit),
     entries,
   });
 });

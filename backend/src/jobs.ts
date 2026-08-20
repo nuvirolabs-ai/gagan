@@ -2,6 +2,7 @@ import { ageAllRetailers } from "./lib/ageing";
 import { getSapConnector } from "./lib/sap";
 import { drainOutbox } from "./lib/sap/outbox";
 import { syncAll } from "./lib/sap/sync";
+import { reconcileAllRetailers } from "./modules/payments/reconciliationService";
 
 const MINUTE = 60_000;
 
@@ -39,6 +40,20 @@ export function startScheduledJobs() {
   const ageingMins = minutesFromEnv("AGEING_INTERVAL_MINUTES", 60);
   timers.push(setInterval(() => void safely("ageing", ageAllRetailers), ageingMins * MINUTE));
   void safely("ageing (startup)", ageAllRetailers);
+
+  // During the dual-write release, continuously compare the immutable ledger
+  // with the cached retailer balance. Differences become Accounts-owned issues;
+  // the monitor never rewrites money automatically.
+  const reconciliationMins = minutesFromEnv("RECONCILIATION_INTERVAL_MINUTES", 60);
+  timers.push(
+    setInterval(
+      () => void safely("financial reconciliation", () => reconcileAllRetailers({ apply: true })),
+      reconciliationMins * MINUTE
+    )
+  );
+  void safely("financial reconciliation (startup)", () =>
+    reconcileAllRetailers({ apply: true })
+  );
 
   const connector = getSapConnector();
   if (!connector.enabled) {

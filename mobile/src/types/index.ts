@@ -43,8 +43,9 @@ export interface Order {
 
 export interface LedgerEntry {
   id: string;
-  type: "invoice" | "payment";
-  amount: string;
-  balanceAfter: string;
+  type: "invoice" | "payment" | "credit_note" | "payment_reversal";
+  direction: "debit" | "credit";
+  amount: string | number;
+  balanceAfter: string | number;
   createdAt: string;
 }

@@ -3,8 +3,8 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../lib/auth";
 import { getPaymentProvider } from "../lib/payments";
-import { settlePayment } from "../lib/settlement";
-import { ageingFor } from "../lib/ageing";
+import { settleSucceededPayment } from "../modules/payments/paymentService";
+import { financialAgeingFor } from "../modules/finance/financialQueries";
 
 const router = Router();
 
@@ -13,7 +13,7 @@ router.get("/payments/dues", requireAuth, async (req: AuthedRequest, res) => {
   const retailer = await prisma.retailer.findUnique({ where: { id: req.retailerId } });
   if (!retailer) return res.status(404).json({ error: "Retailer not found" });
 
-  const ageing = await ageingFor(prisma, retailer.id);
+  const ageing = await financialAgeingFor(prisma, retailer.id);
   res.json({
     outstanding: Number(retailer.currentBalance),
     overdue: Number(retailer.overdueAmount),
@@ -107,34 +107,25 @@ router.post("/payments/callback", async (req, res) => {
   }
 
   if (event.status !== "succeeded") {
-    await prisma.payment.update({
-      where: { id: payment.id },
+    const transition = await prisma.payment.updateMany({
+      where: { id: payment.id, status: "pending" },
       data: {
         status: event.status,
         failureReason: event.status === "failed" ? event.reason : "Cancelled by the retailer",
       },
     });
+    if (transition.count === 0) {
+      const current = await prisma.payment.findUnique({ where: { id: payment.id } });
+      return res.json({ ok: true, status: current?.status ?? payment.status, idempotent: true });
+    }
     return res.json({ ok: true, status: event.status });
   }
 
-  const result = await prisma.$transaction(async (tx) => {
-    // Re-read inside the transaction so two concurrent callbacks can't both settle.
-    const fresh = await tx.payment.findUniqueOrThrow({ where: { id: payment.id } });
-    if (fresh.status !== "pending") return null;
-
-    await tx.payment.update({
-      where: { id: fresh.id },
-      data: { status: "succeeded", settledAt: new Date() },
-    });
-
-    return settlePayment(tx, {
-      retailerId: fresh.retailerId,
-      amount: Number(fresh.amount),
-      paymentId: fresh.id,
-    });
+  const result = await settleSucceededPayment({
+    paymentId: payment.id,
+    occurredAt: new Date(),
   });
 
-  if (!result) return res.json({ ok: true, status: "succeeded", idempotent: true });
   res.json({ ok: true, status: "succeeded", ...result });
 });
 

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
+import { financialLedgerFor } from "../modules/finance/financialQueries";
 import { requireRep, assignedRetailer, RepRequest } from "../lib/repAuth";
 import { createOrderForRetailer } from "../lib/orders";
 import { normalizeIndianPhone } from "../modules/identity/otpService";
@@ -150,11 +151,7 @@ router.get("/retailers/:id", requireRep, async (req: RepRequest, res) => {
       take: 5,
       include: { items: { include: { variant: { include: { product: true } } } } },
     }),
-    prisma.ledgerEntry.findMany({
-      where: { retailerId: retailer.id },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-    }),
+    financialLedgerFor(prisma, retailer.id).then((ledger) => ledger.slice(0, 5)),
   ]);
 
   const limit = Number(retailer.creditLimit);

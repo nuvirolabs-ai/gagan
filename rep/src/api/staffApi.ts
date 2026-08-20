@@ -41,5 +41,18 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
     catalogFor: (id: string) => request(`/rep/retailers/${id}/catalog`),
     createOrder: (retailerId: string, items: { variantId: string; qty: number }[]) =>
       post("/rep/orders", { retailerId, items }),
+    collectionRetailers: () => request("/rep/collections/assigned-retailers"),
+    collectionSubmissions: () => request("/rep/collections"),
+    submitCollection: (input: {
+      retailerId: string;
+      amount: number;
+      method: "cash" | "cheque" | "neft" | "upi";
+      reference?: string;
+      notes?: string;
+      idempotencyKey: string;
+      evidence?: { objectKey: string; checksum: string; contentType: string; sizeBytes: number };
+    }) => post("/rep/collections", input),
+    confirmCollection: (id: string) => post(`/rep/collections/${id}/confirm`),
+    rejectCollection: (id: string, reason: string) => post(`/rep/collections/${id}/reject`, { reason }),
   };
 }

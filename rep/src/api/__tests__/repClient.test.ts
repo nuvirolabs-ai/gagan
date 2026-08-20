@@ -38,4 +38,31 @@ describe("staff auth API", () => {
 
     expect(store.save).toHaveBeenCalledWith({ accessToken: "elevated", refreshToken: "refresh" });
   });
+
+  it("submits a collection with an idempotency key through the staff session", async () => {
+    const request = vi.fn().mockResolvedValue({ submission: { id: "submission-1" } });
+    const store = { load: vi.fn(), save: vi.fn(), clear: vi.fn() };
+    const api = createStaffApi(request, store);
+
+    await api.submitCollection({
+      retailerId: "retailer-1",
+      amount: 250,
+      method: "cash",
+      idempotencyKey: "receipt-1234",
+    });
+
+    expect(request).toHaveBeenCalledWith(
+      "/rep/collections",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          retailerId: "retailer-1",
+          amount: 250,
+          method: "cash",
+          idempotencyKey: "receipt-1234",
+        }),
+      }),
+      true
+    );
+  });
 });

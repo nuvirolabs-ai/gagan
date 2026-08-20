@@ -30,8 +30,8 @@
 
 ## Task 2: Implement pure SOP credit engine
 
-- [ ] Convert every rule in `Credit & sales ops.md` Sections 3-6 and 10-12 into table-driven red tests.
-- [ ] Define input/output:
+- [x] Convert every rule in `Credit & sales ops.md` Sections 3-6 and 10-12 into table-driven red tests.
+- [x] Define input/output:
 
 ```ts
 type CreditDecision =
@@ -42,8 +42,8 @@ type CreditDecision =
 export function assessOrder(policy: CreditPolicy, snapshot: CreditSnapshot, order: ProposedOrder): CreditDecision;
 ```
 
-- [ ] Implement N invoice chain, INR 50,000 projected cap, full-clearance rule, C/D caps/open-count, E/F locks, partial-payment behavior, repeated monthly approval escalation, missing/stale rating behavior, and advance-payment gate.
-- [ ] Run the complete table suite and commit: `feat: encode SOP credit decisions`.
+- [x] Implement N invoice chain, INR 50,000 projected cap, full-clearance rule, C/D caps/open-count, E/F locks, partial-payment behavior, repeated monthly approval escalation, missing/stale rating behavior, and advance-payment gate.
+- [x] Run the complete table suite and commit: `feat: encode SOP credit decisions`.
 
 ## Task 3: Integrate assessment into order creation atomically
 

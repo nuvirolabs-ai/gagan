@@ -181,6 +181,10 @@ async function createOnce(input: CreateInvoiceForDeliveryInput): Promise<Invoice
           dueDate,
         },
       });
+      await tx.invoice.update({
+        where: { id: invoice.id },
+        data: { legacyLedgerEntryId: legacyEntry.id },
+      });
       await tx.retailer.update({
         where: { id: order.retailerId },
         data: { currentBalance: balanceAfter },

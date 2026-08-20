@@ -66,12 +66,12 @@ expect(await prisma.financialLedgerEntry.count({ where: { invoiceId } })).toBe(1
 
 ## Task 5: Backfill and reconcile legacy data
 
-- [ ] Write dry-run tests using a fixture snapshot containing delivered orders, invoice ledger entries, payments, partial payments, and unmatched entries.
-- [ ] Implement idempotent backfill scripts with `--dry-run` default and explicit `--apply`.
-- [ ] Generate counts and money totals before/after; create `ReconciliationIssue` for ambiguous records.
-- [ ] Implement `rebuildRetailerBalance(retailerId)` and all-retailer reconciliation without overwriting mismatches automatically.
-- [ ] Run against a disposable copy of current development data.
-- [ ] Commit: `chore: backfill and reconcile financial core`.
+- [x] Write dry-run tests using a fixture snapshot containing opening invoices, payments, partial payments, and unmatched entries.
+- [x] Implement idempotent backfill scripts with dry-run default and explicit `--apply`.
+- [x] Generate counts and money totals before/after; create Accounts-owned `ReconciliationIssue` records for ambiguous data.
+- [x] Implement `rebuildRetailerBalance(retailerId)` and all-retailer reconciliation without overwriting mismatches automatically.
+- [x] Run dry-run, apply, repeated apply, and reconciliation against a disposable copy of current development seed data.
+- [x] Commit: `chore: backfill and reconcile financial core`.
 
 ## Task 6: Cut API reads/writes over and remove unsafe paths
 

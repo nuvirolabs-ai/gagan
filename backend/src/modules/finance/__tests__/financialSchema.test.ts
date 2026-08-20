@@ -41,10 +41,13 @@ describe("immutable financial schema", () => {
       "String"
     );
     expect(field("PaymentReversal", "unallocatedAmount").type).toBe("Decimal");
+    expect(field("ReconciliationIssue", "ownerRole").type).toBe("String");
   });
 
   it("enforces one invoice per order and one settlement ledger event per payment", () => {
     expect(field("Invoice", "orderId").isUnique).toBe(true);
+    expect(field("Invoice", "orderId").isRequired).toBe(false);
+    expect(field("Invoice", "legacyLedgerEntryId").isUnique).toBe(true);
     expect(field("Invoice", "idempotencyKey").isUnique).toBe(true);
     expect(field("FinancialLedgerEntry", "paymentId").isUnique).toBe(true);
     expect(field("FinancialLedgerEntry", "idempotencyKey").isUnique).toBe(true);

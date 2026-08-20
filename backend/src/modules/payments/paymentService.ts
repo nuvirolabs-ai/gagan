@@ -156,10 +156,14 @@ async function settleOnce(
           },
         });
 
-        const legacyInvoice = await tx.ledgerEntry.findFirst({
-          where: { orderId: allocation.orderId, type: "invoice" },
-          orderBy: { createdAt: "asc" },
-        });
+        const legacyInvoice = allocation.legacyLedgerEntryId
+          ? await tx.ledgerEntry.findUnique({
+              where: { id: allocation.legacyLedgerEntryId },
+            })
+          : await tx.ledgerEntry.findFirst({
+              where: { orderId: allocation.orderId, type: "invoice" },
+              orderBy: { createdAt: "asc" },
+            });
         if (!legacyInvoice) {
           throw new PaymentSettlementError("legacy_invoice_missing");
         }

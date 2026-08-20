@@ -106,7 +106,13 @@ export async function reversePayment(input: ReversePaymentInput) {
             allocations: {
               include: {
                 reversals: true,
-                invoice: { select: { orderId: true, invoiceDate: true } },
+                invoice: {
+                  select: {
+                    orderId: true,
+                    legacyLedgerEntryId: true,
+                    invoiceDate: true,
+                  },
+                },
               },
             },
           },
@@ -135,7 +141,8 @@ export async function reversePayment(input: ReversePaymentInput) {
         const allocationReversals: Array<{
           paymentAllocationId: string;
           invoiceId: string;
-          orderId: string;
+          orderId: string | null;
+          legacyLedgerEntryId: string | null;
           amount: number;
         }> = [];
 
@@ -157,6 +164,7 @@ export async function reversePayment(input: ReversePaymentInput) {
             paymentAllocationId: allocation.id,
             invoiceId: allocation.invoiceId,
             orderId: allocation.invoice.orderId,
+            legacyLedgerEntryId: allocation.invoice.legacyLedgerEntryId,
             amount: applied,
           });
           remaining = Math.round((remaining - applied) * 100) / 100;
@@ -183,10 +191,14 @@ export async function reversePayment(input: ReversePaymentInput) {
 
         for (const allocationReversal of allocationReversals) {
           await recomputeInvoiceProjection(tx, allocationReversal.invoiceId);
-          const legacyInvoice = await tx.ledgerEntry.findFirst({
-            where: { orderId: allocationReversal.orderId, type: "invoice" },
-            orderBy: { createdAt: "asc" },
-          });
+          const legacyInvoice = allocationReversal.legacyLedgerEntryId
+            ? await tx.ledgerEntry.findUnique({
+                where: { id: allocationReversal.legacyLedgerEntryId },
+              })
+            : await tx.ledgerEntry.findFirst({
+                where: { orderId: allocationReversal.orderId, type: "invoice" },
+                orderBy: { createdAt: "asc" },
+              });
           if (!legacyInvoice) throw new FinancialCorrectionError("legacy_invoice_missing");
           const settledAfter = Math.max(
             0,

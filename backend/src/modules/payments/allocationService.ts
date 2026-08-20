@@ -2,7 +2,8 @@ import type { Invoice } from "@prisma/client";
 
 export interface InvoiceAllocation {
   invoiceId: string;
-  orderId: string;
+  orderId: string | null;
+  legacyLedgerEntryId: string | null;
   amount: number;
   outstandingAfter: number;
 }
@@ -20,7 +21,10 @@ function fromPaise(amount: number): number {
  * invoices oldest-first while holding the retailer lock.
  */
 export function buildFifoAllocations(
-  invoices: Pick<Invoice, "id" | "orderId" | "outstandingAmount">[],
+  invoices: Pick<
+    Invoice,
+    "id" | "orderId" | "legacyLedgerEntryId" | "outstandingAmount"
+  >[],
   paymentAmount: number
 ): { allocations: InvoiceAllocation[]; unallocated: number } {
   let remaining = toPaise(paymentAmount);
@@ -36,6 +40,7 @@ export function buildFifoAllocations(
     allocations.push({
       invoiceId: invoice.id,
       orderId: invoice.orderId,
+      legacyLedgerEntryId: invoice.legacyLedgerEntryId,
       amount: fromPaise(applied),
       outstandingAfter: fromPaise(outstanding - applied),
     });

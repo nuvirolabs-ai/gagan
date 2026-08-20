@@ -492,49 +492,52 @@ model Delivery {
 }
 
 model LedgerEntry {
-  id            String     @id @default(uuid())
-  retailerId    String
-  retailer      Retailer   @relation(fields: [retailerId], references: [id])
-  orderId       String?
-  order         Order?     @relation(fields: [orderId], references: [id])
-  paymentId     String?
-  payment       Payment?   @relation(fields: [paymentId], references: [id])
-  type          LedgerType
-  amount        Decimal    @db.Decimal(12, 2)
-  balanceAfter  Decimal    @db.Decimal(12, 2)
+  id               String     @id @default(uuid())
+  retailerId       String
+  retailer         Retailer   @relation(fields: [retailerId], references: [id])
+  orderId          String?
+  order            Order?     @relation(fields: [orderId], references: [id])
+  paymentId        String?
+  payment          Payment?   @relation(fields: [paymentId], references: [id])
+  type             LedgerType
+  amount           Decimal    @db.Decimal(12, 2)
+  balanceAfter     Decimal    @db.Decimal(12, 2)
   // Invoices only: when payment falls due, and how much of it has been settled
   // by payments so far. An invoice is overdue when dueDate has passed and
   // settledAmount is still short of amount.
-  dueDate       DateTime?
-  settledAmount Decimal    @default(0) @db.Decimal(12, 2)
-  createdAt     DateTime   @default(now())
+  dueDate          DateTime?
+  settledAmount    Decimal    @default(0) @db.Decimal(12, 2)
+  financialInvoice Invoice?
+  createdAt        DateTime   @default(now())
 
   @@index([retailerId, type, dueDate])
 }
 
 model Invoice {
-  id                String                @id @default(uuid())
-  invoiceNumber     Int                   @unique @default(autoincrement())
-  retailerId        String
-  retailer          Retailer              @relation(fields: [retailerId], references: [id])
-  orderId           String                @unique
-  order             Order                 @relation(fields: [orderId], references: [id])
-  invoiceDate       DateTime
-  dueDate           DateTime
-  currency          String                @default("INR")
-  subtotal          Decimal               @db.Decimal(14, 2)
-  taxTotal          Decimal               @default(0) @db.Decimal(14, 2)
-  total             Decimal               @db.Decimal(14, 2)
-  outstandingAmount Decimal               @db.Decimal(14, 2)
-  status            InvoiceStatus         @default(open)
-  idempotencyKey    String                @unique
-  sapInvoiceId      String?               @unique
-  lines             InvoiceLine[]
-  allocations       PaymentAllocation[]
-  ledgerEntry       FinancialLedgerEntry?
-  creditNotes       CreditNote[]
-  createdAt         DateTime              @default(now())
-  updatedAt         DateTime              @updatedAt
+  id                  String                @id @default(uuid())
+  invoiceNumber       Int                   @unique @default(autoincrement())
+  retailerId          String
+  retailer            Retailer              @relation(fields: [retailerId], references: [id])
+  orderId             String?               @unique
+  order               Order?                @relation(fields: [orderId], references: [id])
+  legacyLedgerEntryId String?               @unique
+  legacyLedgerEntry   LedgerEntry?          @relation(fields: [legacyLedgerEntryId], references: [id], onDelete: Restrict)
+  invoiceDate         DateTime
+  dueDate             DateTime
+  currency            String                @default("INR")
+  subtotal            Decimal               @db.Decimal(14, 2)
+  taxTotal            Decimal               @default(0) @db.Decimal(14, 2)
+  total               Decimal               @db.Decimal(14, 2)
+  outstandingAmount   Decimal               @db.Decimal(14, 2)
+  status              InvoiceStatus         @default(open)
+  idempotencyKey      String                @unique
+  sapInvoiceId        String?               @unique
+  lines               InvoiceLine[]
+  allocations         PaymentAllocation[]
+  ledgerEntry         FinancialLedgerEntry?
+  creditNotes         CreditNote[]
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
 
   @@index([retailerId, status, dueDate])
 }
@@ -557,14 +560,14 @@ model InvoiceLine {
 }
 
 model PaymentAllocation {
-  id        String   @id @default(uuid())
+  id        String                      @id @default(uuid())
   paymentId String
-  payment   Payment  @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  payment   Payment                     @relation(fields: [paymentId], references: [id], onDelete: Restrict)
   invoiceId String
-  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
-  amount    Decimal  @db.Decimal(14, 2)
+  invoice   Invoice                     @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  amount    Decimal                     @db.Decimal(14, 2)
   reversals PaymentReversalAllocation[]
-  createdAt DateTime @default(now())
+  createdAt DateTime                    @default(now())
 
   @@unique([paymentId, invoiceId])
   @@index([invoiceId, createdAt])
@@ -663,6 +666,7 @@ model ReconciliationIssue {
   expectedAmount Decimal?                  @db.Decimal(14, 2)
   actualAmount   Decimal?                  @db.Decimal(14, 2)
   status         ReconciliationIssueStatus @default(open)
+  ownerRole      String                    @default("accounts")
   details        Json?
   createdAt      DateTime                  @default(now())
   resolvedAt     DateTime?

@@ -131,6 +131,13 @@ describe("createInvoiceForDelivery", () => {
         where: { orderId: ids.order, type: "invoice" },
       })
     ).toBe(1);
+    const storedInvoice = await prisma.invoice.findUniqueOrThrow({
+      where: { id: first.id },
+    });
+    const legacyInvoice = await prisma.ledgerEntry.findFirstOrThrow({
+      where: { orderId: ids.order, type: "invoice" },
+    });
+    expect(storedInvoice.legacyLedgerEntryId).toBe(legacyInvoice.id);
     expect(await prisma.order.findUnique({ where: { id: ids.order } })).toMatchObject({
       status: "delivered",
     });

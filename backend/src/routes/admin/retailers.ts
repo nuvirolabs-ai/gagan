@@ -69,8 +69,9 @@ router.post("/retailers", async (req, res) => {
 
   const retailer = await prisma.$transaction(async (tx) => {
     const created = await tx.retailer.create({ data: parsed.data, include: { tier: true } });
+    const nextReviewAt = new Date(created.createdAt.getTime() + 90 * 24 * 60 * 60 * 1000);
     await tx.creditProfile.create({
-      data: { retailerId: created.id, rating: "N", accountCreatedAt: created.createdAt },
+      data: { retailerId: created.id, rating: "N", accountCreatedAt: created.createdAt, nextReviewAt },
     });
     return created;
   });

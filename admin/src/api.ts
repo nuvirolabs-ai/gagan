@@ -118,6 +118,9 @@ export const api = {
   resolveApprovalDispute: (id: string, outcome: "approved" | "rejected", resolution: string) =>
     post(`/admin/approval-disputes/${id}/resolve`, { outcome, resolution }),
   ratingProposals: () => request("/admin/credit/rating-proposals"),
+  kycPending: () => request("/admin/credit/kyc-pending"),
+  confirmKyc: (retailerId: string, evidenceReference: string, reason: string) =>
+    post(`/admin/credit/kyc/${retailerId}/confirm`, { evidenceReference, reason }),
   confirmRatingProposal: (id: string, reason: string) =>
     post(`/admin/credit/rating-proposals/${id}/confirm`, { reason }),
   shadowComparisons: () => request("/admin/credit/shadow-comparisons"),

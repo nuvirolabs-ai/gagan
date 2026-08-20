@@ -37,6 +37,51 @@ export function netAllocationAmount(allocation: {
 }
 
 export class RatingService {
+  async listKycPending() {
+    return prisma.creditProfile.findMany({
+      where: { kycVerifiedAt: null },
+      include: { retailer: { select: { id: true, name: true, phone: true, shopAddress: true } } },
+      orderBy: { accountCreatedAt: "asc" },
+      take: 500,
+    });
+  }
+
+  async confirmKyc(
+    retailerId: string,
+    input: { actorStaffId: string; evidenceReference: string; reason: string; now?: Date }
+  ) {
+    const now = input.now ?? new Date();
+    return prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT 1 FROM "Retailer" WHERE "id" = ${retailerId} FOR UPDATE`;
+      const profile = await tx.creditProfile.findUnique({ where: { retailerId } });
+      if (!profile) throw new RatingServiceError("credit_profile_not_found", 404);
+      if (profile.kycVerifiedAt) throw new RatingServiceError("kyc_already_verified", 409);
+      const updated = await tx.creditProfile.update({
+        where: { retailerId },
+        data: {
+          kycVerifiedAt: now,
+          kycVerifiedByStaffId: input.actorStaffId,
+          kycEvidence: json({ reference: input.evidenceReference.trim(), confirmedReason: input.reason.trim() }),
+          nextReviewAt: profile.nextReviewAt ?? new Date(profile.accountCreatedAt.getTime() + 90 * 24 * 60 * 60 * 1000),
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          actorStaffId: input.actorStaffId,
+          action: "credit_kyc.confirmed",
+          subjectType: "credit_profile",
+          subjectId: profile.id,
+          metadata: json({
+            retailerId,
+            evidenceReference: input.evidenceReference.trim(),
+            reason: input.reason.trim(),
+          }),
+        },
+      });
+      return updated;
+    });
+  }
+
   async list() {
     return prisma.ratingProposal.findMany({
       where: { status: "pending" },

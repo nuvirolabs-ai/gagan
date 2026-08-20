@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "../../../lib/prisma";
 import { processApprovalEscalations } from "../../../worker/processors/approvalEscalation";
+import { processDisputeEscalations } from "../../../worker/processors/disputeEscalation";
 import { DisputeService } from "../disputeService";
 
 const run = randomUUID();
@@ -80,6 +81,11 @@ describe("approval escalation processor", () => {
 
   it("opens a written dispute with working-hour acknowledgment and 24-hour decision SLAs", async () => {
     const service = new DisputeService();
+    await prisma.approvalRequest.update({
+      where: { id: ids.request },
+      data: { status: "rejected", requiredPermission: "approval.third_invoice" },
+    });
+    await prisma.order.update({ where: { id: ids.order }, data: { status: "rejected" } });
     const dispute = await service.raise(ids.request, {
       actorStaffId: "sales-coordinator-1",
       actorPermissions: ["approval.second_invoice"],
@@ -95,13 +101,15 @@ describe("approval escalation processor", () => {
     });
     expect(acknowledged.decisionDueAt).toEqual(new Date("2026-08-25T05:00:00.000Z"));
     expect(await prisma.dispatchAuthorization.count({ where: { orderId: ids.order } })).toBe(0);
+    await expect(processDisputeEscalations({ now: new Date("2026-08-25T05:01:00.000Z") }))
+      .resolves.toMatchObject({ escalated: 1 });
 
     const resolved = await service.resolve(dispute.id, {
-      actorStaffId: "credit-lead-1",
-      actorPermissions: ["approval.third_invoice"],
+      actorStaffId: "founder-1",
+      actorPermissions: ["legal.decide"],
       outcome: "approved",
       resolution: "Accounts verified that the supporting evidence is valid.",
-      now: new Date("2026-08-24T06:00:00.000Z"),
+      now: new Date("2026-08-25T06:00:00.000Z"),
     });
     expect(resolved).toMatchObject({ status: "resolved", outcome: "approved" });
     expect(await prisma.dispatchAuthorization.count({ where: { orderId: ids.order, status: "active" } })).toBe(1);

@@ -42,9 +42,8 @@ export class ApprovalService {
   async list(permissions: string[]) {
     if (permissions.length === 0) return [];
     const canRaiseDispute = permissions.includes("approval.second_invoice");
-    const canResolveDispute = permissions.some((permission) =>
-      ["approval.third_invoice", "legal.decide"].includes(permission)
-    );
+    const canResolveDispute = permissions.includes("approval.third_invoice");
+    const canResolveEscalatedDispute = permissions.includes("legal.decide");
     const recent = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     return prisma.approvalRequest.findMany({
       where: {
@@ -59,8 +58,11 @@ export class ApprovalService {
           ...(canResolveDispute
             ? [{
                 status: "rejected" as const,
-                disputes: { some: { status: { in: ["open" as const, "escalated" as const] } } },
+                disputes: { some: { status: "open" as const } },
               }]
+            : []),
+          ...(canResolveEscalatedDispute
+            ? [{ status: "rejected" as const, disputes: { some: { status: "escalated" as const } } }]
             : []),
         ],
       },
@@ -80,8 +82,13 @@ export class ApprovalService {
       request.status === "rejected" && (
         permissions.includes("approval.second_invoice") ||
         (
-          request.disputes.some((dispute) => dispute.status !== "resolved") &&
-          permissions.some((permission) => ["approval.third_invoice", "legal.decide"].includes(permission))
+          (
+            request.disputes.some((dispute) => dispute.status === "open") &&
+            permissions.includes("approval.third_invoice")
+          ) || (
+            request.disputes.some((dispute) => dispute.status === "escalated") &&
+            permissions.includes("legal.decide")
+          )
         )
       );
     if (!permissions.includes(request.requiredPermission) && !canReviewRejected) {
@@ -101,9 +108,15 @@ export class ApprovalService {
       await tx.$queryRaw`SELECT 1 FROM "ApprovalRequest" WHERE "id" = ${id} FOR UPDATE`;
       const request = await tx.approvalRequest.findUnique({
         where: { id },
-        include: { order: { include: { items: true } } },
+        include: {
+          order: { include: { items: true } },
+          disputes: { where: { status: { in: ["open", "escalated"] } }, select: { id: true } },
+        },
       });
       if (!request) throw new ApprovalServiceError("approval_not_found", 404);
+      if (request.disputes.length > 0) {
+        throw new ApprovalServiceError("approval_dispute_pending", 409);
+      }
       if (
         !input.actorPermissions.includes(request.requiredPermission) &&
         !(request.status === "escalated" && input.actorPermissions.includes("legal.decide"))
@@ -229,6 +242,7 @@ export class ApprovalService {
         where: { id },
         data: { status: "approved", decidedAt: now },
       });
+      await tx.order.update({ where: { id: request.order.id }, data: { status: "placed" } });
       await tx.auditEvent.create({
         data: {
           actorStaffId: input.actorStaffId,

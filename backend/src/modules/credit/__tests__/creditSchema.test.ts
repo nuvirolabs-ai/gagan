@@ -47,6 +47,8 @@ describe("credit and approval schema", () => {
     expect(field("RatingHistory", "sequence").isUnique).toBe(true);
     expect(field("CreditAssessment", "snapshot").type).toBe("Json");
     expect(field("CreditAssessment", "reasons").type).toBe("Json");
+    expect(field("CreditProfile", "kycEvidence").type).toBe("Json");
+    expect(field("CreditProfile", "kycVerifiedByStaffId").type).toBe("String");
   });
 
   it("enforces one active policy and one open request per approval subject", () => {
@@ -73,6 +75,8 @@ describe("credit and approval schema", () => {
     const sql = allMigrationSql();
     expect(sql).toContain("protect_used_credit_policy_facts");
     expect(sql).toContain('INSERT INTO "CreditProfile"');
+    expect(sql).toContain('INSERT INTO "AppConfig"');
+    expect(sql).toContain('"creditPolicyApprovedVersion" = OLD."version"');
   });
 
   it("supports a dated working calendar for deterministic SLA calculations", () => {

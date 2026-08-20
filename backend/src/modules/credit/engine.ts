@@ -61,7 +61,13 @@ export function assessOrder(
     : [];
 
   if (snapshot.rating === "N") {
-    const invoiceStage = snapshot.invoiceCount + snapshot.pendingOrderCount;
+    const firstChainCleared =
+      snapshot.invoiceCount >= policy.newCustomerMaxOpenBeforeClearance &&
+      snapshot.openInvoices.length === 0 &&
+      snapshot.pendingOrderCount === 0;
+    const invoiceStage = firstChainCleared
+      ? 0
+      : snapshot.invoiceCount + snapshot.pendingOrderCount;
     if (snapshot.invoiceCount === 0 && !snapshot.kycVerified) {
       return blocked(ReasonCodes.KYC_REQUIRED);
     }
@@ -154,6 +160,9 @@ export function assessOrder(
   }
 
   const invoiceSignals = openInvoiceSignals(snapshot);
+  // Deliberate company rule confirmed by the user: "Prev Invoice Pending" and
+  // "1 Or More Outstanding" are active SAP sales-order approval parameters for
+  // every rating, even while the invoice is still within 45 days.
   if (invoiceSignals.length > 0) {
     return needsApproval("approval.third_invoice", invoiceSignals);
   }

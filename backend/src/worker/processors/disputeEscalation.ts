@@ -46,7 +46,7 @@ export async function processDisputeEscalations({ now = new Date() } = {}) {
       });
       await tx.approvalRequest.update({
         where: { id: dispute.approvalRequestId },
-        data: { status: "escalated", requiredPermission: "legal.decide", escalatedAt: now },
+        data: { status: "rejected", requiredPermission: "legal.decide", escalatedAt: now },
       });
       await tx.auditEvent.create({
         data: {

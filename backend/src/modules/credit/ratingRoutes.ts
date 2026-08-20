@@ -11,6 +11,24 @@ export function createRatingRouter(options: { authenticate: RequestHandler; serv
   const router = Router();
   const service = options.service ?? new RatingService();
   router.use(options.authenticate, requirePermission(Permissions.CREDIT_RATING_CONFIRM));
+  router.get("/credit/kyc-pending", asyncRoute(async (_req, res) => {
+    res.json({ profiles: await service.listKycPending() });
+  }));
+  router.post(
+    "/credit/kyc/:retailerId/confirm",
+    requireRecentStepUp,
+    asyncRoute(async (req: StaffAuthedRequest, res) => {
+      const parsed = z.object({
+        evidenceReference: z.string().trim().min(3).max(200),
+        reason: z.string().trim().min(5).max(500),
+      }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+      res.json({ profile: await service.confirmKyc(req.params.retailerId, {
+        actorStaffId: req.staffAuth!.staffId,
+        ...parsed.data,
+      }) });
+    })
+  );
   router.get("/credit/rating-proposals", asyncRoute(async (_req, res) => {
     res.json({ proposals: await service.list() });
   }));

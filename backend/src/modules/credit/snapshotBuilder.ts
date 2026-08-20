@@ -14,7 +14,7 @@ export async function buildCreditSnapshot(
   excludeOrderId?: string
 ): Promise<CreditSnapshot> {
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const [retailer, profile, invoices, invoiceCount, pending, pendingOrderCount, approvalCount] = await Promise.all([
+  const [retailer, profile, invoices, invoiceCount, pending, pendingOrderCount, approvalCount, sapDuplicateCount] = await Promise.all([
     tx.retailer.findUniqueOrThrow({
       where: { id: retailerId },
       select: { createdAt: true, sapCustomerId: true },
@@ -42,6 +42,9 @@ export async function buildCreditSnapshot(
       },
     }),
     tx.approvalRequest.count({ where: { retailerId, createdAt: { gte: monthStart } } }),
+    tx.reconciliationIssue.count({
+      where: { retailerId, kind: "duplicate_sap_account", status: "open" },
+    }),
   ]);
 
   const nextReviewAt = profile?.nextReviewAt;
@@ -62,7 +65,7 @@ export async function buildCreditSnapshot(
     pendingOrderCount,
     advancePaymentConfirmed: false,
     approvalCountThisMonth: approvalCount,
-    sapAccountCount: 1,
+    sapAccountCount: sapDuplicateCount > 0 ? 2 : 1,
     ratingReviewOverdueDays: nextReviewAt && nextReviewAt < now ? wholeDaysBetween(nextReviewAt, now) : 0,
   };
 }

@@ -15,6 +15,25 @@ function hasAny(permissions: string[], required: string[]) {
   return required.some((permission) => permissions.includes(permission));
 }
 
+export function isDisputablePermission(requiredPermission: string) {
+  return ["approval.second_invoice", "approval.third_invoice"].includes(requiredPermission);
+}
+
+export function canResolveReassessment(
+  requiredPermission: string,
+  actorPermissions: string[],
+  founderOnly: boolean
+) {
+  if (actorPermissions.includes(requiredPermission)) return true;
+  if (
+    requiredPermission === "approval.second_invoice" &&
+    actorPermissions.includes("approval.third_invoice")
+  ) return true;
+  return founderOnly &&
+    requiredPermission !== "collection.confirm" &&
+    actorPermissions.includes("legal.decide");
+}
+
 function policyFrom(record: { version: number; name: string; rules: Prisma.JsonValue }): CreditPolicy {
   return { ...(record.rules as unknown as CreditPolicy), version: record.version, name: record.name };
 }
@@ -24,13 +43,16 @@ export class DisputeService {
     approvalRequestId: string,
     input: { actorStaffId: string; actorPermissions: string[]; writtenPosition: string; now?: Date }
   ) {
-    if (!hasAny(input.actorPermissions, ["approval.second_invoice", "staff.manage"])) {
+    const request = await prisma.approvalRequest.findUnique({ where: { id: approvalRequestId } });
+    if (!request) throw new ApprovalServiceError("approval_not_found", 404);
+    if (
+      !hasAny(input.actorPermissions, ["approval.second_invoice", "staff.manage"]) ||
+      !isDisputablePermission(request.requiredPermission)
+    ) {
       throw new ApprovalServiceError("permission_required", 403, {
         permission: "approval.second_invoice",
       });
     }
-    const request = await prisma.approvalRequest.findUnique({ where: { id: approvalRequestId } });
-    if (!request) throw new ApprovalServiceError("approval_not_found", 404);
     if (request.status !== "rejected" && request.status !== "escalated") {
       throw new ApprovalServiceError("approval_not_disputable", 409);
     }
@@ -106,9 +128,6 @@ export class DisputeService {
       now?: Date;
     }
   ) {
-    if (!hasAny(input.actorPermissions, ["approval.third_invoice", "legal.decide"])) {
-      throw new ApprovalServiceError("permission_required", 403);
-    }
     const now = input.now ?? new Date();
     return prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT 1 FROM "ApprovalDispute" WHERE "id" = ${id} FOR UPDATE`;
@@ -121,6 +140,15 @@ export class DisputeService {
       if (!dispute) throw new ApprovalServiceError("dispute_not_found", 404);
       if (dispute.status === "resolved") throw new ApprovalServiceError("dispute_already_resolved", 409);
       const request = dispute.approvalRequest;
+      const founderOnly = dispute.status === "escalated" || request.requiredPermission === "legal.decide";
+      if (
+        (founderOnly && !input.actorPermissions.includes("legal.decide")) ||
+        (!founderOnly && !hasAny(input.actorPermissions, ["approval.third_invoice", "legal.decide"]))
+      ) {
+        throw new ApprovalServiceError("permission_required", 403, {
+          permission: founderOnly ? "legal.decide" : "approval.third_invoice",
+        });
+      }
       const order = request.order;
       if (!order) throw new ApprovalServiceError("approval_order_missing", 409);
 
@@ -148,6 +176,17 @@ export class DisputeService {
         );
         if (reassessment.result === "blocked") {
           throw new ApprovalServiceError("credit_reassessment_blocked", 409, reassessment);
+        }
+        if (reassessment.result === "approval_required") {
+          if (!canResolveReassessment(
+            reassessment.requiredPermission,
+            input.actorPermissions,
+            founderOnly
+          )) {
+            throw new ApprovalServiceError("permission_required", 403, {
+              permission: reassessment.requiredPermission,
+            });
+          }
         }
         const assessment = await tx.creditAssessment.create({
           data: {

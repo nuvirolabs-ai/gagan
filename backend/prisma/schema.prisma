@@ -770,6 +770,8 @@ model CreditProfile {
   billingPattern     BillingPattern   @default(unknown)
   accountCreatedAt   DateTime         @default(now())
   kycVerifiedAt      DateTime?
+  kycVerifiedByStaffId String?
+  kycEvidence        Json?
   ratingConfirmedAt  DateTime?
   nextReviewAt       DateTime?
   cleanInvoiceCount  Int              @default(0)

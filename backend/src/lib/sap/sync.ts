@@ -105,11 +105,44 @@ export function syncCustomers() {
               sapCustomerId: row.sapCustomerId,
             },
           });
+          const nextReviewAt = new Date(retailer.createdAt.getTime() + 90 * 24 * 60 * 60 * 1000);
           await tx.creditProfile.create({
-            data: { retailerId: retailer.id, rating: "N", accountCreatedAt: retailer.createdAt },
+            data: { retailerId: retailer.id, rating: "N", accountCreatedAt: retailer.createdAt, nextReviewAt },
           });
         });
         created++;
+        continue;
+      }
+
+      if (existing.sapCustomerId && existing.sapCustomerId !== row.sapCustomerId) {
+        await prisma.reconciliationIssue.upsert({
+          where: {
+            kind_referenceType_referenceId: {
+              kind: "duplicate_sap_account",
+              referenceType: "retailer",
+              referenceId: existing.id,
+            },
+          },
+          update: {
+            status: "open",
+            resolvedAt: null,
+            details: {
+              existingSapCustomerId: existing.sapCustomerId,
+              incomingSapCustomerId: row.sapCustomerId,
+            },
+          },
+          create: {
+            retailerId: existing.id,
+            kind: "duplicate_sap_account",
+            referenceType: "retailer",
+            referenceId: existing.id,
+            ownerRole: "credit_team",
+            details: {
+              existingSapCustomerId: existing.sapCustomerId,
+              incomingSapCustomerId: row.sapCustomerId,
+            },
+          },
+        });
         continue;
       }
 
@@ -127,7 +160,12 @@ export function syncCustomers() {
       await prisma.creditProfile.upsert({
         where: { retailerId: existing.id },
         update: {},
-        create: { retailerId: existing.id, rating: "N", accountCreatedAt: existing.createdAt },
+        create: {
+          retailerId: existing.id,
+          rating: "N",
+          accountCreatedAt: existing.createdAt,
+          nextReviewAt: new Date(existing.createdAt.getTime() + 90 * 24 * 60 * 60 * 1000),
+        },
       });
       if (wasUnlinked) linked++;
       else updated++;

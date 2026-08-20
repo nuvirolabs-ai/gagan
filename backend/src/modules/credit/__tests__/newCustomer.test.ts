@@ -108,6 +108,16 @@ describe("new-customer invoice chain", () => {
     });
   });
 
+  it("unlocks the next order after the first three invoices are fully cleared", () => {
+    expect(
+      assessOrder(
+        SOP_V4_POLICY,
+        newCustomer({ invoiceCount: 3, openInvoices: [], pendingOrderCount: 0 }),
+        order(5_000)
+      )
+    ).toMatchObject({ result: "allowed" });
+  });
+
   it.each([1, 2])("routes invoice stage %s to the lead when projected exposure reaches ₹50,000", (invoiceCount) => {
     const decision = assessOrder(
       SOP_V4_POLICY,

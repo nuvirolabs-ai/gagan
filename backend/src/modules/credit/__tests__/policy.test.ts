@@ -47,5 +47,6 @@ describe("approved SOP V4 policy", () => {
     );
     expect(migration).toContain('INSERT INTO "CreditPolicyVersion"');
     expect(migration).toContain('INSERT INTO "WorkingCalendar"');
+    for (const code of Object.values(ReasonCodes)) expect(migration).toContain(`"${code}"`);
   });
 });

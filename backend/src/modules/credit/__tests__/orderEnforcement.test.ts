@@ -10,6 +10,7 @@ const ids = {
   variant: `credit-variant-${run}`,
   concurrentRetailer: `credit-concurrent-${run}`,
   chainRetailer: `credit-chain-${run}`,
+  duplicateRetailer: `credit-duplicate-${run}`,
   overdueRetailer: `credit-overdue-${run}`,
 };
 
@@ -49,6 +50,7 @@ beforeAll(async () => {
   for (const [id, phone] of [
     [ids.concurrentRetailer, `81${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "1")}`],
     [ids.chainRetailer, `80${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "0")}`],
+    [ids.duplicateRetailer, `89${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "9")}`],
     [ids.overdueRetailer, `82${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "2")}`],
   ]) {
     await prisma.retailer.create({
@@ -80,7 +82,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  const retailerIds = [ids.concurrentRetailer, ids.chainRetailer, ids.overdueRetailer];
+  const retailerIds = [ids.concurrentRetailer, ids.chainRetailer, ids.duplicateRetailer, ids.overdueRetailer];
   const orders = await prisma.order.findMany({ where: { retailerId: { in: retailerIds } }, select: { id: true } });
   const orderIds = orders.map((order) => order.id);
   await prisma.sapOutbox.deleteMany({ where: { referenceId: { in: orderIds } } });
@@ -92,6 +94,7 @@ afterAll(async () => {
   await prisma.creditDecisionComparison.deleteMany({ where: { retailerId: { in: retailerIds } } });
   await prisma.creditAssessment.deleteMany({ where: { retailerId: { in: retailerIds } } });
   await prisma.invoice.deleteMany({ where: { retailerId: { in: retailerIds } } });
+  await prisma.reconciliationIssue.deleteMany({ where: { retailerId: { in: retailerIds } } });
   await prisma.orderItem.deleteMany({ where: { orderId: { in: orderIds } } });
   await prisma.order.deleteMany({ where: { id: { in: orderIds } } });
   await prisma.creditProfile.deleteMany({ where: { retailerId: { in: retailerIds } } });
@@ -153,5 +156,25 @@ describe("atomic order credit enforcement", () => {
       body: { decision: { result: "blocked", reasons: ["new_customer_fourth_blocked"] } },
     });
     expect(await prisma.order.count({ where: { retailerId: ids.chainRetailer } })).toBe(3);
+  });
+
+  it("blocks a retailer when SAP sync has flagged a duplicate account code", async () => {
+    await prisma.reconciliationIssue.create({
+      data: {
+        retailerId: ids.duplicateRetailer,
+        kind: "duplicate_sap_account",
+        referenceType: "retailer",
+        referenceId: ids.duplicateRetailer,
+      },
+    });
+    const result = await createOrderForRetailer(
+      ids.duplicateRetailer,
+      [{ variantId: ids.variant, qty: 1 }],
+      "retailer"
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      body: { decision: { result: "blocked", reasons: ["multiple_sap_accounts"] } },
+    });
   });
 });

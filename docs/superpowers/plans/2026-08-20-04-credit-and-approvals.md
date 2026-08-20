@@ -60,16 +60,16 @@ export function assessOrder(policy: CreditPolicy, snapshot: CreditSnapshot, orde
 - [x] Implement create/list/detail/decide endpoints using permission checks.
 - [x] Make approval re-run credit assessment and issue a versioned dispatch authorization.
 - [x] Add admin queue/detail and staff Today/approval cards consuming the same API.
-- [ ] Add notification events for request, nearing SLA, decision, and escalation. Request/decision events are complete; nearing-SLA/escalation events belong to Task 5.
+- [x] Add notification events for request, nearing SLA, decision, and escalation.
 - [x] Commit: `feat: add shared web and mobile approval workflow`.
 
 ## Task 5: Implement SLA escalation and disputes
 
-- [ ] Use fake-clock tests for 48-hour third-invoice timeout, four-working-hour acknowledgment, 24-hour meeting/decision, and default hold/block states.
-- [ ] Implement idempotent worker processors and `ApprovalDispute` written-position workflow.
-- [ ] Route unresolved conflicts to Founder/Director permission.
-- [ ] Display SLA and required next action without adding an analytics dashboard.
-- [ ] Commit: `feat: automate approval SLA and disputes`.
+- [x] Use fake-clock tests for 48-hour third-invoice timeout, four-working-hour acknowledgment, 24-hour meeting/decision, and default hold/block states.
+- [x] Implement idempotent worker processors and `ApprovalDispute` written-position workflow.
+- [x] Route unresolved conflicts to Founder/Director permission.
+- [x] Display SLA and required next action without adding an analytics dashboard.
+- [x] Commit: `feat: automate approval SLA and disputes`.
 
 ## Task 6: Implement rating calculation and confirmation
 

@@ -41,10 +41,19 @@ const detailInclude = {
 export class ApprovalService {
   async list(permissions: string[]) {
     if (permissions.length === 0) return [];
+    const canRaiseDispute = permissions.includes("approval.second_invoice");
+    const recent = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     return prisma.approvalRequest.findMany({
       where: {
-        status: { in: ["open", "escalated"] },
-        requiredPermission: { in: permissions },
+        OR: [
+          {
+            status: { in: ["open", "escalated"] },
+            requiredPermission: { in: permissions },
+          },
+          ...(canRaiseDispute
+            ? [{ status: "rejected" as const, createdAt: { gte: recent } }]
+            : []),
+        ],
       },
       include: {
         retailer: { select: { id: true, name: true } },
@@ -58,7 +67,9 @@ export class ApprovalService {
   async detail(id: string, permissions: string[]) {
     const request = await prisma.approvalRequest.findUnique({ where: { id }, include: detailInclude });
     if (!request) throw new ApprovalServiceError("approval_not_found", 404);
-    if (!permissions.includes(request.requiredPermission)) {
+    const canReviewRejected =
+      request.status === "rejected" && permissions.includes("approval.second_invoice");
+    if (!permissions.includes(request.requiredPermission) && !canReviewRejected) {
       throw new ApprovalServiceError("permission_required", 403, {
         permission: request.requiredPermission,
       });

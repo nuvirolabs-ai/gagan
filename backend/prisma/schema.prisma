@@ -866,6 +866,7 @@ model ApprovalDispute {
   resolvedByStaffId   String?
   resolution          String?
   acknowledgmentDueAt DateTime
+  acknowledgedAt      DateTime?
   decisionDueAt       DateTime?
   resolvedAt          DateTime?
   createdAt           DateTime              @default(now())

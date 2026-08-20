@@ -8,6 +8,12 @@ const service = {
   detail: vi.fn().mockResolvedValue({ id: "request-1" }),
   decide: vi.fn().mockResolvedValue({ id: "request-1", status: "approved" }),
 };
+const disputes = {
+  raise: vi.fn().mockResolvedValue({ id: "dispute-1", status: "open" }),
+  acknowledge: vi.fn(),
+  submitCounterPosition: vi.fn(),
+  resolve: vi.fn(),
+};
 
 function app(stepUpUntil?: Date) {
   const app = express();
@@ -25,6 +31,7 @@ function app(stepUpUntil?: Date) {
         next();
       },
       service: service as any,
+      disputeService: disputes as any,
     })
   );
   return app;
@@ -53,6 +60,18 @@ describe("approval routes", () => {
     expect(service.decide).not.toHaveBeenCalledWith(
       "request-1",
       expect.objectContaining({ result: "rejected" })
+    );
+  });
+
+  it("requires a written position to open a dispute", async () => {
+    expect((await request(app()).post("/approvals/request-1/disputes").send({})).status).toBe(400);
+    const response = await request(app()).post("/approvals/request-1/disputes").send({
+      writtenPosition: "Sales evidence supports a review.",
+    });
+    expect(response.status).toBe(201);
+    expect(disputes.raise).toHaveBeenCalledWith(
+      "request-1",
+      expect.objectContaining({ actorStaffId: "staff-1", writtenPosition: "Sales evidence supports a review." })
     );
   });
 });

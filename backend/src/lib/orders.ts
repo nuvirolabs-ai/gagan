@@ -53,7 +53,8 @@ export async function createOrderForRetailer(
   retailerId: string,
   items: OrderLineInput[],
   placedBy: "retailer" | "rep",
-  placedByRepId?: string
+  placedByRepId?: string,
+  placedByStaffId?: string
 ): Promise<CreateOrderResult> {
   return prisma.$transaction(async (tx) => {
     const retailer = await tx.retailer.findUnique({ where: { id: retailerId } });
@@ -149,14 +150,14 @@ export async function createOrderForRetailer(
           subjectId: order.id,
           approvalType: approvalType(decision),
           requiredPermission: decision.requiredPermission,
-          requestedByStaffId: placedBy === "rep" ? placedByRepId ?? null : null,
+          requestedByStaffId: placedBy === "rep" ? placedByStaffId ?? null : null,
           requestReason: decision.reasons.join(","),
           deadlineAt: decision.deadline,
         },
       });
       await tx.auditEvent.create({
         data: {
-          actorStaffId: placedBy === "rep" ? placedByRepId ?? null : null,
+          actorStaffId: placedBy === "rep" ? placedByStaffId ?? null : null,
           action: "approval.requested",
           subjectType: "approval_request",
           subjectId: request.id,

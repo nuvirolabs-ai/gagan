@@ -4,10 +4,12 @@ import { asyncRoute } from "../../platform/http/asyncRoute";
 import { requireRecentStepUp } from "../identity/sessionAuth";
 import type { StaffAuthedRequest } from "../identity/permissions";
 import { ApprovalService, ApprovalServiceError } from "./approvalService";
+import { DisputeService } from "./disputeService";
 
 interface ApprovalRouterOptions {
   authenticate: RequestHandler;
   service?: ApprovalService;
+  disputeService?: DisputeService;
 }
 
 const decisionSchema = z.discriminatedUnion("result", [
@@ -18,6 +20,7 @@ const decisionSchema = z.discriminatedUnion("result", [
 export function createApprovalsRouter(options: ApprovalRouterOptions) {
   const router = Router();
   const service = options.service ?? new ApprovalService();
+  const disputes = options.disputeService ?? new DisputeService();
   router.use(options.authenticate);
 
   router.get(
@@ -49,6 +52,61 @@ export function createApprovalsRouter(options: ApprovalRouterOptions) {
           ...parsed.data,
         }),
       });
+    })
+  );
+
+  router.post(
+    "/approvals/:id/disputes",
+    asyncRoute(async (req: StaffAuthedRequest, res) => {
+      const parsed = z.object({ writtenPosition: z.string().trim().min(10) }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+      const auth = req.staffAuth!;
+      const dispute = await disputes.raise(req.params.id, {
+        actorStaffId: auth.staffId,
+        actorPermissions: auth.permissions,
+        writtenPosition: parsed.data.writtenPosition,
+      });
+      res.status(201).json({ dispute });
+    })
+  );
+
+  router.post(
+    "/approval-disputes/:id/acknowledge",
+    asyncRoute(async (req: StaffAuthedRequest, res) => {
+      const auth = req.staffAuth!;
+      res.json({ dispute: await disputes.acknowledge(req.params.id, {
+        actorStaffId: auth.staffId,
+        actorPermissions: auth.permissions,
+      }) });
+    })
+  );
+
+  router.post(
+    "/approval-disputes/:id/counter-position",
+    asyncRoute(async (req: StaffAuthedRequest, res) => {
+      const parsed = z.object({ counterPosition: z.string().trim().min(10) }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+      const auth = req.staffAuth!;
+      res.json({ dispute: await disputes.submitCounterPosition(req.params.id, {
+        actorStaffId: auth.staffId,
+        actorPermissions: auth.permissions,
+        counterPosition: parsed.data.counterPosition,
+      }) });
+    })
+  );
+
+  router.post(
+    "/approval-disputes/:id/resolve",
+    requireRecentStepUp,
+    asyncRoute(async (req: StaffAuthedRequest, res) => {
+      const parsed = z.object({ resolution: z.string().trim().min(10) }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+      const auth = req.staffAuth!;
+      res.json({ dispute: await disputes.resolve(req.params.id, {
+        actorStaffId: auth.staffId,
+        actorPermissions: auth.permissions,
+        resolution: parsed.data.resolution,
+      }) });
     })
   );
 

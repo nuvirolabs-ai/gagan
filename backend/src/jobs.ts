@@ -3,6 +3,8 @@ import { getSapConnector } from "./lib/sap";
 import { drainOutbox } from "./lib/sap/outbox";
 import { syncAll } from "./lib/sap/sync";
 import { reconcileAllRetailers } from "./modules/payments/reconciliationService";
+import { processApprovalEscalations } from "./worker/processors/approvalEscalation";
+import { processDisputeEscalations } from "./worker/processors/disputeEscalation";
 
 const MINUTE = 60_000;
 
@@ -54,6 +56,22 @@ export function startScheduledJobs() {
   void safely("financial reconciliation (startup)", () =>
     reconcileAllRetailers({ apply: true })
   );
+
+  const approvalMins = minutesFromEnv("APPROVAL_SLA_INTERVAL_MINUTES", 5);
+  timers.push(
+    setInterval(
+      () => void safely("approval SLA", processApprovalEscalations),
+      approvalMins * MINUTE
+    )
+  );
+  timers.push(
+    setInterval(
+      () => void safely("approval disputes", processDisputeEscalations),
+      approvalMins * MINUTE
+    )
+  );
+  void safely("approval SLA (startup)", processApprovalEscalations);
+  void safely("approval disputes (startup)", processDisputeEscalations);
 
   const connector = getSapConnector();
   if (!connector.enabled) {

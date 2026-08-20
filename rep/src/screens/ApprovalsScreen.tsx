@@ -10,6 +10,7 @@ type QueueItem = {
   retailer: { name: string };
   order?: { orderNo: number; orderTotal: number | string } | null;
   assessment: { reasons: string[]; projectedExposure: number | string };
+  status: string;
 };
 
 const label = (code: string) => ({
@@ -58,7 +59,7 @@ export default function ApprovalsScreen({ navigation }: any) {
               <View style={styles.between}>
                 <View style={styles.grow}>
                   <Text style={styles.name}>{item.retailer.name}</Text>
-                  <Text style={styles.meta}>Order #{item.order?.orderNo} · {label(item.assessment.reasons[0])}</Text>
+                  <Text style={styles.meta}>Order #{item.order?.orderNo} · {item.status === "rejected" ? "Rejected · dispute available" : label(item.assessment.reasons[0])}</Text>
                 </View>
                 <Text style={styles.amount}>{inr(Number(item.order?.orderTotal ?? 0))}</Text>
               </View>

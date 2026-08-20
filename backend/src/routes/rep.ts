@@ -240,7 +240,8 @@ router.post("/orders", requireRep, async (req: RepRequest, res) => {
     retailer.id,
     parsed.data.items,
     "rep",
-    req.repId
+    req.repId,
+    req.staffId
   );
   if (!result.ok) return res.status(result.status).json(result.body);
 

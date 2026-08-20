@@ -55,6 +55,19 @@ export default function ApprovalDetailScreen({ route, navigation }: any) {
     }
   };
 
+  const raiseDispute = async () => {
+    if (reason.trim().length < 10) {
+      setError("Add a written position with supporting context.");
+      return;
+    }
+    try {
+      await repApi.raiseApprovalDispute(request.id, reason.trim());
+      navigation.goBack();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Dispute could not be opened");
+    }
+  };
+
   if (loading) return <View style={styles.center}><ActivityIndicator color={colors.green} /></View>;
   if (!request) return <View style={styles.center}><Text style={styles.error}>{error || "Approval not found"}</Text></View>;
 
@@ -68,10 +81,16 @@ export default function ApprovalDetailScreen({ route, navigation }: any) {
       </View>
       <Text style={styles.section}>Why approval is needed</Text>
       {request.assessment.reasons.map((code: string) => <View style={styles.reason} key={code}><Text style={styles.reasonText}>{reasonLabel(code)}</Text></View>)}
-      <Text style={styles.label}>Decision note</Text>
-      <TextInput style={styles.note} multiline value={reason} onChangeText={setReason} placeholder="Required when rejecting" placeholderTextColor={colors.inkFaint} />
+      <Text style={styles.label}>{request.status === "rejected" ? "Written position" : "Decision note"}</Text>
+      <TextInput style={styles.note} multiline value={reason} onChangeText={setReason} placeholder={request.status === "rejected" ? "Add supporting facts for the dispute" : "Required when rejecting"} placeholderTextColor={colors.inkFaint} />
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      {!pendingDecision ? (
+      {request.status === "rejected" ? (
+        <View style={styles.verify}>
+          <Text style={styles.section}>Order remains held</Text>
+          <Text style={styles.copy}>Opening a dispute does not authorize dispatch.</Text>
+          <TouchableOpacity style={styles.approve} onPress={() => void raiseDispute()}><Text style={styles.approveText}>Open dispute</Text></TouchableOpacity>
+        </View>
+      ) : !pendingDecision ? (
         <View style={styles.actions}>
           <TouchableOpacity style={styles.reject} onPress={() => void begin("rejected")}><Text style={styles.rejectText}>Reject</Text></TouchableOpacity>
           <TouchableOpacity style={styles.approve} onPress={() => void begin("approved")}><Text style={styles.approveText}>Approve</Text></TouchableOpacity>

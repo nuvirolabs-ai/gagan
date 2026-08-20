@@ -37,6 +37,7 @@ export default function Approvals() {
   const [challengeId, setChallengeId] = useState("");
   const [otp, setOtp] = useState("");
   const [pendingDecision, setPendingDecision] = useState<"approved" | "rejected" | null>(null);
+  const [disputePosition, setDisputePosition] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -58,7 +59,22 @@ export default function Approvals() {
       const result = await api.approval(id);
       setSelected(result.request);
       setReason("");
+      setDisputePosition("");
       setError("");
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const raiseDispute = async () => {
+    if (!selected || disputePosition.trim().length < 10) {
+      setError("Add a written position with supporting context.");
+      return;
+    }
+    try {
+      await api.raiseApprovalDispute(selected.id, disputePosition.trim());
+      setSelected(null);
+      await load();
     } catch (err: any) {
       setError(err.message);
     }
@@ -126,6 +142,15 @@ export default function Approvals() {
                 <span>{inr(Number(selected.order?.orderTotal ?? 0))} order value</span>
               </div>
               <div className="reason-list">{selected.assessment.reasons.map((code) => <div className="reason-card" key={code}>{reasonLabel(code)}</div>)}</div>
+              {selected.deadlineAt ? <p className="muted small">Decision due {new Date(selected.deadlineAt).toLocaleString("en-IN")}</p> : null}
+              {selected.status === "rejected" ? (
+                <div className="step-up-box">
+                  <strong>Order held · dispute available</strong>
+                  <p>Dispatch stays blocked while the written positions are reviewed.</p>
+                  <label className="field"><span>Written position</span><textarea value={disputePosition} onChange={(event) => setDisputePosition(event.target.value)} rows={4} /></label>
+                  <button onClick={() => void raiseDispute()}>Open dispute</button>
+                </div>
+              ) : <>
               <label className="field"><span>Decision note</span><textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={3} /></label>
               {!pendingDecision ? (
                 <div className="approval-actions">
@@ -140,6 +165,7 @@ export default function Approvals() {
                   <button disabled={otp.length !== 6} onClick={() => void verifyAndDecide()}>Verify and {pendingDecision === "approved" ? "approve" : "reject"}</button>
                 </div>
               )}
+              </>}
             </>
           )}
         </section>

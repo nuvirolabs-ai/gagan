@@ -92,7 +92,7 @@ export const Permissions = {
 - [x] Make the staff app navigation derive from server-returned permissions.
 - [x] Use secure admin cookie sessions or memory-held access tokens with refresh cookie; remove persistent localStorage bearer tokens.
 - [x] Run both mobile type checks and admin build/Playwright smoke tests.
-- [ ] Commit: `feat: secure client sessions and role-aware staff shell`.
+- [x] Commit: `feat: secure client sessions and role-aware staff shell`.
 
 ## Exit gate
 
@@ -102,3 +102,8 @@ export const Permissions = {
 - [x] Delegations expire automatically.
 - [ ] Sensitive actions require recent step-up authentication.
 - [x] Retailer, staff, and admin sessions cannot be interchanged.
+
+Remaining go-live wiring:
+
+- Register a real production SMS adapter and credentials; production intentionally refuses the mock adapter.
+- Apply the implemented `requireRecentStepUp` middleware to credit, collection-confirmation, and legal-decision mutation routes as those workflow endpoints are added.

@@ -1,20 +1,6 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { api, getToken, setToken, clearToken, setUnauthorizedHandler } from "./api";
-
-interface Admin {
-  id: string;
-  name: string;
-  email: string;
-}
-
-interface AuthValue {
-  admin: Admin | null;
-  loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
-}
-
-const AuthContext = createContext<AuthValue | undefined>(undefined);
+import { AuthContext, type Admin } from "./auth-context";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [admin, setAdmin] = useState<Admin | null>(null);
@@ -52,10 +38,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{ admin, loading, login, logout }}>{children}</AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
 }

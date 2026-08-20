@@ -45,6 +45,25 @@ cd backend && npm install && npx prisma migrate dev && npx prisma db seed && npm
 
 Runs on `http://localhost:4000`.
 
+The API and scheduled worker are separate production processes:
+
+```bash
+cd backend && npm run dev
+cd backend && npm run dev:worker
+```
+
+Copy `backend/.env.example` to `backend/.env` for local development and replace all placeholder secrets. Production startup rejects mock SMS, payment, and SAP adapters.
+
+## Verification
+
+Install dependencies in each package, then run the same repository gate used by CI:
+
+```bash
+bash scripts/verify.sh
+```
+
+The gate type-checks, tests, and builds the backend; validates Prisma; type-checks both Expo apps; and lints/builds the admin web app. CI additionally applies every Prisma migration to an empty PostgreSQL 16 database before running the gate.
+
 ## Retailer app
 
 ```bash

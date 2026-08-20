@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: gagan
+          POSTGRES_PASSWORD: gagan
+          POSTGRES_DB: gagan_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gagan -d gagan_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://gagan:gagan@localhost:5432/gagan_test
+      JWT_SECRET: ci-only-secret-that-is-longer-than-thirty-two-characters
+      SMS_PROVIDER: mock
+      PAYMENT_PROVIDER: mock
+      SAP_MODE: disabled
+      DISABLE_JOBS: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            mobile/package-lock.json
+            rep/package-lock.json
+            admin/package-lock.json
+      - name: Install dependencies
+        run: |
+          npm ci --prefix backend
+          npm ci --prefix mobile
+          npm ci --prefix rep
+          npm ci --prefix admin
+      - name: Apply migrations to empty database
+        working-directory: backend
+        run: npx prisma migrate deploy
+      - name: Verify repository
+        run: bash scripts/verify.sh

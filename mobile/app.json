@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Gagan Retailer",
+    "slug": "gagan-retailer",
+    "scheme": "gaganretailer",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.gagan.retailer"
+    },
+    "android": {
+      "package": "com.gagan.retailer",
+      "adaptiveIcon": {
+        "backgroundColor": "#123122",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

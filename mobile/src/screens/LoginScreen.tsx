@@ -1,0 +1,162 @@
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+
+import { useAuth } from "../context/AuthContext";
+import { ApiError } from "../api/client";
+import { colors, radius, spacing } from "../theme";
+
+export default function LoginScreen() {
+  const auth = useAuth();
+
+  const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState("");
+  const [stage, setStage] = useState<"phone" | "otp">("phone");
+  const [busy, setBusy] = useState(false);
+
+  const handleRequestOtp = async () => {
+    if (phone.length < 10) return Alert.alert("Enter a valid 10-digit phone number");
+    setBusy(true);
+    try {
+      await auth.requestOtp(phone);
+      setStage("otp");
+    } catch (e) {
+      Alert.alert("Couldn't send OTP", e instanceof ApiError ? e.message : "Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleVerify = async () => {
+    setBusy(true);
+    try {
+      await auth.verifyOtp(phone, otp);
+    } catch (e) {
+      Alert.alert("Couldn't sign in", e instanceof ApiError ? e.message : "Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
+      <View style={styles.inner}>
+        <Text style={styles.logo}>GAGAN</Text>
+        <Text style={styles.tagline}>NUTRITION. DELIVERED.</Text>
+
+        {stage === "phone" ? (
+          <>
+            <Text style={styles.label}>Sign in to your shop</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Phone number"
+              placeholderTextColor={colors.inkFaint}
+              keyboardType="phone-pad"
+              value={phone}
+              onChangeText={setPhone}
+              maxLength={10}
+            />
+            <TouchableOpacity style={styles.button} onPress={handleRequestOtp} disabled={busy}>
+              {busy ? (
+                <ActivityIndicator color={colors.onDark} />
+              ) : (
+                <>
+                  <Text style={styles.buttonText}>Send OTP</Text>
+                  <Ionicons name="arrow-forward" size={17} color={colors.onDark} />
+                </>
+              )}
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <Text style={styles.label}>
+              Enter the code sent to {phone}
+              {"\n"}
+              <Text style={styles.devHint}>Dev mode: use 123456</Text>
+            </Text>
+            <TextInput
+              style={[styles.input, styles.otpInput]}
+              placeholder="000000"
+              placeholderTextColor={colors.inkFaint}
+              keyboardType="number-pad"
+              value={otp}
+              onChangeText={setOtp}
+              maxLength={6}
+            />
+            <TouchableOpacity style={styles.button} onPress={handleVerify} disabled={busy}>
+              {busy ? (
+                <ActivityIndicator color={colors.onDark} />
+              ) : (
+                <Text style={styles.buttonText}>Verify & sign in</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setStage("phone")}>
+              <Text style={styles.link}>Change phone number</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.bg },
+  inner: { flex: 1, justifyContent: "center", padding: spacing.xl },
+  logo: {
+    fontSize: 34,
+    fontWeight: "700",
+    color: colors.green,
+    textAlign: "center",
+    letterSpacing: 2,
+  },
+  tagline: {
+    fontSize: 9.5,
+    fontWeight: "700",
+    color: colors.gold,
+    letterSpacing: 2,
+    textAlign: "center",
+    marginTop: 3,
+    marginBottom: spacing.xxl,
+  },
+
+
+  label: { fontSize: 13.5, color: colors.inkMuted, marginBottom: spacing.md, lineHeight: 19 },
+  devHint: { color: colors.gold, fontWeight: "700", fontSize: 12 },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.lg,
+    fontSize: 16,
+    color: colors.ink,
+    marginBottom: spacing.lg,
+  },
+  otpInput: { fontSize: 22, letterSpacing: 8, textAlign: "center", fontWeight: "700" },
+  button: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: colors.greenDeep,
+    borderRadius: radius.md,
+    paddingVertical: 15,
+  },
+  buttonText: { color: colors.onDark, fontWeight: "700", fontSize: 15.5 },
+  link: { textAlign: "center", color: colors.green, marginTop: spacing.lg, fontWeight: "600" },
+});

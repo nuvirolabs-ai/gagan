@@ -16,6 +16,7 @@ function rated(rating: CreditSnapshot["rating"], overrides: Partial<CreditSnapsh
     openInvoices: [],
     outstandingAmount: 0,
     pendingAuthorizedExposure: 0,
+    pendingOrderCount: 0,
     advancePaymentConfirmed: false,
     approvalCountThisMonth: 0,
     sapAccountCount: 1,

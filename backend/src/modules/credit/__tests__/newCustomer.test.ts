@@ -19,6 +19,7 @@ function newCustomer(overrides: Partial<CreditSnapshot> = {}): CreditSnapshot {
     openInvoices: [],
     outstandingAmount: 0,
     pendingAuthorizedExposure: 0,
+    pendingOrderCount: 0,
     advancePaymentConfirmed: false,
     approvalCountThisMonth: 0,
     sapAccountCount: 1,
@@ -94,7 +95,20 @@ describe("new-customer invoice chain", () => {
     });
   });
 
-  it.each([1, 2, 3])("routes invoice stage %s to the lead when projected exposure reaches ₹50,000", (invoiceCount) => {
+  it("counts pending orders in the N invoice chain", () => {
+    expect(
+      assessOrder(
+        SOP_V4_POLICY,
+        newCustomer({ invoiceCount: 0, pendingOrderCount: 3 }),
+        order(5_000)
+      )
+    ).toEqual({
+      result: "blocked",
+      reasons: [ReasonCodes.NEW_CUSTOMER_FOURTH_BLOCKED],
+    });
+  });
+
+  it.each([1, 2])("routes invoice stage %s to the lead when projected exposure reaches ₹50,000", (invoiceCount) => {
     const decision = assessOrder(
       SOP_V4_POLICY,
       newCustomer({ invoiceCount, outstandingAmount: 40_000 }),

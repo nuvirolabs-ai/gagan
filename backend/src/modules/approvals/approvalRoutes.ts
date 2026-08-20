@@ -99,13 +99,16 @@ export function createApprovalsRouter(options: ApprovalRouterOptions) {
     "/approval-disputes/:id/resolve",
     requireRecentStepUp,
     asyncRoute(async (req: StaffAuthedRequest, res) => {
-      const parsed = z.object({ resolution: z.string().trim().min(10) }).safeParse(req.body);
+      const parsed = z.object({
+        outcome: z.enum(["approved", "rejected"]),
+        resolution: z.string().trim().min(10),
+      }).safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
       const auth = req.staffAuth!;
       res.json({ dispute: await disputes.resolve(req.params.id, {
         actorStaffId: auth.staffId,
         actorPermissions: auth.permissions,
-        resolution: parsed.data.resolution,
+        ...parsed.data,
       }) });
     })
   );

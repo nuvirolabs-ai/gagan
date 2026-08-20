@@ -25,6 +25,17 @@ function nextQuarterlyCheckpoint(after: Date) {
   return new Date(Date.UTC(year + 1, 0, 1));
 }
 
+export function netAllocationAmount(allocation: {
+  amount: number | string | Prisma.Decimal;
+  reversals: Array<{ amount: number | string | Prisma.Decimal }>;
+}) {
+  return Math.max(
+    0,
+    Number(allocation.amount) -
+      allocation.reversals.reduce((sum, reversal) => sum + Number(reversal.amount), 0)
+  );
+}
+
 export class RatingService {
   async list() {
     return prisma.ratingProposal.findMany({
@@ -46,7 +57,12 @@ export class RatingService {
           include: {
             invoices: {
               where: { status: { not: "voided" } },
-              include: { allocations: { orderBy: { createdAt: "asc" } } },
+              include: {
+                allocations: {
+                  include: { reversals: true },
+                  orderBy: { createdAt: "asc" },
+                },
+              },
               orderBy: { invoiceDate: "asc" },
             },
           },
@@ -56,17 +72,22 @@ export class RatingService {
     let created = 0;
     for (const profile of profiles) {
       const invoices = profile.retailer.invoices.map((invoice) => {
-        const allocated = invoice.allocations.reduce((sum, allocation) => sum + Number(allocation.amount), 0);
-        const fullyPaid = allocated >= Number(invoice.total) || invoice.status === "paid";
+        const netAllocations = invoice.allocations.map((allocation) => ({
+          createdAt: allocation.createdAt,
+          amount: netAllocationAmount(allocation),
+        }));
+        const effectiveAllocations = netAllocations.filter((allocation) => allocation.amount > 0);
+        const allocated = effectiveAllocations.reduce((sum, allocation) => sum + allocation.amount, 0);
+        const fullyPaid = allocated >= Number(invoice.total);
         const completion = fullyPaid
-          ? invoice.allocations.at(-1)?.createdAt ?? invoice.updatedAt
+          ? effectiveAllocations.at(-1)?.createdAt ?? invoice.updatedAt
           : now;
         return {
           daysToPay: daysBetween(invoice.invoiceDate, completion),
           fullyPaid,
           hadPartialPayment:
-            invoice.allocations.length > 1 ||
-            (invoice.allocations.length === 1 && Number(invoice.allocations[0].amount) < Number(invoice.total)),
+            effectiveAllocations.length > 1 ||
+            (effectiveAllocations.length === 1 && effectiveAllocations[0].amount < Number(invoice.total)),
         };
       });
       const proposal = calculateRatingProposal({
@@ -75,6 +96,9 @@ export class RatingService {
         accountAgeDays: daysBetween(profile.accountCreatedAt, now),
         invoices,
         checkpointDue: profile.nextReviewAt != null && profile.nextReviewAt <= now,
+        hasOutstanding: profile.retailer.invoices.some(
+          (invoice) => Number(invoice.outstandingAmount) > 0
+        ),
       });
       await prisma.creditProfile.update({
         where: { id: profile.id },

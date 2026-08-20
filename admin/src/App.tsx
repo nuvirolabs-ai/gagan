@@ -13,7 +13,7 @@ import Approvals from "./pages/Approvals";
 import CreditReviews from "./pages/CreditReviews";
 
 const NAV = [
-  { to: "/approvals", label: "Approvals", permissions: ["approval.second_invoice", "approval.third_invoice", "collection.confirm"] },
+  { to: "/approvals", label: "Approvals", permissions: ["approval.second_invoice", "approval.third_invoice", "collection.confirm", "legal.decide"] },
   { to: "/credit-reviews", label: "Credit reviews", permissions: ["credit.rating_confirm"] },
   { to: "/orders", label: "Order queue", permissions: ["staff.manage"] },
   { to: "/retailers", label: "Retailers", permissions: ["staff.manage"] },

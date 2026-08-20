@@ -16,6 +16,7 @@ export interface CreditSnapshot {
   openInvoices: OpenInvoiceSnapshot[];
   outstandingAmount: number;
   pendingAuthorizedExposure: number;
+  pendingOrderCount: number;
   advancePaymentConfirmed: boolean;
   approvalCountThisMonth: number;
   sapAccountCount: number;

@@ -35,4 +35,19 @@ describe("rating lifecycle", () => {
     expect(calculateRatingProposal({ currentRating: "N", billingPattern: "irregular", accountAgeDays: 183, invoices: [clean(20)], checkpointDue: false }))
       .toMatchObject({ proposedRating: "D", trigger: "six_month_manual_exit", requiresConfirmation: true });
   });
+
+  it("restarts an E account at N after every outstanding invoice is cleared", () => {
+    expect(calculateRatingProposal({
+      currentRating: "E",
+      billingPattern: "regular",
+      accountAgeDays: 400,
+      invoices: [clean(70)],
+      checkpointDue: false,
+      hasOutstanding: false,
+    })).toMatchObject({
+      proposedRating: "N",
+      trigger: "e_clearance_restart",
+      requiresConfirmation: true,
+    });
+  });
 });

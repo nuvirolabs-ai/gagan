@@ -43,13 +43,6 @@ export function assessOrder(
   if (!snapshot.rating) return blocked(ReasonCodes.MISSING_RATING);
   if (snapshot.sapAccountCount > 1) return blocked(ReasonCodes.MULTIPLE_SAP_ACCOUNTS);
 
-  if (
-    snapshot.ratingReviewOverdueDays > policy.ratingCheckpointGraceDays &&
-    ["C", "D", "E", "F"].includes(snapshot.rating)
-  ) {
-    return needsApproval("approval.second_invoice", [ReasonCodes.STALE_RATING]);
-  }
-
   const oldestAge = snapshot.openInvoices.reduce(
     (oldest, invoice) => Math.max(oldest, invoice.ageDays),
     0
@@ -68,6 +61,7 @@ export function assessOrder(
     : [];
 
   if (snapshot.rating === "N") {
+    const invoiceStage = snapshot.invoiceCount + snapshot.pendingOrderCount;
     if (snapshot.invoiceCount === 0 && !snapshot.kycVerified) {
       return blocked(ReasonCodes.KYC_REQUIRED);
     }
@@ -77,7 +71,7 @@ export function assessOrder(
     );
     if (partiallyPaid) return blocked(ReasonCodes.PARTIAL_PAYMENT_NOT_CLEARANCE);
 
-    if (snapshot.openInvoices.length >= policy.newCustomerMaxOpenBeforeClearance) {
+    if (invoiceStage >= policy.newCustomerMaxOpenBeforeClearance) {
       return blocked(ReasonCodes.NEW_CUSTOMER_FOURTH_BLOCKED);
     }
 
@@ -94,7 +88,7 @@ export function assessOrder(
       ]);
     }
 
-    if (snapshot.invoiceCount === 2) {
+    if (invoiceStage === 2) {
       return needsApproval(
         "approval.third_invoice",
         [
@@ -107,7 +101,7 @@ export function assessOrder(
       );
     }
 
-    if (snapshot.invoiceCount === 1) {
+    if (invoiceStage === 1) {
       return needsApproval(
         repeated ? "approval.third_invoice" : "approval.second_invoice",
         [
@@ -146,6 +140,13 @@ export function assessOrder(
       ]);
     }
     return { result: "allowed", reasons: [] };
+  }
+
+  if (
+    snapshot.ratingReviewOverdueDays > policy.ratingCheckpointGraceDays &&
+    (snapshot.rating === "C" || snapshot.rating === "D")
+  ) {
+    return needsApproval("approval.second_invoice", [ReasonCodes.STALE_RATING]);
   }
 
   if (order.hasPriceListVariation) {

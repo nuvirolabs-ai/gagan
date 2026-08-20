@@ -94,15 +94,20 @@ export function syncCustomers() {
         // Without a phone the retailer could never sign in, so skip rather than
         // create an unusable record.
         if (!row.phone) continue;
-        await prisma.retailer.create({
-          data: {
-            name: row.name,
-            phone: row.phone,
-            shopAddress: row.shopAddress ?? "",
-            tierId: tier?.id ?? (await prisma.tier.findFirstOrThrow()).id,
-            creditLimit: row.creditLimit ?? 0,
-            sapCustomerId: row.sapCustomerId,
-          },
+        await prisma.$transaction(async (tx) => {
+          const retailer = await tx.retailer.create({
+            data: {
+              name: row.name,
+              phone: row.phone!,
+              shopAddress: row.shopAddress ?? "",
+              tierId: tier?.id ?? (await tx.tier.findFirstOrThrow()).id,
+              creditLimit: row.creditLimit ?? 0,
+              sapCustomerId: row.sapCustomerId,
+            },
+          });
+          await tx.creditProfile.create({
+            data: { retailerId: retailer.id, rating: "N", accountCreatedAt: retailer.createdAt },
+          });
         });
         created++;
         continue;
@@ -118,6 +123,11 @@ export function syncCustomers() {
           ...(tier ? { tierId: tier.id } : {}),
           ...(row.creditLimit != null ? { creditLimit: row.creditLimit } : {}),
         },
+      });
+      await prisma.creditProfile.upsert({
+        where: { retailerId: existing.id },
+        update: {},
+        create: { retailerId: existing.id, rating: "N", accountCreatedAt: existing.createdAt },
       });
       if (wasUnlinked) linked++;
       else updated++;

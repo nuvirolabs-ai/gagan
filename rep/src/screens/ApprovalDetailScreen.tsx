@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { repApi } from "../api/repClient";
 import { colors, inr, radius, spacing } from "../theme";
+import { useRep } from "../context/RepContext";
 
 const reasonLabel = (code: string) => ({
   new_customer_second_invoice: "Second invoice approval",
@@ -14,6 +15,7 @@ const reasonLabel = (code: string) => ({
 }[code] ?? code.replaceAll("_", " "));
 
 export default function ApprovalDetailScreen({ route, navigation }: any) {
+  const { staff } = useRep();
   const [request, setRequest] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [reason, setReason] = useState("");
@@ -21,6 +23,10 @@ export default function ApprovalDetailScreen({ route, navigation }: any) {
   const [challengeId, setChallengeId] = useState("");
   const [otp, setOtp] = useState("");
   const [pendingDecision, setPendingDecision] = useState<"approved" | "rejected" | null>(null);
+  const openDispute = request?.disputes?.find((item: any) => item.status !== "resolved");
+  const canResolveDispute = (staff?.permissions ?? []).some((permission: string) =>
+    ["approval.third_invoice", "legal.decide"].includes(permission)
+  );
 
   useEffect(() => {
     repApi.approval(route.params.approvalId)
@@ -30,6 +36,10 @@ export default function ApprovalDetailScreen({ route, navigation }: any) {
   }, [route.params.approvalId]);
 
   const begin = async (result: "approved" | "rejected") => {
+    if (openDispute && reason.trim().length < 10) {
+      setError("Add the factual resolution before closing the dispute.");
+      return;
+    }
     if (result === "rejected" && reason.trim().length < 3) {
       setError("Add a clear rejection reason.");
       return;
@@ -48,7 +58,11 @@ export default function ApprovalDetailScreen({ route, navigation }: any) {
     if (!pendingDecision || otp.length !== 6) return;
     try {
       await repApi.completeStepUp(challengeId, otp);
-      await repApi.decideApproval(request.id, pendingDecision, reason.trim() || undefined);
+      if (openDispute && canResolveDispute) {
+        await repApi.resolveApprovalDispute(openDispute.id, pendingDecision, reason.trim());
+      } else {
+        await repApi.decideApproval(request.id, pendingDecision, reason.trim() || undefined);
+      }
       navigation.goBack();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Decision could not be saved");
@@ -86,9 +100,22 @@ export default function ApprovalDetailScreen({ route, navigation }: any) {
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {request.status === "rejected" ? (
         <View style={styles.verify}>
-          <Text style={styles.section}>Order remains held</Text>
-          <Text style={styles.copy}>Opening a dispute does not authorize dispatch.</Text>
-          <TouchableOpacity style={styles.approve} onPress={() => void raiseDispute()}><Text style={styles.approveText}>Open dispute</Text></TouchableOpacity>
+          {openDispute ? <>
+            <Text style={styles.section}>{canResolveDispute ? "Resolve written dispute" : "Dispute under review"}</Text>
+            <Text style={styles.copy}>{openDispute.writtenPosition}</Text>
+            {canResolveDispute ? (!pendingDecision ? <View style={styles.actions}>
+              <TouchableOpacity style={styles.reject} onPress={() => void begin("rejected")}><Text style={styles.rejectText}>Uphold rejection</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.approve} onPress={() => void begin("approved")}><Text style={styles.approveText}>Approve</Text></TouchableOpacity>
+            </View> : <>
+              <Text style={styles.copy}>Enter the six-digit verification code.</Text>
+              <TextInput style={styles.otp} keyboardType="number-pad" maxLength={6} value={otp} onChangeText={(value) => setOtp(value.replace(/\D/g, ""))} />
+              <TouchableOpacity disabled={otp.length !== 6} style={[styles.approve, otp.length !== 6 && styles.disabled]} onPress={() => void decide()}><Text style={styles.approveText}>Verify and close dispute</Text></TouchableOpacity>
+            </>) : null}
+          </> : <>
+            <Text style={styles.section}>Order remains held</Text>
+            <Text style={styles.copy}>Opening a dispute does not authorize dispatch.</Text>
+            <TouchableOpacity style={styles.approve} onPress={() => void raiseDispute()}><Text style={styles.approveText}>Open dispute</Text></TouchableOpacity>
+          </>}
         </View>
       ) : !pendingDecision ? (
         <View style={styles.actions}>

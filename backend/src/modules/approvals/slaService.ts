@@ -23,20 +23,25 @@ export const databaseWorkingDay: WorkingDayLookup = async (date) => {
     where: { date: new Date(`${date}T00:00:00.000Z`) },
     select: { isWorkingDay: true },
   });
-  return row?.isWorkingDay ?? false;
+  if (row) return row.isWorkingDay;
+  const day = new Date(`${date}T00:00:00.000Z`).getUTCDay();
+  return day !== 0 && day !== 6;
 };
 
 /** Adds India office hours (09:00-17:00 IST) over the versioned working calendar. */
 export async function addWorkingHours(
   start: Date,
   hours: number,
-  isWorkingDay: WorkingDayLookup = databaseWorkingDay
+  isWorkingDay: WorkingDayLookup = databaseWorkingDay,
+  maxDaysScanned = 3660
 ): Promise<Date> {
   let remainingMs = hours * 60 * 60 * 1000;
   let local = new Date(start.getTime() + INDIA_OFFSET_MINUTES * 60_000);
+  let daysScanned = 0;
 
   while (remainingMs > 0) {
     if (!(await isWorkingDay(localDateKey(local)))) {
+      if (++daysScanned > maxDaysScanned) throw new Error("working_calendar_exhausted");
       local = nextLocalDay(local);
       continue;
     }

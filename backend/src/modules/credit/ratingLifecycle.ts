@@ -12,12 +12,13 @@ export interface RatingLifecycleInput {
   accountAgeDays: number;
   invoices: RatingInvoiceEvidence[];
   checkpointDue: boolean;
+  hasOutstanding?: boolean;
 }
 
 export interface RatingProposal {
   proposedRating: CreditRating;
   cleanInvoiceCount: number;
-  trigger: "quarterly_checkpoint" | "six_month_manual_exit" | "immediate_60_day_review" | "legal_90_day_lock" | "not_eligible";
+  trigger: "quarterly_checkpoint" | "six_month_manual_exit" | "immediate_60_day_review" | "legal_90_day_lock" | "e_clearance_restart" | "not_eligible";
   requiresConfirmation: boolean;
   evidence: { averageDso: number | null; invoiceCount: number };
 }
@@ -45,6 +46,16 @@ export function calculateRatingProposal(input: RatingLifecycleInput): RatingProp
     : null;
   const maxDso = input.invoices.reduce((max, invoice) => Math.max(max, invoice.daysToPay), 0);
   const evidence = { averageDso, invoiceCount: input.invoices.length };
+
+  if (input.currentRating === "E" && input.hasOutstanding === false) {
+    return {
+      proposedRating: "N",
+      cleanInvoiceCount,
+      trigger: "e_clearance_restart",
+      requiresConfirmation: true,
+      evidence,
+    };
+  }
 
   if (maxDso >= 90) {
     return { proposedRating: "F", cleanInvoiceCount, trigger: "legal_90_day_lock", requiresConfirmation: true, evidence };

@@ -9,6 +9,7 @@ type ApprovalRequest = {
   retailer: { id: string; name: string };
   order?: { id: string; orderNo: number; orderTotal: number | string; createdAt: string } | null;
   assessment: { reasons: string[]; projectedExposure: number | string };
+  disputes?: Array<{ id: string; status: string; writtenPosition: string; resolution?: string | null }>;
 };
 
 const REASON_LABELS: Record<string, string> = {
@@ -38,6 +39,7 @@ export default function Approvals() {
   const [otp, setOtp] = useState("");
   const [pendingDecision, setPendingDecision] = useState<"approved" | "rejected" | null>(null);
   const [disputePosition, setDisputePosition] = useState("");
+  const [pendingDisputeOutcome, setPendingDisputeOutcome] = useState<"approved" | "rejected" | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -60,6 +62,7 @@ export default function Approvals() {
       setSelected(result.request);
       setReason("");
       setDisputePosition("");
+      setPendingDisputeOutcome(null);
       setError("");
     } catch (err: any) {
       setError(err.message);
@@ -96,6 +99,22 @@ export default function Approvals() {
     }
   };
 
+  const beginDisputeResolution = async (outcome: "approved" | "rejected") => {
+    if (reason.trim().length < 10) {
+      setError("Add the factual resolution before closing the dispute.");
+      return;
+    }
+    try {
+      const challenge = await api.requestAdminStepUp();
+      setPendingDisputeOutcome(outcome);
+      setChallengeId(challenge.challengeId);
+      setOtp("");
+      setError("");
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
   const verifyAndDecide = async () => {
     if (!selected || !pendingDecision || otp.length !== 6) return;
     try {
@@ -103,6 +122,21 @@ export default function Approvals() {
       await api.decideApproval(selected.id, pendingDecision, reason.trim() || undefined);
       setSelected(null);
       setPendingDecision(null);
+      setChallengeId("");
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const verifyAndResolveDispute = async () => {
+    const dispute = selected?.disputes?.find((item) => item.status !== "resolved");
+    if (!dispute || !pendingDisputeOutcome || otp.length !== 6) return;
+    try {
+      await api.completeAdminStepUp(challengeId, otp);
+      await api.resolveApprovalDispute(dispute.id, pendingDisputeOutcome, reason.trim());
+      setSelected(null);
+      setPendingDisputeOutcome(null);
       setChallengeId("");
       await load();
     } catch (err: any) {
@@ -145,10 +179,23 @@ export default function Approvals() {
               {selected.deadlineAt ? <p className="muted small">Decision due {new Date(selected.deadlineAt).toLocaleString("en-IN")}</p> : null}
               {selected.status === "rejected" ? (
                 <div className="step-up-box">
-                  <strong>Order held · dispute available</strong>
-                  <p>Dispatch stays blocked while the written positions are reviewed.</p>
-                  <label className="field"><span>Written position</span><textarea value={disputePosition} onChange={(event) => setDisputePosition(event.target.value)} rows={4} /></label>
-                  <button onClick={() => void raiseDispute()}>Open dispute</button>
+                  {selected.disputes?.some((item) => item.status !== "resolved") ? <>
+                    <strong>Resolve written dispute</strong>
+                    <p>{selected.disputes.find((item) => item.status !== "resolved")?.writtenPosition}</p>
+                    <label className="field"><span>Factual resolution</span><textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={4} /></label>
+                    {!pendingDisputeOutcome ? <div className="approval-actions">
+                      <button className="danger-outline" onClick={() => void beginDisputeResolution("rejected")}>Uphold rejection</button>
+                      <button onClick={() => void beginDisputeResolution("approved")}>Approve after review</button>
+                    </div> : <>
+                      <label className="field"><span>Verification code</span><input aria-label="Verification code" inputMode="numeric" maxLength={6} value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))} /></label>
+                      <button disabled={otp.length !== 6} onClick={() => void verifyAndResolveDispute()}>Verify and close dispute</button>
+                    </>}
+                  </> : <>
+                    <strong>Order held · dispute available</strong>
+                    <p>Dispatch stays blocked while the written positions are reviewed.</p>
+                    <label className="field"><span>Written position</span><textarea value={disputePosition} onChange={(event) => setDisputePosition(event.target.value)} rows={4} /></label>
+                    <button onClick={() => void raiseDispute()}>Open dispute</button>
+                  </>}
                 </div>
               ) : <>
               <label className="field"><span>Decision note</span><textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={3} /></label>

@@ -109,7 +109,8 @@ export async function createOrderForRetailer(
       mode: appConfig?.creditRolloutMode ?? "shadow",
       policySigned:
         appConfig?.creditPolicyApprovedAt != null &&
-        appConfig.creditPolicyApprovedByStaffId != null,
+        appConfig.creditPolicyApprovedByStaffId != null &&
+        appConfig.creditPolicyApprovedVersion === policyRecord.version,
       legacyResult,
       engineResult: decision.result,
     });

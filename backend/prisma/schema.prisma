@@ -462,6 +462,7 @@ model AppConfig {
   creditRolloutMode             CreditRolloutMode @default(shadow)
   creditPolicyApprovedAt        DateTime?
   creditPolicyApprovedByStaffId String?
+  creditPolicyApprovedVersion   Int?
 }
 
 model Product {
@@ -926,6 +927,7 @@ model ApprovalDispute {
   counterPosition     String?
   resolvedByStaffId   String?
   resolution          String?
+  outcome             ApprovalDecisionResult?
   acknowledgmentDueAt DateTime
   acknowledgedAt      DateTime?
   decisionDueAt       DateTime?

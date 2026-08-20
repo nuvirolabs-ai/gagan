@@ -74,4 +74,19 @@ describe("approval routes", () => {
       expect.objectContaining({ actorStaffId: "staff-1", writtenPosition: "Sales evidence supports a review." })
     );
   });
+
+  it("requires step-up and an explicit outcome to resolve a dispute", async () => {
+    expect((await request(app()).post("/approval-disputes/dispute-1/resolve").send({
+      outcome: "approved",
+      resolution: "Evidence was verified by Accounts.",
+    })).status).toBe(403);
+    const response = await request(app(new Date(Date.now() + 60_000)))
+      .post("/approval-disputes/dispute-1/resolve")
+      .send({ outcome: "approved", resolution: "Evidence was verified by Accounts." });
+    expect(response.status).toBe(200);
+    expect(disputes.resolve).toHaveBeenCalledWith(
+      "dispute-1",
+      expect.objectContaining({ outcome: "approved", resolution: "Evidence was verified by Accounts." })
+    );
+  });
 });

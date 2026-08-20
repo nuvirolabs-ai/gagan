@@ -67,7 +67,13 @@ router.post("/retailers", async (req, res) => {
   const existing = await prisma.retailer.findUnique({ where: { phone: parsed.data.phone } });
   if (existing) return res.status(409).json({ error: "A retailer with this phone already exists" });
 
-  const retailer = await prisma.retailer.create({ data: parsed.data, include: { tier: true } });
+  const retailer = await prisma.$transaction(async (tx) => {
+    const created = await tx.retailer.create({ data: parsed.data, include: { tier: true } });
+    await tx.creditProfile.create({
+      data: { retailerId: created.id, rating: "N", accountCreatedAt: created.createdAt },
+    });
+    return created;
+  });
   res.status(201).json({ retailer });
 });
 

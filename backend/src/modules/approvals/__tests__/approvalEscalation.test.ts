@@ -19,6 +19,9 @@ beforeAll(async () => {
   await prisma.retailer.create({
     data: { id: ids.retailer, name: ids.retailer, shopAddress: "Test", phone: `84${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "4")}`, tierId: ids.tier },
   });
+  await prisma.creditProfile.create({
+    data: { retailerId: ids.retailer, rating: "N", kycVerifiedAt: new Date() },
+  });
   await prisma.order.create({ data: { id: ids.order, retailerId: ids.retailer, orderTotal: 1_000 } });
   await prisma.creditAssessment.create({
     data: {
@@ -49,12 +52,15 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await prisma.sapOutbox.deleteMany({ where: { referenceId: ids.order } });
+  await prisma.dispatchAuthorization.deleteMany({ where: { orderId: ids.order } });
   await prisma.auditEvent.deleteMany({ where: { subjectId: ids.request } });
   await prisma.approvalEscalation.deleteMany({ where: { approvalRequestId: ids.request } });
   await prisma.approvalDispute.deleteMany({ where: { approvalRequestId: ids.request } });
   await prisma.approvalRequest.delete({ where: { id: ids.request } });
   await prisma.creditAssessment.deleteMany({ where: { retailerId: ids.retailer } });
   await prisma.order.delete({ where: { id: ids.order } });
+  await prisma.creditProfile.delete({ where: { retailerId: ids.retailer } });
   await prisma.retailer.delete({ where: { id: ids.retailer } });
   await prisma.tier.delete({ where: { id: ids.tier } });
   await prisma.$disconnect();
@@ -89,5 +95,16 @@ describe("approval escalation processor", () => {
     });
     expect(acknowledged.decisionDueAt).toEqual(new Date("2026-08-25T05:00:00.000Z"));
     expect(await prisma.dispatchAuthorization.count({ where: { orderId: ids.order } })).toBe(0);
+
+    const resolved = await service.resolve(dispute.id, {
+      actorStaffId: "credit-lead-1",
+      actorPermissions: ["approval.third_invoice"],
+      outcome: "approved",
+      resolution: "Accounts verified that the supporting evidence is valid.",
+      now: new Date("2026-08-24T06:00:00.000Z"),
+    });
+    expect(resolved).toMatchObject({ status: "resolved", outcome: "approved" });
+    expect(await prisma.dispatchAuthorization.count({ where: { orderId: ids.order, status: "active" } })).toBe(1);
+    expect(await prisma.order.findUniqueOrThrow({ where: { id: ids.order } })).toMatchObject({ status: "placed" });
   });
 });

@@ -22,6 +22,7 @@ describe("role-aware staff shell", () => {
       canReviewRatings: false,
     });
     expect(staffCapabilities(["approval.second_invoice"])).toMatchObject({ canApprove: true });
+    expect(staffCapabilities(["legal.decide"])).toMatchObject({ canApprove: true });
     expect(staffCapabilities(["credit.rating_confirm"])).toMatchObject({ canReviewRatings: true });
   });
 });

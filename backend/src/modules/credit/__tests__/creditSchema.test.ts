@@ -67,6 +67,14 @@ describe("credit and approval schema", () => {
     ).toBe(true);
   });
 
+  it("binds enforcement to a policy version and records dispute outcomes", () => {
+    expect(field("AppConfig", "creditPolicyApprovedVersion").type).toBe("Int");
+    expect(field("ApprovalDispute", "outcome").type).toBe("ApprovalDecisionResult");
+    const sql = allMigrationSql();
+    expect(sql).toContain("protect_used_credit_policy_facts");
+    expect(sql).toContain('INSERT INTO "CreditProfile"');
+  });
+
   it("supports a dated working calendar for deterministic SLA calculations", () => {
     expect(field("WorkingCalendar", "date").isUnique).toBe(true);
     expect(field("WorkingCalendar", "isWorkingDay").type).toBe("Boolean");

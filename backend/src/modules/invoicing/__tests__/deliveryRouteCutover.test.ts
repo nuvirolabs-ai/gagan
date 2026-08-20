@@ -1,6 +1,6 @@
 import express from "express";
 import request from "supertest";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   findOrder: vi.fn(),
@@ -26,6 +26,8 @@ vi.mock("../invoiceService", () => ({ createInvoiceForDelivery: mocks.createInvo
 import adminOrderRoutes from "../../../routes/admin/orders";
 
 describe("delivery API cutover", () => {
+  beforeEach(() => vi.clearAllMocks());
+
   it("cannot confirm an order without current dispatch authorization", async () => {
     mocks.findOrder.mockResolvedValue({ id: "order-held", status: "placed" });
     mocks.findAuthorization.mockResolvedValue(null);
@@ -37,6 +39,23 @@ describe("delivery API cutover", () => {
     expect(response.status).toBe(409);
     expect(response.body).toEqual({ error: "dispatch_authorization_required" });
     expect(mocks.updateOrder).not.toHaveBeenCalled();
+  });
+
+  it("does not dispatch when rating invalidation wins the authorization race", async () => {
+    mocks.findOrder.mockResolvedValue({ id: "order-race", status: "packed" });
+    mocks.findAuthorization.mockResolvedValue({ id: "authorization-race" });
+    mocks.transaction.mockImplementationOnce(async (work) => work({
+      dispatchAuthorization: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
+    }));
+    const app = express();
+    app.use(express.json(), adminOrderRoutes);
+
+    const response = await request(app)
+      .post("/dispatch/order-race/assign")
+      .send({ routeId: "route-1" });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ error: "dispatch_authorization_expired" });
   });
 
   it("completes POD through exactly-once invoice creation", async () => {

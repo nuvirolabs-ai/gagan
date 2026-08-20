@@ -42,6 +42,9 @@ export class ApprovalService {
   async list(permissions: string[]) {
     if (permissions.length === 0) return [];
     const canRaiseDispute = permissions.includes("approval.second_invoice");
+    const canResolveDispute = permissions.some((permission) =>
+      ["approval.third_invoice", "legal.decide"].includes(permission)
+    );
     const recent = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     return prisma.approvalRequest.findMany({
       where: {
@@ -52,6 +55,12 @@ export class ApprovalService {
           },
           ...(canRaiseDispute
             ? [{ status: "rejected" as const, createdAt: { gte: recent } }]
+            : []),
+          ...(canResolveDispute
+            ? [{
+                status: "rejected" as const,
+                disputes: { some: { status: { in: ["open" as const, "escalated" as const] } } },
+              }]
             : []),
         ],
       },
@@ -68,7 +77,13 @@ export class ApprovalService {
     const request = await prisma.approvalRequest.findUnique({ where: { id }, include: detailInclude });
     if (!request) throw new ApprovalServiceError("approval_not_found", 404);
     const canReviewRejected =
-      request.status === "rejected" && permissions.includes("approval.second_invoice");
+      request.status === "rejected" && (
+        permissions.includes("approval.second_invoice") ||
+        (
+          request.disputes.some((dispute) => dispute.status !== "resolved") &&
+          permissions.some((permission) => ["approval.third_invoice", "legal.decide"].includes(permission))
+        )
+      );
     if (!permissions.includes(request.requiredPermission) && !canReviewRejected) {
       throw new ApprovalServiceError("permission_required", 403, {
         permission: request.requiredPermission,
@@ -89,7 +104,10 @@ export class ApprovalService {
         include: { order: { include: { items: true } } },
       });
       if (!request) throw new ApprovalServiceError("approval_not_found", 404);
-      if (!input.actorPermissions.includes(request.requiredPermission)) {
+      if (
+        !input.actorPermissions.includes(request.requiredPermission) &&
+        !(request.status === "escalated" && input.actorPermissions.includes("legal.decide"))
+      ) {
         throw new ApprovalServiceError("permission_required", 403, {
           permission: request.requiredPermission,
         });
@@ -155,7 +173,8 @@ export class ApprovalService {
       }
       if (
         reassessment.result === "approval_required" &&
-        !input.actorPermissions.includes(reassessment.requiredPermission)
+        !input.actorPermissions.includes(reassessment.requiredPermission) &&
+        !(request.status === "escalated" && input.actorPermissions.includes("legal.decide"))
       ) {
         throw new ApprovalServiceError("permission_required", 403, {
           permission: reassessment.requiredPermission,

@@ -19,4 +19,10 @@ describe("approval SLA calendar", () => {
       new Date("2026-08-24T07:30:00.000Z") // Monday 1pm IST
     );
   });
+
+  it("cannot loop forever when no future working day is available", async () => {
+    const missing = async () => false;
+    await expect(addWorkingHours(new Date("2026-08-20T10:00:00.000Z"), 1, missing, 5))
+      .rejects.toThrow("working_calendar_exhausted");
+  });
 });

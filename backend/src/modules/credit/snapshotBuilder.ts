@@ -14,7 +14,7 @@ export async function buildCreditSnapshot(
   excludeOrderId?: string
 ): Promise<CreditSnapshot> {
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const [retailer, profile, invoices, invoiceCount, pending, approvalCount] = await Promise.all([
+  const [retailer, profile, invoices, invoiceCount, pending, pendingOrderCount, approvalCount] = await Promise.all([
     tx.retailer.findUniqueOrThrow({
       where: { id: retailerId },
       select: { createdAt: true, sapCustomerId: true },
@@ -34,6 +34,13 @@ export async function buildCreditSnapshot(
       },
       _sum: { orderTotal: true },
     }),
+    tx.order.count({
+      where: {
+        retailerId,
+        status: { in: [...RESERVED_ORDER_STATUSES] },
+        ...(excludeOrderId ? { id: { not: excludeOrderId } } : {}),
+      },
+    }),
     tx.approvalRequest.count({ where: { retailerId, createdAt: { gte: monthStart } } }),
   ]);
 
@@ -52,6 +59,7 @@ export async function buildCreditSnapshot(
     })),
     outstandingAmount: invoices.reduce((sum, invoice) => sum + Number(invoice.outstandingAmount), 0),
     pendingAuthorizedExposure: Number(pending._sum.orderTotal ?? 0),
+    pendingOrderCount,
     advancePaymentConfirmed: false,
     approvalCountThisMonth: approvalCount,
     sapAccountCount: 1,

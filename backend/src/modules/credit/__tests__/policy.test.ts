@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { SOP_V4_POLICY, serializePolicy } from "../policy";
 import { REASON_CATALOG, ReasonCodes } from "../reasonCodes";
 
@@ -36,5 +38,14 @@ describe("approved SOP V4 policy", () => {
   it("serializes to JSON-safe policy and reason-catalog records", () => {
     expect(() => JSON.stringify(serializePolicy(SOP_V4_POLICY))).not.toThrow();
     expect(() => JSON.stringify(REASON_CATALOG)).not.toThrow();
+  });
+
+  it("bootstraps policy and working days through production migrations", () => {
+    const migration = readFileSync(
+      join(process.cwd(), "prisma/migrations/20260820150500_credit_policy_bootstrap/migration.sql"),
+      "utf8"
+    );
+    expect(migration).toContain('INSERT INTO "CreditPolicyVersion"');
+    expect(migration).toContain('INSERT INTO "WorkingCalendar"');
   });
 });

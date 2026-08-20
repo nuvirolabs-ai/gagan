@@ -104,14 +104,15 @@ router.post("/dispatch/:orderId/assign", async (req, res) => {
   const slot = parsed.data.deliverySlot ? new Date(parsed.data.deliverySlot) : null;
 
   const updated = await prisma.$transaction(async (tx) => {
+    const consumed = await tx.dispatchAuthorization.updateMany({
+      where: { id: authorization.id, status: "active" },
+      data: { status: "used", usedAt: new Date() },
+    });
+    if (consumed.count !== 1) return null;
     await tx.delivery.upsert({
       where: { orderId: order.id },
       update: { routeId: parsed.data.routeId, deliverySlot: slot },
       create: { orderId: order.id, routeId: parsed.data.routeId, deliverySlot: slot },
-    });
-    await tx.dispatchAuthorization.update({
-      where: { id: authorization.id },
-      data: { status: "used", usedAt: new Date() },
     });
     return tx.order.update({
       where: { id: order.id },
@@ -119,6 +120,8 @@ router.post("/dispatch/:orderId/assign", async (req, res) => {
       include: orderInclude,
     });
   });
+
+  if (!updated) return res.status(409).json({ error: "dispatch_authorization_expired" });
 
   res.json({ order: updated });
 });

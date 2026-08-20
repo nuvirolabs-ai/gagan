@@ -14,6 +14,7 @@ function snapshot(overrides: Partial<CreditSnapshot> = {}): CreditSnapshot {
     openInvoices: [],
     outstandingAmount: 0,
     pendingAuthorizedExposure: 0,
+    pendingOrderCount: 0,
     advancePaymentConfirmed: false,
     approvalCountThisMonth: 0,
     sapAccountCount: 1,
@@ -64,8 +65,8 @@ describe("credit decision edge cases", () => {
     });
   });
 
-  it("holds C/D/E/F when a rating checkpoint is more than seven days late", () => {
-    for (const rating of ["C", "D", "E", "F"] as const) {
+  it("holds C/D for review when a rating checkpoint is more than seven days late", () => {
+    for (const rating of ["C", "D"] as const) {
       expect(
         assessOrder(SOP_V4_POLICY, snapshot({ rating, ratingReviewOverdueDays: 8 }), {
           total: 1_000,
@@ -73,5 +74,12 @@ describe("credit decision edge cases", () => {
         })
       ).toMatchObject({ result: "approval_required", reasons: [ReasonCodes.STALE_RATING] });
     }
+  });
+
+  it("never lets stale review bypass E/F hard controls", () => {
+    expect(assessOrder(SOP_V4_POLICY, snapshot({ rating: "E", ratingReviewOverdueDays: 8 }), { total: 1_000, hasPriceListVariation: false }))
+      .toEqual({ result: "blocked", reasons: [ReasonCodes.RATING_E_LOCKED] });
+    expect(assessOrder(SOP_V4_POLICY, snapshot({ rating: "F", ratingReviewOverdueDays: 8 }), { total: 1_000, hasPriceListVariation: false }))
+      .toMatchObject({ result: "approval_required", requiredPermission: "collection.confirm" });
   });
 });

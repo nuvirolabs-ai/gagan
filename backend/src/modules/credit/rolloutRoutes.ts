@@ -56,6 +56,8 @@ export function createCreditRolloutRouter(options: { authenticate: RequestHandle
       if (!parsed.success) return res.status(400).json({ error: "signed_policy_approval_required" });
       const policy = await prisma.creditPolicyVersion.findFirst({ where: { active: true } });
       if (!policy || policy.version !== parsed.data.policyVersion) return res.status(409).json({ error: "active_policy_version_mismatch" });
+      const appConfig = await prisma.appConfig.findUnique({ where: { id: "singleton" }, select: { id: true } });
+      if (!appConfig) return res.status(409).json({ error: "app_config_missing" });
       const now = new Date();
       await prisma.appConfig.update({
         where: { id: "singleton" },
@@ -63,6 +65,7 @@ export function createCreditRolloutRouter(options: { authenticate: RequestHandle
           creditRolloutMode: "enforce",
           creditPolicyApprovedAt: now,
           creditPolicyApprovedByStaffId: req.staffAuth!.staffId,
+          creditPolicyApprovedVersion: policy.version,
         },
       });
       await prisma.auditEvent.create({

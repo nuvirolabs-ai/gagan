@@ -9,6 +9,7 @@ const ids = {
   product: `credit-product-${run}`,
   variant: `credit-variant-${run}`,
   concurrentRetailer: `credit-concurrent-${run}`,
+  chainRetailer: `credit-chain-${run}`,
   overdueRetailer: `credit-overdue-${run}`,
 };
 
@@ -19,6 +20,7 @@ beforeAll(async () => {
       creditRolloutMode: "enforce",
       creditPolicyApprovedAt: new Date(),
       creditPolicyApprovedByStaffId: "test-credit-lead",
+      creditPolicyApprovedVersion: 4,
     },
   });
   await prisma.tier.create({ data: { id: ids.tier, name: `Credit test ${run}` } });
@@ -40,12 +42,13 @@ beforeAll(async () => {
       tierId: ids.tier,
       productId: ids.product,
       variantId: ids.variant,
-      price: 30_000,
+      price: 10_000,
     },
   });
 
   for (const [id, phone] of [
     [ids.concurrentRetailer, `81${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "1")}`],
+    [ids.chainRetailer, `80${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "0")}`],
     [ids.overdueRetailer, `82${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "2")}`],
   ]) {
     await prisma.retailer.create({
@@ -77,7 +80,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  const retailerIds = [ids.concurrentRetailer, ids.overdueRetailer];
+  const retailerIds = [ids.concurrentRetailer, ids.chainRetailer, ids.overdueRetailer];
   const orders = await prisma.order.findMany({ where: { retailerId: { in: retailerIds } }, select: { id: true } });
   const orderIds = orders.map((order) => order.id);
   await prisma.sapOutbox.deleteMany({ where: { referenceId: { in: orderIds } } });
@@ -99,7 +102,7 @@ afterAll(async () => {
   await prisma.tier.delete({ where: { id: ids.tier } });
   await prisma.appConfig.update({
     where: { id: "singleton" },
-    data: { creditRolloutMode: "shadow", creditPolicyApprovedAt: null, creditPolicyApprovedByStaffId: null },
+    data: { creditRolloutMode: "shadow", creditPolicyApprovedAt: null, creditPolicyApprovedByStaffId: null, creditPolicyApprovedVersion: null },
   });
   await prisma.$disconnect();
 });
@@ -131,5 +134,24 @@ describe("atomic order credit enforcement", () => {
     });
     expect(await prisma.order.count({ where: { retailerId: ids.overdueRetailer } })).toBe(0);
     expect(await prisma.creditAssessment.count({ where: { retailerId: ids.overdueRetailer, result: "blocked" } })).toBe(1);
+  });
+
+  it("blocks the fourth N-stage order even before earlier orders become invoices", async () => {
+    const results = [];
+    for (let index = 0; index < 4; index++) {
+      results.push(await createOrderForRetailer(
+        ids.chainRetailer,
+        [{ variantId: ids.variant, qty: 1 }],
+        "retailer"
+      ));
+    }
+    expect(results.slice(0, 3).map((result: any) => result.decision.result))
+      .toEqual(["allowed", "approval_required", "approval_required"]);
+    expect(results[3]).toMatchObject({
+      ok: false,
+      status: 409,
+      body: { decision: { result: "blocked", reasons: ["new_customer_fourth_blocked"] } },
+    });
+    expect(await prisma.order.count({ where: { retailerId: ids.chainRetailer } })).toBe(3);
   });
 });

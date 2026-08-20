@@ -47,12 +47,12 @@ export function assessOrder(policy: CreditPolicy, snapshot: CreditSnapshot, orde
 
 ## Task 3: Integrate assessment into order creation atomically
 
-- [ ] Write integration/concurrency tests proving pending order exposure is included and two simultaneous orders cannot jointly exceed allowed exposure.
-- [ ] Build `CreditSnapshot` from invoices, allocations, authorized pending orders, rating/profile, SAP freshness, and prior approval count.
-- [ ] Persist `CreditAssessment` with policy and evidence before returning allowed/approval/blocked.
-- [ ] Reserve exposure for allowed or approval-pending orders in the same transaction.
-- [ ] Return reason-coded API errors/messages; clients only render them.
-- [ ] Commit: `feat: enforce credit engine on every order`.
+- [x] Write integration/concurrency tests proving pending order exposure is included and two simultaneous orders cannot jointly exceed allowed exposure.
+- [x] Build `CreditSnapshot` from invoices, allocations, authorized pending orders, rating/profile, and prior approval count. SAP freshness remains explicitly deferred with SAP integration.
+- [x] Persist `CreditAssessment` with policy and evidence before returning allowed/approval/blocked.
+- [x] Reserve exposure for allowed or approval-pending orders in the same transaction.
+- [x] Return reason-coded API errors/messages; clients only render them.
+- [x] Commit: `feat: enforce credit engine on every order`.
 
 ## Task 4: Implement approval service and dual-client queue
 

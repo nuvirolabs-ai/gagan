@@ -751,6 +751,7 @@ model CreditProfile {
   rating             CreditRating    @default(N)
   billingPattern     BillingPattern  @default(unknown)
   accountCreatedAt   DateTime        @default(now())
+  kycVerifiedAt      DateTime?
   ratingConfirmedAt  DateTime?
   nextReviewAt       DateTime?
   cleanInvoiceCount  Int             @default(0)

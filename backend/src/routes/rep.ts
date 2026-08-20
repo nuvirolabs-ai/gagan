@@ -244,7 +244,12 @@ router.post("/orders", requireRep, async (req: RepRequest, res) => {
   );
   if (!result.ok) return res.status(result.status).json(result.body);
 
-  res.status(201).json({ order: result.order });
+  res.status(201).json({
+    order: result.order,
+    creditDecision: result.decision,
+    approvalRequest: result.approvalRequest ?? null,
+    dispatchAuthorization: result.dispatchAuthorization ?? null,
+  });
 });
 
 export default router;

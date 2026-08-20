@@ -217,6 +217,7 @@ async function main() {
       rating: "N",
       billingPattern: "unknown",
       accountCreatedAt: retailer.createdAt,
+      kycVerifiedAt: new Date(),
       nextReviewAt: new Date(Date.UTC(2026, 9, 1)),
     },
   });

@@ -73,11 +73,11 @@ export function assessOrder(policy: CreditPolicy, snapshot: CreditSnapshot, orde
 
 ## Task 6: Implement rating calculation and confirmation
 
-- [ ] Write tests for quarterly checkpoints, six-month N exit, three clean invoices, reset after late/partial payment, regular/irregular edge cases, and immediate 60+ review.
-- [ ] Calculate proposals idempotently; require Credit Team Lead confirmation for sensitive changes.
-- [ ] Persist evidence and invalidate stale dispatch authorizations after confirmed changes.
-- [ ] Add focused rating review UI to admin and authorized staff app.
-- [ ] Commit: `feat: add auditable rating lifecycle`.
+- [x] Write tests for quarterly checkpoints, six-month N exit, three clean invoices, reset after late/partial payment, regular/irregular edge cases, and immediate 60+ review.
+- [x] Calculate proposals idempotently; require Credit Team Lead confirmation for sensitive changes.
+- [x] Persist evidence and invalidate stale dispatch authorizations after confirmed changes.
+- [x] Add focused rating review UI to admin and authorized staff app.
+- [x] Commit: `feat: add auditable rating lifecycle`.
 
 ## Task 7: Run shadow mode and policy comparison
 

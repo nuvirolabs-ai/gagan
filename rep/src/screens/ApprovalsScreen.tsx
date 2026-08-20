@@ -4,6 +4,8 @@ import { useFocusEffect } from "@react-navigation/native";
 import { ScreenHeader, EmptyState } from "../components/ui";
 import { repApi } from "../api/repClient";
 import { colors, inr, radius, spacing } from "../theme";
+import { useRep } from "../context/RepContext";
+import { staffCapabilities } from "../auth/staffCapabilities";
 
 type QueueItem = {
   id: string;
@@ -24,6 +26,8 @@ const label = (code: string) => ({
 }[code] ?? code.replaceAll("_", " "));
 
 export default function ApprovalsScreen({ navigation }: any) {
+  const { staff } = useRep();
+  const capabilities = staffCapabilities(staff?.permissions ?? []);
   const [items, setItems] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -45,7 +49,7 @@ export default function ApprovalsScreen({ navigation }: any) {
 
   return (
     <View style={styles.screen}>
-      <ScreenHeader title="Approvals" subtitle="Orders waiting for your decision" />
+      <ScreenHeader title="Approvals" subtitle="Orders waiting for your decision" right={capabilities.canReviewRatings ? <TouchableOpacity onPress={() => navigation.navigate("RatingReviews")}><Text style={styles.reviewLink}>Rating reviews</Text></TouchableOpacity> : undefined} />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {loading ? <ActivityIndicator style={styles.loader} color={colors.green} /> : items.length === 0 ? (
         <EmptyState icon="check-decagram-outline" title="Queue is clear" body="No orders need your approval." />
@@ -84,4 +88,5 @@ const styles = StyleSheet.create({
   amount: { color: colors.ink, fontWeight: "800" },
   exposure: { color: colors.green, fontSize: 12, fontWeight: "700", marginTop: spacing.md },
   error: { color: colors.danger, marginHorizontal: spacing.lg },
+  reviewLink: { color: colors.green, fontWeight: "700", paddingBottom: 3 },
 });

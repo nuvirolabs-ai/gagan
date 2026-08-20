@@ -115,6 +115,9 @@ export const api = {
     post(`/admin/approvals/${id}/decision`, { result, reason }),
   raiseApprovalDispute: (id: string, writtenPosition: string) =>
     post(`/admin/approvals/${id}/disputes`, { writtenPosition }),
+  ratingProposals: () => request("/admin/credit/rating-proposals"),
+  confirmRatingProposal: (id: string, reason: string) =>
+    post(`/admin/credit/rating-proposals/${id}/confirm`, { reason }),
 
   staff: () => request("/admin/staff"),
   roles: () => request("/admin/roles"),

@@ -4,6 +4,7 @@ export const StaffPermissions = {
   APPROVAL_SECOND_INVOICE: "approval.second_invoice",
   APPROVAL_THIRD_INVOICE: "approval.third_invoice",
   COLLECTION_CONFIRM: "collection.confirm",
+  CREDIT_RATING_CONFIRM: "credit.rating_confirm",
 } as const;
 
 export function staffCapabilities(permissions: string[]) {
@@ -16,5 +17,6 @@ export function staffCapabilities(permissions: string[]) {
       StaffPermissions.APPROVAL_THIRD_INVOICE,
       StaffPermissions.COLLECTION_CONFIRM,
     ].some((permission) => granted.has(permission)),
+    canReviewRatings: granted.has(StaffPermissions.CREDIT_RATING_CONFIRM),
   };
 }

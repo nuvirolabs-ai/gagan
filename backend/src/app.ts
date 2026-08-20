@@ -12,6 +12,7 @@ import { StaffManagementService } from "./modules/identity/staffManagementServic
 import { requireAdmin, requireAdminIdentity } from "./lib/adminAuth";
 import { createFinancialCorrectionsRouter } from "./modules/payments/financialCorrectionsRoutes";
 import { createApprovalsRouter } from "./modules/approvals/approvalRoutes";
+import { createRatingRouter } from "./modules/credit/ratingRoutes";
 import { createRequireSession } from "./modules/identity/sessionAuth";
 import { lazyIdentitySessionService } from "./modules/identity/sessionRuntime";
 import authRoutes from "./routes/auth";
@@ -61,6 +62,12 @@ export function createApp(options: CreateAppOptions = {}) {
       authenticate: createRequireSession("staff", lazyIdentitySessionService),
     })
   );
+  app.use(
+    "/rep",
+    createRatingRouter({
+      authenticate: createRequireSession("staff", lazyIdentitySessionService),
+    })
+  );
 
   app.use("/admin", adminAuthRoutes);
   app.use(
@@ -70,6 +77,10 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(
     "/admin",
     createApprovalsRouter({ authenticate: requireAdminIdentity })
+  );
+  app.use(
+    "/admin",
+    createRatingRouter({ authenticate: requireAdminIdentity })
   );
   app.use("/admin", adminOrderRoutes);
   app.use("/admin", adminRetailerRoutes);

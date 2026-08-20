@@ -131,6 +131,12 @@ enum DispatchAuthorizationStatus {
   expired
 }
 
+enum RatingProposalStatus {
+  pending
+  confirmed
+  dismissed
+}
+
 model Payment {
   id                    String                @id @default(uuid())
   retailerId            String
@@ -739,28 +745,52 @@ model CreditPolicyVersion {
   approvedByStaffId String?
   approvedAt        DateTime?
   assessments       CreditAssessment[]
+  ratingProposals   RatingProposal[]
   createdAt         DateTime           @default(now())
 
   @@index([active])
 }
 
 model CreditProfile {
-  id                 String          @id @default(uuid())
-  retailerId         String          @unique
-  retailer           Retailer        @relation(fields: [retailerId], references: [id], onDelete: Restrict)
-  rating             CreditRating    @default(N)
-  billingPattern     BillingPattern  @default(unknown)
-  accountCreatedAt   DateTime        @default(now())
+  id                 String           @id @default(uuid())
+  retailerId         String           @unique
+  retailer           Retailer         @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  rating             CreditRating     @default(N)
+  billingPattern     BillingPattern   @default(unknown)
+  accountCreatedAt   DateTime         @default(now())
   kycVerifiedAt      DateTime?
   ratingConfirmedAt  DateTime?
   nextReviewAt       DateTime?
-  cleanInvoiceCount  Int             @default(0)
-  advancePaymentOnly Boolean         @default(false)
+  cleanInvoiceCount  Int              @default(0)
+  advancePaymentOnly Boolean          @default(false)
   lockedAt           DateTime?
   lockReason         String?
   ratingHistory      RatingHistory[]
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
+  ratingProposals    RatingProposal[]
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+}
+
+model RatingProposal {
+  id                 String               @id @default(uuid())
+  creditProfileId    String
+  creditProfile      CreditProfile        @relation(fields: [creditProfileId], references: [id], onDelete: Restrict)
+  policyVersionId    String
+  policyVersion      CreditPolicyVersion  @relation(fields: [policyVersionId], references: [id], onDelete: Restrict)
+  previousRating     CreditRating
+  proposedRating     CreditRating
+  trigger            String
+  evidence           Json
+  status             RatingProposalStatus @default(pending)
+  idempotencyKey     String               @unique
+  proposedAt         DateTime             @default(now())
+  confirmedByStaffId String?
+  confirmedAt        DateTime?
+  dismissedByStaffId String?
+  dismissedAt        DateTime?
+
+  @@index([status, proposedAt])
+  @@index([creditProfileId, proposedAt])
 }
 
 model RatingHistory {

@@ -18,6 +18,7 @@ import RepAccountScreen from "./src/screens/RepAccountScreen";
 import StaffHomeScreen from "./src/screens/StaffHomeScreen";
 import ApprovalsScreen from "./src/screens/ApprovalsScreen";
 import ApprovalDetailScreen from "./src/screens/ApprovalDetailScreen";
+import RatingReviewsScreen from "./src/screens/RatingReviewsScreen";
 import { staffCapabilities } from "./src/auth/staffCapabilities";
 
 const Stack = createNativeStackNavigator();
@@ -117,6 +118,9 @@ function RootNavigator() {
               component={ApprovalDetailScreen}
               options={{ title: "Approval", headerBackTitle: "Approvals" }}
             />
+          )}
+          {capabilities.canReviewRatings && (
+            <Stack.Screen name="RatingReviews" component={RatingReviewsScreen} options={{ title: "Rating reviews", headerBackTitle: "Approvals" }} />
           )}
         </>
       )}

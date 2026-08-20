@@ -25,6 +25,7 @@ async function main() {
   await prisma.approvalDecision.deleteMany();
   await prisma.approvalRequest.deleteMany();
   await prisma.creditAssessment.deleteMany();
+  await prisma.ratingProposal.deleteMany();
   await prisma.ratingHistory.deleteMany();
   await prisma.creditProfile.deleteMany();
   await prisma.creditPolicyVersion.deleteMany();

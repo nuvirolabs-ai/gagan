@@ -10,9 +10,11 @@ import Staff from "./pages/Staff";
 import StaffDetail from "./pages/StaffDetail";
 import Corrections from "./pages/Corrections";
 import Approvals from "./pages/Approvals";
+import CreditReviews from "./pages/CreditReviews";
 
 const NAV = [
   { to: "/approvals", label: "Approvals", permissions: ["approval.second_invoice", "approval.third_invoice", "collection.confirm"] },
+  { to: "/credit-reviews", label: "Credit reviews", permissions: ["credit.rating_confirm"] },
   { to: "/orders", label: "Order queue", permissions: ["staff.manage"] },
   { to: "/retailers", label: "Retailers", permissions: ["staff.manage"] },
   { to: "/ledger", label: "Ledger", permissions: ["staff.manage"] },
@@ -53,6 +55,7 @@ function Shell() {
       <main className="main">
         <Routes>
           <Route path="/approvals" element={<Approvals />} />
+          <Route path="/credit-reviews" element={<CreditReviews />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/retailers" element={<Retailers />} />
           <Route path="/ledger" element={<Ledger />} />

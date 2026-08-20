@@ -31,6 +31,9 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
       post(`/rep/approvals/${id}/decision`, { result, reason }),
     raiseApprovalDispute: (id: string, writtenPosition: string) =>
       post(`/rep/approvals/${id}/disputes`, { writtenPosition }),
+    ratingProposals: () => request("/rep/credit/rating-proposals"),
+    confirmRatingProposal: (id: string, reason: string) =>
+      post(`/rep/credit/rating-proposals/${id}/confirm`, { reason }),
     retailers: () => request("/rep/retailers"),
     retailer: (id: string) => request(`/rep/retailers/${id}`),
     catalogFor: (id: string) => request(`/rep/retailers/${id}/catalog`),

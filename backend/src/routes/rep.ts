@@ -3,38 +3,41 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { signRepToken, requireRep, assignedRetailer, RepRequest } from "../lib/repAuth";
 import { createOrderForRetailer } from "../lib/orders";
+import { normalizeIndianPhone } from "../modules/identity/otpService";
+import { lazyIdentityOtpService } from "../modules/identity/otpRuntime";
+import { createOtpRouter } from "../modules/identity/otpRoutes";
 
 const router = Router();
-const MOCK_OTP = process.env.MOCK_OTP || "123456";
 
 /* ---------------------------------- auth --------------------------------- */
 
-router.post("/auth/otp/request", async (req, res) => {
-  const parsed = z.object({ phone: z.string().min(10).max(15) }).safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Invalid phone" });
-
-  const rep = await prisma.salesRep.findFirst({ where: { phone: parsed.data.phone } });
-  if (!rep) return res.status(404).json({ error: "No sales rep registered with this phone" });
-
-  console.log(`[mock rep OTP] ${parsed.data.phone} -> ${MOCK_OTP}`);
-  res.json({ ok: true, message: "OTP sent (mocked)" });
-});
-
-router.post("/auth/otp/verify", async (req, res) => {
-  const parsed = z
-    .object({ phone: z.string().min(10).max(15), otp: z.string() })
-    .safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
-  if (parsed.data.otp !== MOCK_OTP) return res.status(401).json({ error: "Incorrect OTP" });
-
-  const rep = await prisma.salesRep.findFirst({ where: { phone: parsed.data.phone } });
-  if (!rep) return res.status(404).json({ error: "No sales rep registered with this phone" });
-
-  res.json({
-    token: signRepToken(rep.id),
-    rep: { id: rep.id, name: rep.name, phone: rep.phone },
+async function findStaffRep(phoneInput: string) {
+  const normalized = normalizeIndianPhone(phoneInput);
+  return prisma.staffUser.findFirst({
+    where: {
+      phone: { in: [normalized, normalized.slice(3)] },
+      status: "active",
+      salesRepId: { not: null },
+    },
+    select: {
+      id: true,
+      salesRep: { select: { id: true, name: true, phone: true } },
+    },
   });
-});
+}
+
+router.use(
+  "/auth",
+  createOtpRouter({
+    realm: "staff",
+    otpService: lazyIdentityOtpService,
+    findAccount: findStaffRep,
+    issueIdentity: async (staff) => {
+      if (!staff.salesRep) throw new Error("Staff account is not linked to a salesperson");
+      return { token: signRepToken(staff.salesRep.id), rep: staff.salesRep };
+    },
+  })
+);
 
 router.get("/me", requireRep, async (req: RepRequest, res) => {
   const rep = await prisma.salesRep.findUnique({

@@ -4,7 +4,7 @@ import { prisma } from "./lib/prisma";
 import { loadEnv } from "./platform/config/env";
 
 const env = loadEnv();
-const server = createApp().listen(env.PORT, () => {
+const server = createApp({ corsOrigins: env.CORS_ORIGINS }).listen(env.PORT, () => {
   console.log(`Gagan backend listening on http://localhost:${env.PORT}`);
 });
 

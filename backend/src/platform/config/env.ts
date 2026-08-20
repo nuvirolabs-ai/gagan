@@ -5,6 +5,10 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   JWT_SECRET: z.string().min(32),
   PORT: z.coerce.number().int().positive().default(4000),
+  CORS_ORIGINS: z
+    .string()
+    .default("http://localhost:5173")
+    .transform((value) => value.split(",").map((origin) => origin.trim()).filter(Boolean)),
   SMS_PROVIDER: z.string().min(1).default("mock"),
   PAYMENT_PROVIDER: z.string().min(1).default("mock"),
   SAP_MODE: z.string().min(1).default("disabled"),

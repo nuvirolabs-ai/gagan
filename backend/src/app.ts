@@ -1,5 +1,7 @@
+import "express-async-errors";
 import cors from "cors";
 import express from "express";
+import helmet from "helmet";
 import adminAuthRoutes from "./routes/admin/auth";
 import adminCatalogRoutes from "./routes/admin/catalog";
 import adminOrderRoutes from "./routes/admin/orders";
@@ -13,15 +15,29 @@ import ledgerRoutes from "./routes/ledger";
 import orderRoutes from "./routes/orders";
 import paymentRoutes from "./routes/payments";
 import repRoutes from "./routes/rep";
+import {
+  databaseReadiness,
+  ReadinessProbe,
+  readinessHandler,
+} from "./platform/health/readiness";
+import { requestId } from "./platform/http/requestId";
 
-export function createApp() {
+interface CreateAppOptions {
+  readinessProbe?: ReadinessProbe;
+  corsOrigins?: string[];
+}
+
+export function createApp(options: CreateAppOptions = {}) {
   const app = express();
 
-  app.use(cors());
-  app.use(express.json());
+  app.use(requestId);
+  app.use(helmet());
+  app.use(cors({ origin: options.corsOrigins ?? [], credentials: true }));
+  app.use(express.json({ limit: "100kb" }));
 
   app.get("/health", (_req, res) => res.json({ ok: true }));
   app.get("/health/live", (_req, res) => res.json({ ok: true }));
+  app.get("/health/ready", readinessHandler(options.readinessProbe ?? databaseReadiness));
 
   app.use("/auth", authRoutes);
   app.use(homeRoutes);

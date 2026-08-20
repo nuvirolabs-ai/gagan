@@ -41,10 +41,26 @@ async function request(path: string, options: RequestInit = {}) {
 
 const post = (path: string, body?: unknown) =>
   request(path, { method: "POST", body: body ? JSON.stringify(body) : undefined });
+const patch = (path: string, body: unknown) =>
+  request(path, { method: "PATCH", body: JSON.stringify(body) });
+const remove = (path: string) => request(path, { method: "DELETE" });
 
 export const api = {
   login: (email: string, password: string) => post("/admin/auth/login", { email, password }),
   me: () => request("/admin/auth/me"),
+
+  staff: () => request("/admin/staff"),
+  roles: () => request("/admin/roles"),
+  createStaff: (data: unknown) => post("/admin/staff", data),
+  setStaffStatus: (id: string, status: "active" | "suspended" | "revoked") =>
+    patch(`/admin/staff/${id}/status`, { status }),
+  assignStaffRole: (id: string, roleId: string) =>
+    post(`/admin/staff/${id}/roles`, { roleId }),
+  removeStaffRole: (id: string, roleId: string) =>
+    remove(`/admin/staff/${id}/roles/${roleId}`),
+  createDelegation: (delegateeId: string, data: unknown) =>
+    post(`/admin/staff/${delegateeId}/delegations`, data),
+  revokeDelegation: (id: string) => remove(`/admin/staff/delegations/${id}`),
 
   orders: (status?: string) => request(`/admin/orders${status ? `?status=${status}` : ""}`),
   order: (id: string) => request(`/admin/orders/${id}`),

@@ -162,3 +162,29 @@ tr:last-child td { border-bottom: none; }
   background: var(--surface); border-radius: var(--radius); padding: 22px;
   width: 100%; max-width: 560px; max-height: 88vh; overflow-y: auto;
 }
+
+.detail-narrow { max-width: 860px; }
+.detail-heading { margin: 10px 0 22px; }
+.back-link { display: inline-block; font-weight: 600; margin-bottom: 4px; }
+.section-title { font-size: 16px; margin: 0 0 5px; }
+.section-copy { color: var(--ink-muted); margin: 0 0 16px; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
+.compact-form { max-width: 760px; }
+.chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.role-list { border-top: 1px solid var(--border); margin-bottom: 14px; }
+.role-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.inline-form { display: flex; align-items: flex-end; gap: 10px; max-width: 520px; }
+.inline-form .field { margin: 0; }
+.delegation-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; padding-top: 4px; }
+.delegation-form button { justify-self: start; }
+.empty-state { padding: 28px 22px; color: var(--ink-muted); text-align: center; }
+.text-action { font-weight: 650; }
+.pill.status-active { background: var(--green-soft); color: var(--green); }
+.pill.status-suspended { background: var(--gold-soft); color: #8a6a12; }
+.pill.status-revoked { background: var(--danger-soft); color: var(--danger); }
+
+@media (max-width: 760px) {
+  .form-grid, .delegation-form { grid-template-columns: 1fr; }
+  .sidebar { width: 176px; }
+  .main { padding: 20px; }
+}

@@ -2,7 +2,10 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
-import { signAdminToken, requireAdmin, AdminRequest } from "../../lib/adminAuth";
+import { requireAdmin, AdminRequest } from "../../lib/adminAuth";
+import { createSessionRouter } from "../../modules/identity/sessionRoutes";
+import { lazyIdentitySessionService } from "../../modules/identity/sessionRuntime";
+import { lazyIdentityOtpService } from "../../modules/identity/otpRuntime";
 
 const router = Router();
 
@@ -21,8 +24,23 @@ router.post("/auth/login", async (req, res) => {
     return res.status(401).json({ error: "Incorrect email or password" });
   }
 
+  const staff = await prisma.staffUser.findUnique({
+    where: { adminUserId: admin.id },
+    select: { id: true },
+  });
+  if (!staff) return res.status(401).json({ error: "Incorrect email or password" });
+
+  const session = await lazyIdentitySessionService.createSession({
+    realm: "admin",
+    subjectId: staff.id,
+    deviceName: req.header("x-device-name") ?? "Admin browser",
+    userAgent: req.header("user-agent") ?? undefined,
+  });
+
   res.json({
-    token: signAdminToken(admin.id),
+    accessToken: session.accessToken,
+    refreshToken: session.refreshToken,
+    session: { id: session.session.id, expiresAt: session.session.expiresAt },
     admin: { id: admin.id, name: admin.name, email: admin.email },
   });
 });
@@ -32,7 +50,23 @@ router.get("/auth/me", requireAdmin, async (req: AdminRequest, res) => {
     where: { id: req.adminId },
     select: { id: true, name: true, email: true },
   });
-  res.json({ admin });
+  res.json({ admin, permissions: req.staffAuth?.permissions ?? [] });
 });
+
+router.use(
+  "/auth",
+  createSessionRouter({
+    realm: "admin",
+    sessions: lazyIdentitySessionService,
+    otpService: lazyIdentityOtpService,
+    resolvePhone: async (staffId) => {
+      const staff = await prisma.staffUser.findUniqueOrThrow({
+        where: { id: staffId },
+        select: { phone: true },
+      });
+      return staff.phone;
+    },
+  })
+);
 
 export default router;

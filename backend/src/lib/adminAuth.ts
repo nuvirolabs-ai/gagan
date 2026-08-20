@@ -1,17 +1,12 @@
-import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
 import { prisma } from "./prisma";
+import { Permissions } from "../modules/identity/roleCatalog";
+import { SessionError } from "../modules/identity/sessionService";
+import { lazyIdentitySessionService } from "../modules/identity/sessionRuntime";
+import type { StaffAuthedRequest } from "../modules/identity/permissions";
 
-const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
-
-export interface AdminRequest extends Request {
+export interface AdminRequest extends StaffAuthedRequest {
   adminId?: string;
-}
-
-export function signAdminToken(adminId: string): string {
-  // `scope` keeps retailer and admin tokens from being interchangeable even
-  // though they're signed with the same secret.
-  return jwt.sign({ adminId, scope: "admin" }, JWT_SECRET, { expiresIn: "12h" });
 }
 
 export async function requireAdmin(req: AdminRequest, res: Response, next: NextFunction) {
@@ -20,27 +15,35 @@ export async function requireAdmin(req: AdminRequest, res: Response, next: NextF
     return res.status(401).json({ error: "Missing Authorization header" });
   }
 
-  let payload: { adminId: string; scope?: string };
   try {
-    payload = jwt.verify(header.slice(7), JWT_SECRET) as { adminId: string; scope?: string };
-  } catch {
-    return res.status(401).json({ error: "Invalid or expired token" });
-  }
-
-  if (payload.scope !== "admin") {
-    return res.status(403).json({ error: "Admin access required" });
-  }
-
-  try {
-    const admin = await prisma.adminUser.findUnique({
-      where: { id: payload.adminId },
-      select: { id: true },
+    const claims = await lazyIdentitySessionService.authenticateAccessToken(
+      header.slice(7),
+      "admin"
+    );
+    if (!claims.permissions.includes(Permissions.STAFF_MANAGE)) {
+      return res.status(403).json({
+        error: "permission_required",
+        permission: Permissions.STAFF_MANAGE,
+      });
+    }
+    const staff = await prisma.staffUser.findUnique({
+      where: { id: claims.sub },
+      select: { id: true, adminUserId: true },
     });
-    if (!admin) return res.status(401).json({ error: "Session no longer valid" });
-  } catch (err) {
-    return next(err);
+    if (!staff?.adminUserId) return res.status(403).json({ error: "admin_access_required" });
+    req.adminId = staff.adminUserId;
+    req.staffAuth = {
+      staffId: staff.id,
+      sessionId: claims.sessionId,
+      permissions: claims.permissions,
+      delegationIds: claims.delegationIds,
+      stepUpUntil: claims.stepUpUntil ? new Date(claims.stepUpUntil * 1000) : undefined,
+    };
+    next();
+  } catch (error) {
+    if (error instanceof SessionError) {
+      return res.status(error.status).json({ error: error.code });
+    }
+    next(error);
   }
-
-  req.adminId = payload.adminId;
-  next();
 }

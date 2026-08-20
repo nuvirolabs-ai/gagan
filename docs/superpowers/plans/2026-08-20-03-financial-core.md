@@ -31,12 +31,12 @@
 
 ## Task 2: Implement exactly-once invoice creation
 
-- [ ] Write a failing integration test that submits two concurrent delivery completions and expects one invoice, one ledger debit, and one delivered order.
-- [ ] Implement `createInvoiceForDelivery({ orderId, lines, occurredAt, idempotencyKey })` in a serializable transaction with unique-order recovery.
-- [ ] Reuse `buildInvoice` calculation but require every order line to provide a delivered resolution.
-- [ ] Return the existing invoice for a repeated idempotency key.
-- [ ] Run the concurrent test repeatedly; expect stable pass.
-- [ ] Commit: `feat: create delivery invoices exactly once`.
+- [x] Write a failing integration test that submits two concurrent delivery completions and expects one invoice, one ledger debit, and one delivered order.
+- [x] Implement `createInvoiceForDelivery({ orderId, lines, occurredAt, idempotencyKey })` with PostgreSQL row locks, bounded conflict retry, and unique-order recovery.
+- [x] Reuse `buildInvoice` calculation but require every order line to provide a delivered resolution.
+- [x] Return the existing invoice for a repeated idempotency key.
+- [x] Run the concurrent test repeatedly; expect stable pass.
+- [x] Commit: `feat: create delivery invoices exactly once`.
 
 Expected invariant test:
 

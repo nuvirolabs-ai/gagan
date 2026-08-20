@@ -28,29 +28,33 @@ async function safely(label: string, work: () => Promise<unknown>) {
 export function startScheduledJobs() {
   if (process.env.DISABLE_JOBS === "true") {
     console.log("[job] scheduled jobs disabled");
-    return;
+    return () => undefined;
   }
+
+  const timers: NodeJS.Timeout[] = [];
+  const stop = () => timers.forEach(clearInterval);
 
   // Ageing is time-driven: an invoice tips into overdue simply because a day
   // passed, so this cannot be event-driven off payments alone.
   const ageingMins = minutesFromEnv("AGEING_INTERVAL_MINUTES", 60);
-  setInterval(() => void safely("ageing", ageAllRetailers), ageingMins * MINUTE).unref();
+  timers.push(setInterval(() => void safely("ageing", ageAllRetailers), ageingMins * MINUTE));
   void safely("ageing (startup)", ageAllRetailers);
 
   const connector = getSapConnector();
   if (!connector.enabled) {
     console.log(`[job] SAP disabled (SAP_MODE=${process.env.SAP_MODE || "disabled"}); sync jobs not scheduled`);
-    return;
+    return stop;
   }
 
   // Batch pull of master data. Spec §7 leaves real-time vs batch open; this is
   // the batch answer, and a real-time connector can simply ignore the schedule.
   const syncMins = minutesFromEnv("SAP_SYNC_INTERVAL_MINUTES", 60);
-  setInterval(() => void safely("sap sync", syncAll), syncMins * MINUTE).unref();
+  timers.push(setInterval(() => void safely("sap sync", syncAll), syncMins * MINUTE));
 
   // Push side runs more often — orders should reach SAP promptly.
   const drainMins = minutesFromEnv("SAP_OUTBOX_INTERVAL_MINUTES", 5);
-  setInterval(() => void safely("sap outbox drain", () => drainOutbox()), drainMins * MINUTE).unref();
+  timers.push(setInterval(() => void safely("sap outbox drain", () => drainOutbox()), drainMins * MINUTE));
 
   console.log(`[job] SAP sync every ${syncMins}m, outbox drain every ${drainMins}m`);
+  return stop;
 }

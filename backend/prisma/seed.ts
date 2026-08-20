@@ -1,6 +1,8 @@
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { recomputeOverdue } from "../src/lib/ageing";
+import { SOP_V4_POLICY, serializePolicy } from "../src/modules/credit/policy";
+import { REASON_CATALOG } from "../src/modules/credit/reasonCodes";
 import { ROLE_DEFINITIONS } from "../src/modules/identity/roleCatalog";
 
 const prisma = new PrismaClient();
@@ -11,8 +13,22 @@ function daysFromNow(n: number) {
   return d;
 }
 
+function inputJson(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
 async function main() {
   // Wipe transactional data so the seed is repeatable.
+  await prisma.dispatchAuthorization.deleteMany();
+  await prisma.approvalDispute.deleteMany();
+  await prisma.approvalEscalation.deleteMany();
+  await prisma.approvalDecision.deleteMany();
+  await prisma.approvalRequest.deleteMany();
+  await prisma.creditAssessment.deleteMany();
+  await prisma.ratingHistory.deleteMany();
+  await prisma.creditProfile.deleteMany();
+  await prisma.creditPolicyVersion.deleteMany();
+  await prisma.workingCalendar.deleteMany();
   await prisma.stepUpChallenge.deleteMany();
   await prisma.deviceSession.deleteMany();
   await prisma.otpChallenge.deleteMany();
@@ -25,6 +41,15 @@ async function main() {
   await prisma.role.deleteMany();
   await prisma.sapOutbox.deleteMany();
   await prisma.sapSyncState.deleteMany();
+  await prisma.paymentReversalAllocation.deleteMany();
+  await prisma.paymentReversal.deleteMany();
+  await prisma.paymentAllocation.deleteMany();
+  await prisma.paymentEvidence.deleteMany();
+  await prisma.financialLedgerEntry.deleteMany();
+  await prisma.creditNote.deleteMany();
+  await prisma.reconciliationIssue.deleteMany();
+  await prisma.invoiceLine.deleteMany();
+  await prisma.invoice.deleteMany();
   await prisma.ledgerEntry.deleteMany();
   await prisma.payment.deleteMany();
   await prisma.delivery.deleteMany();
@@ -48,6 +73,27 @@ async function main() {
       data: { name: "Silver", description: "Standard retailers", paymentTermDays: 15 },
     }),
   ]);
+
+  const policy = await prisma.creditPolicyVersion.create({
+    data: {
+      version: SOP_V4_POLICY.version,
+      name: SOP_V4_POLICY.name,
+      active: true,
+      rules: inputJson(serializePolicy(SOP_V4_POLICY)),
+      reasonCatalog: inputJson(REASON_CATALOG),
+      approvedAt: new Date(),
+    },
+  });
+
+  const calendarStart = new Date();
+  calendarStart.setUTCHours(0, 0, 0, 0);
+  const workingDays = Array.from({ length: 550 }, (_, offset) => {
+    const date = new Date(calendarStart);
+    date.setUTCDate(date.getUTCDate() + offset);
+    const day = date.getUTCDay();
+    return { date, isWorkingDay: day !== 0 && day !== 6 };
+  });
+  await prisma.workingCalendar.createMany({ data: workingDays });
 
   const rep = await prisma.salesRep.create({
     data: { name: "Ravi Kumar", phone: "9812345670" },
@@ -165,6 +211,15 @@ async function main() {
       overdueAmount: 0,
     },
   });
+  await prisma.creditProfile.create({
+    data: {
+      retailerId: retailer.id,
+      rating: "N",
+      billingPattern: "unknown",
+      accountCreatedAt: retailer.createdAt,
+      nextReviewAt: new Date(Date.UTC(2026, 9, 1)),
+    },
+  });
 
   // One featured scheme drives the banner; the rest feed the "8 Active Offers" count.
   await prisma.scheme.create({
@@ -278,6 +333,7 @@ async function main() {
 
   const overdue = await recomputeOverdue(prisma, retailer.id);
   console.log("Seed complete. Test retailer phone: 9999999999.");
+  console.log(`Credit policy V${policy.version} active with ${workingDays.length} calendar days.`);
   console.log(`Opening balance Rs${runningBalance}, of which Rs${overdue} is overdue.`);
 }
 

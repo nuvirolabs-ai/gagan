@@ -23,10 +23,10 @@
 
 ## Task 1: Add policy, profile, assessment, and approval schema
 
-- [ ] Add migration tests for immutable `CreditPolicyVersion`, one active `CreditProfile` per retailer, ordered `RatingHistory`, one current open request per approval subject/type, unique decision, escalation, dispute, and versioned `DispatchAuthorization`.
-- [ ] Add `WorkingCalendar` and holiday rows for SLA calculations.
-- [ ] Seed the approved SOP v4 policy values and reason-code catalog.
-- [ ] Apply migration to a disposable database and commit: `feat: add credit and approval schema`.
+- [x] Add migration tests for immutable `CreditPolicyVersion`, one active `CreditProfile` per retailer, ordered `RatingHistory`, one current open request per approval subject/type, unique decision, escalation, dispute, and versioned `DispatchAuthorization`.
+- [x] Add `WorkingCalendar` and holiday rows for SLA calculations.
+- [x] Seed the approved SOP v4 policy values and reason-code catalog.
+- [x] Apply migration to a disposable database and commit: `feat: add credit and approval schema`.
 
 ## Task 2: Implement pure SOP credit engine
 

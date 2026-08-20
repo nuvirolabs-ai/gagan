@@ -118,6 +118,39 @@ describe("new-customer invoice chain", () => {
     ).toMatchObject({ result: "allowed" });
   });
 
+  it("restarts second and third approvals for invoices five and six", () => {
+    const secondCycleInvoice = (count: number) =>
+      Array.from({ length: count - 3 }, (_, index) => ({
+        id: `cycle-2-${index + 1}`,
+        total: 5_000,
+        outstandingAmount: 5_000,
+        ageDays: 5,
+      }));
+    expect(assessOrder(
+      SOP_V4_POLICY,
+      newCustomer({ invoiceCount: 4, openInvoices: secondCycleInvoice(4), outstandingAmount: 5_000 }),
+      order(5_000)
+    )).toMatchObject({ result: "approval_required", requiredPermission: "approval.second_invoice" });
+    expect(assessOrder(
+      SOP_V4_POLICY,
+      newCustomer({ invoiceCount: 5, openInvoices: secondCycleInvoice(5), outstandingAmount: 10_000 }),
+      order(5_000)
+    )).toMatchObject({ result: "approval_required", requiredPermission: "approval.third_invoice" });
+    expect(assessOrder(
+      SOP_V4_POLICY,
+      newCustomer({ invoiceCount: 6, openInvoices: secondCycleInvoice(6), outstandingAmount: 15_000 }),
+      order(5_000)
+    )).toEqual({ result: "blocked", reasons: [ReasonCodes.NEW_CUSTOMER_FOURTH_BLOCKED] });
+  });
+
+  it("unlocks invoice seven after the second group of three clears", () => {
+    expect(assessOrder(
+      SOP_V4_POLICY,
+      newCustomer({ invoiceCount: 6, openInvoices: [], pendingOrderCount: 0 }),
+      order(5_000)
+    )).toMatchObject({ result: "allowed" });
+  });
+
   it.each([1, 2])("routes invoice stage %s to the lead when projected exposure reaches ₹50,000", (invoiceCount) => {
     const decision = assessOrder(
       SOP_V4_POLICY,

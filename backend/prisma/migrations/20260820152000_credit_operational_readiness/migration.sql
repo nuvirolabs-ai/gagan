@@ -11,7 +11,7 @@ ADD COLUMN "kycVerifiedByStaffId" TEXT,
 ADD COLUMN "kycEvidence" JSONB;
 
 UPDATE "CreditProfile"
-SET "nextReviewAt" = "accountCreatedAt" + INTERVAL '90 days'
+SET "nextReviewAt" = date_trunc('quarter', "accountCreatedAt") + INTERVAL '3 months'
 WHERE "nextReviewAt" IS NULL;
 
 -- Protect a policy as soon as it is signed, even before the first order uses it.

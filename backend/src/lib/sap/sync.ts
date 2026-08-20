@@ -1,6 +1,7 @@
 import { SapEntity } from "@prisma/client";
 import { prisma } from "../prisma";
 import { getSapConnector } from "./index";
+import { nextQuarterlyCheckpoint } from "../../modules/credit/reviewSchedule";
 
 export interface SyncOutcome {
   entity: SapEntity;
@@ -105,7 +106,7 @@ export function syncCustomers() {
               sapCustomerId: row.sapCustomerId,
             },
           });
-          const nextReviewAt = new Date(retailer.createdAt.getTime() + 90 * 24 * 60 * 60 * 1000);
+          const nextReviewAt = nextQuarterlyCheckpoint(retailer.createdAt);
           await tx.creditProfile.create({
             data: { retailerId: retailer.id, rating: "N", accountCreatedAt: retailer.createdAt, nextReviewAt },
           });
@@ -164,7 +165,7 @@ export function syncCustomers() {
           retailerId: existing.id,
           rating: "N",
           accountCreatedAt: existing.createdAt,
-          nextReviewAt: new Date(existing.createdAt.getTime() + 90 * 24 * 60 * 60 * 1000),
+          nextReviewAt: nextQuarterlyCheckpoint(existing.createdAt),
         },
       });
       if (wasUnlinked) linked++;

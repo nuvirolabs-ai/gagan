@@ -61,13 +61,14 @@ export function assessOrder(
     : [];
 
   if (snapshot.rating === "N") {
-    const firstChainCleared =
-      snapshot.invoiceCount >= policy.newCustomerMaxOpenBeforeClearance &&
-      snapshot.openInvoices.length === 0 &&
-      snapshot.pendingOrderCount === 0;
-    const invoiceStage = firstChainCleared
-      ? 0
-      : snapshot.invoiceCount + snapshot.pendingOrderCount;
+    const chainSize = policy.newCustomerMaxOpenBeforeClearance;
+    const completedInCurrentChain = snapshot.invoiceCount % chainSize;
+    const previousChainStillOpen =
+      snapshot.invoiceCount >= chainSize &&
+      snapshot.openInvoices.length > completedInCurrentChain;
+    const invoiceStage =
+      (previousChainStillOpen ? chainSize : completedInCurrentChain) +
+      snapshot.pendingOrderCount;
     if (snapshot.invoiceCount === 0 && !snapshot.kycVerified) {
       return blocked(ReasonCodes.KYC_REQUIRED);
     }

@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { calculateRatingProposal } from "./ratingLifecycle";
+import { nextQuarterlyCheckpoint } from "./reviewSchedule";
 
 export class RatingServiceError extends Error {
   constructor(public code: string, public status: number) {
@@ -14,15 +15,6 @@ function json(value: unknown): Prisma.InputJsonValue {
 
 function daysBetween(earlier: Date, later: Date) {
   return Math.max(0, Math.floor((later.getTime() - earlier.getTime()) / 86_400_000));
-}
-
-function nextQuarterlyCheckpoint(after: Date) {
-  const year = after.getUTCFullYear();
-  for (const month of [0, 3, 6, 9]) {
-    const checkpoint = new Date(Date.UTC(year, month, 1));
-    if (checkpoint > after) return checkpoint;
-  }
-  return new Date(Date.UTC(year + 1, 0, 1));
 }
 
 export function netAllocationAmount(allocation: {
@@ -62,7 +54,7 @@ export class RatingService {
           kycVerifiedAt: now,
           kycVerifiedByStaffId: input.actorStaffId,
           kycEvidence: json({ reference: input.evidenceReference.trim(), confirmedReason: input.reason.trim() }),
-          nextReviewAt: profile.nextReviewAt ?? new Date(profile.accountCreatedAt.getTime() + 90 * 24 * 60 * 60 * 1000),
+          nextReviewAt: profile.nextReviewAt ?? nextQuarterlyCheckpoint(profile.accountCreatedAt),
         },
       });
       await tx.auditEvent.create({
@@ -145,9 +137,16 @@ export class RatingService {
           (invoice) => Number(invoice.outstandingAmount) > 0
         ),
       });
+      const advanceMissedCheckpoint =
+        profile.nextReviewAt != null &&
+        profile.nextReviewAt <= now &&
+        !proposal.requiresConfirmation;
       await prisma.creditProfile.update({
         where: { id: profile.id },
-        data: { cleanInvoiceCount: proposal.cleanInvoiceCount },
+        data: {
+          cleanInvoiceCount: proposal.cleanInvoiceCount,
+          ...(advanceMissedCheckpoint ? { nextReviewAt: nextQuarterlyCheckpoint(now) } : {}),
+        },
       });
       if (!proposal.requiresConfirmation || proposal.proposedRating === profile.rating) continue;
       const keyPeriod = proposal.trigger === "quarterly_checkpoint"

@@ -1,9 +1,11 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
-import { signToken, requireAuth, AuthedRequest } from "../lib/auth";
+import { requireAuth, AuthedRequest } from "../lib/auth";
 import { normalizeIndianPhone } from "../modules/identity/otpService";
 import { lazyIdentityOtpService } from "../modules/identity/otpRuntime";
 import { createOtpRouter } from "../modules/identity/otpRoutes";
+import { createSessionRouter } from "../modules/identity/sessionRoutes";
+import { lazyIdentitySessionService } from "../modules/identity/sessionRuntime";
 
 const router = Router();
 
@@ -20,10 +22,35 @@ router.use(
     realm: "retailer",
     otpService: lazyIdentityOtpService,
     findAccount: findRetailer,
-    issueIdentity: async (retailer) => ({
-      token: signToken(retailer.id),
-      retailer,
-    }),
+    issueIdentity: async (retailer, req) => {
+      const session = await lazyIdentitySessionService.createSession({
+        realm: "retailer",
+        subjectId: retailer.id,
+        deviceName: req.header("x-device-name") ?? undefined,
+        userAgent: req.header("user-agent") ?? undefined,
+      });
+      return {
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+        session: { id: session.session.id, expiresAt: session.session.expiresAt },
+        retailer,
+      };
+    },
+  })
+);
+
+router.use(
+  createSessionRouter({
+    realm: "retailer",
+    sessions: lazyIdentitySessionService,
+    otpService: lazyIdentityOtpService,
+    resolvePhone: async (retailerId) => {
+      const retailer = await prisma.retailer.findUniqueOrThrow({
+        where: { id: retailerId },
+        select: { phone: true },
+      });
+      return retailer.phone;
+    },
   })
 );
 

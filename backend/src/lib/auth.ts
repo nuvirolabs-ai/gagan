@@ -1,15 +1,9 @@
-import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
-import { prisma } from "./prisma";
-
-const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
+import { SessionError } from "../modules/identity/sessionService";
+import { lazyIdentitySessionService } from "../modules/identity/sessionRuntime";
 
 export interface AuthedRequest extends Request {
   retailerId?: string;
-}
-
-export function signToken(retailerId: string): string {
-  return jwt.sign({ retailerId }, JWT_SECRET, { expiresIn: "30d" });
 }
 
 export async function requireAuth(req: AuthedRequest, res: Response, next: NextFunction) {
@@ -18,25 +12,17 @@ export async function requireAuth(req: AuthedRequest, res: Response, next: NextF
     return res.status(401).json({ error: "Missing Authorization header" });
   }
 
-  let payload: { retailerId: string };
   try {
-    payload = jwt.verify(header.slice(7), JWT_SECRET) as { retailerId: string };
-  } catch {
-    return res.status(401).json({ error: "Invalid or expired token" });
+    const claims = await lazyIdentitySessionService.authenticateAccessToken(
+      header.slice(7),
+      "retailer"
+    );
+    req.retailerId = claims.sub;
+    next();
+  } catch (error) {
+    if (error instanceof SessionError) {
+      return res.status(error.status).json({ error: error.code });
+    }
+    next(error);
   }
-
-  // A structurally valid token can still name a retailer that no longer exists
-  // (deleted account, restored database). That's an invalid session, not a 404.
-  try {
-    const exists = await prisma.retailer.findUnique({
-      where: { id: payload.retailerId },
-      select: { id: true },
-    });
-    if (!exists) return res.status(401).json({ error: "Session no longer valid" });
-  } catch (err) {
-    return next(err);
-  }
-
-  req.retailerId = payload.retailerId;
-  next();
 }

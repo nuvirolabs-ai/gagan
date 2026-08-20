@@ -277,7 +277,7 @@ async function main() {
   });
 
   const overdue = await recomputeOverdue(prisma, retailer.id);
-  console.log("Seed complete. Test retailer phone: 9999999999, mock OTP: 123456");
+  console.log("Seed complete. Test retailer phone: 9999999999.");
   console.log(`Opening balance Rs${runningBalance}, of which Rs${overdue} is overdue.`);
 }
 

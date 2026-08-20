@@ -27,6 +27,7 @@ jobs:
       NODE_ENV: test
       DATABASE_URL: postgresql://gagan:gagan@localhost:5432/gagan_test
       JWT_SECRET: ci-only-secret-that-is-longer-than-thirty-two-characters
+      REFRESH_TOKEN_SECRET: different-ci-only-refresh-secret-longer-than-thirty-two
       SMS_PROVIDER: mock
       PAYMENT_PROVIDER: mock
       SAP_MODE: disabled

@@ -1,11 +1,13 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { signRepToken, requireRep, assignedRetailer, RepRequest } from "../lib/repAuth";
+import { requireRep, assignedRetailer, RepRequest } from "../lib/repAuth";
 import { createOrderForRetailer } from "../lib/orders";
 import { normalizeIndianPhone } from "../modules/identity/otpService";
 import { lazyIdentityOtpService } from "../modules/identity/otpRuntime";
 import { createOtpRouter } from "../modules/identity/otpRoutes";
+import { createSessionRouter } from "../modules/identity/sessionRoutes";
+import { lazyIdentitySessionService } from "../modules/identity/sessionRuntime";
 
 const router = Router();
 
@@ -21,6 +23,9 @@ async function findStaffRep(phoneInput: string) {
     },
     select: {
       id: true,
+      name: true,
+      phone: true,
+      email: true,
       salesRep: { select: { id: true, name: true, phone: true } },
     },
   });
@@ -32,9 +37,44 @@ router.use(
     realm: "staff",
     otpService: lazyIdentityOtpService,
     findAccount: findStaffRep,
-    issueIdentity: async (staff) => {
+    issueIdentity: async (staff, req) => {
       if (!staff.salesRep) throw new Error("Staff account is not linked to a salesperson");
-      return { token: signRepToken(staff.salesRep.id), rep: staff.salesRep };
+      const session = await lazyIdentitySessionService.createSession({
+        realm: "staff",
+        subjectId: staff.id,
+        deviceName: req.header("x-device-name") ?? undefined,
+        userAgent: req.header("user-agent") ?? undefined,
+      });
+      const claims = lazyIdentitySessionService.verifyAccessToken(session.accessToken, "staff");
+      return {
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+        session: { id: session.session.id, expiresAt: session.session.expiresAt },
+        staff: {
+          id: staff.id,
+          name: staff.name,
+          phone: staff.phone,
+          email: staff.email,
+          permissions: claims.permissions,
+        },
+        rep: staff.salesRep,
+      };
+    },
+  })
+);
+
+router.use(
+  "/auth",
+  createSessionRouter({
+    realm: "staff",
+    sessions: lazyIdentitySessionService,
+    otpService: lazyIdentityOtpService,
+    resolvePhone: async (staffId) => {
+      const staff = await prisma.staffUser.findUniqueOrThrow({
+        where: { id: staffId },
+        select: { phone: true },
+      });
+      return staff.phone;
     },
   })
 );

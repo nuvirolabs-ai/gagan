@@ -5,6 +5,7 @@ const base = {
   NODE_ENV: "test",
   DATABASE_URL: "postgresql://user:pass@localhost:5432/gagan_test",
   JWT_SECRET: "a".repeat(32),
+  REFRESH_TOKEN_SECRET: "b".repeat(32),
   SMS_PROVIDER: "mock",
   PAYMENT_PROVIDER: "mock",
   SAP_MODE: "disabled",
@@ -13,6 +14,12 @@ const base = {
 describe("parseEnv", () => {
   it("rejects a missing JWT secret", () => {
     expect(() => parseEnv({ ...base, JWT_SECRET: "" })).toThrow(/JWT_SECRET/);
+  });
+
+  it("rejects a missing refresh-token hashing secret", () => {
+    expect(() => parseEnv({ ...base, REFRESH_TOKEN_SECRET: "" })).toThrow(
+      /REFRESH_TOKEN_SECRET/
+    );
   });
 
   it("rejects mock providers in production", () => {

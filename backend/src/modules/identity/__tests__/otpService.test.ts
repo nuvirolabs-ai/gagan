@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   createSmsProvider,
   type SmsProvider,
@@ -230,5 +232,21 @@ describe("createSmsProvider", () => {
   it("selects a registered production adapter", () => {
     const provider = { sendOtp: vi.fn() };
     expect(createSmsProvider("msg91", "production", { msg91: provider })).toBe(provider);
+  });
+});
+
+describe("OTP logging", () => {
+  it("does not print OTP values from runtime or seed code", () => {
+    const files = [
+      "prisma/seed.ts",
+      "src/modules/identity/otpRuntime.ts",
+      "src/modules/identity/providers/mockSmsProvider.ts",
+      "src/routes/auth.ts",
+      "src/routes/rep.ts",
+    ];
+    for (const file of files) {
+      const source = readFileSync(join(process.cwd(), file), "utf8");
+      expect(source).not.toMatch(/console\.(?:log|info|debug).*otp/i);
+    }
   });
 });

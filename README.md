@@ -145,6 +145,16 @@ a PDF/image or submit a receipt/reference; Accounts sees a short-lived signed li
 The collector never sends or chooses an object-storage key, and a pending submission never creates
 a payment or ledger entry. Only Accounts confirmation with step-up verification settles it.
 
+## Recovery scheduler (slice 3)
+
+The worker creates one recovery case per unpaid open invoice and catches up every reached SOP age
+band from the invoice date: Day 35 sales call, Day 40 joint call, Days 45–48 collection visit,
+Days 49–52 Accounts escalation, Days 53–56 Credit review, Days 60–69 hold escalation, Days 70–89
+legal preparation, and Day 90 legal referral. Each action has a stable `invoiceId:band` key, so
+restarting or running two scheduler passes does not duplicate work. Set
+`RECOVERY_INTERVAL_MINUTES` to control the worker interval; `DISABLE_JOBS=true` disables it for
+local tests.
+
 ## Order lifecycle
 
 `placed → confirmed → packed → out_for_delivery → delivered`

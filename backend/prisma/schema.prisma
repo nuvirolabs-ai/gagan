@@ -203,6 +203,29 @@ enum CreditRolloutMode {
   enforce
 }
 
+enum RecoveryCaseStatus {
+  open
+  resolved
+  closed
+}
+
+enum RecoveryActionStatus {
+  pending
+  completed
+  skipped
+}
+
+enum RecoveryActionType {
+  day_35_sales_call
+  day_40_joint_call
+  days_45_48_collection_visit
+  days_49_52_accounts_escalation
+  days_53_56_credit_review
+  days_60_69_hold_escalation
+  days_70_89_legal_preparation
+  day_90_legal_referral
+}
+
 model Payment {
   id                    String                @id @default(uuid())
   retailerId            String
@@ -272,6 +295,7 @@ model Retailer {
   collectionAssignments     CollectionAssignment[]
   invoices                  Invoice[]
   financialLedgerEntries    FinancialLedgerEntry[]
+  recoveryCases             RecoveryCase[]
   creditNotes               CreditNote[]
   reconciliationIssues      ReconciliationIssue[]
   creditProfile             CreditProfile?
@@ -763,10 +787,51 @@ model Invoice {
   allocations         PaymentAllocation[]
   ledgerEntry         FinancialLedgerEntry?
   creditNotes         CreditNote[]
+  recoveryCase        RecoveryCase?
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
 
   @@index([retailerId, status, dueDate])
+}
+
+/// One operational recovery timeline per overdue invoice. Actions are immutable
+/// schedule keys so rerunning the worker cannot duplicate calls or escalations.
+model RecoveryCase {
+  id          String             @id @default(uuid())
+  invoiceId   String             @unique
+  invoice     Invoice            @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  retailerId  String
+  retailer    Retailer           @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  status      RecoveryCaseStatus @default(open)
+  openedAt    DateTime           @default(now())
+  resolvedAt  DateTime?
+  closedAt    DateTime?
+  actions     RecoveryAction[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([status, updatedAt])
+  @@index([retailerId, status])
+}
+
+model RecoveryAction {
+  id                String               @id @default(uuid())
+  caseId            String
+  recoveryCase      RecoveryCase         @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  type              RecoveryActionType
+  status            RecoveryActionStatus @default(pending)
+  dueAt             DateTime
+  role              String
+  assigneeStaffId   String?
+  idempotencyKey    String               @unique
+  details           Json?
+  completedAt       DateTime?
+  completedByStaffId String?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@index([status, dueAt])
+  @@index([caseId, type])
 }
 
 model InvoiceLine {

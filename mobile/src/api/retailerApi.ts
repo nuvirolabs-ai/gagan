@@ -40,8 +40,8 @@ export function createRetailerApi(request: ApiRequest, store: SessionStore) {
     getPayments: () => request("/payments"),
     getDeliveryStatus: (orderId: string) => request(`/delivery/${orderId}/status`),
     getLocation: () => request("/location"),
-    captureLocation: (body: { latitude: number; longitude: number; accuracyMeters: number }) => post("/location/capture", body),
-    verifyLocation: (body: { latitude: number; longitude: number; accuracyMeters: number }) => post("/location/verify", body),
+    captureLocation: (body: { latitude: number; longitude: number; accuracyMeters: number; devicePlatform?: string }) => post("/location/capture", body),
+    verifyLocation: (body: { latitude: number; longitude: number; accuracyMeters: number; devicePlatform?: string }) => post("/location/verify", body),
     requestLocationChange: (reason: string) => post("/location/change-request", { reason }),
   };
 }

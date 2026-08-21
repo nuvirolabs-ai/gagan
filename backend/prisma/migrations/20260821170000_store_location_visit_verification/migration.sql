@@ -86,6 +86,9 @@ ALTER TABLE "SalesVisit" ADD CONSTRAINT "SalesVisit_salespersonId_fkey" FOREIGN 
 ALTER TABLE "SalesVisit" ADD CONSTRAINT "SalesVisit_retailerId_fkey" FOREIGN KEY ("retailerId") REFERENCES "Retailer"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 ALTER TABLE "SalesRep" ADD COLUMN "territory" TEXT;
+ALTER TABLE "RetailerLocation" ADD COLUMN "devicePlatform" TEXT;
+ALTER TABLE "RetailerLocationHistory" ADD COLUMN "devicePlatform" TEXT;
+ALTER TABLE "SalesVisit" ADD COLUMN "devicePlatform" TEXT;
 
 -- Existing retailers remain usable and are explicitly represented as not set;
 -- no coordinates are inferred from their postal address.

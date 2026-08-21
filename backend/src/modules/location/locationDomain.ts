@@ -2,6 +2,7 @@ export interface CoordinateInput {
   latitude: number;
   longitude: number;
   accuracyMeters: number;
+  devicePlatform?: string;
 }
 
 export interface Coordinate {

@@ -504,6 +504,7 @@ model RetailerLocation {
   latitude         Decimal?        @db.Decimal(10, 7)
   longitude        Decimal?        @db.Decimal(10, 7)
   accuracyMeters   Decimal?        @db.Decimal(8, 2)
+  devicePlatform   String?
   status           LocationStatus  @default(NOT_SET)
   source           LocationSource?
   capturedAt       DateTime?
@@ -525,6 +526,7 @@ model RetailerLocationHistory {
   latitude         Decimal?       @db.Decimal(10, 7)
   longitude        Decimal?       @db.Decimal(10, 7)
   accuracyMeters   Decimal?       @db.Decimal(8, 2)
+  devicePlatform   String?
   status           LocationStatus
   source           LocationSource
   capturedByUserId String?
@@ -548,6 +550,7 @@ model SalesVisit {
   checkInLatitude          Decimal                    @db.Decimal(10, 7)
   checkInLongitude         Decimal                    @db.Decimal(10, 7)
   checkInAccuracyMeters    Decimal                    @db.Decimal(8, 2)
+  devicePlatform           String?
   storeLatitudeSnapshot    Decimal?                   @db.Decimal(10, 7)
   storeLongitudeSnapshot   Decimal?                   @db.Decimal(10, 7)
   distanceFromStoreMeters  Decimal?                   @db.Decimal(10, 2)

@@ -48,7 +48,7 @@ export default function StoreLocationScreen() {
         text: "Confirm location",
         onPress: async () => {
           try {
-            const body = { latitude: result.latitude, longitude: result.longitude, accuracyMeters: result.accuracyMeters };
+            const body = { latitude: result.latitude, longitude: result.longitude, accuracyMeters: result.accuracyMeters, devicePlatform: result.devicePlatform };
             const response = location?.status === "CAPTURED" ? await api.verifyLocation(body) : await api.captureLocation(body);
             setLocation(response.location);
             setMessage("Location saved. A salesperson can verify it during a visit.");

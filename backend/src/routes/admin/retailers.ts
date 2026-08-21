@@ -71,6 +71,9 @@ router.post("/retailers", async (req, res) => {
 
   const retailer = await prisma.$transaction(async (tx) => {
     const created = await tx.retailer.create({ data: parsed.data, include: { tier: true } });
+    await tx.retailerLocation.create({
+      data: { retailerId: created.id, status: "NOT_SET", source: "MIGRATION", locationVersion: 0 },
+    });
     const nextReviewAt = nextQuarterlyCheckpoint(created.createdAt);
     await tx.creditProfile.create({
       data: { retailerId: created.id, rating: "N", accountCreatedAt: created.createdAt, nextReviewAt },

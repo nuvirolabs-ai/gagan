@@ -20,6 +20,9 @@ function inputJson(value: unknown): Prisma.InputJsonValue {
 async function main() {
   // Wipe transactional data so the seed is repeatable.
   await prisma.dispatchAuthorization.deleteMany();
+  await prisma.salesVisit.deleteMany();
+  await prisma.retailerLocationHistory.deleteMany();
+  await prisma.retailerLocation.deleteMany();
   await prisma.kycReview.deleteMany();
   await prisma.kycDocument.deleteMany();
   await prisma.kycCase.deleteMany();
@@ -104,7 +107,7 @@ async function main() {
   await prisma.workingCalendar.createMany({ data: workingDays });
 
   const rep = await prisma.salesRep.create({
-    data: { name: "Ravi Kumar", phone: "9812345670" },
+    data: { name: "Ravi Kumar", phone: "9812345670", territory: "Pune North" },
   });
 
   const admin = await prisma.adminUser.upsert({
@@ -219,6 +222,9 @@ async function main() {
       currentBalance: 0,
       overdueAmount: 0,
     },
+  });
+  await prisma.retailerLocation.create({
+    data: { retailerId: retailer.id, status: "NOT_SET", source: "MIGRATION", locationVersion: 0 },
   });
   const kycCase = await prisma.kycCase.create({
     data: {

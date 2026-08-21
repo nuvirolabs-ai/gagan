@@ -15,6 +15,7 @@ import { createApprovalsRouter } from "./modules/approvals/approvalRoutes";
 import { createCollectionRouter } from "./modules/collections/collectionRoutes";
 import { createKycRouter } from "./modules/kyc/kycRoutes";
 import { createRecoveryRouter } from "./modules/recovery/recoveryRoutes";
+import { createLocationRouter } from "./modules/location/locationRoutes";
 import { createRatingRouter } from "./modules/credit/ratingRoutes";
 import { createCreditRolloutRouter } from "./modules/credit/rolloutRoutes";
 import { createRequireSession } from "./modules/identity/sessionAuth";
@@ -25,6 +26,7 @@ import deliveryRoutes from "./routes/delivery";
 import homeRoutes from "./routes/home";
 import ledgerRoutes from "./routes/ledger";
 import orderRoutes from "./routes/orders";
+import { requireAuth } from "./lib/auth";
 import paymentRoutes from "./routes/payments";
 import repRoutes from "./routes/rep";
 import {
@@ -63,6 +65,14 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(ledgerRoutes);
   app.use(deliveryRoutes);
   app.use(paymentRoutes);
+
+  app.use(
+    createLocationRouter({
+      retailerAuthenticate: requireAuth,
+      staffAuthenticate: createRequireSession("staff", lazyIdentitySessionService),
+      adminAuthenticate: requireAdminIdentity,
+    })
+  );
 
   app.use("/rep", repRoutes);
   app.use(

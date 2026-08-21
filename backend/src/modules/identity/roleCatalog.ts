@@ -15,6 +15,10 @@ export const Permissions = {
   DISPATCH_EXECUTE: "dispatch.execute",
   LEGAL_DECIDE: "legal.decide",
   STAFF_MANAGE: "staff.manage",
+  LOCATION_VIEW: "location.view",
+  LOCATION_CAPTURE: "location.capture",
+  LOCATION_VERIFY: "location.verify",
+  VISIT_VIEW: "visit.view",
 } as const;
 
 export type PermissionName = (typeof Permissions)[keyof typeof Permissions];
@@ -29,12 +33,12 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
   {
     name: "salesperson",
     description: "Manages assigned retailers, KYC capture and retailer orders.",
-    permissions: [Permissions.ORDER_CREATE_FOR_RETAILER, Permissions.KYC_SUBMIT, Permissions.RECOVERY_VIEW, Permissions.RECOVERY_UPDATE],
+    permissions: [Permissions.ORDER_CREATE_FOR_RETAILER, Permissions.KYC_SUBMIT, Permissions.RECOVERY_VIEW, Permissions.RECOVERY_UPDATE, Permissions.LOCATION_VIEW, Permissions.LOCATION_CAPTURE, Permissions.LOCATION_VERIFY, Permissions.VISIT_VIEW],
   },
   {
     name: "field_collector",
     description: "Visits assigned retailers and submits collection evidence.",
-    permissions: [Permissions.COLLECTION_SUBMIT, Permissions.RECOVERY_VIEW, Permissions.RECOVERY_UPDATE],
+    permissions: [Permissions.COLLECTION_SUBMIT, Permissions.RECOVERY_VIEW, Permissions.RECOVERY_UPDATE, Permissions.LOCATION_VIEW, Permissions.LOCATION_CAPTURE, Permissions.LOCATION_VERIFY, Permissions.VISIT_VIEW],
   },
   {
     name: "credit_team",

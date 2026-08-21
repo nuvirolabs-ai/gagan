@@ -248,6 +248,28 @@ enum RecoveryLetterDeliveryChannel {
   email
 }
 
+enum LocationStatus {
+  NOT_SET
+  CAPTURED
+  VERIFIED
+  NEEDS_REVIEW
+}
+
+enum LocationSource {
+  RETAILER_ONBOARDING
+  SALESPERSON_VISIT
+  ADMIN_CORRECTION
+  MIGRATION
+}
+
+enum LocationVerificationStatus {
+  VERIFIED
+  NEEDS_REVIEW
+  OUTSIDE_STORE_AREA
+  STORE_LOCATION_NOT_AVAILABLE
+  LOW_GPS_ACCURACY
+}
+
 enum LegalCaseStatus {
   open
   settled
@@ -278,7 +300,7 @@ model Payment {
   evidence              PaymentEvidence[]
   reversals             PaymentReversal[]
   settlementLedgerEntry FinancialLedgerEntry?
-  collectionSubmission CollectionSubmission?
+  collectionSubmission  CollectionSubmission?
   createdAt             DateTime              @default(now())
   settledAt             DateTime?
 
@@ -337,67 +359,70 @@ model Retailer {
   approvalRequests          ApprovalRequest[]
   creditDecisionComparisons CreditDecisionComparison[]
   kycCase                   KycCase?
+  location                  RetailerLocation?
+  locationHistory           RetailerLocationHistory[]
+  visits                    SalesVisit[]
   contacts                  RetailerContact[]
   sapAccounts               RetailerSapAccount[]
   createdAt                 DateTime                   @default(now())
 }
 
 model KycCase {
-  id                 String         @id @default(uuid())
-  retailerId         String         @unique
-  retailer           Retailer       @relation(fields: [retailerId], references: [id], onDelete: Restrict)
-  status             KycCaseStatus  @default(draft)
-  submittedAt        DateTime?
-  reviewedAt         DateTime?
-  reviewedByStaffId  String?
-  rejectionReason    String?
-  documents          KycDocument[]
-  reviews            KycReview[]
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  id                String        @id @default(uuid())
+  retailerId        String        @unique
+  retailer          Retailer      @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  status            KycCaseStatus @default(draft)
+  submittedAt       DateTime?
+  reviewedAt        DateTime?
+  reviewedByStaffId String?
+  rejectionReason   String?
+  documents         KycDocument[]
+  reviews           KycReview[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
   @@index([status, updatedAt])
 }
 
 model KycDocument {
-  id                 String            @id @default(uuid())
-  caseId             String
-  kycCase            KycCase           @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  type               KycDocumentType
-  assetId            String            @unique
-  asset              EvidenceAsset    @relation(fields: [assetId], references: [id], onDelete: Restrict)
-  status             KycDocumentStatus @default(uploaded)
-  uploadedByStaffId  String?
-  rejectionReason    String?
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  id                String            @id @default(uuid())
+  caseId            String
+  kycCase           KycCase           @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  type              KycDocumentType
+  assetId           String            @unique
+  asset             EvidenceAsset     @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  status            KycDocumentStatus @default(uploaded)
+  uploadedByStaffId String?
+  rejectionReason   String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 
   @@index([caseId, type, status])
 }
 
 model KycReview {
-  id                String            @id @default(uuid())
-  caseId            String
-  kycCase           KycCase           @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  reviewerStaffId   String
-  decision          KycReviewDecision
-  reason            String
-  createdAt         DateTime          @default(now())
+  id              String            @id @default(uuid())
+  caseId          String
+  kycCase         KycCase           @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  reviewerStaffId String
+  decision        KycReviewDecision
+  reason          String
+  createdAt       DateTime          @default(now())
 
   @@index([caseId, createdAt])
 }
 
 model EvidenceAsset {
-  id              String          @id @default(uuid())
-  objectKey       String          @unique
-  checksum        String
-  contentType     String
-  sizeBytes       Int
-  purpose         EvidencePurpose
+  id               String          @id @default(uuid())
+  objectKey        String          @unique
+  checksum         String
+  contentType      String
+  sizeBytes        Int
+  purpose          EvidencePurpose
   createdByStaffId String?
-  createdAt       DateTime        @default(now())
-  deletedAt       DateTime?
-  kycDocument     KycDocument?
+  createdAt        DateTime        @default(now())
+  deletedAt        DateTime?
+  kycDocument      KycDocument?
 
   @@index([purpose, createdAt])
 }
@@ -444,6 +469,7 @@ model SalesRep {
   name      String
   phone     String
   photoUrl  String?
+  territory String?
   retailers Retailer[]
   staffUser StaffUser?
 }
@@ -460,12 +486,86 @@ model StaffUser {
   adminUserId      String?          @unique
   adminUser        AdminUser?       @relation(fields: [adminUserId], references: [id])
   roles            StaffRole[]
+  salesVisits      SalesVisit[]     @relation("SalespersonVisits")
   delegationsGiven RoleDelegation[] @relation("Delegator")
   delegationsHeld  RoleDelegation[] @relation("Delegatee")
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
   @@index([status])
+}
+
+/// The single current store location. Coordinates are nullable for existing
+/// retailers until a foreground capture is explicitly confirmed.
+model RetailerLocation {
+  id               String          @id @default(uuid())
+  retailerId       String          @unique
+  retailer         Retailer        @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  latitude         Decimal?        @db.Decimal(10, 7)
+  longitude        Decimal?        @db.Decimal(10, 7)
+  accuracyMeters   Decimal?        @db.Decimal(8, 2)
+  status           LocationStatus  @default(NOT_SET)
+  source           LocationSource?
+  capturedAt       DateTime?
+  capturedByUserId String?
+  verifiedAt       DateTime?
+  verifiedByUserId String?
+  locationVersion  Int             @default(0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([status, updatedAt])
+}
+
+/// Append-only snapshots of every captured or reviewed location state.
+model RetailerLocationHistory {
+  id               String         @id @default(uuid())
+  retailerId       String
+  retailer         Retailer       @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  latitude         Decimal?       @db.Decimal(10, 7)
+  longitude        Decimal?       @db.Decimal(10, 7)
+  accuracyMeters   Decimal?       @db.Decimal(8, 2)
+  status           LocationStatus
+  source           LocationSource
+  capturedByUserId String?
+  capturedAt       DateTime?
+  verifiedByUserId String?
+  verifiedAt       DateTime?
+  version          Int
+  reasonForChange  String?
+  createdAt        DateTime       @default(now())
+
+  @@index([retailerId, createdAt])
+  @@index([retailerId, version])
+}
+
+model SalesVisit {
+  id                       String                     @id @default(uuid())
+  salespersonId            String
+  salesperson              StaffUser                  @relation("SalespersonVisits", fields: [salespersonId], references: [id], onDelete: Restrict)
+  retailerId               String
+  retailer                 Retailer                   @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  checkInLatitude          Decimal                    @db.Decimal(10, 7)
+  checkInLongitude         Decimal                    @db.Decimal(10, 7)
+  checkInAccuracyMeters    Decimal                    @db.Decimal(8, 2)
+  storeLatitudeSnapshot    Decimal?                   @db.Decimal(10, 7)
+  storeLongitudeSnapshot   Decimal?                   @db.Decimal(10, 7)
+  distanceFromStoreMeters  Decimal?                   @db.Decimal(10, 2)
+  verificationStatus       LocationVerificationStatus
+  checkedInAt              DateTime                   @default(now())
+  checkedOutLatitude       Decimal?                   @db.Decimal(10, 7)
+  checkedOutLongitude      Decimal?                   @db.Decimal(10, 7)
+  checkedOutAccuracyMeters Decimal?                   @db.Decimal(8, 2)
+  checkedOutAt             DateTime?
+  checkoutDistanceMeters   Decimal?                   @db.Decimal(10, 2)
+  notes                    String?
+  source                   LocationSource             @default(SALESPERSON_VISIT)
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+
+  @@index([salespersonId, checkedInAt])
+  @@index([retailerId, checkedInAt])
+  @@index([verificationStatus, checkedInAt])
 }
 
 model Role {
@@ -696,31 +796,31 @@ model AppConfig {
 }
 
 model Product {
-  id            String    @id @default(uuid())
-  name          String
-  category      String
-  imageUrl      String?
-  sapMaterialId String?
-  variants      Variant[]
+  id                 String              @id @default(uuid())
+  name               String
+  category           String
+  imageUrl           String?
+  sapMaterialId      String?
+  variants           Variant[]
   inventorySnapshots InventorySnapshot[]
-  createdAt     DateTime  @default(now())
+  createdAt          DateTime            @default(now())
 }
 
 // A variant is one sellable case: `unitSize` x `unitsPerCase` (e.g. "1 kg" x 30).
 // PriceList.price is the price of the whole case.
 model Variant {
-  id             String          @id @default(uuid())
-  productId      String
-  product        Product         @relation(fields: [productId], references: [id])
-  unitSize       String
-  unit           String
-  unitsPerCase   Int             @default(1)
+  id                 String              @id @default(uuid())
+  productId          String
+  product            Product             @relation(fields: [productId], references: [id])
+  unitSize           String
+  unit               String
+  unitsPerCase       Int                 @default(1)
   // Numeric weight of a single unit. Needed to invoice off delivered weight
   // (spec §5.6): price/kg = casePrice / (unitWeightKg * unitsPerCase).
-  unitWeightKg   Decimal         @default(1) @db.Decimal(10, 3)
-  priceList      PriceList[]
-  orderItems     OrderItem[]
-  priceOverrides PriceOverride[]
+  unitWeightKg       Decimal             @default(1) @db.Decimal(10, 3)
+  priceList          PriceList[]
+  orderItems         OrderItem[]
+  priceOverrides     PriceOverride[]
   inventorySnapshots InventorySnapshot[]
 }
 
@@ -882,42 +982,42 @@ model Invoice {
 /// One operational recovery timeline per overdue invoice. Actions are immutable
 /// schedule keys so rerunning the worker cannot duplicate calls or escalations.
 model RecoveryCase {
-  id          String             @id @default(uuid())
-  invoiceId   String             @unique
-  invoice     Invoice            @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
-  retailerId  String
-  retailer    Retailer           @relation(fields: [retailerId], references: [id], onDelete: Restrict)
-  status      RecoveryCaseStatus @default(open)
-  openedAt    DateTime           @default(now())
-  resolvedAt  DateTime?
-  closedAt    DateTime?
-  actions     RecoveryAction[]
-  calls       CallLog[]
-  promises    PromiseToPay[]
-  letters     RecoveryLetter[]
-  legalCase   LegalCase?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  id         String             @id @default(uuid())
+  invoiceId  String             @unique
+  invoice    Invoice            @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  retailerId String
+  retailer   Retailer           @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  status     RecoveryCaseStatus @default(open)
+  openedAt   DateTime           @default(now())
+  resolvedAt DateTime?
+  closedAt   DateTime?
+  actions    RecoveryAction[]
+  calls      CallLog[]
+  promises   PromiseToPay[]
+  letters    RecoveryLetter[]
+  legalCase  LegalCase?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
 
   @@index([status, updatedAt])
   @@index([retailerId, status])
 }
 
 model RecoveryAction {
-  id                String               @id @default(uuid())
-  caseId            String
-  recoveryCase      RecoveryCase         @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  type              RecoveryActionType
-  status            RecoveryActionStatus @default(pending)
-  dueAt             DateTime
-  role              String
-  assigneeStaffId   String?
-  idempotencyKey    String               @unique
-  details           Json?
-  completedAt       DateTime?
+  id                 String               @id @default(uuid())
+  caseId             String
+  recoveryCase       RecoveryCase         @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  type               RecoveryActionType
+  status             RecoveryActionStatus @default(pending)
+  dueAt              DateTime
+  role               String
+  assigneeStaffId    String?
+  idempotencyKey     String               @unique
+  details            Json?
+  completedAt        DateTime?
   completedByStaffId String?
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
 
   @@index([status, dueAt])
   @@index([caseId, type])
@@ -940,90 +1040,90 @@ model CallLog {
 }
 
 model PromiseToPay {
-  id             String             @id @default(uuid())
-  caseId         String
-  recoveryCase   RecoveryCase       @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  amount         Decimal            @db.Decimal(14, 2)
-  promisedAt     DateTime           @default(now())
-  dueAt          DateTime
-  status         PromiseToPayStatus @default(promised)
+  id               String             @id @default(uuid())
+  caseId           String
+  recoveryCase     RecoveryCase       @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  amount           Decimal            @db.Decimal(14, 2)
+  promisedAt       DateTime           @default(now())
+  dueAt            DateTime
+  status           PromiseToPayStatus @default(promised)
   createdByStaffId String
-  idempotencyKey String             @unique
-  keptAt         DateTime?
-  missedAt       DateTime?
-  supersededAt   DateTime?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  idempotencyKey   String             @unique
+  keptAt           DateTime?
+  missedAt         DateTime?
+  supersededAt     DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
   @@index([caseId, status, dueAt])
   @@index([status, dueAt])
 }
 
 model RecoveryLetter {
-  id                String                    @id @default(uuid())
-  caseId            String
-  recoveryCase      RecoveryCase              @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  objectKey         String                    @unique
-  checksum          String
-  contentType       String                    @default("application/pdf")
-  sizeBytes         Int
-  invoiceNumber     Int
-  amount            Decimal                   @db.Decimal(14, 2)
-  currency          String
-  sentAt            DateTime
-  responseDueAt     DateTime
-  signatories       Json
-  idempotencyKey    String                    @unique
-  deliveries        RecoveryLetterDelivery[]
-  legalCase         LegalCase?
-  createdAt         DateTime                  @default(now())
+  id             String                   @id @default(uuid())
+  caseId         String
+  recoveryCase   RecoveryCase             @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  objectKey      String                   @unique
+  checksum       String
+  contentType    String                   @default("application/pdf")
+  sizeBytes      Int
+  invoiceNumber  Int
+  amount         Decimal                  @db.Decimal(14, 2)
+  currency       String
+  sentAt         DateTime
+  responseDueAt  DateTime
+  signatories    Json
+  idempotencyKey String                   @unique
+  deliveries     RecoveryLetterDelivery[]
+  legalCase      LegalCase?
+  createdAt      DateTime                 @default(now())
 
   @@index([caseId, sentAt])
 }
 
 model RecoveryLetterDelivery {
-  id                String                       @id @default(uuid())
+  id                String                        @id @default(uuid())
   letterId          String
-  letter            RecoveryLetter              @relation(fields: [letterId], references: [id], onDelete: Cascade)
+  letter            RecoveryLetter                @relation(fields: [letterId], references: [id], onDelete: Cascade)
   channel           RecoveryLetterDeliveryChannel
-  deliveredAt       DateTime                     @default(now())
+  deliveredAt       DateTime                      @default(now())
   actorStaffId      String
   externalReference String?
-  idempotencyKey    String                       @unique
-  createdAt         DateTime                     @default(now())
+  idempotencyKey    String                        @unique
+  createdAt         DateTime                      @default(now())
 
   @@index([letterId, deliveredAt])
 }
 
 model LegalCase {
-  id              String          @id @default(uuid())
-  recoveryCaseId  String          @unique
-  recoveryCase    RecoveryCase    @relation(fields: [recoveryCaseId], references: [id], onDelete: Cascade)
-  letterId        String          @unique
-  letter          RecoveryLetter  @relation(fields: [letterId], references: [id], onDelete: Restrict)
-  status          LegalCaseStatus @default(open)
-  reason          String
-  openedAt        DateTime        @default(now())
+  id               String          @id @default(uuid())
+  recoveryCaseId   String          @unique
+  recoveryCase     RecoveryCase    @relation(fields: [recoveryCaseId], references: [id], onDelete: Cascade)
+  letterId         String          @unique
+  letter           RecoveryLetter  @relation(fields: [letterId], references: [id], onDelete: Restrict)
+  status           LegalCaseStatus @default(open)
+  reason           String
+  openedAt         DateTime        @default(now())
   createdByStaffId String
-  idempotencyKey  String          @unique
-  decision        LegalDecision?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  idempotencyKey   String          @unique
+  decision         LegalDecision?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   @@index([status, openedAt])
 }
 
 model LegalDecision {
-  id              String           @id @default(uuid())
-  legalCaseId     String           @unique
-  legalCase       LegalCase        @relation(fields: [legalCaseId], references: [id], onDelete: Cascade)
-  type            LegalDecisionType
-  amount          Decimal          @db.Decimal(14, 2)
-  reason          String
+  id               String            @id @default(uuid())
+  legalCaseId      String            @unique
+  legalCase        LegalCase         @relation(fields: [legalCaseId], references: [id], onDelete: Cascade)
+  type             LegalDecisionType
+  amount           Decimal           @db.Decimal(14, 2)
+  reason           String
   decidedByStaffId String
-  decidedAt       DateTime         @default(now())
-  idempotencyKey  String           @unique
-  createdAt       DateTime         @default(now())
+  decidedAt        DateTime          @default(now())
+  idempotencyKey   String            @unique
+  createdAt        DateTime          @default(now())
 }
 
 model InvoiceLine {
@@ -1098,24 +1198,24 @@ model PaymentEvidence {
 /// A field-collected payment remains outside the financial ledger until Accounts
 /// verifies the evidence and confirms it. Collectors never create Payment rows.
 model CollectionSubmission {
-  id                String                    @id @default(uuid())
-  retailerId        String
-  retailer          Retailer                  @relation(fields: [retailerId], references: [id])
-  collectorStaffId  String
-  amount            Decimal                   @db.Decimal(12, 2)
-  method            CollectionMethod
-  reference         String?
-  notes             String?
-  idempotencyKey    String                    @unique
-  status            CollectionSubmissionStatus @default(pending)
-  rejectionReason   String?
-  paymentId         String?                   @unique
-  payment           Payment?                  @relation(fields: [paymentId], references: [id])
+  id                 String                     @id @default(uuid())
+  retailerId         String
+  retailer           Retailer                   @relation(fields: [retailerId], references: [id])
+  collectorStaffId   String
+  amount             Decimal                    @db.Decimal(12, 2)
+  method             CollectionMethod
+  reference          String?
+  notes              String?
+  idempotencyKey     String                     @unique
+  status             CollectionSubmissionStatus @default(pending)
+  rejectionReason    String?
+  paymentId          String?                    @unique
+  payment            Payment?                   @relation(fields: [paymentId], references: [id])
   confirmedByStaffId String?
-  submittedAt      DateTime                  @default(now())
-  confirmedAt       DateTime?
-  updatedAt         DateTime                  @updatedAt
-  evidence          CollectionEvidence[]
+  submittedAt        DateTime                   @default(now())
+  confirmedAt        DateTime?
+  updatedAt          DateTime                   @updatedAt
+  evidence           CollectionEvidence[]
 
   @@index([status, submittedAt])
   @@index([retailerId, submittedAt])
@@ -1123,12 +1223,12 @@ model CollectionSubmission {
 }
 
 model CollectionAssignment {
-  id               String   @id @default(uuid())
+  id               String    @id @default(uuid())
   collectorStaffId String
   retailerId       String
-  retailer         Retailer @relation(fields: [retailerId], references: [id], onDelete: Restrict)
-  active           Boolean  @default(true)
-  assignedAt       DateTime @default(now())
+  retailer         Retailer  @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  active           Boolean   @default(true)
+  assignedAt       DateTime  @default(now())
   endedAt          DateTime?
 
   @@unique([collectorStaffId, retailerId])
@@ -1136,14 +1236,14 @@ model CollectionAssignment {
 }
 
 model CollectionEvidence {
-  id           String              @id @default(uuid())
+  id           String               @id @default(uuid())
   submissionId String
   submission   CollectionSubmission @relation(fields: [submissionId], references: [id], onDelete: Restrict)
-  objectKey    String              @unique
+  objectKey    String               @unique
   checksum     String
   contentType  String
   sizeBytes    Int
-  createdAt    DateTime            @default(now())
+  createdAt    DateTime             @default(now())
 
   @@index([submissionId, createdAt])
 }
@@ -1229,25 +1329,25 @@ model CreditPolicyVersion {
 }
 
 model CreditProfile {
-  id                 String           @id @default(uuid())
-  retailerId         String           @unique
-  retailer           Retailer         @relation(fields: [retailerId], references: [id], onDelete: Restrict)
-  rating             CreditRating     @default(N)
-  billingPattern     BillingPattern   @default(unknown)
-  accountCreatedAt   DateTime         @default(now())
-  kycVerifiedAt      DateTime?
+  id                   String           @id @default(uuid())
+  retailerId           String           @unique
+  retailer             Retailer         @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  rating               CreditRating     @default(N)
+  billingPattern       BillingPattern   @default(unknown)
+  accountCreatedAt     DateTime         @default(now())
+  kycVerifiedAt        DateTime?
   kycVerifiedByStaffId String?
-  kycEvidence        Json?
-  ratingConfirmedAt  DateTime?
-  nextReviewAt       DateTime?
-  cleanInvoiceCount  Int              @default(0)
-  advancePaymentOnly Boolean          @default(false)
-  lockedAt           DateTime?
-  lockReason         String?
-  ratingHistory      RatingHistory[]
-  ratingProposals    RatingProposal[]
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  kycEvidence          Json?
+  ratingConfirmedAt    DateTime?
+  nextReviewAt         DateTime?
+  cleanInvoiceCount    Int              @default(0)
+  advancePaymentOnly   Boolean          @default(false)
+  lockedAt             DateTime?
+  lockReason           String?
+  ratingHistory        RatingHistory[]
+  ratingProposals      RatingProposal[]
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
 }
 
 model RatingProposal {
@@ -1386,10 +1486,10 @@ model ApprovalEscalation {
 }
 
 model ApprovalDispute {
-  id                  String                @id @default(uuid())
+  id                  String                  @id @default(uuid())
   approvalRequestId   String
-  approvalRequest     ApprovalRequest       @relation(fields: [approvalRequestId], references: [id], onDelete: Restrict)
-  status              ApprovalDisputeStatus @default(open)
+  approvalRequest     ApprovalRequest         @relation(fields: [approvalRequestId], references: [id], onDelete: Restrict)
+  status              ApprovalDisputeStatus   @default(open)
   raisedByStaffId     String
   writtenPosition     String
   counterPosition     String?
@@ -1400,8 +1500,8 @@ model ApprovalDispute {
   acknowledgedAt      DateTime?
   decisionDueAt       DateTime?
   resolvedAt          DateTime?
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
 
   @@index([status, acknowledgmentDueAt])
   @@index([approvalRequestId, createdAt])

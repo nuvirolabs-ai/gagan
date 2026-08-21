@@ -140,6 +140,11 @@ Sales staff can start a case for an assigned retailer from the retailer detail s
 KYC queue owns document upload and review in this slice; the server still enforces assignment,
 permissions, required document types, and the dispatch gate.
 
+Field collection receipts use the same private storage boundary. The Sales work screen can attach
+a PDF/image or submit a receipt/reference; Accounts sees a short-lived signed link in the queue.
+The collector never sends or chooses an object-storage key, and a pending submission never creates
+a payment or ledger entry. Only Accounts confirmation with step-up verification settles it.
+
 ## Order lifecycle
 
 `placed → confirmed → packed → out_for_delivery → delivered`

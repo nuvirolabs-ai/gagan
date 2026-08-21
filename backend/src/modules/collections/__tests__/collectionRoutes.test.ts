@@ -40,10 +40,8 @@ describe("collection routes", () => {
       method: "cash",
       idempotencyKey: "receipt-1234",
       evidence: {
-        objectKey: "receipts/1.jpg",
-        checksum: "sha256:12345678",
         contentType: "image/jpeg",
-        sizeBytes: 100,
+        bodyBase64: Buffer.from("receipt").toString("base64"),
       },
     });
     expect(response.status).toBe(201);
@@ -57,6 +55,19 @@ describe("collection routes", () => {
     const response = await request(app()).post("/collections/submission-1/confirm");
     expect(response.status).toBe(403);
     expect(service.confirm).not.toHaveBeenCalled();
+  });
+
+  it("rejects client-chosen storage keys", async () => {
+    service.submit.mockClear();
+    const response = await request(app()).post("/collections").send({
+      retailerId: "00000000-0000-0000-0000-000000000001",
+      amount: 120,
+      method: "cash",
+      idempotencyKey: "receipt-key-1",
+      evidence: { objectKey: "receipts/unsafe.jpg", contentType: "image/jpeg", sizeBytes: 10, checksum: "sha256:unsafe" },
+    });
+    expect(response.status).toBe(400);
+    expect(service.submit).not.toHaveBeenCalled();
   });
 
   it("passes the Accounts decision to the service after step-up", async () => {

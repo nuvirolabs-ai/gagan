@@ -54,7 +54,7 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
       reference?: string;
       notes?: string;
       idempotencyKey: string;
-      evidence?: { objectKey: string; checksum: string; contentType: string; sizeBytes: number };
+      evidence?: { contentType: string; bodyBase64: string; checksum?: string };
     }) => post("/rep/collections", input),
     confirmCollection: (id: string) => post(`/rep/collections/${id}/confirm`),
     rejectCollection: (id: string, reason: string) => post(`/rep/collections/${id}/reject`, { reason }),

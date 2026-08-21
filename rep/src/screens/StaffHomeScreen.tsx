@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
+import { File } from "expo-file-system";
 import { ScreenHeader } from "../components/ui";
 import { useRep } from "../context/RepContext";
 import { staffCapabilities } from "../auth/staffCapabilities";
@@ -21,6 +23,7 @@ export default function StaffHomeScreen() {
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<(typeof methods)[number]>("cash");
   const [reference, setReference] = useState("");
+  const [receipt, setReceipt] = useState<{ name: string; contentType: string; bodyBase64: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [stepUpChallenge, setStepUpChallenge] = useState<string | null>(null);
@@ -50,19 +53,31 @@ export default function StaffHomeScreen() {
       Alert.alert("Add collection details", "Choose a retailer and enter a valid amount.");
       return;
     }
-    if (reference.trim().length < 3) {
+    if (reference.trim().length < 3 && !receipt) {
       Alert.alert("Reference required", "Add a receipt, cheque, bank, or UPI reference before submitting.");
       return;
     }
     setSaving(true);
     try {
-      await repApi.submitCollection({ retailerId: selectedRetailerId, amount: parsedAmount, method, reference: reference.trim() || undefined, idempotencyKey: `mobile-${Date.now()}-${Math.random().toString(36).slice(2)}` });
-      setAmount(""); setReference("");
+      await repApi.submitCollection({ retailerId: selectedRetailerId, amount: parsedAmount, method, reference: reference.trim() || undefined, evidence: receipt ? { contentType: receipt.contentType, bodyBase64: receipt.bodyBase64 } : undefined, idempotencyKey: `mobile-${Date.now()}-${Math.random().toString(36).slice(2)}` });
+      setAmount(""); setReference(""); setReceipt(null);
       Alert.alert("Submitted", "Accounts will verify this collection before it affects the ledger.");
       await load();
     } catch (error) {
       Alert.alert("Could not submit", error instanceof Error ? error.message : "Try again.");
     } finally { setSaving(false); }
+  };
+
+  const pickReceipt = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: ["application/pdf", "image/jpeg", "image/png", "image/webp"], copyToCacheDirectory: true });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      const bodyBase64 = await new File(asset.uri).base64();
+      setReceipt({ name: asset.name, contentType: asset.mimeType ?? "application/pdf", bodyBase64 });
+    } catch (error) {
+      Alert.alert("Could not attach receipt", error instanceof Error ? error.message : "Try again.");
+    }
   };
 
   const startConfirm = async () => {
@@ -97,6 +112,7 @@ export default function StaffHomeScreen() {
           <Text style={styles.label}>Method</Text>
           <View style={styles.methodRow}>{methods.map((value) => <TouchableOpacity key={value} onPress={() => setMethod(value)} style={[styles.method, method === value && styles.methodActive]}><Text style={[styles.methodText, method === value && styles.methodTextActive]}>{value.toUpperCase()}</Text></TouchableOpacity>)}</View>
           <TextInput value={reference} onChangeText={setReference} placeholder="Receipt / cheque / bank reference" placeholderTextColor={colors.inkFaint} style={styles.input} />
+          <TouchableOpacity disabled={saving} onPress={() => void pickReceipt()} style={styles.attachment}><Ionicons name="attach-outline" size={17} color={colors.green} /><Text style={styles.attachmentText}>{receipt ? `Attached: ${receipt.name}` : "Attach receipt photo or PDF (optional)"}</Text></TouchableOpacity>
           <TouchableOpacity disabled={saving} onPress={submit} style={styles.primary}><Text style={styles.primaryText}>{saving ? "Submitting…" : "Submit for Accounts"}</Text></TouchableOpacity>
         </View> : null}
 
@@ -136,6 +152,8 @@ const styles = StyleSheet.create({
   methodTextActive: { color: colors.green },
   primary: { backgroundColor: colors.green, borderRadius: radius.md, alignItems: "center", paddingVertical: spacing.md, marginTop: spacing.sm },
   primaryText: { color: colors.onDark, fontWeight: "700", fontSize: 13 },
+  attachment: { flexDirection: "row", alignItems: "center", gap: spacing.sm, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.md },
+  attachmentText: { color: colors.green, fontSize: 12.5, fontWeight: "700", flex: 1 },
   queueRow: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.md, marginTop: spacing.sm, flexDirection: "row", alignItems: "center", gap: spacing.md },
   queueTitle: { color: colors.ink, fontWeight: "700", fontSize: 14 },
   smallButton: { backgroundColor: colors.greenSoft, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },

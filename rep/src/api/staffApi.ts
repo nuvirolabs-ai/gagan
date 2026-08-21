@@ -71,5 +71,11 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
     }) => post("/rep/collections", input),
     confirmCollection: (id: string) => post(`/rep/collections/${id}/confirm`),
     rejectCollection: (id: string, reason: string) => post(`/rep/collections/${id}/reject`, { reason }),
+    getLocation: (retailerId: string) => request(`/rep/retailers/${retailerId}/location`),
+    captureLocation: (retailerId: string, body: { latitude: number; longitude: number; accuracyMeters: number }) => post(`/rep/retailers/${retailerId}/location/capture`, body),
+    verifyLocation: (retailerId: string, body: { latitude: number; longitude: number; accuracyMeters: number }) => post(`/rep/retailers/${retailerId}/location/verify`, body),
+    checkIn: (retailerId: string, body: { latitude: number; longitude: number; accuracyMeters: number }) => post(`/rep/retailers/${retailerId}/check-in`, body),
+    checkOut: (visitId: string, body: { latitude: number; longitude: number; accuracyMeters: number }) => post(`/rep/visits/${visitId}/check-out`, body),
+    visits: () => request("/rep/visits"),
   };
 }

@@ -6,12 +6,14 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Alert,
   Linking,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { repApi } from "../api/repClient";
+import { captureForegroundLocation } from "../location/deviceLocation";
 import { useRep } from "../context/RepContext";
 import { colors, radius, spacing, shadow, inr } from "../theme";
 import { StatusPill } from "../components/ui";
@@ -27,15 +29,20 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   const { retailerId } = route.params;
   const { setActiveRetailer } = useRep();
   const [data, setData] = useState<any | null>(null);
+  const [location, setLocation] = useState<any | null>(null);
+  const [activeVisit, setActiveVisit] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
-      repApi
-        .retailer(retailerId)
-        .then(setData)
-        .catch(() => setData(null))
+      Promise.all([repApi.retailer(retailerId), repApi.getLocation(retailerId), repApi.visits()])
+        .then(([retailerData, locationData, visitData]) => {
+          setData(retailerData);
+          setLocation(locationData.location);
+          setActiveVisit((visitData.visits ?? []).find((visit: any) => visit.retailerId === retailerId && !visit.checkedOutAt) ?? null);
+        })
+        .catch(() => { setData(null); setLocation(null); })
         .finally(() => setLoading(false));
     }, [retailerId])
   );
@@ -66,6 +73,39 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   const startOrder = () => {
     setActiveRetailer(retailer.id);
     navigation.navigate("RepCatalog", { retailerId: retailer.id, retailerName: retailer.name });
+  };
+
+  const captureStoreLocation = async (mode: "capture" | "verify") => {
+    const reading = await captureForegroundLocation();
+    if (reading.kind === "permission_denied") return Alert.alert("Location permission needed", reading.canAskAgain ? "Allow while using the app so you can verify this store." : "Turn on location access in Settings.");
+    if (reading.kind === "unavailable") return Alert.alert("Location unavailable", reading.message);
+    try {
+      const result = mode === "verify"
+        ? await repApi.verifyLocation(retailer.id, reading)
+        : await repApi.captureLocation(retailer.id, reading);
+      setLocation(result.location);
+      Alert.alert(result.location.status === "VERIFIED" ? "Store verified" : "Location captured", result.location.status === "VERIFIED" ? "This store location is now verified." : "A second reading will verify this location.");
+    } catch (error: any) {
+      Alert.alert("Couldn't save location", error?.message === "location_accuracy_too_low" ? "The GPS reading isn't accurate enough. Move near the storefront and try again." : "Try again when you're online.");
+    }
+  };
+
+  const checkIn = async () => {
+    const reading = await captureForegroundLocation();
+    if (reading.kind !== "captured") return Alert.alert("Location needed", reading.kind === "permission_denied" ? "Allow location while using the app to check in." : reading.message);
+    try {
+      const result = await repApi.checkIn(retailer.id, reading);
+      setActiveVisit(result.visit);
+      const message = result.visit.verificationStatus === "VERIFIED" ? "Visit verified." : result.visit.verificationStatus === "OUTSIDE_STORE_AREA" ? "You're outside the registered store area. You can try again or leave this visit for review." : "Location captured. This visit is available for review.";
+      Alert.alert("Check-in recorded", message);
+    } catch { Alert.alert("Couldn't check in", "Try again when you're online."); }
+  };
+
+  const checkOut = async () => {
+    if (!activeVisit) return;
+    const reading = await captureForegroundLocation();
+    if (reading.kind !== "captured") return Alert.alert("Location needed", "Allow location while using the app to check out.");
+    try { const result = await repApi.checkOut(activeVisit.id, reading); setActiveVisit(result.visit); Alert.alert("Checked out", "Your visit time has been recorded."); } catch { Alert.alert("Couldn't check out", "Try again when you're online."); }
   };
 
   return (
@@ -99,6 +139,18 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
             <StatusPill status={kyc?.status === "approved" ? "active" : "pending"} />
           </View>
           {kyc?.status !== "approved" ? <><Text style={styles.warnText}>Complete and submit the three required documents before dispatch.</Text><TouchableOpacity style={styles.kycButton} onPress={() => void startKyc()}><Text style={styles.kycButtonText}>{kyc ? "Continue KYC" : "Start KYC case"}</Text></TouchableOpacity></> : <Text style={styles.successText}>Documents approved. Dispatch is enabled.</Text>}
+        </View>
+
+        <View style={styles.locationCard}>
+          <View style={styles.between}>
+            <View><Text style={styles.creditTitle}>Store location</Text><Text style={styles.rowSub}>{location?.status === "VERIFIED" ? "✓ Verified" : location?.status === "CAPTURED" ? "Captured — verify while at the store" : location?.status === "NEEDS_REVIEW" ? "Needs review" : "Not set"}</Text></View>
+            <MaterialCommunityIcons name="map-marker-radius-outline" size={22} color={colors.green} />
+          </View>
+          <View style={styles.locationActions}>
+            {location?.status === "VERIFIED" ? <TouchableOpacity style={styles.visitButton} onPress={() => void checkIn()}><Ionicons name="locate-outline" size={16} color={colors.onDark} /><Text style={styles.visitButtonText}>{activeVisit ? "Checked in" : "Check in"}</Text></TouchableOpacity> : <TouchableOpacity style={styles.locationButton} onPress={() => void captureStoreLocation(location?.status === "CAPTURED" ? "verify" : "capture")}><Text style={styles.locationButtonText}>{location?.status === "CAPTURED" ? "Verify store location" : "Set store location"}</Text></TouchableOpacity>}
+            {activeVisit && !activeVisit.checkedOutAt ? <TouchableOpacity style={styles.locationButton} onPress={() => void checkOut()}><Text style={styles.locationButtonText}>Check out</Text></TouchableOpacity> : null}
+          </View>
+          {activeVisit?.verificationStatus ? <Text style={styles.rowSub}>Visit: {activeVisit.verificationStatus === "VERIFIED" ? "Verified" : activeVisit.verificationStatus === "OUTSIDE_STORE_AREA" ? "Outside store area" : "Needs review"}{activeVisit.distanceFromStoreMeters != null ? ` · ${Math.round(Number(activeVisit.distanceFromStoreMeters))} m` : ""}</Text> : null}
         </View>
 
         <View style={styles.creditCard}>
@@ -273,6 +325,12 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   kycCard: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginTop: spacing.md },
+  locationCard: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginTop: spacing.md },
+  locationActions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
+  locationButton: { flex: 1, backgroundColor: colors.greenSoft, borderRadius: radius.sm, padding: spacing.md, alignItems: "center" },
+  locationButtonText: { color: colors.green, fontWeight: "700", fontSize: 12 },
+  visitButton: { flex: 1, backgroundColor: colors.greenDeep, borderRadius: radius.sm, padding: spacing.md, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6 },
+  visitButtonText: { color: colors.onDark, fontWeight: "700", fontSize: 12 },
   kycButton: { marginTop: spacing.md, backgroundColor: colors.greenSoft, borderRadius: radius.md, padding: spacing.md, alignItems: "center" },
   kycButtonText: { color: colors.green, fontWeight: "700" },
   successText: { color: colors.green, fontSize: 12, marginTop: spacing.sm },

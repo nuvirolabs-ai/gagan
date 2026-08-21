@@ -215,6 +215,21 @@ export const api = {
   products: () => request("/admin/products"),
   setPrice: (tierId: string, variantId: string, price: number) =>
     post("/admin/price-list", { tierId, variantId, price }),
+  locations: () => request("/admin/locations"),
+  location: (retailerId: string) => request(`/admin/locations/${retailerId}`),
+  locationHistory: (retailerId: string) => request(`/admin/locations/${retailerId}/history`),
+  correctLocation: (retailerId: string, body: unknown) => post(`/admin/locations/${retailerId}/correct`, body),
+  visits: (filters?: { status?: string; retailerId?: string; salespersonId?: string; territory?: string; from?: string; to?: string }) => {
+    const query = new URLSearchParams();
+    if (filters?.status) query.set("status", filters.status);
+    if (filters?.retailerId) query.set("retailerId", filters.retailerId);
+    if (filters?.salespersonId) query.set("salespersonId", filters.salespersonId);
+    if (filters?.territory) query.set("territory", filters.territory);
+    if (filters?.from) query.set("from", filters.from);
+    if (filters?.to) query.set("to", filters.to);
+    const suffix = query.toString();
+    return request(`/admin/visits${suffix ? `?${suffix}` : ""}`);
+  },
 };
 
 export const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;

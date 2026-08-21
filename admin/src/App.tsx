@@ -15,6 +15,8 @@ import CreditReviews from "./pages/CreditReviews";
 import Kyc from "./pages/Kyc";
 import Recovery from "./pages/Recovery";
 import Legal from "./pages/Legal";
+import Locations from "./pages/Locations";
+import Visits from "./pages/Visits";
 
 const NAV = [
   { to: "/approvals", label: "Approvals", permissions: ["approval.second_invoice", "approval.third_invoice", "legal.decide"] },
@@ -29,6 +31,8 @@ const NAV = [
   { to: "/catalog", label: "Catalog", permissions: ["staff.manage"] },
   { to: "/corrections", label: "Corrections", permissions: ["financial.correct"] },
   { to: "/staff", label: "Staff access", permissions: ["staff.manage"] },
+  { to: "/locations", label: "Store locations", permissions: ["location.view"] },
+  { to: "/visits", label: "Sales visits", permissions: ["visit.view"] },
 ];
 
 function Shell() {
@@ -76,6 +80,8 @@ function Shell() {
           <Route path="/staff" element={<Staff />} />
           <Route path="/staff/:staffId" element={<StaffDetail />} />
           <Route path="/corrections" element={<Corrections />} />
+          <Route path="/locations" element={<Locations />} />
+          <Route path="/visits" element={<Visits />} />
           <Route
             path="/no-access"
             element={<div className="card empty-state">No portal permissions are assigned.</div>}

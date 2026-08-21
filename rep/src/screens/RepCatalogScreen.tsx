@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -28,6 +28,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
+  const checkoutKey = useRef<string | null>(null);
 
   useEffect(() => {
     repApi
@@ -68,11 +69,14 @@ export default function RepCatalogScreen({ route, navigation }: any) {
   const submit = useCallback(async () => {
     setPlacing(true);
     try {
+      checkoutKey.current ??= `rep-checkout-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const res = await repApi.createOrder(
         retailerId,
-        lines.map((l) => ({ variantId: l.variantId, qty: l.qty }))
+        lines.map((l) => ({ variantId: l.variantId, qty: l.qty })),
+        checkoutKey.current
       );
       clearCart();
+      checkoutKey.current = null;
       Alert.alert(
         "Order placed",
         `GGN-${String(res.order.orderNo).padStart(5, "0")} for ${retailerName} — ${inr(

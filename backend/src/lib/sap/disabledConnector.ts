@@ -8,6 +8,9 @@ import {
   SapSalesOrderResult,
   SapInvoicePayload,
   SapInvoiceResult,
+  SapDeliveryNotePayload,
+  SapDeliveryNoteResult,
+  SapFinancialSummary,
 } from "./connector";
 
 /**
@@ -22,6 +25,9 @@ export class DisabledSapConnector implements SapConnector {
   readonly name = "disabled";
   readonly enabled = false;
 
+  async login(): Promise<void> { throw new Error("SAP integration is not configured (SAP_MODE=disabled)"); }
+  async logout(): Promise<void> {}
+
   async fetchCustomers(): Promise<SapCustomer[]> {
     return [];
   }
@@ -34,6 +40,8 @@ export class DisabledSapConnector implements SapConnector {
   async fetchStock(): Promise<SapStock[]> {
     return [];
   }
+  async fetchInvoices(): Promise<SapInvoicePayload[]> { return []; }
+  async fetchFinancialSummary(_sapCustomerId: string): Promise<SapFinancialSummary | null> { return null; }
 
   async postSalesOrder(_payload: SapSalesOrderPayload): Promise<SapSalesOrderResult> {
     throw new Error("SAP integration is not configured (SAP_MODE=disabled)");
@@ -42,6 +50,9 @@ export class DisabledSapConnector implements SapConnector {
     return null;
   }
   async postInvoice(_payload: SapInvoicePayload): Promise<SapInvoiceResult> {
+    throw new Error("SAP integration is not configured (SAP_MODE=disabled)");
+  }
+  async postDeliveryNote(_payload: SapDeliveryNotePayload): Promise<SapDeliveryNoteResult> {
     throw new Error("SAP integration is not configured (SAP_MODE=disabled)");
   }
 }

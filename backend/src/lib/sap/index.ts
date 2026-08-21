@@ -1,6 +1,7 @@
 import { SapConnector } from "./connector";
 import { DisabledSapConnector } from "./disabledConnector";
 import { MockSapConnector } from "./mockConnector";
+import { SapB1ServiceLayerConnector } from "./serviceLayerConnector";
 
 export * from "./connector";
 
@@ -24,6 +25,10 @@ export function getSapConnector(): SapConnector {
       break;
     case "disabled":
       cached = new DisabledSapConnector();
+      break;
+    case "service-layer":
+    case "s4hana":
+      cached = new SapB1ServiceLayerConnector();
       break;
     default:
       throw new Error(

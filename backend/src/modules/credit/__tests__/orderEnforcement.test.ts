@@ -13,6 +13,9 @@ const ids = {
   duplicateRetailer: `credit-duplicate-${run}`,
   overdueRetailer: `credit-overdue-${run}`,
   minimumOrderRetailer: `credit-minimum-order-${run}`,
+  idempotencyRetailer: `credit-idempotency-${run}`,
+  idempotencyConcurrentRetailer: `credit-idempotency-concurrent-${run}`,
+  idempotencyOtherRetailer: `credit-idempotency-other-${run}`,
 };
 
 beforeAll(async () => {
@@ -27,7 +30,7 @@ beforeAll(async () => {
   });
   await prisma.tier.create({ data: { id: ids.tier, name: `Credit test ${run}` } });
   await prisma.product.create({
-    data: { id: ids.product, name: `Credit product ${run}`, category: "test" },
+    data: { id: ids.product, name: `Credit product ${run}`, category: "test", sapMaterialId: `MAT-${run}` },
   });
   await prisma.variant.create({
     data: {
@@ -47,6 +50,18 @@ beforeAll(async () => {
       price: 10_000,
     },
   });
+  await prisma.inventorySnapshot.create({
+    data: {
+      productId: ids.product,
+      variantId: ids.variant,
+      sapMaterialId: `MAT-${run}`,
+      warehouseCode: "WH-001",
+      onHand: 1_000_000,
+      available: 1_000_000,
+      syncedAt: new Date(),
+      status: "available",
+    },
+  });
 
   for (const [id, phone] of [
     [ids.concurrentRetailer, `81${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "1")}`],
@@ -54,6 +69,9 @@ beforeAll(async () => {
     [ids.duplicateRetailer, `89${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "9")}`],
     [ids.overdueRetailer, `82${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "2")}`],
     [ids.minimumOrderRetailer, `83${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "3")}`],
+    [ids.idempotencyRetailer, `84${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "4")}`],
+    [ids.idempotencyConcurrentRetailer, `85${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "5")}`],
+    [ids.idempotencyOtherRetailer, `86${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "6")}`],
   ]) {
     await prisma.retailer.create({
       data: { id, name: id, shopAddress: "Test", phone, tierId: ids.tier, creditLimit: 500_000 },
@@ -84,7 +102,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  const retailerIds = [ids.concurrentRetailer, ids.chainRetailer, ids.duplicateRetailer, ids.overdueRetailer, ids.minimumOrderRetailer];
+  const retailerIds = [ids.concurrentRetailer, ids.chainRetailer, ids.duplicateRetailer, ids.overdueRetailer, ids.minimumOrderRetailer, ids.idempotencyRetailer, ids.idempotencyConcurrentRetailer, ids.idempotencyOtherRetailer];
   const orders = await prisma.order.findMany({ where: { retailerId: { in: retailerIds } }, select: { id: true } });
   const orderIds = orders.map((order) => order.id);
   await prisma.sapOutbox.deleteMany({ where: { referenceId: { in: orderIds } } });
@@ -102,6 +120,7 @@ afterAll(async () => {
   await prisma.creditProfile.deleteMany({ where: { retailerId: { in: retailerIds } } });
   await prisma.retailer.deleteMany({ where: { id: { in: retailerIds } } });
   await prisma.priceList.deleteMany({ where: { variantId: ids.variant } });
+  await prisma.inventorySnapshot.deleteMany({ where: { productId: ids.product } });
   await prisma.variant.delete({ where: { id: ids.variant } });
   await prisma.product.delete({ where: { id: ids.product } });
   await prisma.tier.delete({ where: { id: ids.tier } });
@@ -113,20 +132,65 @@ afterAll(async () => {
 });
 
 describe("atomic order credit enforcement", () => {
+  it("replays the same successful order for the same idempotency key", async () => {
+    const create = createOrderForRetailer as any;
+    const key = `checkout-${run}`;
+    const first = await create(ids.idempotencyRetailer, [{ variantId: ids.variant, qty: 1 }], "retailer", undefined, undefined, key);
+    const second = await create(ids.idempotencyRetailer, [{ variantId: ids.variant, qty: 1 }], "retailer", undefined, undefined, key);
+
+    expect(first).toMatchObject({ ok: true });
+    expect(second).toMatchObject({ ok: true, order: { id: first.order.id } });
+    expect(await prisma.order.count({ where: { retailerId: ids.idempotencyRetailer } })).toBe(1);
+    expect(await prisma.sapOutbox.count({ where: { kind: "sales_order", referenceId: first.order.id } })).toBe(1);
+  });
+
+  it("creates one order for ten concurrent requests and still allows distinct keys", async () => {
+    const create = createOrderForRetailer as any;
+    const key = `concurrent-${run}`;
+    const results = await Promise.all(
+      Array.from({ length: 10 }, () =>
+        create(ids.idempotencyConcurrentRetailer, [{ variantId: ids.variant, qty: 1 }], "retailer", undefined, undefined, key)
+      )
+    );
+    const orderIds = new Set(results.map((result: any) => result.order.id));
+    expect(orderIds.size).toBe(1);
+    expect(await prisma.order.count({ where: { retailerId: ids.idempotencyConcurrentRetailer } })).toBe(1);
+    expect(await prisma.sapOutbox.count({ where: { kind: "sales_order", referenceId: [...orderIds][0] } })).toBe(1);
+
+    const different = await create(ids.idempotencyConcurrentRetailer, [{ variantId: ids.variant, qty: 1 }], "retailer", undefined, undefined, `${key}-different`);
+    expect(different.order.id).not.toBe([...orderIds][0]);
+    expect(await prisma.order.count({ where: { retailerId: ids.idempotencyConcurrentRetailer } })).toBe(2);
+
+    const otherRetailer = await create(ids.idempotencyOtherRetailer, [{ variantId: ids.variant, qty: 1 }], "retailer", undefined, undefined, key);
+    expect(otherRetailer.order.id).not.toBe([...orderIds][0]);
+  });
+
+  it("replays a salesperson-assisted order with the same key", async () => {
+    const create = createOrderForRetailer as any;
+    const key = `rep-checkout-${run}`;
+    const first = await create(ids.idempotencyOtherRetailer, [{ variantId: ids.variant, qty: 1 }], "rep", "rep-1", "staff-1", key);
+    const second = await create(ids.idempotencyOtherRetailer, [{ variantId: ids.variant, qty: 1 }], "rep", "rep-1", "staff-1", key);
+    expect(second).toMatchObject({ ok: true, order: { id: first.order.id, placedBy: "rep" } });
+    expect(await prisma.order.count({ where: { retailerId: ids.idempotencyOtherRetailer, idempotencyKey: key } })).toBe(1);
+  });
+
   it("rejects an order below the configured minimum order value", async () => {
     await prisma.appConfig.update({ where: { id: "singleton" }, data: { minOrderValue: 20_000 } });
-    const result = await createOrderForRetailer(
-      ids.minimumOrderRetailer,
-      [{ variantId: ids.variant, qty: 1 }],
-      "retailer"
-    );
-    expect(result).toMatchObject({
-      ok: false,
-      status: 400,
-      body: { error: "minimum_order_value", minimumOrderValue: 20_000, orderTotal: 10_000 },
-    });
-    expect(await prisma.order.count({ where: { retailerId: ids.minimumOrderRetailer } })).toBe(0);
-    await prisma.appConfig.update({ where: { id: "singleton" }, data: { minOrderValue: 2_500 } });
+    try {
+      const result = await createOrderForRetailer(
+        ids.minimumOrderRetailer,
+        [{ variantId: ids.variant, qty: 1 }],
+        "retailer"
+      );
+      expect(result).toMatchObject({
+        ok: false,
+        status: 400,
+        body: { error: "minimum_order_value", minimumOrderValue: 20_000, orderTotal: 10_000 },
+      });
+      expect(await prisma.order.count({ where: { retailerId: ids.minimumOrderRetailer } })).toBe(0);
+    } finally {
+      await prisma.appConfig.update({ where: { id: "singleton" }, data: { minOrderValue: 2_500 } });
+    }
   });
 
   it("includes pending exposure when two orders are placed concurrently", async () => {

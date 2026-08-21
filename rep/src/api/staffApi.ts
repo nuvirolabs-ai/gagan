@@ -49,8 +49,15 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
     createRecoveryPromise: (caseId: string, body: unknown) => post(`/rep/recovery/${caseId}/promises`, body),
     setRecoveryPromiseStatus: (promiseId: string, status: "kept" | "missed") => post(`/rep/recovery/promises/${promiseId}/status`, { status }),
     catalogFor: (id: string) => request(`/rep/retailers/${id}/catalog`),
-    createOrder: (retailerId: string, items: { variantId: string; qty: number }[]) =>
-      post("/rep/orders", { retailerId, items }),
+    createOrder: (retailerId: string, items: { variantId: string; qty: number }[], idempotencyKey: string) =>
+      request(
+        "/rep/orders",
+        {
+          method: "POST",
+          headers: { "Idempotency-Key": idempotencyKey },
+          body: JSON.stringify({ retailerId, items }),
+        }
+      ),
     collectionRetailers: () => request("/rep/collections/assigned-retailers"),
     collectionSubmissions: () => request("/rep/collections"),
     submitCollection: (input: {

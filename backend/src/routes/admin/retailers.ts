@@ -3,10 +3,8 @@ import { z } from "zod";
 import { prisma } from "../../lib/prisma";
 import { requireAdmin } from "../../lib/adminAuth";
 import { ageAllRetailers } from "../../lib/ageing";
-import {
-  financialAgeingFor,
-  financialLedgerFor,
-} from "../../modules/finance/financialQueries";
+import { financialLedgerFor } from "../../modules/finance/financialQueries";
+import { financialSummaryFor } from "../../modules/finance/financialSummary";
 import {
   PaymentSettlementError,
   settleSucceededPayment,
@@ -21,20 +19,23 @@ router.get("/retailers", async (_req, res) => {
     include: { tier: true, salesRep: true },
     orderBy: { name: "asc" },
   });
-  res.json({
-    retailers: retailers.map((r) => ({
+  const summary = await Promise.all(retailers.map(async (r) => {
+    const financial = (await financialSummaryFor(prisma, r.id))!;
+    return {
       id: r.id,
       name: r.name,
       phone: r.phone,
       shopAddress: r.shopAddress,
       tier: { id: r.tier.id, name: r.tier.name },
       salesRep: r.salesRep ? { id: r.salesRep.id, name: r.salesRep.name } : null,
-      creditLimit: Number(r.creditLimit),
-      currentBalance: Number(r.currentBalance),
-      overdueAmount: Number(r.overdueAmount),
-      available: Math.max(Number(r.creditLimit) - Number(r.currentBalance), 0),
-    })),
-  });
+      creditLimit: financial.creditLimit,
+      currentBalance: financial.outstanding,
+      overdueAmount: financial.overdue,
+      available: financial.availableCredit,
+      financialSummary: financial,
+    };
+  }));
+  res.json({ retailers: summary });
 });
 
 router.get("/retailers/:id", async (req, res) => {
@@ -133,18 +134,19 @@ router.delete("/retailers/:id/price-override/:variantId", async (req, res) => {
 });
 
 router.get("/retailers/:id/ledger", async (req, res) => {
-  const [retailer, entries, ageing] = await Promise.all([
+  const [retailer, entries, financialSummary] = await Promise.all([
     prisma.retailer.findUnique({ where: { id: req.params.id } }),
     financialLedgerFor(prisma, req.params.id),
-    financialAgeingFor(prisma, req.params.id),
+    financialSummaryFor(prisma, req.params.id),
   ]);
   if (!retailer) return res.status(404).json({ error: "Retailer not found" });
 
   res.json({
-    currentBalance: Number(retailer.currentBalance),
-    creditLimit: Number(retailer.creditLimit),
-    overdueAmount: Number(retailer.overdueAmount),
-    ageing,
+    currentBalance: financialSummary?.outstanding ?? Number(retailer.currentBalance),
+    creditLimit: financialSummary?.creditLimit ?? Number(retailer.creditLimit),
+    overdueAmount: financialSummary?.overdue ?? Number(retailer.overdueAmount),
+    ageing: financialSummary?.invoiceAgeing ?? null,
+    financialSummary,
     entries,
   });
 });

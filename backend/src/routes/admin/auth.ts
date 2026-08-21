@@ -10,6 +10,7 @@ import {
   adminRefreshCookieConfig,
   sendAdminSession,
 } from "../../modules/identity/adminSession";
+import { createRateLimiter } from "../../platform/http/rateLimit";
 
 const router = Router();
 
@@ -18,7 +19,7 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
-router.post("/auth/login", async (req, res) => {
+router.post("/auth/login", createRateLimiter({ name: "admin-login", limit: 10, windowMs: 15 * 60_000 }), async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
 

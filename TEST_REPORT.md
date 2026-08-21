@@ -1,222 +1,150 @@
 # Executive Summary
 
-Overall status: **NOT READY**
+Overall status: **PASS WITH ISSUES — NOT READY FOR PUBLIC GO-LIVE**
 
-I ran the backend, worker, admin portal, retailer API journey, salesperson API journey, mock SAP sync/outbox, and automated suites against a disposable local PostgreSQL database named `gagan_qa`. No Supabase or SAP production data/credentials were used.
+Fresh QA was run on `feature/recovery-commitments` against a new disposable PostgreSQL database (`gagan_qa_hardening_20260821`). No Supabase production data and no real SAP credentials were used.
 
-Tested code: `feature/recovery-commitments` at base commit `e9996dc`, plus the QA fixes recorded in this worktree.
+The verified local transaction is:
 
-The core local transaction works:
+`Retailer OTP → catalog/inventory → order → credit/approval → durable idempotency → SAP outbox → mock SAP DocEntry/DocNum → salesperson → admin`.
 
-Retailer auth → catalog → order → backend order/credit assessment → SAP outbox → mock SAP sales-order id → salesperson retailer detail → admin order detail.
-
-It is not production-ready because the real SAP Business One Service Layer connector is not implemented, duplicate local orders are possible when a request is retried, inventory is not persisted/validated, and SAP DocEntry/DocNum are not stored.
+The non-SAP slice is substantially hardened. Public launch remains blocked by the real SAP B1 connector, mobile dependency advisories/device UAT, and production infrastructure configuration.
 
 # Architecture Map
 
-- Retailer mobile: Expo 57 / React Native 0.86.2 / React 19 in `mobile/`.
-- Salesperson mobile: Expo 57 / React Native 0.86.2 / React 19 in `rep/`.
-- Admin: Vite + React in `admin/`.
-- Backend: Express + TypeScript in `backend/`.
-- Database: PostgreSQL through Prisma; 21 migrations were deployed to the disposable database.
-- Authentication: phone OTP for retailer/staff; admin email/password; bearer access sessions and refresh sessions.
-- Background work: in-process scheduler plus `backend/src/worker.ts`; jobs can be disabled for local/UAT.
-- SAP boundary: `SapConnector` interface, mock connector, and disabled connector. There is no real Service Layer implementation.
-- Mapping:
-  - retailer → SAP `CardCode`: `Retailer.sapCustomerId`
-  - product → SAP `ItemCode`: `Product.sapMaterialId`
-  - salesperson → retailer: `Retailer.salesRepId`
-  - price: local `PriceList` / `PriceOverride`, refreshed by SAP pricing sync
-  - inventory: SAP stock is read by sync but not persisted in a local inventory model
-  - order SAP reference: `Order.sapSalesOrderId`; DocEntry and DocNum have no separate fields
-  - outbound queue: `SapOutbox`; orders enqueue in the same transaction as authorization
-- Mobile clients call the backend only; no mobile-to-SAP call was found.
-- Payment provider and SMS provider are mock/manual adapters in this environment.
+- Retailer mobile: Expo 57 / React Native 0.86.2 / React 19 (`mobile/`).
+- Salesperson mobile: Expo 57 / React Native 0.86.2 / React 19 (`rep/`).
+- Admin: Vite + React (`admin/`).
+- Backend: Express + TypeScript, Prisma, PostgreSQL (`backend/`).
+- Authentication: retailer/staff phone OTP; admin email/password; bearer access plus refresh sessions.
+- Background work: API process (`src/server.ts`) and a separate worker process (`src/worker.ts`). Only the worker starts scheduled jobs.
+- SAP boundary: `SapConnector`, mock connector, disabled connector and an explicit service-layer placeholder. Mobile never calls SAP.
+- Mapping: retailer → `Retailer.sapCustomerId`/CardCode; product → `Product.sapMaterialId`/ItemCode; salesperson → `Retailer.salesRepId`; pricing → local price lists/overrides refreshed by SAP; inventory → warehouse-keyed `InventorySnapshot`.
+- Order identity: local `Order.orderNo` plus deterministic `sapExternalReference` (`GGN-########`); SAP result stores `sapSalesOrderId`, `sapDocEntry`, `sapDocNum`, status, timestamps and safe error fields.
+- Pricing/inventory/credit are revalidated on the backend at checkout. Outbound SAP writes use `SapOutbox`.
+- Financial summary is shared by home, dues, ledger, admin and salesperson routes.
 
 # Critical Issues
 
-## C1 — Real SAP B1 integration is not implemented
+## C1 — Real SAP B1 Service Layer connector is not implemented
 
 - Severity: **CRITICAL**
 - Component: Backend/SAP integration
-- Steps to reproduce:
-  1. Inspect `backend/src/lib/sap/index.ts`.
-  2. Set `SAP_MODE=service-layer` or any real mode.
-  3. Start the backend.
-- Expected: A server-side SAP B1 Service Layer connector using HTTPS, `/b1s/v2`, `CompanyDB`, `B1SESSION`, timeouts, and controlled retries.
-- Actual: Only `mock` and `disabled` modes exist. The production env example explicitly uses `SAP_MODE=disabled`.
-- Root cause: The connector interface exists, but no real B1 implementation has been built.
-- Fix: **Recommended, not implemented.** Build and UAT the real connector before pilot. Keep all credentials server-side.
+- Reproduce: set a real SAP mode and attempt sync or outbox drain.
+- Expected: server-side `/b1s/v2` login/session handling, retries/timeouts, mappings, order write and reconciliation.
+- Actual: mock mode works; disabled mode is safe; service-layer mode is an explicit placeholder that does not make network calls.
+- Root cause: SAP credentials and the final B1 contract have not been supplied.
+- Fix: not applied because this requires SAP team inputs. See `SAP_B1_HANDOFF.md`.
 
-## C2 — Duplicate local orders are possible on a retried checkout
+## C2 — Mobile dependency advisories require a planned Expo upgrade
 
 - Severity: **HIGH**
-- Component: Retailer checkout/backend order API
-- Steps to reproduce:
-  1. Authenticate the seeded retailer.
-  2. Send the same valid `POST /orders` body twice concurrently.
-  3. In this test, both requests returned 201 with order numbers `70` and `71`.
-- Expected: One logical checkout creates one order; a retry returns the original result.
-- Actual: Two local orders and two outbox records are created.
-- Root cause: `POST /orders` has no idempotency key or durable request-deduplication field. The mobile button is disabled while placing, but network retries/app restarts remain unsafe.
-- Fix: **Recommended.** Add a client-generated idempotency key, a unique database constraint, and an atomic replay response for both retailer and salesperson order creation.
-
-## C3 — SAP identity fields and ERP document numbers are incomplete
-
-- Severity: **HIGH**
-- Component: Data model/SAP reconciliation
-- Expected: Store SAP `DocEntry`, `DocNum`, external Gagan order reference, and reconciliation status.
-- Actual: Only `Order.sapSalesOrderId` exists. There are no DocEntry/DocNum fields or explicit SAP reconciliation record.
-- Fix: **Recommended.** Add the fields and an immutable external-reference/UDF mapping once the B1 payload contract is confirmed.
+- Component: Retailer and salesperson build toolchain
+- Actual: `npm audit` reports 15 transitive advisories in each Expo app (8 high, 7 moderate), principally Expo/Metro/image-size/uuid. The automated fix is a breaking Expo version change.
+- Fix: documented in `MOBILE_SECURITY_AUDIT.md`; perform as a separately tested upgrade before public release.
 
 # Retailer App Results
 
-- OTP request/verify: PASS with mock OTP; invalid challenge/phone rejected.
-- `/auth/me`, `/home`, `/catalog`, `/orders`, and `/payments/dues`: reachable with authenticated retailer session.
-- Catalog pricing and case quantities were returned correctly after mock SAP pricing sync.
-- Minimum-order validation: initially failed in the real API (₹1,650 order accepted with configured minimum ₹2,500); fixed and re-tested as HTTP 400 `minimum_order_value`.
-- Credit/approval path: existing atomic credit tests passed; retailer order returned an allowed decision in the smoke journey.
-- Order confirmation/outbox creation: PASS.
-- Double-tap/retry protection: FAIL as described in C2.
-- Physical device UI, keyboard/safe-area behavior, iOS navigation, Android back behavior, and slow-network rendering were not signed off because no simulator/device was attached.
-- Expo web start was attempted and correctly refused because `react-dom` and `react-native-web` are not installed. Native Metro starts successfully and responds on `/status` with HTTP 200. Android export bundles completed for both apps.
+- OTP request/verify, invalid challenge handling and session restoration: PASS.
+- Home, catalog, price/case quantity and inventory availability: PASS in fresh E2E.
+- Minimum order and inventory unavailable/insufficient checks: PASS.
+- Place Order with idempotency key: PASS. Replaying the same key returned the same order ID/order number and created one logical outbox item.
+- Order detail/history exposes SAP sync state and document identity when available: PASS.
+- Financial summary values match dues and home: PASS.
+- Physical Android/iOS UI, keyboard, safe areas and background-kill behavior: not signed off; execute `DEVICE_UAT_CHECKLIST.md`.
 
 # Salesperson App Results
 
-- Staff OTP login: PASS.
-- Assigned retailer isolation: seeded salesperson saw exactly one assigned retailer.
-- Retailer detail: PASS; it showed the same latest order, total, status, and SAP id as backend/admin.
-- Assisted-order route exists, but the same missing idempotency risk applies to repeated submissions.
-- Metro starts on port 8082; typecheck and tests pass.
-- Physical-device UI and territory-negative tests require device/UAT accounts.
+- Staff OTP login and permissions: PASS.
+- Assigned-retailer list and tenant isolation: PASS.
+- Retailer financial summary and recent order identity: PASS; it matched the retailer/admin record in fresh E2E.
+- Assisted order endpoint requires the same idempotency key and uses retailer pricing/inventory: automated coverage PASS.
+- Physical-device and territory UAT: pending checklist execution.
 
 # Admin/Backend Results
 
-- Backend startup: PASS — `Gagan backend listening on http://localhost:4010`.
-- Worker startup: PASS with jobs disabled; scheduler logged safe disabled state.
-- PostgreSQL migrations: PASS — all 21 migrations deployed to disposable `gagan_qa`.
-- Seed: PASS.
-- Admin login/session: PASS.
-- Admin order list/detail: PASS; same retailer/order/SAP id as salesperson.
-- Admin SAP sync/status/outbox: PASS in mock mode.
-- Financial source consistency: **ISSUE**. In the seeded test, `/payments/dues` returned top-level cached retailer balance/overdue of ₹62,412/₹40,500 while local invoice ageing totals were ₹0/₹0 because invoice sync is not implemented. These values can disagree until a single SAP-backed financial source is wired.
-- Input validation: Zod validation is present on tested routes; unauthenticated admin/order calls returned 401.
-- Helmet security headers: PASS.
-- CORS: configured origin allowed; disallowed origin did not receive an allow-origin header.
-- Rate limiting: OTP has IP/request and attempt limits; there is no general API rate limiter.
-- Background jobs are in-process intervals. The source notes they must move to a single worker/managed scheduler before horizontally scaling API replicas.
+- Fresh backend startup and `/health`: PASS.
+- 24 Prisma migrations deployed to a new disposable database; seed completed: PASS.
+- Admin login/RBAC, order list/detail, SAP status and outbox drain: PASS.
+- Durable order idempotency for retailer and salesperson, including concurrent duplicate requests: PASS (automated).
+- SAP identity fields and historical external-reference backfill: PASS.
+- Warehouse-aware inventory snapshots and checkout validation: PASS (automated and E2E).
+- Unified financial summary across routes: PASS (automated and E2E).
+- Admin login, payment intent and order route rate limits: PASS.
+- Safe SAP error response contains request ID/code and does not expose connector details: PASS.
+- Tenant-negative tests: PASS for retailer-to-retailer and salesperson-to-unassigned-retailer access.
 
 # SAP B1 Integration Results
 
-Mock boundary tests:
+## Mock boundary/E2E
 
-- Customer sync linked the seeded retailer to `SAP-CUST-1001`.
-- Material sync linked four mock products; four seeded products remained unlinked.
-- Pricing sync updated four material prices.
-- Stock sync returned two rows but explicitly reported: “Stock is not stored yet — no inventory model in this phase.”
-- A valid order produced a pending outbox row, drained successfully, and stored `SAP-SO-000040`.
-- The salesperson and admin reads then showed the same SAP id.
+- Customer sync linked the seeded retailer to a mock CardCode.
+- Material, pricing and stock sync ran; stock was persisted as warehouse `WH-001` snapshots.
+- Retailer order produced a pending outbox record; drain returned one sent item.
+- Stored identity for the fresh order: `sapExternalReference=GGN-00000004`, `sapDocEntry=900004`, `sapDocNum=910004`, `sapSyncStatus=sent`.
+- Admin, retailer and salesperson reads agreed on retailer, order number, external reference, DocEntry, DocNum and status.
+- Response-loss-after-commit reconciliation test passes; retry searches by external reference and does not post a duplicate.
 
-Safety tests:
+## Still blocked without SAP
 
-- A sales order queued with an empty ItemCode was not posted; drain retained it pending with `Order is not fully linked to SAP yet`.
-- After the product mapping was linked, the same outbox row was rebuilt from current mappings and sent once.
-- A fake connector that committed an order then threw “response lost after SAP commit” was retried. Reconciliation found the existing external reference and `postSalesOrder` was called exactly once.
-
-Not tested/blocked because the real connector does not exist:
-
-- Real B1SESSION login/re-login.
-- `/b1s/v2` HTTPS transport.
-- CompanyDB and real CardCode/ItemCode validation.
-- Real price-list/special-price/discount semantics.
-- Real warehouse/UOM behavior.
-- Real service-layer 400/401/500/timeout/malformed-response handling.
-- Real DocEntry/DocNum capture and reconciliation.
+- Real B1SESSION login/re-login and `/b1s/v2` transport.
+- Real CardCode/ItemCode/customer freeze/warehouse/UOM/price-list semantics.
+- Invoice/open-balance/ageing sync and SAP financial-summary source.
+- Real 400/401/500/timeout/throttling/malformed-response behavior.
+- SAP sandbox UAT, DocEntry/DocNum reconciliation against SAP UI, and operational sign-off.
 
 # Security Results
 
-Passed:
+Passed: no SAP/database secrets in clients or tracked source; protected routes require auth; retailer and salesperson records are scoped; admin routes require identity/RBAC; OTP attempts/IP volume are bounded; request body limits, Helmet and restrictive CORS are active; raw SAP errors are not returned.
 
-- No SAP credentials, service-role keys, private keys, or live bearer tokens were found in tracked source.
-- SAP is server-side only; mobile code contains no SAP client.
-- Bearer authentication is required for retailer/admin protected routes.
-- Retailer order reads scope by retailer id.
-- Salesperson access is checked against assigned retailer.
-- Admin routes require staff identity and permission.
-- Helmet headers and restrictive configured CORS are active.
-- OTP attempts and IP request volume are bounded.
-- Request bodies have size limits and most write routes use Zod schemas.
-- Backend production audit: 0 vulnerabilities reported by `npm audit --omit=dev --audit-level=high`.
+Dependency results: backend 0 vulnerabilities; admin 0; mobile and salesperson 15 advisories each (8 high, 7 moderate), documented for planned Expo upgrade.
 
-Open findings:
-
-- Retailer/salesperson order idempotency is missing (C2).
-- No general API rate limiting or abuse protection outside OTP.
-- Mobile/rep dependency audit reports 15 vulnerabilities (7 moderate, 8 high), largely Expo/Metro transitive packages. `npm audit fix --force` requests a breaking Expo downgrade, so it was not run.
-- Admin SAP sync returns a connector error detail to an authenticated admin; keep raw transport detail out of broad user-facing responses.
-- Production secrets, CORS origins, storage, SMS, payment, and Sentry values are placeholders and must be provisioned through the deployment secret manager.
+Open: production secret provisioning, managed rate-limit/worker coordination, object storage, monitoring and real-device review.
 
 # Performance Results
 
-- 50 concurrent authenticated `GET /home` requests against local PostgreSQL: 50/50 HTTP 200, approximately 0.25 seconds wall time on the development machine.
-- Two concurrent order requests were intentionally tested; both succeeded as separate orders, proving the idempotency gap.
-- No 50-user distributed load test or 100-order validation benchmark was run.
-- SAP calls are limited to sync/outbox jobs rather than being made on every home/catalog render.
-- Recommended caching: SAP master data, price lists, and stock with explicit freshness/status; do not cache credit approval decisions beyond a controlled snapshot.
+- Fresh local E2E order path completed successfully; SAP is called only by sync/outbox paths, not on every screen render.
+- Automated concurrency test submitted 10 identical order requests and produced one order/outbox record; a different key produced a separate order.
+- No distributed 50-user/100-order benchmark was run. Execute it in staging with production-like limits.
+- Recommended cache boundaries: SAP master data, price lists and inventory with freshness status; never use stale cached credit decisions for authorization.
 
 # Automated Test Coverage
 
-Latest backend run: **66 files, 239 tests passed**.
+- Backend: **71 test files, 251 tests passed** with required disposable DB environment.
+- Retailer: **4 files, 6 tests passed**; typecheck passed.
+- Salesperson: **5 files, 9 tests passed**; typecheck passed.
+- Admin: **9 files, 11 tests passed**; typecheck and production Vite build passed.
 
-Mobile: **4 files, 6 tests passed**; TypeScript typecheck passed.
-
-Salesperson: **5 files, 9 tests passed**; TypeScript typecheck passed.
-
-Admin: **9 files, 11 tests passed**; lint, typecheck, and production Vite build passed.
-
-New/expanded QA coverage:
-
-1. Minimum order value rejection.
-2. SAP timeout-after-commit reconciliation with exactly-once post behavior.
-3. Current SAP mappings rebuilt before outbox drain.
-
-Coverage gaps:
-
-- No automated durable idempotency test because the API/database idempotency feature does not exist yet.
-- No real Service Layer integration tests.
-- No physical-device/UI automation for retailer or salesperson.
-- No full multi-tenant negative API suite using two live retailer accounts.
+High-risk coverage added or expanded: concurrent idempotency/replay, SAP canonical identity, timeout reconciliation, inventory sufficiency/staleness/warehouse, financial summary, rate limiting, safe errors, tenant isolation and historical external-reference backfill.
 
 # Bugs Fixed
 
-- `backend/src/lib/orders.ts`: enforce configured `AppConfig.minOrderValue` before credit assessment/order creation.
-- `backend/src/modules/credit/__tests__/orderEnforcement.test.ts`: regression coverage for minimum-order rejection and cleanup.
-- `backend/src/lib/sap/connector.ts`: add external-reference lookup contract for safe reconciliation.
-- `backend/src/lib/sap/mockConnector.ts`: remember accepted mock sales orders and reconcile by Gagan order id.
-- `backend/src/lib/sap/disabledConnector.ts`: implement safe no-result lookup.
-- `backend/src/lib/sap/outbox.ts`: rebuild current SAP mappings at drain time, reject unlinked orders before posting, reconcile before retrying, and persist refreshed payload.
-- `backend/src/lib/sap/__tests__/outbox.test.ts`: integration-style timeout/retry test against disposable PostgreSQL.
-- `.gitignore`: ignore local object-storage evidence under `.data/`.
+- `backend/src/lib/orders.ts`, order routes and both clients: durable idempotency key, replay and concurrency protection.
+- `backend/prisma/schema.prisma` plus migrations: SAP identity fields/status/error fields and unique order idempotency constraint.
+- `backend/src/lib/sap/outbox.ts`: external-reference payload, canonical SAP identity persistence, reconciliation-safe retry and safe error status.
+- `backend/src/modules/inventory/inventoryService.ts`, catalog/sync routes: warehouse-aware snapshots and checkout validation.
+- `backend/src/modules/finance/financialSummary.ts` and financial routes: one summary contract across clients/admin.
+- `backend/src/platform/http/rateLimit.ts`, `safeError.ts`, admin/SAP/payment/order routes: abuse protection and safe integration errors.
+- `backend/src/lib/sap/serviceLayerConnector.ts`: explicit safe placeholder, preventing accidental fake production readiness.
+- `20260821160000_backfill_sap_external_references`: deterministic references for historical orders.
+- Mobile and salesperson carts/API clients: stable idempotency key reused across retry.
+- New readiness documents: `NON_SAP_READINESS.md`, `MOBILE_SECURITY_AUDIT.md`, `DEVICE_UAT_CHECKLIST.md`, `PRODUCTION_CONFIG_CHECKLIST.md`, `SAP_B1_HANDOFF.md`.
 
 # Remaining Risks
 
-1. Real SAP B1 Service Layer implementation and UAT are still outstanding.
-2. Durable idempotency for order creation is outstanding.
-3. Inventory/warehouse/UOM validation is not implemented.
-4. SAP DocEntry/DocNum and external UDF reconciliation are outstanding.
-5. Financial ageing and cached retailer balances can disagree until invoice sync is implemented.
-6. SMS, payment gateway, object storage, push notifications, and production observability are not configured.
-7. Supabase production migrations/connection-pool, backups, restore drill, and RLS/role review remain deployment work.
-8. In-process schedules need a single managed worker/queue before multiple API replicas.
-9. Mobile dependency vulnerabilities and physical-device regression need resolution.
-10. A full UAT matrix with two retailers, two salespeople, Accounts approval, and SAP sandbox credentials is still required.
+1. Real SAP connector and SAP sandbox acceptance are not complete.
+2. Mobile dependency upgrade and physical-device UAT are pending.
+3. SMS, payment gateway, object storage, push notifications and production monitoring need real providers/configuration.
+4. Supabase migrations, backups/PITR, restore drill, pool sizing and production secret rotation need deployment sign-off.
+5. Managed Redis/queue coordination is required before horizontally scaling API replicas.
+6. Staging load test and full two-retailer/two-salesperson UAT remain.
 
 # Production Readiness
 
-**48/100**
+**78/100 overall**
 
-The local application slice is testable and has a functioning mock end-to-end transaction, but the real ERP boundary and several operational controls required for a production order system are not complete.
+**86/100 non-SAP**. The local non-SAP transaction and safety controls are testable and verified. The score is capped below launch readiness by real SAP, device UAT, mobile audit remediation and production operations gates.
 
 # Go-Live Recommendation
 
-**NOT READY**
+**READY AFTER FIXES**

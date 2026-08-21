@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../lib/auth";
 import { createOrderForRetailer } from "../lib/orders";
+import { createRateLimiter } from "../platform/http/rateLimit";
 
 const router = Router();
 
@@ -12,11 +13,15 @@ const createOrderSchema = z.object({
     .min(1),
 });
 
-router.post("/orders", requireAuth, async (req: AuthedRequest, res) => {
+router.post("/orders", requireAuth, createRateLimiter({ name: "retailer-order", limit: 20, windowMs: 60_000 }), async (req: AuthedRequest, res) => {
+  const idempotencyKey = req.header("idempotency-key")?.trim();
+  if (!idempotencyKey || idempotencyKey.length > 120) {
+    return res.status(400).json({ error: "idempotency_key_required" });
+  }
   const parsed = createOrderSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
 
-  const result = await createOrderForRetailer(req.retailerId!, parsed.data.items, "retailer");
+  const result = await createOrderForRetailer(req.retailerId!, parsed.data.items, "retailer", undefined, undefined, idempotencyKey);
   if (!result.ok) return res.status(result.status).json(result.body);
 
   res.status(201).json({

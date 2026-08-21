@@ -2,6 +2,7 @@ import { SapEntity } from "@prisma/client";
 import { prisma } from "../prisma";
 import { getSapConnector } from "./index";
 import { nextQuarterlyCheckpoint } from "../../modules/credit/reviewSchedule";
+import { upsertInventorySnapshot } from "../../modules/inventory/inventoryService";
 
 export interface SyncOutcome {
   entity: SapEntity;
@@ -271,28 +272,36 @@ export function syncPricing() {
   });
 }
 
-/**
- * Stock. There is no inventory table yet (spec lists multi-warehouse as a
- * non-goal), so this validates and reports without writing — the pull is proven
- * and the write lands when stock is modelled.
- */
+/** Persist warehouse-aware stock snapshots behind the SAP abstraction. */
 export function syncStock() {
   return runEntity("stock", async (since) => {
     const rows = await getSapConnector().fetchStock(since);
     let matched = 0;
+    let updated = 0;
     for (const row of rows) {
       const product = await prisma.product.findFirst({
         where: { sapMaterialId: row.sapMaterialId },
-        select: { id: true },
+        include: { variants: { take: 1 } },
       });
-      if (product) matched++;
+      if (!product || product.variants.length === 0) continue;
+      matched++;
+      await upsertInventorySnapshot(prisma, {
+        productId: product.id,
+        variantId: product.variants[0].id,
+        sapMaterialId: row.sapMaterialId,
+        warehouseCode: row.warehouseCode,
+        onHand: row.availableQty + row.committedQty,
+        committed: row.committedQty,
+        syncedAt: new Date(),
+      });
+      updated++;
     }
     return {
       received: rows.length,
       linked: matched,
       created: 0,
-      updated: 0,
-      message: "Stock is not stored yet — no inventory model in this phase",
+      updated,
+      message: matched < rows.length ? `${rows.length - matched} stock row(s) had no matching material or variant` : undefined,
     };
   });
 }

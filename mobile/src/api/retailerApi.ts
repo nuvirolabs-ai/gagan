@@ -20,7 +20,15 @@ export function createRetailerApi(request: ApiRequest, store: SessionStore) {
     getHome: () => request("/home"),
     getCatalog: () => request("/catalog"),
     getProduct: (id: string) => request(`/products/${id}`),
-    createOrder: (items: { variantId: string; qty: number }[]) => post("/orders", { items }),
+    createOrder: (items: { variantId: string; qty: number }[], idempotencyKey: string) =>
+      request(
+        "/orders",
+        {
+          method: "POST",
+          headers: { "Idempotency-Key": idempotencyKey },
+          body: JSON.stringify({ items }),
+        }
+      ),
     getOrders: () => request("/orders"),
     getOrder: (id: string) => request(`/orders/${id}`),
     getLedger: (retailerId: string) => request(`/ledger/${retailerId}`),

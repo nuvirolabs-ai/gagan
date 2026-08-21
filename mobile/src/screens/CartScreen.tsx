@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import { ScreenHeader, QtyStepper, EmptyState } from "../components/ui";
 export default function CartScreen({ navigation }: any) {
   const { lines, updateQty, clear, total, staleNotice, dismissStaleNotice } = useCart();
   const [placing, setPlacing] = useState(false);
+  const checkoutKey = useRef<string | null>(null);
   const [credit, setCredit] = useState<any>(null);
   const [config, setConfig] = useState<any>({ freeDeliveryThreshold: 0, minOrderValue: 0 });
 
@@ -45,8 +46,13 @@ export default function CartScreen({ navigation }: any) {
   const handleCheckout = async () => {
     setPlacing(true);
     try {
-      const res = await api.createOrder(lines.map((l) => ({ variantId: l.variantId, qty: l.qty })));
+      checkoutKey.current ??= `checkout-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const res = await api.createOrder(
+        lines.map((l) => ({ variantId: l.variantId, qty: l.qty })),
+        checkoutKey.current
+      );
       clear();
+      checkoutKey.current = null;
       navigation.navigate("OrderConfirmation", { order: res.order });
     } catch (e) {
       if (e instanceof ApiError && e.status === 402) {

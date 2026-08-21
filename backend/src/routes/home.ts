@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../lib/auth";
+import { financialSummaryFor } from "../modules/finance/financialSummary";
 
 const router = Router();
 
@@ -16,6 +17,8 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
   if (!retailer) return res.status(404).json({ error: "Retailer not found" });
 
   const now = new Date();
+  const financialSummary = await financialSummaryFor(prisma, retailer.id, now);
+  if (!financialSummary) return res.status(404).json({ error: "Retailer not found" });
 
   const [config, featuredScheme, activeSchemeCount, unreadCount, activeOrder, priceList, products] =
     await Promise.all([
@@ -69,8 +72,8 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
     schemeProgress = Number(agg._sum.orderTotal ?? 0);
   }
 
-  const creditLimit = Number(retailer.creditLimit);
-  const used = Number(retailer.currentBalance);
+  const creditLimit = financialSummary.creditLimit;
+  const used = financialSummary.creditUsed;
 
   res.json({
     retailer: {
@@ -84,12 +87,13 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
       : null,
     credit: {
       outstanding: used,
-      overdue: Number(retailer.overdueAmount),
+      overdue: financialSummary.overdue,
       creditLimit,
       used,
-      available: Math.max(creditLimit - used, 0),
+      available: financialSummary.availableCredit,
       utilisationPct: creditLimit > 0 ? Math.round((used / creditLimit) * 100) : 0,
     },
+    financialSummary,
     scheme: featuredScheme
       ? {
           name: featuredScheme.name,

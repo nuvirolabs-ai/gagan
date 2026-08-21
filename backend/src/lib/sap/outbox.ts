@@ -19,6 +19,7 @@ async function salesOrderPayload(db: Db, orderId: string): Promise<SapSalesOrder
   return {
     orderId: order.id,
     orderNo: order.orderNo,
+    externalReference: order.sapExternalReference ?? `GGN-${String(order.orderNo).padStart(8, "0")}`,
     sapCustomerId: order.retailer.sapCustomerId ?? "",
     placedAt: order.createdAt.toISOString(),
     lines: order.items.map((i) => ({
@@ -139,12 +140,22 @@ export async function drainOutbox(
         // stable external reference before posting, otherwise a retry can
         // create a duplicate ERP order.
         const result =
-          (await connector.findSalesOrderByExternalReference(payload.orderId)) ??
+          (await connector.findSalesOrderByExternalReference(payload.externalReference)) ??
           (await connector.postSalesOrder(payload));
+        const syncedAt = new Date();
         await prisma.$transaction([
           prisma.order.update({
             where: { id: item.referenceId },
-            data: { sapSalesOrderId: result.sapSalesOrderId },
+            data: {
+              sapSalesOrderId: result.sapSalesOrderId,
+              sapDocEntry: result.sapDocEntry ?? null,
+              sapDocNum: result.sapDocNum ?? null,
+              sapExternalReference: payload.externalReference,
+              sapSyncStatus: "sent",
+              sapLastSyncedAt: syncedAt,
+              sapErrorCode: null,
+              sapErrorMessage: null,
+            },
           }),
           prisma.sapOutbox.update({
             where: { id: item.id },
@@ -152,7 +163,7 @@ export async function drainOutbox(
               status: "sent",
               sapId: result.sapSalesOrderId,
               payload: payload as unknown as Prisma.InputJsonValue,
-              sentAt: new Date(),
+              sentAt: syncedAt,
               attempts: item.attempts + 1,
               lastError: null,
             },
@@ -175,11 +186,20 @@ export async function drainOutbox(
       sent++;
     } catch (err) {
       const attempts = item.attempts + 1;
+      const message = err instanceof Error ? err.message : "Unknown error";
+      await prisma.order.updateMany({
+        where: { id: item.referenceId },
+        data: {
+          sapSyncStatus: attempts >= MAX_ATTEMPTS ? "failed" : "reconciliation_required",
+          sapErrorCode: "sap_outbox_delivery_failed",
+          sapErrorMessage: message,
+        },
+      });
       await prisma.sapOutbox.update({
         where: { id: item.id },
         data: {
           attempts,
-          lastError: err instanceof Error ? err.message : "Unknown error",
+          lastError: message,
           status: attempts >= MAX_ATTEMPTS ? "failed" : "pending",
         },
       });

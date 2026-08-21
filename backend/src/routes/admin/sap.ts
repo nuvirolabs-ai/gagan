@@ -5,6 +5,7 @@ import { requireAdmin } from "../../lib/adminAuth";
 import { getSapConnector } from "../../lib/sap";
 import { syncAll, syncCustomers, syncMaterials, syncPricing, syncStock } from "../../lib/sap/sync";
 import { drainOutbox } from "../../lib/sap/outbox";
+import { safeIntegrationError } from "../../platform/http/safeError";
 
 const router = Router();
 router.use(requireAdmin);
@@ -60,9 +61,13 @@ router.post("/sap/sync", async (req, res) => {
         return res.json({ results: await syncAll() });
     }
   } catch (err) {
+    const requestId = String(res.locals.requestId ?? "unknown");
+    console.error("[sap] sync failed", {
+      requestId,
+      errorType: err instanceof Error ? err.name : "UnknownError",
+    });
     return res.status(502).json({
-      error: "Sync failed",
-      detail: err instanceof Error ? err.message : "Unknown error",
+      ...safeIntegrationError(requestId, "sap_sync_failed"),
     });
   }
 });

@@ -71,6 +71,12 @@ export default function ProfileScreen({ navigation }: any) {
       onPress: () => navigation.navigate("Orders"),
     },
     {
+      icon: "map-marker-radius-outline",
+      label: "Store location",
+      hint: "Confirm where Gagan delivers",
+      onPress: () => navigation.navigate("StoreLocation"),
+    },
+    {
       icon: "tag-outline",
       label: "Offers & schemes",
       hint: `${data?.badges?.activeOffers ?? 0} active`,

@@ -23,6 +23,7 @@ import LedgerScreen from "./src/screens/LedgerScreen";
 import PayScreen from "./src/screens/PayScreen";
 import DeliveryTrackingScreen from "./src/screens/DeliveryTrackingScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
+import StoreLocationScreen from "./src/screens/StoreLocationScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -104,6 +105,7 @@ function RootNavigator() {
             component={DeliveryTrackingScreen}
             options={{ title: "Delivery status", headerBackTitle: "Back" }}
           />
+          <Stack.Screen name="StoreLocation" component={StoreLocationScreen} options={{ title: "Store location", headerBackTitle: "Account" }} />
         </>
       )}
     </Stack.Navigator>

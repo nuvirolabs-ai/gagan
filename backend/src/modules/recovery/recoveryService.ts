@@ -66,6 +66,8 @@ export class RecoveryService {
         actions: { orderBy: { dueAt: "asc" } },
         calls: { orderBy: { occurredAt: "asc" } },
         promises: { orderBy: { promisedAt: "asc" } },
+        letters: { orderBy: { sentAt: "asc" }, include: { deliveries: { orderBy: { deliveredAt: "asc" } }, legalCase: { include: { decision: true } } } },
+        legalCase: { include: { decision: true } },
       },
     });
     if (!recoveryCase) throw new RecoveryServiceError("recovery_case_not_found", 404);
@@ -73,6 +75,8 @@ export class RecoveryService {
       ...recoveryCase.actions.map((action) => ({ kind: "action" as const, at: action.dueAt, ...action })),
       ...recoveryCase.calls.map((call) => ({ kind: "call" as const, at: call.occurredAt, ...call })),
       ...recoveryCase.promises.map((promise) => ({ kind: "promise" as const, at: promise.promisedAt, ...promise })),
+      ...recoveryCase.letters.map((letter) => ({ kind: "letter" as const, at: letter.sentAt, ...letter })),
+      ...(recoveryCase.legalCase ? [{ kind: "legal" as const, at: recoveryCase.legalCase.openedAt, ...recoveryCase.legalCase }] : []),
     ].sort((a, b) => a.at.getTime() - b.at.getTime());
     return { recoveryCase, events };
   }

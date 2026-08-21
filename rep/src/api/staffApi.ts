@@ -44,6 +44,7 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
     submitKyc: (caseId: string) => post(`/rep/kyc/${caseId}/submit`),
     recoveryCases: () => request("/rep/recovery"),
     recoveryTimeline: (caseId: string) => request(`/rep/recovery/${caseId}`),
+    recoveryLetter: (id: string) => request(`/rep/recovery/letters/${id}`),
     logRecoveryCall: (caseId: string, body: unknown) => post(`/rep/recovery/${caseId}/calls`, body),
     createRecoveryPromise: (caseId: string, body: unknown) => post(`/rep/recovery/${caseId}/promises`, body),
     setRecoveryPromiseStatus: (promiseId: string, status: "kept" | "missed") => post(`/rep/recovery/promises/${promiseId}/status`, { status }),

@@ -63,10 +63,10 @@
 
 ## Task 7: Generate recovery letters and legal referrals
 
-- [ ] Write deterministic PDF content tests for amount, invoices, three signatories, sent date, and seven-day deadline.
-- [ ] Store signed recovery letters privately and record WhatsApp/SMS/manual sending only as delivery metadata, not approval state.
-- [ ] Auto-create Day 90 legal case and permanent F recommendation; require Founder/Director for settlement/write-off decisions.
-- [ ] Commit: `feat: add recovery letters and legal escalation`.
+- [x] Write deterministic PDF content tests for amount, invoices, three signatories, sent date, and seven-day deadline.
+- [x] Store signed recovery letters privately and record WhatsApp/SMS/manual sending only as delivery metadata, not approval state.
+- [x] Confirm the permanent F rating at Day 90 without automatically creating a legal case; require Founder/Director for settlement/write-off decisions.
+- [x] Commit: `feat: add recovery letters and legal escalation`.
 
 ## Exit gate
 

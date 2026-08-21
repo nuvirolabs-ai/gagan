@@ -164,6 +164,15 @@ Accounts/credit can mark a promise kept or missed exactly once. Every write has 
 and an audit event. The queue and timeline are available at `/rep/recovery` and `/admin/recovery`;
 the admin dashboard includes the first compact queue/detail surface.
 
+## Recovery letters and legal escalation (slice 5)
+
+The worker can automatically confirm the permanent `F` rating at the 90-day credit lock without
+opening a legal case. Admins explicitly generate a deterministic recovery notice, which is stored
+in private object storage and exposed through a short-lived signed URL. Delivery records capture
+manual/WhatsApp/SMS/email metadata only. Admins explicitly refer a case to legal; only users with
+`legal.decide` can record one settlement or write-off decision, and those decisions never mutate the
+ledger automatically.
+
 ## Order lifecycle
 
 `placed → confirmed → packed → out_for_delivery → delivered`

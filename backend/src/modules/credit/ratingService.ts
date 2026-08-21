@@ -175,6 +175,13 @@ export class RatingService {
         },
       });
       if (result.proposedAt.getTime() === now.getTime()) created++;
+      if (proposal.trigger === "legal_90_day_lock" && result.status === "pending") {
+        await this.confirm(result.id, {
+          actorStaffId: "system:legal_90_day_lock",
+          reason: "Automatic 90-day credit lock; legal referral remains an explicit admin action.",
+          now,
+        });
+      }
     }
     return { scanned: profiles.length, created };
   }

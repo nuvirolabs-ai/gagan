@@ -241,6 +241,25 @@ enum RecoveryCallOutcome {
   wrong_number
 }
 
+enum RecoveryLetterDeliveryChannel {
+  manual
+  whatsapp
+  sms
+  email
+}
+
+enum LegalCaseStatus {
+  open
+  settled
+  written_off
+  closed
+}
+
+enum LegalDecisionType {
+  settlement
+  write_off
+}
+
 model Payment {
   id                    String                @id @default(uuid())
   retailerId            String
@@ -824,6 +843,8 @@ model RecoveryCase {
   actions     RecoveryAction[]
   calls       CallLog[]
   promises    PromiseToPay[]
+  letters     RecoveryLetter[]
+  legalCase   LegalCase?
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
 
@@ -885,6 +906,73 @@ model PromiseToPay {
 
   @@index([caseId, status, dueAt])
   @@index([status, dueAt])
+}
+
+model RecoveryLetter {
+  id                String                    @id @default(uuid())
+  caseId            String
+  recoveryCase      RecoveryCase              @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  objectKey         String                    @unique
+  checksum          String
+  contentType       String                    @default("application/pdf")
+  sizeBytes         Int
+  invoiceNumber     Int
+  amount            Decimal                   @db.Decimal(14, 2)
+  currency          String
+  sentAt            DateTime
+  responseDueAt     DateTime
+  signatories       Json
+  idempotencyKey    String                    @unique
+  deliveries        RecoveryLetterDelivery[]
+  legalCase         LegalCase?
+  createdAt         DateTime                  @default(now())
+
+  @@index([caseId, sentAt])
+}
+
+model RecoveryLetterDelivery {
+  id                String                       @id @default(uuid())
+  letterId          String
+  letter            RecoveryLetter              @relation(fields: [letterId], references: [id], onDelete: Cascade)
+  channel           RecoveryLetterDeliveryChannel
+  deliveredAt       DateTime                     @default(now())
+  actorStaffId      String
+  externalReference String?
+  idempotencyKey    String                       @unique
+  createdAt         DateTime                     @default(now())
+
+  @@index([letterId, deliveredAt])
+}
+
+model LegalCase {
+  id              String          @id @default(uuid())
+  recoveryCaseId  String          @unique
+  recoveryCase    RecoveryCase    @relation(fields: [recoveryCaseId], references: [id], onDelete: Cascade)
+  letterId        String          @unique
+  letter          RecoveryLetter  @relation(fields: [letterId], references: [id], onDelete: Restrict)
+  status          LegalCaseStatus @default(open)
+  reason          String
+  openedAt        DateTime        @default(now())
+  createdByStaffId String
+  idempotencyKey  String          @unique
+  decision        LegalDecision?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([status, openedAt])
+}
+
+model LegalDecision {
+  id              String           @id @default(uuid())
+  legalCaseId     String           @unique
+  legalCase       LegalCase        @relation(fields: [legalCaseId], references: [id], onDelete: Cascade)
+  type            LegalDecisionType
+  amount          Decimal          @db.Decimal(14, 2)
+  reason          String
+  decidedByStaffId String
+  decidedAt       DateTime         @default(now())
+  idempotencyKey  String           @unique
+  createdAt       DateTime         @default(now())
 }
 
 model InvoiceLine {

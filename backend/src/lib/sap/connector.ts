@@ -93,5 +93,7 @@ export interface SapConnector {
   fetchStock(since: Date | null): Promise<SapStock[]>;
 
   postSalesOrder(payload: SapSalesOrderPayload): Promise<SapSalesOrderResult>;
+  /** Find a previously accepted order by the stable external Gagan order id. */
+  findSalesOrderByExternalReference(externalReference: string): Promise<SapSalesOrderResult | null>;
   postInvoice(payload: SapInvoicePayload): Promise<SapInvoiceResult>;
 }

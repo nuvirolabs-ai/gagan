@@ -38,6 +38,9 @@ export class DisabledSapConnector implements SapConnector {
   async postSalesOrder(_payload: SapSalesOrderPayload): Promise<SapSalesOrderResult> {
     throw new Error("SAP integration is not configured (SAP_MODE=disabled)");
   }
+  async findSalesOrderByExternalReference(_externalReference: string): Promise<SapSalesOrderResult | null> {
+    return null;
+  }
   async postInvoice(_payload: SapInvoicePayload): Promise<SapInvoiceResult> {
     throw new Error("SAP integration is not configured (SAP_MODE=disabled)");
   }

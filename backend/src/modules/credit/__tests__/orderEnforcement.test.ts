@@ -12,6 +12,7 @@ const ids = {
   chainRetailer: `credit-chain-${run}`,
   duplicateRetailer: `credit-duplicate-${run}`,
   overdueRetailer: `credit-overdue-${run}`,
+  minimumOrderRetailer: `credit-minimum-order-${run}`,
 };
 
 beforeAll(async () => {
@@ -52,6 +53,7 @@ beforeAll(async () => {
     [ids.chainRetailer, `80${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "0")}`],
     [ids.duplicateRetailer, `89${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "9")}`],
     [ids.overdueRetailer, `82${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "2")}`],
+    [ids.minimumOrderRetailer, `83${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "3")}`],
   ]) {
     await prisma.retailer.create({
       data: { id, name: id, shopAddress: "Test", phone, tierId: ids.tier, creditLimit: 500_000 },
@@ -82,7 +84,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  const retailerIds = [ids.concurrentRetailer, ids.chainRetailer, ids.duplicateRetailer, ids.overdueRetailer];
+  const retailerIds = [ids.concurrentRetailer, ids.chainRetailer, ids.duplicateRetailer, ids.overdueRetailer, ids.minimumOrderRetailer];
   const orders = await prisma.order.findMany({ where: { retailerId: { in: retailerIds } }, select: { id: true } });
   const orderIds = orders.map((order) => order.id);
   await prisma.sapOutbox.deleteMany({ where: { referenceId: { in: orderIds } } });
@@ -105,12 +107,28 @@ afterAll(async () => {
   await prisma.tier.delete({ where: { id: ids.tier } });
   await prisma.appConfig.update({
     where: { id: "singleton" },
-    data: { creditRolloutMode: "shadow", creditPolicyApprovedAt: null, creditPolicyApprovedByStaffId: null, creditPolicyApprovedVersion: null },
+    data: { creditRolloutMode: "shadow", creditPolicyApprovedAt: null, creditPolicyApprovedByStaffId: null, creditPolicyApprovedVersion: null, minOrderValue: 2_500 },
   });
   await prisma.$disconnect();
 });
 
 describe("atomic order credit enforcement", () => {
+  it("rejects an order below the configured minimum order value", async () => {
+    await prisma.appConfig.update({ where: { id: "singleton" }, data: { minOrderValue: 20_000 } });
+    const result = await createOrderForRetailer(
+      ids.minimumOrderRetailer,
+      [{ variantId: ids.variant, qty: 1 }],
+      "retailer"
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      status: 400,
+      body: { error: "minimum_order_value", minimumOrderValue: 20_000, orderTotal: 10_000 },
+    });
+    expect(await prisma.order.count({ where: { retailerId: ids.minimumOrderRetailer } })).toBe(0);
+    await prisma.appConfig.update({ where: { id: "singleton" }, data: { minOrderValue: 2_500 } });
+  });
+
   it("includes pending exposure when two orders are placed concurrently", async () => {
     const [first, second] = await Promise.all([
       createOrderForRetailer(ids.concurrentRetailer, [{ variantId: ids.variant, qty: 1 }], "retailer"),

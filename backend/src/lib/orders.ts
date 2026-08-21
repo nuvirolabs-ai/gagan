@@ -91,6 +91,15 @@ export async function createOrderForRetailer(
       lineItems.push({ variantId: item.variantId, qtyOrdered: item.qty, unitPrice });
     }
 
+    const minimumOrderValue = Number(appConfig?.minOrderValue ?? 0);
+    if (minimumOrderValue > 0 && orderTotal < minimumOrderValue) {
+      return {
+        ok: false,
+        status: 400,
+        body: { error: "minimum_order_value", minimumOrderValue, orderTotal },
+      };
+    }
+
     const now = new Date();
     const snapshot = await buildCreditSnapshot(tx, retailerId, now);
     const policy = policyFromRecord(policyRecord);

@@ -23,6 +23,7 @@ import {
 export class MockSapConnector implements SapConnector {
   readonly name = "mock";
   readonly enabled = true;
+  private readonly acceptedSalesOrders = new Map<string, string>();
 
   async fetchCustomers(_since: Date | null): Promise<SapCustomer[]> {
     return [
@@ -65,7 +66,14 @@ export class MockSapConnector implements SapConnector {
 
   async postSalesOrder(payload: SapSalesOrderPayload): Promise<SapSalesOrderResult> {
     if (!payload.sapCustomerId) throw new Error("Customer is not linked to SAP yet");
-    return { sapSalesOrderId: `SAP-SO-${String(payload.orderNo).padStart(6, "0")}` };
+    const sapSalesOrderId = `SAP-SO-${String(payload.orderNo).padStart(6, "0")}`;
+    this.acceptedSalesOrders.set(payload.orderId, sapSalesOrderId);
+    return { sapSalesOrderId };
+  }
+
+  async findSalesOrderByExternalReference(externalReference: string): Promise<SapSalesOrderResult | null> {
+    const sapSalesOrderId = this.acceptedSalesOrders.get(externalReference);
+    return sapSalesOrderId ? { sapSalesOrderId } : null;
   }
 
   async postInvoice(payload: SapInvoicePayload): Promise<SapInvoiceResult> {

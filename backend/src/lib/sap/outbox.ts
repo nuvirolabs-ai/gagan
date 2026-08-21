@@ -6,12 +6,7 @@ type Db = PrismaClient | Prisma.TransactionClient;
 
 const MAX_ATTEMPTS = 5;
 
-/**
- * Queue an authorized order for posting to SAP. Automatically allowed orders
- * enqueue during creation; approval-held orders enqueue in the same transaction
- * as the final approval and dispatch authorization.
- */
-export async function enqueueSalesOrder(db: Db, orderId: string): Promise<void> {
+async function salesOrderPayload(db: Db, orderId: string): Promise<SapSalesOrderPayload | null> {
   const order = await db.order.findUnique({
     where: { id: orderId },
     include: {
@@ -19,9 +14,9 @@ export async function enqueueSalesOrder(db: Db, orderId: string): Promise<void> 
       items: { include: { variant: { include: { product: true } } } },
     },
   });
-  if (!order) return;
+  if (!order) return null;
 
-  const payload: SapSalesOrderPayload = {
+  return {
     orderId: order.id,
     orderNo: order.orderNo,
     sapCustomerId: order.retailer.sapCustomerId ?? "",
@@ -32,13 +27,23 @@ export async function enqueueSalesOrder(db: Db, orderId: string): Promise<void> 
       unitPrice: Number(i.unitPrice),
     })),
   };
+}
+
+/**
+ * Queue an authorized order for posting to SAP. Automatically allowed orders
+ * enqueue during creation; approval-held orders enqueue in the same transaction
+ * as the final approval and dispatch authorization.
+ */
+export async function enqueueSalesOrder(db: Db, orderId: string): Promise<void> {
+  const payload = await salesOrderPayload(db, orderId);
+  if (!payload) return;
 
   await db.sapOutbox.upsert({
-    where: { kind_referenceId: { kind: "sales_order", referenceId: order.id } },
+    where: { kind_referenceId: { kind: "sales_order", referenceId: orderId } },
     update: { payload: payload as unknown as Prisma.InputJsonValue },
     create: {
       kind: "sales_order",
-      referenceId: order.id,
+      referenceId: orderId,
       payload: payload as unknown as Prisma.InputJsonValue,
     },
   });
@@ -102,12 +107,16 @@ export interface DrainResult {
  * which point it is parked as `failed` for a human to look at — better than
  * retrying a malformed payload forever.
  */
-export async function drainOutbox(limit = 25): Promise<DrainResult> {
-  const connector = getSapConnector();
+export async function drainOutbox(
+  limit = 25,
+  connectorOverride?: ReturnType<typeof getSapConnector>,
+  onlyReferenceId?: string
+): Promise<DrainResult> {
+  const connector = connectorOverride ?? getSapConnector();
   if (!connector.enabled) return { attempted: 0, sent: 0, failed: 0, skipped: true };
 
   const queued = await prisma.sapOutbox.findMany({
-    where: { status: "pending" },
+    where: { status: "pending", ...(onlyReferenceId ? { referenceId: onlyReferenceId } : {}) },
     orderBy: { createdAt: "asc" },
     take: limit,
   });
@@ -118,8 +127,20 @@ export async function drainOutbox(limit = 25): Promise<DrainResult> {
   for (const item of queued) {
     try {
       if (item.kind === "sales_order") {
-        const payload = item.payload as unknown as SapSalesOrderPayload;
-        const result = await connector.postSalesOrder(payload);
+        // Rebuild from current mappings. An order can be queued before the
+        // SAP sync links its CardCode/ItemCodes; retrying the original JSON
+        // would permanently preserve empty mappings.
+        const payload = await salesOrderPayload(prisma, item.referenceId);
+        if (!payload) throw new Error("Order no longer exists");
+        if (!payload.sapCustomerId || payload.lines.some((line) => !line.sapMaterialId)) {
+          throw new Error("Order is not fully linked to SAP yet");
+        }
+        // A timeout can happen after SAP commits the order. Reconcile by the
+        // stable external reference before posting, otherwise a retry can
+        // create a duplicate ERP order.
+        const result =
+          (await connector.findSalesOrderByExternalReference(payload.orderId)) ??
+          (await connector.postSalesOrder(payload));
         await prisma.$transaction([
           prisma.order.update({
             where: { id: item.referenceId },
@@ -130,6 +151,7 @@ export async function drainOutbox(limit = 25): Promise<DrainResult> {
             data: {
               status: "sent",
               sapId: result.sapSalesOrderId,
+              payload: payload as unknown as Prisma.InputJsonValue,
               sentAt: new Date(),
               attempts: item.attempts + 1,
               lastError: null,

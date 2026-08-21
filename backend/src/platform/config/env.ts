@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseSapB1Config } from "../../lib/sap/b1/config";
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -13,6 +14,12 @@ const envSchema = z.object({
   SMS_PROVIDER: z.string().min(1).default("mock"),
   PAYMENT_PROVIDER: z.string().min(1).default("mock"),
   SAP_MODE: z.string().min(1).default("disabled"),
+  SAP_B1_BASE_URL: z.string().optional(),
+  SAP_B1_COMPANY_DB: z.string().optional(),
+  SAP_B1_AUTH_MODE: z.string().optional(),
+  SAP_B1_USERNAME: z.string().optional(),
+  SAP_B1_PASSWORD: z.string().optional(),
+  SAP_B1_DEFAULT_WAREHOUSE: z.string().optional(),
   STORAGE_PROVIDER: z.enum(["local", "s3"]).default("local"),
   OBJECT_STORAGE_ROOT: z.string().min(1).default(".data/evidence"),
   OBJECT_STORAGE_BUCKET: z.string().min(1).optional(),
@@ -46,6 +53,10 @@ export function parseEnv(input: NodeJS.ProcessEnv | Record<string, string | unde
     if (env.STORAGE_PROVIDER !== "s3" || !env.OBJECT_STORAGE_BUCKET) {
       throw new Error("Production requires private S3-compatible object storage");
     }
+  }
+
+  if (env.SAP_MODE.toLowerCase() === "service-layer") {
+    parseSapB1Config(input);
   }
 
   return env;

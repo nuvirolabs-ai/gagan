@@ -36,3 +36,14 @@ The app currently has a mock connector and a disabled/service-layer placeholder.
 - Reconciliation and rollback drill completed with SAP operations owner sign-off.
 
 Until these tests pass, keep `SAP_MODE=disabled` in production and do not claim SAP-ready status.
+
+## Prepared code modules
+
+- `backend/src/lib/sap/b1/config.ts`: conditional configuration validation.
+- `backend/src/lib/sap/b1/types.ts`: typed authentication, session, master-data, pricing, inventory, document and financial-summary contracts.
+- `backend/src/lib/sap/b1/httpClient.ts` and `sessionStore.ts`: injected-fetch HTTPS transport, timeout, correlation ID, cookie/session handling and reauthentication hook.
+- `backend/src/lib/sap/b1/parsers.ts` and `mappers.ts`: pure, explicit-field mapping/parsing functions.
+- `backend/src/lib/sap/serviceLayerConnector.ts`: constructor-injected connector skeleton with no endpoint or field defaults.
+- `backend/src/lib/sap/b1/__tests__/`: mocked transport, parser, mapping, DocEntry/DocNum and reconciliation coverage.
+
+See `SAP_B1_REQUIRED_INFO.md` for the exact values still required. These modules are deliberately not a claim that live SAP integration is complete.

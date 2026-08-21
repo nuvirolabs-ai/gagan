@@ -18,7 +18,7 @@ The non-SAP slice is substantially hardened. Public launch remains blocked by th
 - Backend: Express + TypeScript, Prisma, PostgreSQL (`backend/`).
 - Authentication: retailer/staff phone OTP; admin email/password; bearer access plus refresh sessions.
 - Background work: API process (`src/server.ts`) and a separate worker process (`src/worker.ts`). Only the worker starts scheduled jobs.
-- SAP boundary: `SapConnector`, mock connector, disabled connector and an explicit service-layer placeholder. Mobile never calls SAP.
+- SAP boundary: `SapConnector`, mock connector, disabled connector and a contract-safe, configuration-gated Service Layer skeleton. Mobile never calls SAP.
 - Mapping: retailer → `Retailer.sapCustomerId`/CardCode; product → `Product.sapMaterialId`/ItemCode; salesperson → `Retailer.salesRepId`; pricing → local price lists/overrides refreshed by SAP; inventory → warehouse-keyed `InventorySnapshot`.
 - Order identity: local `Order.orderNo` plus deterministic `sapExternalReference` (`GGN-########`); SAP result stores `sapSalesOrderId`, `sapDocEntry`, `sapDocNum`, status, timestamps and safe error fields.
 - Pricing/inventory/credit are revalidated on the backend at checkout. Outbound SAP writes use `SapOutbox`.
@@ -26,15 +26,15 @@ The non-SAP slice is substantially hardened. Public launch remains blocked by th
 
 # Critical Issues
 
-## C1 — Real SAP B1 Service Layer connector is not implemented
+## C1 — Real SAP B1 Service Layer contract and UAT are not supplied
 
 - Severity: **CRITICAL**
 - Component: Backend/SAP integration
 - Reproduce: set a real SAP mode and attempt sync or outbox drain.
 - Expected: server-side `/b1s/v2` login/session handling, retries/timeouts, mappings, order write and reconciliation.
-- Actual: mock mode works; disabled mode is safe; service-layer mode is an explicit placeholder that does not make network calls.
+- Actual: mock mode works; disabled mode is safe; service-layer mode now validates required configuration and exposes typed, mocked transport/mapping seams, but does not call a real server without injected endpoint/field configuration.
 - Root cause: SAP credentials and the final B1 contract have not been supplied.
-- Fix: not applied because this requires SAP team inputs. See `SAP_B1_HANDOFF.md`.
+- Fix: skeleton prepared; live connector remains blocked. See `SAP_B1_REQUIRED_INFO.md` and `SAP_B1_HANDOFF.md`.
 
 ## C2 — Mobile dependency advisories require a planned Expo upgrade
 
@@ -64,6 +64,7 @@ The non-SAP slice is substantially hardened. Public launch remains blocked by th
 # Admin/Backend Results
 
 - Fresh backend startup and `/health`: PASS.
+- `SAP_MODE=service-layer` without required values fails startup with a named configuration error: PASS.
 - 24 Prisma migrations deployed to a new disposable database; seed completed: PASS.
 - Admin login/RBAC, order list/detail, SAP status and outbox drain: PASS.
 - Durable order idempotency for retailer and salesperson, including concurrent duplicate requests: PASS (automated).
@@ -87,7 +88,7 @@ The non-SAP slice is substantially hardened. Public launch remains blocked by th
 
 ## Still blocked without SAP
 
-- Real B1SESSION login/re-login and `/b1s/v2` transport.
+- Real B1SESSION login/re-login and the final `/b1s/v2` transport path.
 - Real CardCode/ItemCode/customer freeze/warehouse/UOM/price-list semantics.
 - Invoice/open-balance/ageing sync and SAP financial-summary source.
 - Real 400/401/500/timeout/throttling/malformed-response behavior.
@@ -110,12 +111,12 @@ Open: production secret provisioning, managed rate-limit/worker coordination, ob
 
 # Automated Test Coverage
 
-- Backend: **71 test files, 251 tests passed** with required disposable DB environment.
+- Backend: **74 test files, 265 tests passed** with required disposable DB environment.
 - Retailer: **4 files, 6 tests passed**; typecheck passed.
 - Salesperson: **5 files, 9 tests passed**; typecheck passed.
 - Admin: **9 files, 11 tests passed**; typecheck and production Vite build passed.
 
-High-risk coverage added or expanded: concurrent idempotency/replay, SAP canonical identity, timeout reconciliation, inventory sufficiency/staleness/warehouse, financial summary, rate limiting, safe errors, tenant isolation and historical external-reference backfill.
+High-risk coverage added or expanded: concurrent idempotency/replay, SAP canonical identity, contract-gated Service Layer transport/session/error handling, timeout reconciliation, inventory sufficiency/staleness/warehouse, financial summary, rate limiting, safe errors, tenant isolation and historical external-reference backfill.
 
 # Bugs Fixed
 
@@ -126,9 +127,11 @@ High-risk coverage added or expanded: concurrent idempotency/replay, SAP canonic
 - `backend/src/modules/finance/financialSummary.ts` and financial routes: one summary contract across clients/admin.
 - `backend/src/platform/http/rateLimit.ts`, `safeError.ts`, admin/SAP/payment/order routes: abuse protection and safe integration errors.
 - `backend/src/lib/sap/serviceLayerConnector.ts`: explicit safe placeholder, preventing accidental fake production readiness.
+- `backend/src/lib/sap/b1/`: typed config, session store, HTTPS client, errors, parsers, mappers and mocked Service Layer tests; no live SAP calls.
 - `20260821160000_backfill_sap_external_references`: deterministic references for historical orders.
 - Mobile and salesperson carts/API clients: stable idempotency key reused across retry.
 - New readiness documents: `NON_SAP_READINESS.md`, `MOBILE_SECURITY_AUDIT.md`, `DEVICE_UAT_CHECKLIST.md`, `PRODUCTION_CONFIG_CHECKLIST.md`, `SAP_B1_HANDOFF.md`.
+- `SAP_B1_REQUIRED_INFO.md`: exact SAP-team inputs required before enabling live mode.
 
 # Remaining Risks
 
@@ -141,7 +144,7 @@ High-risk coverage added or expanded: concurrent idempotency/replay, SAP canonic
 
 # Production Readiness
 
-**78/100 overall**
+**80/100 overall**
 
 **86/100 non-SAP**. The local non-SAP transaction and safety controls are testable and verified. The score is capped below launch readiness by real SAP, device UAT, mobile audit remediation and production operations gates.
 

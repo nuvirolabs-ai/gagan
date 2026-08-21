@@ -63,4 +63,21 @@ describe("parseEnv", () => {
       })
     ).toThrow(/object storage/i);
   });
+
+  it("rejects service-layer mode without the future SAP B1 values", () => {
+    expect(() => parseEnv({ ...base, SAP_MODE: "service-layer" })).toThrow("SAP_B1_BASE_URL");
+  });
+
+  it("accepts service-layer mode only when all future SAP B1 values are present", () => {
+    expect(() => parseEnv({
+      ...base,
+      SAP_MODE: "service-layer",
+      SAP_B1_BASE_URL: "https://sap.example.invalid",
+      SAP_B1_COMPANY_DB: "opaque-company-db",
+      SAP_B1_AUTH_MODE: "opaque-auth-mode",
+      SAP_B1_USERNAME: "opaque-user",
+      SAP_B1_PASSWORD: "opaque-password",
+      SAP_B1_DEFAULT_WAREHOUSE: "opaque-warehouse",
+    })).not.toThrow();
+  });
 });

@@ -13,12 +13,14 @@ import Approvals from "./pages/Approvals";
 import Collections from "./pages/Collections";
 import CreditReviews from "./pages/CreditReviews";
 import Kyc from "./pages/Kyc";
+import Recovery from "./pages/Recovery";
 
 const NAV = [
   { to: "/approvals", label: "Approvals", permissions: ["approval.second_invoice", "approval.third_invoice", "legal.decide"] },
   { to: "/collections", label: "Collections", permissions: ["collection.confirm"] },
   { to: "/credit-reviews", label: "Credit reviews", permissions: ["credit.rating_confirm"] },
   { to: "/kyc", label: "KYC", permissions: ["kyc.view", "kyc.review"] },
+  { to: "/recovery", label: "Recovery", permissions: ["recovery.view", "recovery.update"] },
   { to: "/orders", label: "Order queue", permissions: ["staff.manage"] },
   { to: "/retailers", label: "Retailers", permissions: ["staff.manage"] },
   { to: "/ledger", label: "Ledger", permissions: ["staff.manage"] },
@@ -62,6 +64,7 @@ function Shell() {
           <Route path="/collections" element={<Collections />} />
           <Route path="/credit-reviews" element={<CreditReviews />} />
           <Route path="/kyc" element={<Kyc />} />
+          <Route path="/recovery" element={<Recovery />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/retailers" element={<Retailers />} />
           <Route path="/ledger" element={<Ledger />} />

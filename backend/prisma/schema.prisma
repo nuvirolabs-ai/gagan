@@ -226,6 +226,21 @@ enum RecoveryActionType {
   day_90_legal_referral
 }
 
+enum PromiseToPayStatus {
+  promised
+  kept
+  missed
+  superseded
+}
+
+enum RecoveryCallOutcome {
+  no_answer
+  spoke_with_customer
+  promise_made
+  dispute_raised
+  wrong_number
+}
+
 model Payment {
   id                    String                @id @default(uuid())
   retailerId            String
@@ -807,6 +822,8 @@ model RecoveryCase {
   resolvedAt  DateTime?
   closedAt    DateTime?
   actions     RecoveryAction[]
+  calls       CallLog[]
+  promises    PromiseToPay[]
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
 
@@ -832,6 +849,42 @@ model RecoveryAction {
 
   @@index([status, dueAt])
   @@index([caseId, type])
+}
+
+model CallLog {
+  id             String              @id @default(uuid())
+  caseId         String
+  recoveryCase   RecoveryCase        @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  actorStaffId   String
+  outcome        RecoveryCallOutcome
+  notes          String
+  occurredAt     DateTime            @default(now())
+  nextActionAt   DateTime?
+  idempotencyKey String              @unique
+  createdAt      DateTime            @default(now())
+
+  @@index([caseId, occurredAt])
+  @@index([actorStaffId, occurredAt])
+}
+
+model PromiseToPay {
+  id             String             @id @default(uuid())
+  caseId         String
+  recoveryCase   RecoveryCase       @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  amount         Decimal            @db.Decimal(14, 2)
+  promisedAt     DateTime           @default(now())
+  dueAt          DateTime
+  status         PromiseToPayStatus @default(promised)
+  createdByStaffId String
+  idempotencyKey String             @unique
+  keptAt         DateTime?
+  missedAt       DateTime?
+  supersededAt   DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([caseId, status, dueAt])
+  @@index([status, dueAt])
 }
 
 model InvoiceLine {

@@ -14,6 +14,7 @@ import { createFinancialCorrectionsRouter } from "./modules/payments/financialCo
 import { createApprovalsRouter } from "./modules/approvals/approvalRoutes";
 import { createCollectionRouter } from "./modules/collections/collectionRoutes";
 import { createKycRouter } from "./modules/kyc/kycRoutes";
+import { createRecoveryRouter } from "./modules/recovery/recoveryRoutes";
 import { createRatingRouter } from "./modules/credit/ratingRoutes";
 import { createCreditRolloutRouter } from "./modules/credit/rolloutRoutes";
 import { createRequireSession } from "./modules/identity/sessionAuth";
@@ -84,6 +85,12 @@ export function createApp(options: CreateAppOptions = {}) {
   );
   app.use(
     "/rep",
+    createRecoveryRouter({
+      authenticate: createRequireSession("staff", lazyIdentitySessionService),
+    })
+  );
+  app.use(
+    "/rep",
     createRatingRouter({
       authenticate: createRequireSession("staff", lazyIdentitySessionService),
     })
@@ -105,6 +112,10 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(
     "/admin",
     createKycRouter({ authenticate: requireAdminIdentity })
+  );
+  app.use(
+    "/admin",
+    createRecoveryRouter({ authenticate: requireAdminIdentity })
   );
   app.use(
     "/admin",

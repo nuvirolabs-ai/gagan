@@ -9,6 +9,8 @@ export const Permissions = {
   CREDIT_BLOCK: "credit.block",
   COLLECTION_SUBMIT: "collection.submit",
   COLLECTION_CONFIRM: "collection.confirm",
+  RECOVERY_VIEW: "recovery.view",
+  RECOVERY_UPDATE: "recovery.update",
   FINANCIAL_CORRECT: "financial.correct",
   DISPATCH_EXECUTE: "dispatch.execute",
   LEGAL_DECIDE: "legal.decide",
@@ -27,17 +29,17 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
   {
     name: "salesperson",
     description: "Manages assigned retailers, KYC capture and retailer orders.",
-    permissions: [Permissions.ORDER_CREATE_FOR_RETAILER, Permissions.KYC_SUBMIT],
+    permissions: [Permissions.ORDER_CREATE_FOR_RETAILER, Permissions.KYC_SUBMIT, Permissions.RECOVERY_VIEW, Permissions.RECOVERY_UPDATE],
   },
   {
     name: "field_collector",
     description: "Visits assigned retailers and submits collection evidence.",
-    permissions: [Permissions.COLLECTION_SUBMIT],
+    permissions: [Permissions.COLLECTION_SUBMIT, Permissions.RECOVERY_VIEW, Permissions.RECOVERY_UPDATE],
   },
   {
     name: "credit_team",
     description: "Operates credit recovery and approved block instructions.",
-    permissions: [Permissions.CREDIT_BLOCK, Permissions.KYC_VIEW, Permissions.KYC_REVIEW],
+    permissions: [Permissions.CREDIT_BLOCK, Permissions.KYC_VIEW, Permissions.KYC_REVIEW, Permissions.RECOVERY_VIEW, Permissions.RECOVERY_UPDATE],
   },
   {
     name: "sales_coordinator",
@@ -53,12 +55,14 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       Permissions.CREDIT_BLOCK,
       Permissions.KYC_VIEW,
       Permissions.KYC_REVIEW,
+      Permissions.RECOVERY_VIEW,
+      Permissions.RECOVERY_UPDATE,
     ],
   },
   {
     name: "accounts",
     description: "Confirms verified collections before financial posting.",
-    permissions: [Permissions.COLLECTION_CONFIRM, Permissions.FINANCIAL_CORRECT, Permissions.KYC_VIEW],
+    permissions: [Permissions.COLLECTION_CONFIRM, Permissions.FINANCIAL_CORRECT, Permissions.KYC_VIEW, Permissions.RECOVERY_VIEW],
   },
   {
     name: "dispatch",
@@ -68,7 +72,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
   {
     name: "founder_director",
     description: "Decides legal, settlement and exceptional escalation outcomes.",
-    permissions: [Permissions.LEGAL_DECIDE],
+    permissions: [Permissions.LEGAL_DECIDE, Permissions.RECOVERY_VIEW, Permissions.RECOVERY_UPDATE],
   },
   {
     name: "platform_admin",

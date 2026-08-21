@@ -42,6 +42,11 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
     kycCase: (id: string) => request(`/rep/kyc/${id}`),
     uploadKycDocument: (caseId: string, body: { type: string; contentType: string; bodyBase64: string; checksum?: string }) => post(`/rep/kyc/${caseId}/documents`, body),
     submitKyc: (caseId: string) => post(`/rep/kyc/${caseId}/submit`),
+    recoveryCases: () => request("/rep/recovery"),
+    recoveryTimeline: (caseId: string) => request(`/rep/recovery/${caseId}`),
+    logRecoveryCall: (caseId: string, body: unknown) => post(`/rep/recovery/${caseId}/calls`, body),
+    createRecoveryPromise: (caseId: string, body: unknown) => post(`/rep/recovery/${caseId}/promises`, body),
+    setRecoveryPromiseStatus: (promiseId: string, status: "kept" | "missed") => post(`/rep/recovery/promises/${promiseId}/status`, { status }),
     catalogFor: (id: string) => request(`/rep/retailers/${id}/catalog`),
     createOrder: (retailerId: string, items: { variantId: string; qty: number }[]) =>
       post("/rep/orders", { retailerId, items }),

@@ -155,6 +155,15 @@ restarting or running two scheduler passes does not duplicate work. Set
 `RECOVERY_INTERVAL_MINUTES` to control the worker interval; `DISABLE_JOBS=true` disables it for
 local tests.
 
+## Recovery commitments (slice 4)
+
+Open recovery cases now have one chronological timeline for scheduled actions, staff call logs,
+and promises to pay. Sales, field collection, credit, and admin users with `recovery.update` can
+record a call or promise; creating a new promise supersedes the previous open promise, and
+Accounts/credit can mark a promise kept or missed exactly once. Every write has an idempotency key
+and an audit event. The queue and timeline are available at `/rep/recovery` and `/admin/recovery`;
+the admin dashboard includes the first compact queue/detail surface.
+
 ## Order lifecycle
 
 `placed → confirmed → packed → out_for_delivery → delivered`

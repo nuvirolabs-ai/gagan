@@ -54,6 +54,27 @@ cd backend && npm run dev:worker
 
 Copy `backend/.env.example` to `backend/.env` for local development and replace all placeholder secrets. Production startup rejects mock SMS, payment, and SAP adapters.
 
+### Final Supabase database
+
+The final Gagan database is the Supabase project at
+`https://nftxvimumwvhjrmwtlfs.supabase.co` (project reference
+`nftxvimumwvhjrmwtlfs`, region `ap-northeast-1`). Use
+[`backend/.env.production.example`](backend/.env.production.example) as the deployment
+template. Set `DATABASE_URL` in the hosting provider's secret store using the Supabase
+session-pooler URL and the database password; never commit the password, service keys, or
+provider credentials to GitHub.
+
+Run the database deployment step before starting the API or worker:
+
+```bash
+cd backend
+npx prisma migrate deploy --schema prisma/schema.prisma
+```
+
+The final project has the repository schema and migrations applied. This cutover does not
+copy records from the former project; importing historical data is a separate, explicitly
+verified operation.
+
 ## Verification
 
 Install dependencies in each package, then run the same repository gate used by CI:

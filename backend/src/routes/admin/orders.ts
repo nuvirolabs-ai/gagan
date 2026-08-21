@@ -7,6 +7,7 @@ import {
   createInvoiceForDelivery,
   InvoiceCreationError,
 } from "../../modules/invoicing/invoiceService";
+import { ensureKycApprovedForDispatch, KycGateError } from "../../modules/kyc/kycGate";
 
 const router = Router();
 router.use(requireAdmin);
@@ -95,6 +96,12 @@ router.post("/dispatch/:orderId/assign", async (req, res) => {
 
   const problem = assertTransition(order.status, "out_for_delivery");
   if (problem) return res.status(409).json({ error: problem });
+  try {
+    await ensureKycApprovedForDispatch(order.retailerId);
+  } catch (error) {
+    if (error instanceof KycGateError) return res.status(error.status).json({ error: error.code });
+    throw error;
+  }
   const authorization = await prisma.dispatchAuthorization.findFirst({
     where: { orderId: order.id, status: "active" },
     select: { id: true },

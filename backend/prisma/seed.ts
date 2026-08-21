@@ -20,6 +20,12 @@ function inputJson(value: unknown): Prisma.InputJsonValue {
 async function main() {
   // Wipe transactional data so the seed is repeatable.
   await prisma.dispatchAuthorization.deleteMany();
+  await prisma.kycReview.deleteMany();
+  await prisma.kycDocument.deleteMany();
+  await prisma.kycCase.deleteMany();
+  await prisma.evidenceAsset.deleteMany();
+  await prisma.retailerContact.deleteMany();
+  await prisma.retailerSapAccount.deleteMany();
   await prisma.approvalDispute.deleteMany();
   await prisma.approvalEscalation.deleteMany();
   await prisma.approvalDecision.deleteMany();
@@ -204,6 +210,7 @@ async function main() {
       name: "Mahesh Store",
       shopAddress: "12 Market Road, Pune",
       phone: "9999999999",
+      status: "active",
       tierId: tierA.id,
       salesRepId: rep.id,
       creditLimit: 100000,
@@ -211,6 +218,45 @@ async function main() {
       // demo data reconciles instead of being asserted.
       currentBalance: 0,
       overdueAmount: 0,
+    },
+  });
+  const kycCase = await prisma.kycCase.create({
+    data: {
+      retailerId: retailer.id,
+      status: "approved",
+      submittedAt: retailer.createdAt,
+      reviewedAt: retailer.createdAt,
+      reviewedByStaffId: platformAdmin.id,
+    },
+  });
+  for (const type of ["business_registration", "identity_proof", "address_proof"] as const) {
+    const asset = await prisma.evidenceAsset.create({
+      data: {
+        objectKey: `seed/kyc/${retailer.id}/${type}.pdf`,
+        checksum: `seed-${type}-checksum`,
+        contentType: "application/pdf",
+        sizeBytes: 1,
+        purpose: "kyc_document",
+        createdByStaffId: salesStaff.id,
+      },
+    });
+    await prisma.kycDocument.create({
+      data: {
+        caseId: kycCase.id,
+        type,
+        assetId: asset.id,
+        status: "accepted",
+        uploadedByStaffId: salesStaff.id,
+      },
+    });
+  }
+  await prisma.kycReview.create({
+    data: {
+      caseId: kycCase.id,
+      reviewerStaffId: platformAdmin.id,
+      decision: "approved",
+      reason: "Seeded demo KYC verified for local testing.",
+      createdAt: retailer.createdAt,
     },
   });
   await prisma.creditProfile.create({

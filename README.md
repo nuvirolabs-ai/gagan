@@ -31,10 +31,12 @@ promote them to a workspace package.
 
 ## Prerequisites
 
-PostgreSQL 16 running locally with a `gagan_dev` database.
+PostgreSQL 16 running locally. For the KYC slice, use a disposable database such as
+`gagan_kyc_test`; never run the KYC tests or seed command against the final Supabase URL.
 
 ```bash
 brew services start postgresql@16
+createdb gagan_kyc_test
 ```
 
 ## Backend
@@ -117,6 +119,27 @@ cd admin && npm install && npm run dev
 OTP is mocked — a real SMS provider slots into [auth.ts](backend/src/routes/auth.ts).
 The seeded admin password is for local development only.
 
+## KYC and protected evidence (slice 1)
+
+KYC evidence is stored behind the backend, never under a public bucket path. Local development
+uses `STORAGE_PROVIDER=local` and `OBJECT_STORAGE_ROOT=.data/evidence`; production requires a
+private S3-compatible bucket and short-lived signed reads. Allowed evidence is PDF/JPEG/PNG/WebP,
+up to 10 MB per file.
+
+Manual smoke test with the disposable database:
+
+1. Apply migrations and seed: `DATABASE_URL=postgresql://tanutejassaraswat@localhost:5432/gagan_kyc_test npx prisma migrate deploy && npx prisma db seed`.
+2. Start the backend with the same `DATABASE_URL`, test JWT secrets, and `STORAGE_PROVIDER=local`.
+3. Sign in to the admin portal and open **KYC**. Start a case, upload business registration,
+   identity proof, and address proof, then submit it.
+4. Approve it only after the step-up code. The retailer becomes `active`; dispatch before approval
+   returns the stable `kyc_required` (409) error.
+5. Confirm the uploaded files are represented by signed URLs, not `objectKey` or filesystem paths.
+
+Sales staff can start a case for an assigned retailer from the retailer detail screen. The admin
+KYC queue owns document upload and review in this slice; the server still enforces assignment,
+permissions, required document types, and the dispatch gate.
+
 ## Order lifecycle
 
 `placed → confirmed → packed → out_for_delivery → delivered`
@@ -174,3 +197,6 @@ see who booked them.
   a variant that was since removed. Worth moving to AsyncStorage with a validity check.
 - **Overdue ageing.** `overdueAmount` is a stored field that payments reduce; nothing ages an
   invoice into it yet. That needs due dates on invoices.
+- **Outbound SAP customer creation.** The current SAP connector is inbound-only; newly imported
+  customers remain `pending_kyc`. When the outbound customer-create operation is added, it must
+  call the same KYC gate before enqueueing the SAP request.

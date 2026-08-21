@@ -143,7 +143,7 @@ router.get("/retailers/:id", requireRep, async (req: RepRequest, res) => {
   const retailer = await assignedRetailer(req.repId!, req.params.id);
   if (!retailer) return res.status(404).json({ error: "Retailer not found" });
 
-  const [tier, orders, entries] = await Promise.all([
+  const [tier, orders, entries, kycCase, creditProfile] = await Promise.all([
     prisma.tier.findUnique({ where: { id: retailer.tierId } }),
     prisma.order.findMany({
       where: { retailerId: retailer.id },
@@ -152,6 +152,8 @@ router.get("/retailers/:id", requireRep, async (req: RepRequest, res) => {
       include: { items: { include: { variant: { include: { product: true } } } } },
     }),
     financialLedgerFor(prisma, retailer.id).then((ledger) => ledger.slice(0, 5)),
+    prisma.kycCase.findUnique({ where: { retailerId: retailer.id }, select: { id: true, status: true, submittedAt: true, reviewedAt: true, rejectionReason: true } }),
+    prisma.creditProfile.findUnique({ where: { retailerId: retailer.id }, select: { kycVerifiedAt: true } }),
   ]);
 
   const limit = Number(retailer.creditLimit);
@@ -164,7 +166,9 @@ router.get("/retailers/:id", requireRep, async (req: RepRequest, res) => {
       phone: retailer.phone,
       shopAddress: retailer.shopAddress,
       tier: tier?.name ?? "—",
+      lifecycle: retailer.status,
     },
+    kyc: { ...kycCase, legacyVerified: creditProfile?.kycVerifiedAt != null },
     credit: {
       creditLimit: limit,
       outstanding: balance,

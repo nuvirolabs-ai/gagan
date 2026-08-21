@@ -13,6 +13,13 @@ const envSchema = z.object({
   SMS_PROVIDER: z.string().min(1).default("mock"),
   PAYMENT_PROVIDER: z.string().min(1).default("mock"),
   SAP_MODE: z.string().min(1).default("disabled"),
+  STORAGE_PROVIDER: z.enum(["local", "s3"]).default("local"),
+  OBJECT_STORAGE_ROOT: z.string().min(1).default(".data/evidence"),
+  OBJECT_STORAGE_BUCKET: z.string().min(1).optional(),
+  OBJECT_STORAGE_REGION: z.string().min(1).optional(),
+  OBJECT_STORAGE_ENDPOINT: z.string().url().optional(),
+  OBJECT_STORAGE_ACCESS_KEY: z.string().min(1).optional(),
+  OBJECT_STORAGE_SECRET_KEY: z.string().min(1).optional(),
   DISABLE_JOBS: z
     .enum(["true", "false"])
     .default("false")
@@ -35,6 +42,9 @@ export function parseEnv(input: NodeJS.ProcessEnv | Record<string, string | unde
       throw new Error(
         `Mock adapters are forbidden in production: ${mockProviders.map(([name]) => name).join(", ")}`
       );
+    }
+    if (env.STORAGE_PROVIDER !== "s3" || !env.OBJECT_STORAGE_BUCKET) {
+      throw new Error("Production requires private S3-compatible object storage");
     }
   }
 

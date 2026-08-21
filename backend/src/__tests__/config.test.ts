@@ -41,11 +41,26 @@ describe("parseEnv", () => {
       SMS_PROVIDER: "msg91",
       PAYMENT_PROVIDER: "razorpay",
       SAP_MODE: "s4hana",
+      STORAGE_PROVIDER: "s3",
+      OBJECT_STORAGE_BUCKET: "gagan-production",
       PORT: "4100",
       DISABLE_JOBS: "true",
     });
 
     expect(env.PORT).toBe(4100);
     expect(env.DISABLE_JOBS).toBe(true);
+  });
+
+  it("rejects local evidence storage in production", () => {
+    expect(() =>
+      parseEnv({
+        ...base,
+        NODE_ENV: "production",
+        SMS_PROVIDER: "msg91",
+        PAYMENT_PROVIDER: "razorpay",
+        SAP_MODE: "s4hana",
+        STORAGE_PROVIDER: "local",
+      })
+    ).toThrow(/object storage/i);
   });
 });

@@ -57,6 +57,10 @@ export class RatingService {
           nextReviewAt: profile.nextReviewAt ?? nextQuarterlyCheckpoint(profile.accountCreatedAt),
         },
       });
+      // The legacy evidence-confirmation path is still supported while KYC
+      // cases are migrated. Mark the retailer active at the same commit so
+      // dispatch enforcement cannot observe a half-verified account.
+      await tx.retailer.update({ where: { id: retailerId }, data: { status: "active" } });
       await tx.auditEvent.create({
         data: {
           actorStaffId: input.actorStaffId,

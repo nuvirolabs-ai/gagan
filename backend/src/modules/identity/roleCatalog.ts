@@ -1,6 +1,8 @@
 export const Permissions = {
   ORDER_CREATE_FOR_RETAILER: "order.create_for_retailer",
   KYC_SUBMIT: "kyc.submit",
+  KYC_VIEW: "kyc.view",
+  KYC_REVIEW: "kyc.review",
   APPROVAL_SECOND_INVOICE: "approval.second_invoice",
   APPROVAL_THIRD_INVOICE: "approval.third_invoice",
   CREDIT_RATING_CONFIRM: "credit.rating_confirm",
@@ -35,7 +37,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
   {
     name: "credit_team",
     description: "Operates credit recovery and approved block instructions.",
-    permissions: [Permissions.CREDIT_BLOCK],
+    permissions: [Permissions.CREDIT_BLOCK, Permissions.KYC_VIEW, Permissions.KYC_REVIEW],
   },
   {
     name: "sales_coordinator",
@@ -49,12 +51,14 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       Permissions.APPROVAL_THIRD_INVOICE,
       Permissions.CREDIT_RATING_CONFIRM,
       Permissions.CREDIT_BLOCK,
+      Permissions.KYC_VIEW,
+      Permissions.KYC_REVIEW,
     ],
   },
   {
     name: "accounts",
     description: "Confirms verified collections before financial posting.",
-    permissions: [Permissions.COLLECTION_CONFIRM, Permissions.FINANCIAL_CORRECT],
+    permissions: [Permissions.COLLECTION_CONFIRM, Permissions.FINANCIAL_CORRECT, Permissions.KYC_VIEW],
   },
   {
     name: "dispatch",

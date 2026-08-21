@@ -19,6 +19,7 @@ import StaffHomeScreen from "./src/screens/StaffHomeScreen";
 import ApprovalsScreen from "./src/screens/ApprovalsScreen";
 import ApprovalDetailScreen from "./src/screens/ApprovalDetailScreen";
 import RatingReviewsScreen from "./src/screens/RatingReviewsScreen";
+import KycCaptureScreen from "./src/screens/KycCaptureScreen";
 import { staffCapabilities } from "./src/auth/staffCapabilities";
 
 const Stack = createNativeStackNavigator();
@@ -110,6 +111,7 @@ function RootNavigator() {
                 component={RepCatalogScreen}
                 options={{ title: "New order", headerBackTitle: "Back" }}
               />
+              <Stack.Screen name="KycCapture" component={KycCaptureScreen} options={{ title: "KYC documents", headerBackTitle: "Retailer" }} />
             </>
           )}
           {capabilities.canApprove && (

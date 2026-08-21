@@ -13,6 +13,53 @@ enum StaffStatus {
   revoked
 }
 
+enum RetailerLifecycle {
+  pending_kyc
+  active
+  suspended
+  closed
+}
+
+enum KycCaseStatus {
+  draft
+  submitted
+  in_review
+  approved
+  rejected
+}
+
+enum KycDocumentType {
+  business_registration
+  identity_proof
+  address_proof
+  bank_proof
+  other
+}
+
+enum KycDocumentStatus {
+  uploaded
+  accepted
+  rejected
+}
+
+enum KycReviewDecision {
+  approved
+  rejected
+  changes_requested
+}
+
+enum EvidencePurpose {
+  kyc_document
+  collection_receipt
+  pod
+}
+
+enum RetailerSapAccountStatus {
+  pending
+  active
+  blocked
+}
+
 enum IdentityRealm {
   retailer
   staff
@@ -203,6 +250,7 @@ model Retailer {
   name                      String
   shopAddress               String
   phone                     String                     @unique
+  status                    RetailerLifecycle          @default(pending_kyc)
   tierId                    String
   tier                      Tier                       @relation(fields: [tierId], references: [id])
   creditLimit               Decimal                    @default(0) @db.Decimal(12, 2)
@@ -230,7 +278,98 @@ model Retailer {
   creditAssessments         CreditAssessment[]
   approvalRequests          ApprovalRequest[]
   creditDecisionComparisons CreditDecisionComparison[]
+  kycCase                   KycCase?
+  contacts                  RetailerContact[]
+  sapAccounts               RetailerSapAccount[]
   createdAt                 DateTime                   @default(now())
+}
+
+model KycCase {
+  id                 String         @id @default(uuid())
+  retailerId         String         @unique
+  retailer           Retailer       @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  status             KycCaseStatus  @default(draft)
+  submittedAt        DateTime?
+  reviewedAt         DateTime?
+  reviewedByStaffId  String?
+  rejectionReason    String?
+  documents          KycDocument[]
+  reviews            KycReview[]
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@index([status, updatedAt])
+}
+
+model KycDocument {
+  id                 String            @id @default(uuid())
+  caseId             String
+  kycCase            KycCase           @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  type               KycDocumentType
+  assetId            String            @unique
+  asset              EvidenceAsset    @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  status             KycDocumentStatus @default(uploaded)
+  uploadedByStaffId  String?
+  rejectionReason    String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([caseId, type, status])
+}
+
+model KycReview {
+  id                String            @id @default(uuid())
+  caseId            String
+  kycCase           KycCase           @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  reviewerStaffId   String
+  decision          KycReviewDecision
+  reason            String
+  createdAt         DateTime          @default(now())
+
+  @@index([caseId, createdAt])
+}
+
+model EvidenceAsset {
+  id              String          @id @default(uuid())
+  objectKey       String          @unique
+  checksum        String
+  contentType     String
+  sizeBytes       Int
+  purpose         EvidencePurpose
+  createdByStaffId String?
+  createdAt       DateTime        @default(now())
+  deletedAt       DateTime?
+  kycDocument     KycDocument?
+
+  @@index([purpose, createdAt])
+}
+
+model RetailerContact {
+  id         String   @id @default(uuid())
+  retailerId String
+  retailer   Retailer @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  name       String
+  phone      String?
+  email      String?
+  role       String?
+  isPrimary  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([retailerId, isPrimary])
+}
+
+model RetailerSapAccount {
+  id         String                   @id @default(uuid())
+  retailerId String
+  retailer   Retailer                 @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  cardCode   String
+  status     RetailerSapAccountStatus @default(pending)
+  createdAt  DateTime                 @default(now())
+  updatedAt  DateTime                 @updatedAt
+
+  @@unique([retailerId, cardCode])
+  @@index([cardCode, status])
 }
 
 model AdminUser {

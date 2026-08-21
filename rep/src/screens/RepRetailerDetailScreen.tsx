@@ -55,8 +55,13 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
     );
   }
 
-  const { retailer, credit, recentOrders, recentLedger } = data;
-  const blocked = credit.available <= 0;
+  const { retailer, credit, recentOrders, recentLedger, kyc } = data;
+  const kycApproved = retailer.lifecycle === "active" && (kyc?.status === "approved" || kyc?.legacyVerified === true);
+  const blocked = credit.available <= 0 || !kycApproved;
+
+  const startKyc = async () => {
+    navigation.navigate("KycCapture", { retailerId: retailer.id, retailerName: retailer.name });
+  };
 
   const startOrder = () => {
     setActiveRetailer(retailer.id);
@@ -86,6 +91,14 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
           >
             <Ionicons name="call" size={17} color={colors.onDark} />
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.kycCard}>
+          <View style={styles.between}>
+            <View><Text style={styles.creditTitle}>KYC verification</Text><Text style={styles.rowSub}>{kyc?.status ? `Case ${kyc.status.replace("_", " ")}` : "No case started"}</Text></View>
+            <StatusPill status={kyc?.status === "approved" ? "active" : "pending"} />
+          </View>
+          {kyc?.status !== "approved" ? <><Text style={styles.warnText}>Complete and submit the three required documents before dispatch.</Text><TouchableOpacity style={styles.kycButton} onPress={() => void startKyc()}><Text style={styles.kycButtonText}>{kyc ? "Continue KYC" : "Start KYC case"}</Text></TouchableOpacity></> : <Text style={styles.successText}>Documents approved. Dispatch is enabled.</Text>}
         </View>
 
         <View style={styles.creditCard}>
@@ -216,7 +229,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
         >
           <Ionicons name="cart-outline" size={18} color={colors.onDark} />
           <Text style={styles.orderBtnText}>
-            {blocked ? "No credit available" : "Place order for this shop"}
+            {credit.available <= 0 ? "No credit available" : !kycApproved ? "KYC approval required" : "Place order for this shop"}
           </Text>
         </TouchableOpacity>
       </View>
@@ -259,6 +272,10 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadow.card,
   },
+  kycCard: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginTop: spacing.md },
+  kycButton: { marginTop: spacing.md, backgroundColor: colors.greenSoft, borderRadius: radius.md, padding: spacing.md, alignItems: "center" },
+  kycButtonText: { color: colors.green, fontWeight: "700" },
+  successText: { color: colors.green, fontSize: 12, marginTop: spacing.sm },
   creditTitle: { fontSize: 14.5, fontWeight: "700", color: colors.ink },
   tierBadge: {
     flexDirection: "row",

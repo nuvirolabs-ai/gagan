@@ -129,6 +129,14 @@ export const api = {
   shadowComparisons: () => request("/admin/credit/shadow-comparisons"),
   setShadowDisposition: (id: string, disposition: string) =>
     patch(`/admin/credit/shadow-comparisons/${id}`, { disposition }),
+  kycCases: () => request("/admin/kyc/pending"),
+  kycCase: (id: string) => request(`/admin/kyc/${id}`),
+  startKyc: (retailerId: string) => post("/admin/kyc", { retailerId }),
+  uploadKycDocument: (caseId: string, body: { type: string; contentType: string; bodyBase64: string; checksum?: string }) =>
+    post(`/admin/kyc/${caseId}/documents`, body),
+  submitKyc: (caseId: string) => post(`/admin/kyc/${caseId}/submit`),
+  approveKycCase: (caseId: string, reason: string) => post(`/admin/kyc/${caseId}/approve`, { reason }),
+  rejectKycCase: (caseId: string, reason: string) => post(`/admin/kyc/${caseId}/reject`, { reason }),
 
   staff: () => request("/admin/staff"),
   roles: () => request("/admin/roles"),

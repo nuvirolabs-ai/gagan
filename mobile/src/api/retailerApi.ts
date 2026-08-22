@@ -20,7 +20,15 @@ export function createRetailerApi(request: ApiRequest, store: SessionStore) {
     getHome: () => request("/home"),
     getCatalog: () => request("/catalog"),
     getProduct: (id: string) => request(`/products/${id}`),
-    createOrder: (items: { variantId: string; qty: number }[]) => post("/orders", { items }),
+    createOrder: (items: { variantId: string; qty: number }[], idempotencyKey: string) =>
+      request(
+        "/orders",
+        {
+          method: "POST",
+          headers: { "Idempotency-Key": idempotencyKey },
+          body: JSON.stringify({ items }),
+        }
+      ),
     getOrders: () => request("/orders"),
     getOrder: (id: string) => request(`/orders/${id}`),
     getLedger: (retailerId: string) => request(`/ledger/${retailerId}`),
@@ -31,5 +39,9 @@ export function createRetailerApi(request: ApiRequest, store: SessionStore) {
     getPayment: (id: string) => request(`/payments/${id}`),
     getPayments: () => request("/payments"),
     getDeliveryStatus: (orderId: string) => request(`/delivery/${orderId}/status`),
+    getLocation: () => request("/location"),
+    captureLocation: (body: { latitude: number; longitude: number; accuracyMeters: number; devicePlatform?: string }) => post("/location/capture", body),
+    verifyLocation: (body: { latitude: number; longitude: number; accuracyMeters: number; devicePlatform?: string }) => post("/location/verify", body),
+    requestLocationChange: (reason: string) => post("/location/change-request", { reason }),
   };
 }

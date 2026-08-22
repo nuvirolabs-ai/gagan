@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { api } from "../api/client";
+import { useLanguage } from "../i18n/LanguageContext";
 
 const STEPS = ["placed", "confirmed", "packed", "out_for_delivery", "delivered"] as const;
 const STEP_LABEL: Record<(typeof STEPS)[number], string> = {
@@ -12,6 +13,7 @@ const STEP_LABEL: Record<(typeof STEPS)[number], string> = {
 };
 
 export default function DeliveryTrackingScreen({ route }: any) {
+  const { t } = useLanguage();
   const { orderId } = route.params;
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,8 +37,8 @@ export default function DeliveryTrackingScreen({ route }: any) {
   if (status === "rejected") {
     return (
       <View style={styles.center}>
-        <Text style={styles.rejected}>This order was rejected.</Text>
-        <Text style={styles.hint}>Contact support for details.</Text>
+        <Text style={styles.rejected}>{t("status.rejected")}</Text>
+        <Text style={styles.hint}>{t("profile.support")}</Text>
       </View>
     );
   }
@@ -49,7 +51,7 @@ export default function DeliveryTrackingScreen({ route }: any) {
         <View key={step} style={styles.stepRow}>
           <View style={[styles.dot, i <= currentIndex && styles.dotActive]} />
           <Text style={[styles.stepLabel, i <= currentIndex && styles.stepLabelActive]}>
-            {STEP_LABEL[step]}
+            {t(`status.${step}`, { status: STEP_LABEL[step] })}
           </Text>
           {i < STEPS.length - 1 && <View style={[styles.line, i < currentIndex && styles.lineActive]} />}
         </View>

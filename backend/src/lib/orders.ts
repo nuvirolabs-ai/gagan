@@ -1,11 +1,13 @@
 import { Prisma } from "@prisma/client";
 import { assessOrder, CreditDecision } from "../modules/credit/engine";
+import { ReasonCode } from "../modules/credit/reasonCodes";
 import { CreditPolicy } from "../modules/credit/policy";
 import { ReasonCodes } from "../modules/credit/reasonCodes";
 import { buildCreditSnapshot } from "../modules/credit/snapshotBuilder";
 import { resolveRolloutDecision } from "../modules/credit/rollout";
 import { prisma } from "./prisma";
 import { enqueueSalesOrder } from "./sap/outbox";
+import { InventoryValidationError, validateOrderInventory } from "../modules/inventory/inventoryService";
 
 export interface OrderLineInput {
   variantId: string;
@@ -45,6 +47,49 @@ function policyFromRecord(record: {
   return { ...rules, version: record.version, name: record.name };
 }
 
+function externalReferenceFor(orderNo: number): string {
+  return `GGN-${String(orderNo).padStart(8, "0")}`;
+}
+
+async function replayExistingOrder(
+  tx: Prisma.TransactionClient,
+  retailerId: string,
+  idempotencyKey: string
+): Promise<CreateOrderResult | null> {
+  const order = await tx.order.findUnique({
+    where: { retailerId_idempotencyKey: { retailerId, idempotencyKey } },
+    include: { items: true },
+  });
+  if (!order) return null;
+
+  const [assessment, approvalRequest, dispatchAuthorization] = await Promise.all([
+    tx.creditAssessment.findFirst({ where: { orderId: order.id }, orderBy: { createdAt: "desc" } }),
+    tx.approvalRequest.findFirst({ where: { orderId: order.id }, orderBy: { createdAt: "desc" } }),
+    tx.dispatchAuthorization.findFirst({ where: { orderId: order.id }, orderBy: { version: "desc" } }),
+  ]);
+  const reasons = Array.isArray(assessment?.reasons)
+    ? (assessment.reasons as unknown as ReasonCode[])
+    : [];
+  const decision: CreditDecision = assessment?.result === "approval_required"
+    ? {
+        result: "approval_required",
+        requiredPermission: assessment.requiredPermission ?? approvalRequest?.requiredPermission ?? "approval.third_invoice",
+        ...(approvalRequest?.deadlineAt ? { deadline: approvalRequest.deadlineAt } : {}),
+        reasons,
+      }
+    : assessment?.result === "blocked"
+      ? { result: "blocked", reasons }
+      : { result: "allowed", reasons };
+
+  return {
+    ok: true,
+    order,
+    decision,
+    ...(approvalRequest ? { approvalRequest } : {}),
+    ...(dispatchAuthorization ? { dispatchAuthorization } : {}),
+  };
+}
+
 /**
  * One authoritative order path for retailer and salesperson clients. The
  * retailer row lock serializes exposure decisions, so parallel requests cannot
@@ -55,13 +100,19 @@ export async function createOrderForRetailer(
   items: OrderLineInput[],
   placedBy: "retailer" | "rep",
   placedByRepId?: string,
-  placedByStaffId?: string
+  placedByStaffId?: string,
+  idempotencyKey?: string
 ): Promise<CreateOrderResult> {
   return prisma.$transaction(async (tx) => {
     const retailer = await tx.retailer.findUnique({ where: { id: retailerId } });
     if (!retailer) return { ok: false, status: 404, body: { error: "Retailer not found" } };
 
     await tx.$queryRaw`SELECT 1 FROM "Retailer" WHERE "id" = ${retailerId} FOR UPDATE`;
+
+    if (idempotencyKey) {
+      const replay = await replayExistingOrder(tx, retailerId, idempotencyKey);
+      if (replay) return replay;
+    }
 
     const variantIds = [...new Set(items.map((item) => item.variantId))];
     const [priceList, overrides, policyRecord, appConfig] = await Promise.all([
@@ -89,6 +140,24 @@ export async function createOrderForRetailer(
       }
       orderTotal += unitPrice * item.qty;
       lineItems.push({ variantId: item.variantId, qtyOrdered: item.qty, unitPrice });
+    }
+
+    const minimumOrderValue = Number(appConfig?.minOrderValue ?? 0);
+    if (minimumOrderValue > 0 && orderTotal < minimumOrderValue) {
+      return {
+        ok: false,
+        status: 400,
+        body: { error: "minimum_order_value", minimumOrderValue, orderTotal },
+      };
+    }
+
+    try {
+      await validateOrderInventory(tx, items);
+    } catch (error) {
+      if (error instanceof InventoryValidationError) {
+        return { ok: false, status: 409, body: { error: error.code, ...error.details } };
+      }
+      throw error;
     }
 
     const now = new Date();
@@ -153,6 +222,7 @@ export async function createOrderForRetailer(
     const order = await tx.order.create({
       data: {
         retailerId,
+        ...(idempotencyKey ? { idempotencyKey } : {}),
         placedBy,
         placedByRepId: placedBy === "rep" ? placedByRepId ?? null : null,
         status: "placed",
@@ -161,10 +231,15 @@ export async function createOrderForRetailer(
       },
       include: { items: true },
     });
+    const orderWithIdentity = await tx.order.update({
+      where: { id: order.id },
+      data: { sapExternalReference: externalReferenceFor(order.orderNo) },
+      include: { items: true },
+    });
     const assessment = await tx.creditAssessment.create({
       data: {
         retailerId,
-        orderId: order.id,
+        orderId: orderWithIdentity.id,
         policyVersionId: policyRecord.id,
         result: decision.result,
         requiredPermission:
@@ -177,7 +252,7 @@ export async function createOrderForRetailer(
     await tx.creditDecisionComparison.create({
       data: {
         retailerId,
-        orderId: order.id,
+        orderId: orderWithIdentity.id,
         assessmentId: assessment.id,
         rolloutMode: rollout.mode,
         legacyResult,
@@ -191,7 +266,7 @@ export async function createOrderForRetailer(
       const request = await tx.approvalRequest.create({
         data: {
           retailerId,
-          orderId: order.id,
+            orderId: orderWithIdentity.id,
           assessmentId: assessment.id,
           subjectType: "order",
           subjectId: order.id,
@@ -216,19 +291,19 @@ export async function createOrderForRetailer(
           }),
         },
       });
-      return { ok: true, order, decision: effectiveDecision, approvalRequest: request };
+      return { ok: true, order: orderWithIdentity, decision: effectiveDecision, approvalRequest: request };
     }
 
     const authorization = await tx.dispatchAuthorization.create({
       data: {
-        orderId: order.id,
+        orderId: orderWithIdentity.id,
         version: 1,
         assessmentId: assessment.id,
         status: "active",
         reason: rollout.mode === "shadow" ? "shadow_legacy_allowed" : "credit_engine_allowed",
       },
     });
-    await enqueueSalesOrder(tx, order.id);
-    return { ok: true, order, decision: effectiveDecision, dispatchAuthorization: authorization };
+    await enqueueSalesOrder(tx, orderWithIdentity.id);
+    return { ok: true, order: orderWithIdentity, decision: effectiveDecision, dispatchAuthorization: authorization };
   });
 }

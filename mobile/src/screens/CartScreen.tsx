@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -15,10 +15,13 @@ import { useCart } from "../context/CartContext";
 import { api, ApiError } from "../api/client";
 import { colors, radius, spacing, shadow, inr, TAB_BAR_SPACE } from "../theme";
 import { ScreenHeader, QtyStepper, EmptyState } from "../components/ui";
+import { useLanguage } from "../i18n/LanguageContext";
 
 export default function CartScreen({ navigation }: any) {
   const { lines, updateQty, clear, total, staleNotice, dismissStaleNotice } = useCart();
+  const { t } = useLanguage();
   const [placing, setPlacing] = useState(false);
+  const checkoutKey = useRef<string | null>(null);
   const [credit, setCredit] = useState<any>(null);
   const [config, setConfig] = useState<any>({ freeDeliveryThreshold: 0, minOrderValue: 0 });
 
@@ -45,8 +48,13 @@ export default function CartScreen({ navigation }: any) {
   const handleCheckout = async () => {
     setPlacing(true);
     try {
-      const res = await api.createOrder(lines.map((l) => ({ variantId: l.variantId, qty: l.qty })));
+      checkoutKey.current ??= `checkout-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const res = await api.createOrder(
+        lines.map((l) => ({ variantId: l.variantId, qty: l.qty })),
+        checkoutKey.current
+      );
       clear();
+      checkoutKey.current = null;
       navigation.navigate("OrderConfirmation", { order: res.order });
     } catch (e) {
       if (e instanceof ApiError && e.status === 402) {
@@ -57,7 +65,7 @@ export default function CartScreen({ navigation }: any) {
           )}). Reduce quantities or clear some dues first.`
         );
       } else {
-        Alert.alert("Couldn't place order", e instanceof ApiError ? e.message : "Please try again.");
+        Alert.alert(t("errors.order"), e instanceof ApiError ? e.message : t("errors.generic"));
       }
     } finally {
       setPlacing(false);
@@ -67,12 +75,12 @@ export default function CartScreen({ navigation }: any) {
   if (lines.length === 0) {
     return (
       <View style={styles.screen}>
-        <ScreenHeader title="Cart" />
+        <ScreenHeader title={t("cart.title")} />
         <EmptyState
           icon="cart-outline"
-          title="Your cart is empty"
-          body="Add cases from the catalog and they'll show up here."
-          actionLabel="Browse products"
+          title={t("cart.emptyTitle")}
+          body={t("cart.emptyBody")}
+          actionLabel={t("tabs.products")}
           onAction={() => navigation.navigate("Products")}
         />
       </View>
@@ -82,11 +90,11 @@ export default function CartScreen({ navigation }: any) {
   return (
     <View style={styles.screen}>
       <ScreenHeader
-        title="Cart"
+        title={t("cart.title")}
         subtitle={`${lines.length} line${lines.length === 1 ? "" : "s"}`}
         right={
           <TouchableOpacity onPress={clear}>
-            <Text style={styles.clear}>Clear</Text>
+            <Text style={styles.clear}>{t("cart.clear")}</Text>
           </TouchableOpacity>
         }
       />
@@ -118,20 +126,20 @@ export default function CartScreen({ navigation }: any) {
         ))}
 
         <View style={styles.summary}>
-          <Text style={styles.summaryTitle}>Order summary</Text>
+          <Text style={styles.summaryTitle}>{t("cart.summary")}</Text>
           <View style={styles.sumRow}>
-            <Text style={styles.sumLabel}>Subtotal</Text>
+            <Text style={styles.sumLabel}>{t("cart.subtotal")}</Text>
             <Text style={styles.sumValue}>{inr(total)}</Text>
           </View>
           <View style={styles.sumRow}>
-            <Text style={styles.sumLabel}>Delivery</Text>
+            <Text style={styles.sumLabel}>{t("cart.delivery")}</Text>
             <Text style={[styles.sumValue, deliveryFee === 0 && { color: colors.green }]}>
               {deliveryFee === 0 ? "FREE" : inr(deliveryFee)}
             </Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.sumRow}>
-            <Text style={styles.totalLabel}>Total payable</Text>
+            <Text style={styles.totalLabel}>{t("cart.totalPayable")}</Text>
             <Text style={styles.totalValue}>{inr(payable)}</Text>
           </View>
 
@@ -148,7 +156,7 @@ export default function CartScreen({ navigation }: any) {
         {credit && (
           <View style={styles.creditCard}>
             <View style={styles.between}>
-              <Text style={styles.creditLabel}>Available credit</Text>
+              <Text style={styles.creditLabel}>{t("profile.availableCredit")}</Text>
               <Text style={styles.creditValue}>{inr(credit.available)}</Text>
             </View>
             <View style={styles.creditTrack}>
@@ -191,7 +199,7 @@ export default function CartScreen({ navigation }: any) {
 
       <View style={styles.bar}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.barLabel}>Total payable</Text>
+          <Text style={styles.barLabel}>{t("cart.totalPayable")}</Text>
           <Text style={styles.barValue}>{inr(payable)}</Text>
         </View>
         <TouchableOpacity
@@ -203,7 +211,7 @@ export default function CartScreen({ navigation }: any) {
             <ActivityIndicator color={colors.onDark} />
           ) : (
             <>
-              <Text style={styles.checkoutText}>Place order</Text>
+              <Text style={styles.checkoutText}>{t("cart.placeOrder")}</Text>
               <Ionicons name="arrow-forward" size={16} color={colors.onDark} />
             </>
           )}

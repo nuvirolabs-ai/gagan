@@ -57,6 +57,10 @@ export class RatingService {
           nextReviewAt: profile.nextReviewAt ?? nextQuarterlyCheckpoint(profile.accountCreatedAt),
         },
       });
+      // The legacy evidence-confirmation path is still supported while KYC
+      // cases are migrated. Mark the retailer active at the same commit so
+      // dispatch enforcement cannot observe a half-verified account.
+      await tx.retailer.update({ where: { id: retailerId }, data: { status: "active" } });
       await tx.auditEvent.create({
         data: {
           actorStaffId: input.actorStaffId,
@@ -171,6 +175,13 @@ export class RatingService {
         },
       });
       if (result.proposedAt.getTime() === now.getTime()) created++;
+      if (proposal.trigger === "legal_90_day_lock" && result.status === "pending") {
+        await this.confirm(result.id, {
+          actorStaffId: "system:legal_90_day_lock",
+          reason: "Automatic 90-day credit lock; legal referral remains an explicit admin action.",
+          now,
+        });
+      }
     }
     return { scanned: profiles.length, created };
   }

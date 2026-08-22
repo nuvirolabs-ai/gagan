@@ -9,6 +9,9 @@ import {
   SapSalesOrderResult,
   SapInvoicePayload,
   SapInvoiceResult,
+  SapDeliveryNotePayload,
+  SapDeliveryNoteResult,
+  SapFinancialSummary,
 } from "./connector";
 
 /**
@@ -23,6 +26,10 @@ import {
 export class MockSapConnector implements SapConnector {
   readonly name = "mock";
   readonly enabled = true;
+  private readonly acceptedSalesOrders = new Map<string, SapSalesOrderResult>();
+
+  async login(): Promise<void> {}
+  async logout(): Promise<void> {}
 
   async fetchCustomers(_since: Date | null): Promise<SapCustomer[]> {
     return [
@@ -58,18 +65,36 @@ export class MockSapConnector implements SapConnector {
 
   async fetchStock(_since: Date | null): Promise<SapStock[]> {
     return [
-      { sapMaterialId: "SAP-MAT-TOOR", availableQty: 420 },
-      { sapMaterialId: "SAP-MAT-BASM", availableQty: 180 },
+      { sapMaterialId: "SAP-MAT-TOOR", warehouseCode: "WH-001", availableQty: 420, committedQty: 0 },
+      { sapMaterialId: "SAP-MAT-BASM", warehouseCode: "WH-001", availableQty: 180, committedQty: 0 },
     ];
   }
 
+  async fetchInvoices(_since: Date | null): Promise<SapInvoicePayload[]> { return []; }
+
+  async fetchFinancialSummary(_sapCustomerId: string): Promise<SapFinancialSummary | null> { return null; }
+
   async postSalesOrder(payload: SapSalesOrderPayload): Promise<SapSalesOrderResult> {
     if (!payload.sapCustomerId) throw new Error("Customer is not linked to SAP yet");
-    return { sapSalesOrderId: `SAP-SO-${String(payload.orderNo).padStart(6, "0")}` };
+    const result = {
+      sapSalesOrderId: `MOCK-SO-${String(payload.orderNo).padStart(6, "0")}`,
+      sapDocEntry: 900000 + payload.orderNo,
+      sapDocNum: 910000 + payload.orderNo,
+    };
+    this.acceptedSalesOrders.set(payload.externalReference, result);
+    return result;
+  }
+
+  async findSalesOrderByExternalReference(externalReference: string): Promise<SapSalesOrderResult | null> {
+    return this.acceptedSalesOrders.get(externalReference) ?? null;
   }
 
   async postInvoice(payload: SapInvoicePayload): Promise<SapInvoiceResult> {
     if (!payload.sapCustomerId) throw new Error("Customer is not linked to SAP yet");
     return { sapInvoiceId: `SAP-INV-${crypto.randomBytes(4).toString("hex").toUpperCase()}` };
+  }
+
+  async postDeliveryNote(_payload: SapDeliveryNotePayload): Promise<SapDeliveryNoteResult> {
+    return { sapDeliveryNoteId: "MOCK-DN-000001" };
   }
 }

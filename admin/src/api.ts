@@ -120,6 +120,16 @@ export const api = {
   collections: () => request("/admin/collections"),
   confirmCollection: (id: string) => post(`/admin/collections/${id}/confirm`),
   rejectCollection: (id: string, reason: string) => post(`/admin/collections/${id}/reject`, { reason }),
+  recoveryCases: () => request("/admin/recovery"),
+  recoveryTimeline: (caseId: string) => request(`/admin/recovery/${caseId}`),
+  recoveryLetter: (id: string) => request(`/admin/recovery/letters/${id}`),
+  createRecoveryLetter: (caseId: string, body: unknown) => post(`/admin/recovery/${caseId}/letters`, body),
+  recordRecoveryDelivery: (letterId: string, body: unknown) => post(`/admin/recovery/letters/${letterId}/deliveries`, body),
+  createLegalCase: (caseId: string, body: unknown) => post(`/admin/recovery/${caseId}/legal`, body),
+  decideLegalCase: (id: string, body: unknown) => post(`/admin/recovery/legal/${id}/decision`, body),
+  logRecoveryCall: (caseId: string, body: unknown) => post(`/admin/recovery/${caseId}/calls`, body),
+  createRecoveryPromise: (caseId: string, body: unknown) => post(`/admin/recovery/${caseId}/promises`, body),
+  setRecoveryPromiseStatus: (promiseId: string, status: "kept" | "missed") => post(`/admin/recovery/promises/${promiseId}/status`, { status }),
   ratingProposals: () => request("/admin/credit/rating-proposals"),
   kycPending: () => request("/admin/credit/kyc-pending"),
   confirmKyc: (retailerId: string, evidenceReference: string, reason: string) =>
@@ -129,6 +139,14 @@ export const api = {
   shadowComparisons: () => request("/admin/credit/shadow-comparisons"),
   setShadowDisposition: (id: string, disposition: string) =>
     patch(`/admin/credit/shadow-comparisons/${id}`, { disposition }),
+  kycCases: () => request("/admin/kyc/pending"),
+  kycCase: (id: string) => request(`/admin/kyc/${id}`),
+  startKyc: (retailerId: string) => post("/admin/kyc", { retailerId }),
+  uploadKycDocument: (caseId: string, body: { type: string; contentType: string; bodyBase64: string; checksum?: string }) =>
+    post(`/admin/kyc/${caseId}/documents`, body),
+  submitKyc: (caseId: string) => post(`/admin/kyc/${caseId}/submit`),
+  approveKycCase: (caseId: string, reason: string) => post(`/admin/kyc/${caseId}/approve`, { reason }),
+  rejectKycCase: (caseId: string, reason: string) => post(`/admin/kyc/${caseId}/reject`, { reason }),
 
   staff: () => request("/admin/staff"),
   roles: () => request("/admin/roles"),
@@ -197,6 +215,21 @@ export const api = {
   products: () => request("/admin/products"),
   setPrice: (tierId: string, variantId: string, price: number) =>
     post("/admin/price-list", { tierId, variantId, price }),
+  locations: () => request("/admin/locations"),
+  location: (retailerId: string) => request(`/admin/locations/${retailerId}`),
+  locationHistory: (retailerId: string) => request(`/admin/locations/${retailerId}/history`),
+  correctLocation: (retailerId: string, body: unknown) => post(`/admin/locations/${retailerId}/correct`, body),
+  visits: (filters?: { status?: string; retailerId?: string; salespersonId?: string; territory?: string; from?: string; to?: string }) => {
+    const query = new URLSearchParams();
+    if (filters?.status) query.set("status", filters.status);
+    if (filters?.retailerId) query.set("retailerId", filters.retailerId);
+    if (filters?.salespersonId) query.set("salespersonId", filters.salespersonId);
+    if (filters?.territory) query.set("territory", filters.territory);
+    if (filters?.from) query.set("from", filters.from);
+    if (filters?.to) query.set("to", filters.to);
+    const suffix = query.toString();
+    return request(`/admin/visits${suffix ? `?${suffix}` : ""}`);
+  },
 };
 
 export const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;

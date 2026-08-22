@@ -31,10 +31,12 @@ promote them to a workspace package.
 
 ## Prerequisites
 
-PostgreSQL 16 running locally with a `gagan_dev` database.
+PostgreSQL 16 running locally. For the KYC slice, use a disposable database such as
+`gagan_kyc_test`; never run the KYC tests or seed command against the final Supabase URL.
 
 ```bash
 brew services start postgresql@16
+createdb gagan_kyc_test
 ```
 
 ## Backend
@@ -117,6 +119,60 @@ cd admin && npm install && npm run dev
 OTP is mocked — a real SMS provider slots into [auth.ts](backend/src/routes/auth.ts).
 The seeded admin password is for local development only.
 
+## KYC and protected evidence (slice 1)
+
+KYC evidence is stored behind the backend, never under a public bucket path. Local development
+uses `STORAGE_PROVIDER=local` and `OBJECT_STORAGE_ROOT=.data/evidence`; production requires a
+private S3-compatible bucket and short-lived signed reads. Allowed evidence is PDF/JPEG/PNG/WebP,
+up to 10 MB per file.
+
+Manual smoke test with the disposable database:
+
+1. Apply migrations and seed: `DATABASE_URL=postgresql://tanutejassaraswat@localhost:5432/gagan_kyc_test npx prisma migrate deploy && npx prisma db seed`.
+2. Start the backend with the same `DATABASE_URL`, test JWT secrets, and `STORAGE_PROVIDER=local`.
+3. Sign in to the admin portal and open **KYC**. Start a case, upload business registration,
+   identity proof, and address proof, then submit it.
+4. Approve it only after the step-up code. The retailer becomes `active`; dispatch before approval
+   returns the stable `kyc_required` (409) error.
+5. Confirm the uploaded files are represented by signed URLs, not `objectKey` or filesystem paths.
+
+Sales staff can start a case for an assigned retailer from the retailer detail screen. The admin
+KYC queue owns document upload and review in this slice; the server still enforces assignment,
+permissions, required document types, and the dispatch gate.
+
+Field collection receipts use the same private storage boundary. The Sales work screen can attach
+a PDF/image or submit a receipt/reference; Accounts sees a short-lived signed link in the queue.
+The collector never sends or chooses an object-storage key, and a pending submission never creates
+a payment or ledger entry. Only Accounts confirmation with step-up verification settles it.
+
+## Recovery scheduler (slice 3)
+
+The worker creates one recovery case per unpaid open invoice and catches up every reached SOP age
+band from the invoice date: Day 35 sales call, Day 40 joint call, Days 45–48 collection visit,
+Days 49–52 Accounts escalation, Days 53–56 Credit review, Days 60–69 hold escalation, Days 70–89
+legal preparation, and Day 90 legal referral. Each action has a stable `invoiceId:band` key, so
+restarting or running two scheduler passes does not duplicate work. Set
+`RECOVERY_INTERVAL_MINUTES` to control the worker interval; `DISABLE_JOBS=true` disables it for
+local tests.
+
+## Recovery commitments (slice 4)
+
+Open recovery cases now have one chronological timeline for scheduled actions, staff call logs,
+and promises to pay. Sales, field collection, credit, and admin users with `recovery.update` can
+record a call or promise; creating a new promise supersedes the previous open promise, and
+Accounts/credit can mark a promise kept or missed exactly once. Every write has an idempotency key
+and an audit event. The queue and timeline are available at `/rep/recovery` and `/admin/recovery`;
+the admin dashboard includes the first compact queue/detail surface.
+
+## Recovery letters and legal escalation (slice 5)
+
+The worker can automatically confirm the permanent `F` rating at the 90-day credit lock without
+opening a legal case. Admins explicitly generate a deterministic recovery notice, which is stored
+in private object storage and exposed through a short-lived signed URL. Delivery records capture
+manual/WhatsApp/SMS/email metadata only. Admins explicitly refer a case to legal; only users with
+`legal.decide` can record one settlement or write-off decision, and those decisions never mutate the
+ledger automatically.
+
 ## Order lifecycle
 
 `placed → confirmed → packed → out_for_delivery → delivered`
@@ -174,3 +230,6 @@ see who booked them.
   a variant that was since removed. Worth moving to AsyncStorage with a validity check.
 - **Overdue ageing.** `overdueAmount` is a stored field that payments reduce; nothing ages an
   invoice into it yet. That needs due dates on invoices.
+- **Outbound SAP customer creation.** The current SAP connector is inbound-only; newly imported
+  customers remain `pending_kyc`. When the outbound customer-create operation is added, it must
+  call the same KYC gate before enqueueing the SAP request.

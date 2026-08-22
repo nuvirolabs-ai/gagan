@@ -14,10 +14,9 @@ interface CollectionRouterOptions {
 }
 
 const evidenceSchema = z.object({
-  objectKey: z.string().trim().min(3),
-  checksum: z.string().trim().min(8),
   contentType: z.string().trim().min(3),
-  sizeBytes: z.number().int().positive().max(10_000_000),
+  bodyBase64: z.string().min(4).max(14_000_000),
+  checksum: z.string().regex(/^[a-f0-9]{64}$/).optional(),
 });
 
 const submitSchema = z.object({

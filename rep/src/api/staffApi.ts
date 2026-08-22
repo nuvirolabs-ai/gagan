@@ -38,9 +38,26 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
       post(`/rep/credit/rating-proposals/${id}/confirm`, { reason }),
     retailers: () => request("/rep/retailers"),
     retailer: (id: string) => request(`/rep/retailers/${id}`),
+    startKyc: (retailerId: string) => post("/rep/kyc", { retailerId }),
+    kycCase: (id: string) => request(`/rep/kyc/${id}`),
+    uploadKycDocument: (caseId: string, body: { type: string; contentType: string; bodyBase64: string; checksum?: string }) => post(`/rep/kyc/${caseId}/documents`, body),
+    submitKyc: (caseId: string) => post(`/rep/kyc/${caseId}/submit`),
+    recoveryCases: () => request("/rep/recovery"),
+    recoveryTimeline: (caseId: string) => request(`/rep/recovery/${caseId}`),
+    recoveryLetter: (id: string) => request(`/rep/recovery/letters/${id}`),
+    logRecoveryCall: (caseId: string, body: unknown) => post(`/rep/recovery/${caseId}/calls`, body),
+    createRecoveryPromise: (caseId: string, body: unknown) => post(`/rep/recovery/${caseId}/promises`, body),
+    setRecoveryPromiseStatus: (promiseId: string, status: "kept" | "missed") => post(`/rep/recovery/promises/${promiseId}/status`, { status }),
     catalogFor: (id: string) => request(`/rep/retailers/${id}/catalog`),
-    createOrder: (retailerId: string, items: { variantId: string; qty: number }[]) =>
-      post("/rep/orders", { retailerId, items }),
+    createOrder: (retailerId: string, items: { variantId: string; qty: number }[], idempotencyKey: string) =>
+      request(
+        "/rep/orders",
+        {
+          method: "POST",
+          headers: { "Idempotency-Key": idempotencyKey },
+          body: JSON.stringify({ retailerId, items }),
+        }
+      ),
     collectionRetailers: () => request("/rep/collections/assigned-retailers"),
     collectionSubmissions: () => request("/rep/collections"),
     submitCollection: (input: {
@@ -50,9 +67,15 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
       reference?: string;
       notes?: string;
       idempotencyKey: string;
-      evidence?: { objectKey: string; checksum: string; contentType: string; sizeBytes: number };
+      evidence?: { contentType: string; bodyBase64: string; checksum?: string };
     }) => post("/rep/collections", input),
     confirmCollection: (id: string) => post(`/rep/collections/${id}/confirm`),
     rejectCollection: (id: string, reason: string) => post(`/rep/collections/${id}/reject`, { reason }),
+    getLocation: (retailerId: string) => request(`/rep/retailers/${retailerId}/location`),
+    captureLocation: (retailerId: string, body: { latitude: number; longitude: number; accuracyMeters: number; devicePlatform?: string }) => post(`/rep/retailers/${retailerId}/location/capture`, body),
+    verifyLocation: (retailerId: string, body: { latitude: number; longitude: number; accuracyMeters: number; devicePlatform?: string }) => post(`/rep/retailers/${retailerId}/location/verify`, body),
+    checkIn: (retailerId: string, body: { latitude: number; longitude: number; accuracyMeters: number; devicePlatform?: string }) => post(`/rep/retailers/${retailerId}/check-in`, body),
+    checkOut: (visitId: string, body: { latitude: number; longitude: number; accuracyMeters: number; devicePlatform?: string }) => post(`/rep/visits/${visitId}/check-out`, body),
+    visits: () => request("/rep/visits"),
   };
 }

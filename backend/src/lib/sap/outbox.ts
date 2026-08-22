@@ -6,12 +6,7 @@ type Db = PrismaClient | Prisma.TransactionClient;
 
 const MAX_ATTEMPTS = 5;
 
-/**
- * Queue an authorized order for posting to SAP. Automatically allowed orders
- * enqueue during creation; approval-held orders enqueue in the same transaction
- * as the final approval and dispatch authorization.
- */
-export async function enqueueSalesOrder(db: Db, orderId: string): Promise<void> {
+async function salesOrderPayload(db: Db, orderId: string): Promise<SapSalesOrderPayload | null> {
   const order = await db.order.findUnique({
     where: { id: orderId },
     include: {
@@ -19,11 +14,12 @@ export async function enqueueSalesOrder(db: Db, orderId: string): Promise<void> 
       items: { include: { variant: { include: { product: true } } } },
     },
   });
-  if (!order) return;
+  if (!order) return null;
 
-  const payload: SapSalesOrderPayload = {
+  return {
     orderId: order.id,
     orderNo: order.orderNo,
+    externalReference: order.sapExternalReference ?? `GGN-${String(order.orderNo).padStart(8, "0")}`,
     sapCustomerId: order.retailer.sapCustomerId ?? "",
     placedAt: order.createdAt.toISOString(),
     lines: order.items.map((i) => ({
@@ -32,13 +28,23 @@ export async function enqueueSalesOrder(db: Db, orderId: string): Promise<void> 
       unitPrice: Number(i.unitPrice),
     })),
   };
+}
+
+/**
+ * Queue an authorized order for posting to SAP. Automatically allowed orders
+ * enqueue during creation; approval-held orders enqueue in the same transaction
+ * as the final approval and dispatch authorization.
+ */
+export async function enqueueSalesOrder(db: Db, orderId: string): Promise<void> {
+  const payload = await salesOrderPayload(db, orderId);
+  if (!payload) return;
 
   await db.sapOutbox.upsert({
-    where: { kind_referenceId: { kind: "sales_order", referenceId: order.id } },
+    where: { kind_referenceId: { kind: "sales_order", referenceId: orderId } },
     update: { payload: payload as unknown as Prisma.InputJsonValue },
     create: {
       kind: "sales_order",
-      referenceId: order.id,
+      referenceId: orderId,
       payload: payload as unknown as Prisma.InputJsonValue,
     },
   });
@@ -102,12 +108,16 @@ export interface DrainResult {
  * which point it is parked as `failed` for a human to look at — better than
  * retrying a malformed payload forever.
  */
-export async function drainOutbox(limit = 25): Promise<DrainResult> {
-  const connector = getSapConnector();
+export async function drainOutbox(
+  limit = 25,
+  connectorOverride?: ReturnType<typeof getSapConnector>,
+  onlyReferenceId?: string
+): Promise<DrainResult> {
+  const connector = connectorOverride ?? getSapConnector();
   if (!connector.enabled) return { attempted: 0, sent: 0, failed: 0, skipped: true };
 
   const queued = await prisma.sapOutbox.findMany({
-    where: { status: "pending" },
+    where: { status: "pending", ...(onlyReferenceId ? { referenceId: onlyReferenceId } : {}) },
     orderBy: { createdAt: "asc" },
     take: limit,
   });
@@ -118,19 +128,42 @@ export async function drainOutbox(limit = 25): Promise<DrainResult> {
   for (const item of queued) {
     try {
       if (item.kind === "sales_order") {
-        const payload = item.payload as unknown as SapSalesOrderPayload;
-        const result = await connector.postSalesOrder(payload);
+        // Rebuild from current mappings. An order can be queued before the
+        // SAP sync links its CardCode/ItemCodes; retrying the original JSON
+        // would permanently preserve empty mappings.
+        const payload = await salesOrderPayload(prisma, item.referenceId);
+        if (!payload) throw new Error("Order no longer exists");
+        if (!payload.sapCustomerId || payload.lines.some((line) => !line.sapMaterialId)) {
+          throw new Error("Order is not fully linked to SAP yet");
+        }
+        // A timeout can happen after SAP commits the order. Reconcile by the
+        // stable external reference before posting, otherwise a retry can
+        // create a duplicate ERP order.
+        const result =
+          (await connector.findSalesOrderByExternalReference(payload.externalReference)) ??
+          (await connector.postSalesOrder(payload));
+        const syncedAt = new Date();
         await prisma.$transaction([
           prisma.order.update({
             where: { id: item.referenceId },
-            data: { sapSalesOrderId: result.sapSalesOrderId },
+            data: {
+              sapSalesOrderId: result.sapSalesOrderId,
+              sapDocEntry: result.sapDocEntry ?? null,
+              sapDocNum: result.sapDocNum ?? null,
+              sapExternalReference: payload.externalReference,
+              sapSyncStatus: "sent",
+              sapLastSyncedAt: syncedAt,
+              sapErrorCode: null,
+              sapErrorMessage: null,
+            },
           }),
           prisma.sapOutbox.update({
             where: { id: item.id },
             data: {
               status: "sent",
               sapId: result.sapSalesOrderId,
-              sentAt: new Date(),
+              payload: payload as unknown as Prisma.InputJsonValue,
+              sentAt: syncedAt,
               attempts: item.attempts + 1,
               lastError: null,
             },
@@ -153,11 +186,20 @@ export async function drainOutbox(limit = 25): Promise<DrainResult> {
       sent++;
     } catch (err) {
       const attempts = item.attempts + 1;
+      const message = err instanceof Error ? err.message : "Unknown error";
+      await prisma.order.updateMany({
+        where: { id: item.referenceId },
+        data: {
+          sapSyncStatus: attempts >= MAX_ATTEMPTS ? "failed" : "reconciliation_required",
+          sapErrorCode: "sap_outbox_delivery_failed",
+          sapErrorMessage: message,
+        },
+      });
       await prisma.sapOutbox.update({
         where: { id: item.id },
         data: {
           attempts,
-          lastError: err instanceof Error ? err.message : "Unknown error",
+          lastError: message,
           status: attempts >= MAX_ATTEMPTS ? "failed" : "pending",
         },
       });

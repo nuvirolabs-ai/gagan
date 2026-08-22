@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { colors, radius, shadow, spacing } from "../theme";
 import { useCart } from "../context/CartContext";
+import { useLanguage } from "../i18n/LanguageContext";
 
 const ICONS: Record<string, { on: string; off: string; label: string }> = {
   Home: { on: "home", off: "home-outline", label: "Home" },
@@ -17,6 +18,7 @@ const ICONS: Record<string, { on: string; off: string; label: string }> = {
 export default function TabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const { lines } = useCart();
+  const { t } = useLanguage();
   const cartCount = lines.reduce((n, l) => n + l.qty, 0);
 
   const cartRoute = state.routes.find((r) => r.name === "Cart");
@@ -43,7 +45,7 @@ export default function TabBar({ state, navigation }: BottomTabBarProps) {
           size={21}
           color={focused ? colors.green : colors.inkFaint}
         />
-        <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>{meta.label}</Text>
+        <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>{t(`tabs.${name.toLowerCase()}`)}</Text>
       </TouchableOpacity>
     );
   };
@@ -59,7 +61,7 @@ export default function TabBar({ state, navigation }: BottomTabBarProps) {
               style={styles.fab}
               onPress={() => go("Cart")}
               accessibilityRole="button"
-              accessibilityLabel={`Cart, ${cartCount} items`}
+              accessibilityLabel={t("cart.itemCount", { count: cartCount })}
             >
               <Ionicons name="cart-outline" size={24} color={colors.onDark} />
               {cartCount > 0 && (

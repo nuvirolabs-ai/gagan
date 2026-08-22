@@ -13,6 +13,9 @@ import { requireAdmin, requireAdminIdentity } from "./lib/adminAuth";
 import { createFinancialCorrectionsRouter } from "./modules/payments/financialCorrectionsRoutes";
 import { createApprovalsRouter } from "./modules/approvals/approvalRoutes";
 import { createCollectionRouter } from "./modules/collections/collectionRoutes";
+import { createKycRouter } from "./modules/kyc/kycRoutes";
+import { createRecoveryRouter } from "./modules/recovery/recoveryRoutes";
+import { createLocationRouter } from "./modules/location/locationRoutes";
 import { createRatingRouter } from "./modules/credit/ratingRoutes";
 import { createCreditRolloutRouter } from "./modules/credit/rolloutRoutes";
 import { createRequireSession } from "./modules/identity/sessionAuth";
@@ -23,6 +26,7 @@ import deliveryRoutes from "./routes/delivery";
 import homeRoutes from "./routes/home";
 import ledgerRoutes from "./routes/ledger";
 import orderRoutes from "./routes/orders";
+import { requireAuth } from "./lib/auth";
 import paymentRoutes from "./routes/payments";
 import repRoutes from "./routes/rep";
 import {
@@ -43,6 +47,11 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(requestId);
   app.use(helmet());
   app.use(cors({ origin: options.corsOrigins ?? [], credentials: true }));
+  // Keep the default request body small. KYC evidence is the only JSON route
+  // that accepts a bounded base64 payload, so opt it into the larger parser
+  // before the default parser runs.
+  app.use("/rep/kyc", express.json({ limit: "15mb" }));
+  app.use("/admin/kyc", express.json({ limit: "15mb" }));
   app.use(express.json({ limit: "100kb" }));
 
   app.get("/health", (_req, res) => res.json({ ok: true }));
@@ -57,6 +66,14 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(deliveryRoutes);
   app.use(paymentRoutes);
 
+  app.use(
+    createLocationRouter({
+      retailerAuthenticate: requireAuth,
+      staffAuthenticate: createRequireSession("staff", lazyIdentitySessionService),
+      adminAuthenticate: requireAdminIdentity,
+    })
+  );
+
   app.use("/rep", repRoutes);
   app.use(
     "/rep",
@@ -67,6 +84,18 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(
     "/rep",
     createCollectionRouter({
+      authenticate: createRequireSession("staff", lazyIdentitySessionService),
+    })
+  );
+  app.use(
+    "/rep",
+    createKycRouter({
+      authenticate: createRequireSession("staff", lazyIdentitySessionService),
+    })
+  );
+  app.use(
+    "/rep",
+    createRecoveryRouter({
       authenticate: createRequireSession("staff", lazyIdentitySessionService),
     })
   );
@@ -89,6 +118,14 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(
     "/admin",
     createCollectionRouter({ authenticate: requireAdminIdentity })
+  );
+  app.use(
+    "/admin",
+    createKycRouter({ authenticate: requireAdminIdentity })
+  );
+  app.use(
+    "/admin",
+    createRecoveryRouter({ authenticate: requireAdminIdentity })
   );
   app.use(
     "/admin",

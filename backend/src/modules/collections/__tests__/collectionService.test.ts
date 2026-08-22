@@ -115,10 +115,8 @@ describe("field collection workflow", () => {
       reference: "receipt-100",
       idempotencyKey: `submission-${randomUUID()}`,
       evidence: {
-        objectKey: `receipts/${randomUUID()}.jpg`,
-        checksum: "sha256:receipt",
         contentType: "image/jpeg",
-        sizeBytes: 1234,
+        bodyBase64: Buffer.from("receipt").toString("base64"),
       },
     });
 

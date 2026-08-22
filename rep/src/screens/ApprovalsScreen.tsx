@@ -6,6 +6,7 @@ import { repApi } from "../api/repClient";
 import { colors, inr, radius, spacing } from "../theme";
 import { useRep } from "../context/RepContext";
 import { staffCapabilities } from "../auth/staffCapabilities";
+import { useLanguage } from "../i18n/LanguageContext";
 
 type QueueItem = {
   id: string;
@@ -27,6 +28,7 @@ const label = (code: string) => ({
 
 export default function ApprovalsScreen({ navigation }: any) {
   const { staff } = useRep();
+  const { t } = useLanguage();
   const capabilities = staffCapabilities(staff?.permissions ?? []);
   const [items, setItems] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,10 +51,10 @@ export default function ApprovalsScreen({ navigation }: any) {
 
   return (
     <View style={styles.screen}>
-      <ScreenHeader title="Approvals" subtitle="Orders waiting for your decision" right={capabilities.canReviewRatings ? <TouchableOpacity onPress={() => navigation.navigate("RatingReviews")}><Text style={styles.reviewLink}>Rating reviews</Text></TouchableOpacity> : undefined} />
+      <ScreenHeader title={t("approvals.title")} subtitle={t("approvals.subtitle")} right={capabilities.canReviewRatings ? <TouchableOpacity onPress={() => navigation.navigate("RatingReviews")}><Text style={styles.reviewLink}>{t("approvals.ratingReviews")}</Text></TouchableOpacity> : undefined} />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {loading ? <ActivityIndicator style={styles.loader} color={colors.green} /> : items.length === 0 ? (
-        <EmptyState icon="check-decagram-outline" title="Queue is clear" body="No orders need your approval." />
+        <EmptyState icon="check-decagram-outline" title={t("approvals.title")} body={t("approvals.subtitle")} />
       ) : (
         <FlatList
           data={items}

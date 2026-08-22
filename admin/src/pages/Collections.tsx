@@ -8,7 +8,7 @@ type Submission = {
   reference?: string | null;
   submittedAt: string;
   retailer: { name: string; phone: string };
-  evidence?: Array<{ objectKey: string; contentType: string }>;
+  evidence?: Array<{ signedUrl: string | null; contentType: string }>;
 };
 
 export default function Collections() {
@@ -60,7 +60,7 @@ export default function Collections() {
           <div className="muted small">{selected.retailer.name} · {selected.retailer.phone}</div>
           <h2>{inr(Number(selected.amount))} · {selected.method.toUpperCase()}</h2>
           <p className="muted">Reference: {selected.reference || "Not supplied"}</p>
-          {selected.evidence?.length ? <div className="reason-list">{selected.evidence.map((e) => <div className="reason-card" key={e.objectKey}>{e.contentType} · {e.objectKey}</div>)}</div> : <div className="reason-card">No uploaded evidence. Request a receipt before confirming.</div>}
+          {selected.evidence?.length ? <div className="reason-list">{selected.evidence.map((e, index) => <div className="reason-card" key={`${e.contentType}-${index}`}>{e.signedUrl ? <a href={e.signedUrl} target="_blank" rel="noreferrer">Open receipt evidence</a> : <span>Receipt evidence unavailable</span>}<span className="muted small"> · {e.contentType}</span></div>)}</div> : <div className="reason-card">No uploaded evidence. Request a receipt before confirming.</div>}
           <label className="field"><span>Rejection reason (only for reject)</span><textarea rows={3} value={reason} onChange={(event) => setReason(event.target.value)} /></label>
           {!pendingAction ? <div className="approval-actions"><button className="danger-outline" onClick={() => void begin("reject")}>Reject</button><button onClick={() => void begin("confirm")}>Confirm collection</button></div> : <div className="step-up-box"><strong>Verify this sensitive action</strong><p>Enter the six-digit code sent to your registered phone.</p><label className="field"><span>Verification code</span><input inputMode="numeric" maxLength={6} value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))} /></label><button disabled={otp.length !== 6} onClick={() => void verify()}>Verify and {pendingAction}</button></div>}
         </>}

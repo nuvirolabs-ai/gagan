@@ -1,6 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { settleSucceededPayment, type PaymentSettlementResult } from "../payments/paymentService";
+import { getObjectStorage } from "../../platform/storage/storageRuntime";
+import { ObjectStorageError, type ObjectStorage } from "../../platform/storage/objectStorage";
 
 export class CollectionServiceError extends Error {
   constructor(public readonly code: string, public readonly status = 409, public readonly details?: unknown) {
@@ -11,6 +13,12 @@ export class CollectionServiceError extends Error {
 type CollectionPermission = "collection.submit" | "collection.confirm";
 
 export interface CollectionEvidenceInput {
+  contentType: string;
+  bodyBase64: string;
+  checksum?: string;
+}
+
+interface StoredCollectionEvidence {
   objectKey: string;
   checksum: string;
   contentType: string;
@@ -57,11 +65,21 @@ const submissionInclude = {
   retailer: { select: { id: true, name: true, phone: true } },
 } as const;
 
+export interface CollectionServiceOptions {
+  storage?: ObjectStorage;
+}
+
 function hasPermission(permissions: string[], permission: CollectionPermission) {
   return permissions.includes(permission);
 }
 
 export class CollectionService {
+  private readonly storage?: ObjectStorage;
+
+  constructor(options: CollectionServiceOptions = {}) {
+    this.storage = options.storage;
+  }
+
   async submit(input: CollectionSubmitInput) {
     if (!hasPermission(input.actorPermissions, "collection.submit")) {
       throw new CollectionServiceError("permission_required", 403, { permission: "collection.submit" });
@@ -87,7 +105,7 @@ export class CollectionService {
       ) {
         throw new CollectionServiceError("idempotency_key_conflict", 409);
       }
-      return existing;
+      return this.publicSubmission(existing);
     }
 
     const retailer = await prisma.retailer.findUnique({
@@ -100,8 +118,12 @@ export class CollectionService {
     });
     if (!assignment) throw new CollectionServiceError("collection_assignment_required", 403);
 
+    let stored: StoredCollectionEvidence | undefined;
     try {
-      return await prisma.collectionSubmission.create({
+      if (input.evidence) {
+        stored = await this.putEvidence(input.evidence);
+      }
+      const submission = await prisma.collectionSubmission.create({
         data: {
           retailerId: input.retailerId,
           collectorStaffId: input.collectorStaffId,
@@ -110,17 +132,25 @@ export class CollectionService {
           reference: input.reference?.trim() || undefined,
           notes: input.notes?.trim() || undefined,
           idempotencyKey: input.idempotencyKey,
-          evidence: input.evidence ? { create: input.evidence } : undefined,
+          evidence: stored ? { create: stored } : undefined,
         },
         include: submissionInclude,
       });
+      return this.publicSubmission(submission);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
         const retry = await prisma.collectionSubmission.findUnique({
           where: { idempotencyKey: input.idempotencyKey },
           include: submissionInclude,
         });
-        if (retry) return retry;
+        if (retry) {
+          if (stored) await this.storageAdapter().delete(stored.objectKey).catch(() => undefined);
+          return this.publicSubmission(retry);
+        }
+      }
+      if (stored) await this.storageAdapter().delete(stored.objectKey).catch(() => undefined);
+      if (error instanceof ObjectStorageError) {
+        throw new CollectionServiceError(error.code, 400);
       }
       throw error;
     }
@@ -130,11 +160,12 @@ export class CollectionService {
     if (!hasPermission(actorPermissions, "collection.confirm")) {
       throw new CollectionServiceError("permission_required", 403, { permission: "collection.confirm" });
     }
-    return prisma.collectionSubmission.findMany({
+    const submissions = await prisma.collectionSubmission.findMany({
       where: { status: { in: ["pending", "confirming"] } },
       include: submissionInclude,
       orderBy: [{ submittedAt: "asc" }, { id: "asc" }],
     });
+    return Promise.all(submissions.map((submission) => this.publicSubmission(submission)));
   }
 
   async assignedRetailers(collectorStaffId: string, actorPermissions: string[]) {
@@ -194,7 +225,7 @@ export class CollectionService {
       include: { ...submissionInclude, payment: true },
     });
     if (!submission) throw new CollectionServiceError("submission_not_found", 404);
-    return submission;
+    return this.publicSubmission(submission);
   }
 
   async confirm(id: string, input: CollectionConfirmInput): Promise<CollectionConfirmationResult> {
@@ -292,12 +323,14 @@ export class CollectionService {
     const reason = input.reason.trim();
     if (reason.length < 3) throw new CollectionServiceError("rejection_reason_required", 400);
 
-    return prisma.$transaction(async (tx) => {
+    const rejected = await prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "CollectionSubmission" WHERE "id" = ${id} FOR UPDATE`;
       const submission = await tx.collectionSubmission.findUnique({ where: { id } });
       if (!submission) throw new CollectionServiceError("submission_not_found", 404);
       if (submission.status === "confirmed") throw new CollectionServiceError("submission_already_confirmed", 409);
-      if (submission.status === "rejected") return submission;
+      if (submission.status === "rejected") {
+        return tx.collectionSubmission.findUniqueOrThrow({ where: { id }, include: submissionInclude });
+      }
       if (submission.status === "confirming") throw new CollectionServiceError("confirmation_in_progress", 409);
       const rejected = await tx.collectionSubmission.update({
         where: { id },
@@ -319,5 +352,44 @@ export class CollectionService {
       });
       return rejected;
     });
+    return this.publicSubmission(rejected);
   }
+
+  private storageAdapter() {
+    return this.storage ?? getObjectStorage();
+  }
+
+  private async putEvidence(input: CollectionEvidenceInput): Promise<StoredCollectionEvidence> {
+    const body = decodeBody(input.bodyBase64);
+    try {
+      return await this.storageAdapter().put({
+        purpose: "collection_receipt",
+        contentType: input.contentType,
+        body,
+        checksum: input.checksum,
+      });
+    } catch (error) {
+      if (error instanceof ObjectStorageError) throw error;
+      throw new CollectionServiceError("evidence_storage_failed", 503);
+    }
+  }
+
+  private async publicSubmission<T extends { evidence: Array<{ objectKey: string; checksum: string; contentType: string; sizeBytes: number }> }>(submission: T) {
+    return {
+      ...submission,
+      evidence: await Promise.all(submission.evidence.map(async ({ objectKey, ...evidence }) => {
+        const signedUrl = await this.storageAdapter().signedReadUrl(objectKey, 300).catch(() => null);
+        return { ...evidence, signedUrl };
+      })),
+    };
+  }
+}
+
+function decodeBody(value: string) {
+  if (typeof value !== "string" || !/^[A-Za-z0-9+/]*={0,2}$/.test(value) || value.length % 4 === 1) {
+    throw new CollectionServiceError("invalid_evidence_body", 400);
+  }
+  const body = Buffer.from(value, "base64");
+  if (body.length === 0) throw new CollectionServiceError("invalid_evidence_body", 400);
+  return body;
 }

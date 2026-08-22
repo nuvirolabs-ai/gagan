@@ -43,21 +43,47 @@ export interface SapPrice {
 
 export interface SapStock {
   sapMaterialId: string;
+  warehouseCode: string;
   availableQty: number;
+  committedQty: number;
 }
 
 export interface SapSalesOrderResult {
   sapSalesOrderId: string;
+  /** Synthetic in mock mode; real connector maps these to B1 DocEntry/DocNum. */
+  sapDocEntry?: number;
+  sapDocNum?: number;
 }
 
 export interface SapInvoiceResult {
   sapInvoiceId: string;
 }
 
+export interface SapDeliveryNotePayload {
+  orderId: string;
+  externalReference: string;
+  sapCustomerId: string;
+  lines: { sapMaterialId: string; quantityCases: number; warehouseCode: string }[];
+}
+
+export interface SapDeliveryNoteResult {
+  sapDeliveryNoteId: string;
+}
+
+export interface SapFinancialSummary {
+  sapCustomerId: string;
+  outstanding: number;
+  overdue: number;
+  creditLimit: number | null;
+  syncedAt: string;
+}
+
 /** One order, flattened to what SAP SD needs to post a sales order. */
 export interface SapSalesOrderPayload {
   orderId: string;
   orderNo: number;
+  /** Future SAP B1 UDF value used for idempotent reconciliation. */
+  externalReference: string;
   sapCustomerId: string;
   placedAt: string;
   lines: {
@@ -87,11 +113,19 @@ export interface SapConnector {
   /** False when no SAP is wired up; callers skip sync entirely. */
   readonly enabled: boolean;
 
+  login(): Promise<void>;
+  logout(): Promise<void>;
+
   fetchCustomers(since: Date | null): Promise<SapCustomer[]>;
   fetchMaterials(since: Date | null): Promise<SapMaterial[]>;
   fetchPricing(since: Date | null): Promise<SapPrice[]>;
   fetchStock(since: Date | null): Promise<SapStock[]>;
+  fetchInvoices(since: Date | null): Promise<SapInvoicePayload[]>;
+  fetchFinancialSummary(sapCustomerId: string): Promise<SapFinancialSummary | null>;
 
   postSalesOrder(payload: SapSalesOrderPayload): Promise<SapSalesOrderResult>;
+  /** Find a previously accepted order by the stable external Gagan order id. */
+  findSalesOrderByExternalReference(externalReference: string): Promise<SapSalesOrderResult | null>;
   postInvoice(payload: SapInvoicePayload): Promise<SapInvoiceResult>;
+  postDeliveryNote(payload: SapDeliveryNotePayload): Promise<SapDeliveryNoteResult>;
 }

@@ -6,6 +6,7 @@ import { reconcileAllRetailers } from "./modules/payments/reconciliationService"
 import { processApprovalEscalations } from "./worker/processors/approvalEscalation";
 import { processDisputeEscalations } from "./worker/processors/disputeEscalation";
 import { processRatingReviews } from "./worker/processors/ratingReview";
+import { processRecoveryScheduler } from "./worker/processors/recoveryScheduler";
 
 const MINUTE = 60_000;
 
@@ -82,6 +83,15 @@ export function startScheduledJobs() {
     )
   );
   void safely("rating review (startup)", processRatingReviews);
+
+  const recoveryMins = minutesFromEnv("RECOVERY_INTERVAL_MINUTES", 60);
+  timers.push(
+    setInterval(
+      () => void safely("recovery scheduler", processRecoveryScheduler),
+      recoveryMins * MINUTE
+    )
+  );
+  void safely("recovery scheduler (startup)", processRecoveryScheduler);
 
   const connector = getSapConnector();
   if (!connector.enabled) {

@@ -4,7 +4,8 @@ import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../lib/auth";
 import { getPaymentProvider } from "../lib/payments";
 import { settleSucceededPayment } from "../modules/payments/paymentService";
-import { financialAgeingFor } from "../modules/finance/financialQueries";
+import { financialSummaryFor } from "../modules/finance/financialSummary";
+import { createRateLimiter } from "../platform/http/rateLimit";
 
 const router = Router();
 
@@ -13,13 +14,15 @@ router.get("/payments/dues", requireAuth, async (req: AuthedRequest, res) => {
   const retailer = await prisma.retailer.findUnique({ where: { id: req.retailerId } });
   if (!retailer) return res.status(404).json({ error: "Retailer not found" });
 
-  const ageing = await financialAgeingFor(prisma, retailer.id);
+  const summary = await financialSummaryFor(prisma, retailer.id);
+  if (!summary) return res.status(404).json({ error: "Retailer not found" });
   res.json({
-    outstanding: Number(retailer.currentBalance),
-    overdue: Number(retailer.overdueAmount),
-    creditLimit: Number(retailer.creditLimit),
-    available: Math.max(Number(retailer.creditLimit) - Number(retailer.currentBalance), 0),
-    ageing,
+    outstanding: summary.outstanding,
+    overdue: summary.overdue,
+    creditLimit: summary.creditLimit,
+    available: summary.availableCredit,
+    ageing: summary.invoiceAgeing,
+    financialSummary: summary,
   });
 });
 
@@ -30,7 +33,7 @@ const intentSchema = z.object({ amount: z.number().positive() });
  * provider so a callback always has a record to reconcile against, even if the
  * app dies mid-flow.
  */
-router.post("/payments/intent", requireAuth, async (req: AuthedRequest, res) => {
+router.post("/payments/intent", requireAuth, createRateLimiter({ name: "payment-intent", limit: 10, windowMs: 60_000 }), async (req: AuthedRequest, res) => {
   const parsed = intentSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Enter a valid amount" });
 

@@ -3,6 +3,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOp
 import { repApi } from "../api/repClient";
 import { colors, inr, radius, spacing } from "../theme";
 import { useRep } from "../context/RepContext";
+import { useLanguage } from "../i18n/LanguageContext";
 
 const reasonLabel = (code: string) => ({
   new_customer_second_invoice: "Second invoice approval",
@@ -16,6 +17,7 @@ const reasonLabel = (code: string) => ({
 
 export default function ApprovalDetailScreen({ route, navigation }: any) {
   const { staff } = useRep();
+  const { t } = useLanguage();
   const [request, setRequest] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [reason, setReason] = useState("");
@@ -83,7 +85,7 @@ export default function ApprovalDetailScreen({ route, navigation }: any) {
   };
 
   if (loading) return <View style={styles.center}><ActivityIndicator color={colors.green} /></View>;
-  if (!request) return <View style={styles.center}><Text style={styles.error}>{error || "Approval not found"}</Text></View>;
+  if (!request) return <View style={styles.center}><Text style={styles.error}>{error || t("approval.notFound")}</Text></View>;
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -91,11 +93,11 @@ export default function ApprovalDetailScreen({ route, navigation }: any) {
       <Text style={styles.title}>Order #{request.order?.orderNo}</Text>
       <View style={styles.exposure}>
         <Text style={styles.exposureValue}>{inr(Number(request.assessment.projectedExposure))}</Text>
-        <Text style={styles.exposureLabel}>Projected exposure · {inr(Number(request.order?.orderTotal ?? 0))} order</Text>
+        <Text style={styles.exposureLabel}>{t("approval.projectedExposure", { amount: inr(Number(request.order?.orderTotal ?? 0)) })}</Text>
       </View>
-      <Text style={styles.section}>Why approval is needed</Text>
+      <Text style={styles.section}>{t("approval.why")}</Text>
       {request.assessment.reasons.map((code: string) => <View style={styles.reason} key={code}><Text style={styles.reasonText}>{reasonLabel(code)}</Text></View>)}
-      <Text style={styles.label}>{request.status === "rejected" ? "Written position" : "Decision note"}</Text>
+      <Text style={styles.label}>{t("approval.decisionNote")}</Text>
       <TextInput style={styles.note} multiline value={reason} onChangeText={setReason} placeholder={request.status === "rejected" ? "Add supporting facts for the dispute" : "Required when rejecting"} placeholderTextColor={colors.inkFaint} />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {request.status === "rejected" ? (
@@ -104,8 +106,8 @@ export default function ApprovalDetailScreen({ route, navigation }: any) {
             <Text style={styles.section}>{canResolveDispute ? "Resolve written dispute" : "Dispute under review"}</Text>
             <Text style={styles.copy}>{openDispute.writtenPosition}</Text>
             {canResolveDispute ? (!pendingDecision ? <View style={styles.actions}>
-              <TouchableOpacity style={styles.reject} onPress={() => void begin("rejected")}><Text style={styles.rejectText}>Uphold rejection</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.approve} onPress={() => void begin("approved")}><Text style={styles.approveText}>Approve</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.reject} onPress={() => void begin("rejected")}><Text style={styles.rejectText}>{t("approval.reject")}</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.approve} onPress={() => void begin("approved")}><Text style={styles.approveText}>{t("approval.approve")}</Text></TouchableOpacity>
             </View> : <>
               <Text style={styles.copy}>Enter the six-digit verification code.</Text>
               <TextInput style={styles.otp} keyboardType="number-pad" maxLength={6} value={otp} onChangeText={(value) => setOtp(value.replace(/\D/g, ""))} />
@@ -119,12 +121,12 @@ export default function ApprovalDetailScreen({ route, navigation }: any) {
         </View>
       ) : !pendingDecision ? (
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.reject} onPress={() => void begin("rejected")}><Text style={styles.rejectText}>Reject</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.approve} onPress={() => void begin("approved")}><Text style={styles.approveText}>Approve</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.reject} onPress={() => void begin("rejected")}><Text style={styles.rejectText}>{t("approval.reject")}</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.approve} onPress={() => void begin("approved")}><Text style={styles.approveText}>{t("approval.approve")}</Text></TouchableOpacity>
         </View>
       ) : (
         <View style={styles.verify}>
-          <Text style={styles.section}>Verify decision</Text>
+          <Text style={styles.section}>{t("approval.verify")}</Text>
           <Text style={styles.copy}>Enter the six-digit code sent to your registered phone.</Text>
           <TextInput style={styles.otp} keyboardType="number-pad" maxLength={6} value={otp} onChangeText={(value) => setOtp(value.replace(/\D/g, ""))} />
           <TouchableOpacity disabled={otp.length !== 6} style={[styles.approve, otp.length !== 6 && styles.disabled]} onPress={() => void decide()}><Text style={styles.approveText}>Verify and {pendingDecision === "approved" ? "approve" : "reject"}</Text></TouchableOpacity>

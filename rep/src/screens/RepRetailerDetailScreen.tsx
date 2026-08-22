@@ -6,15 +6,18 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Alert,
   Linking,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { repApi } from "../api/repClient";
+import { captureForegroundLocation } from "../location/deviceLocation";
 import { useRep } from "../context/RepContext";
 import { colors, radius, spacing, shadow, inr } from "../theme";
 import { StatusPill } from "../components/ui";
+import { useLanguage } from "../i18n/LanguageContext";
 
 const LEDGER_LABELS: Record<string, string> = {
   invoice: "Invoice",
@@ -26,16 +29,22 @@ const LEDGER_LABELS: Record<string, string> = {
 export default function RepRetailerDetailScreen({ route, navigation }: any) {
   const { retailerId } = route.params;
   const { setActiveRetailer } = useRep();
+  const { t } = useLanguage();
   const [data, setData] = useState<any | null>(null);
+  const [location, setLocation] = useState<any | null>(null);
+  const [activeVisit, setActiveVisit] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
-      repApi
-        .retailer(retailerId)
-        .then(setData)
-        .catch(() => setData(null))
+      Promise.all([repApi.retailer(retailerId), repApi.getLocation(retailerId), repApi.visits()])
+        .then(([retailerData, locationData, visitData]) => {
+          setData(retailerData);
+          setLocation(locationData.location);
+          setActiveVisit((visitData.visits ?? []).find((visit: any) => visit.retailerId === retailerId && !visit.checkedOutAt) ?? null);
+        })
+        .catch(() => { setData(null); setLocation(null); })
         .finally(() => setLoading(false));
     }, [retailerId])
   );
@@ -50,17 +59,55 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   if (!data) {
     return (
       <View style={styles.center}>
-        <Text style={styles.muted}>Couldn't load this retailer.</Text>
+        <Text style={styles.muted}>{t("errors.generic")}</Text>
       </View>
     );
   }
 
-  const { retailer, credit, recentOrders, recentLedger } = data;
-  const blocked = credit.available <= 0;
+  const { retailer, credit, recentOrders, recentLedger, kyc } = data;
+  const kycApproved = retailer.lifecycle === "active" && (kyc?.status === "approved" || kyc?.legacyVerified === true);
+  const blocked = credit.available <= 0 || !kycApproved;
+
+  const startKyc = async () => {
+    navigation.navigate("KycCapture", { retailerId: retailer.id, retailerName: retailer.name });
+  };
 
   const startOrder = () => {
     setActiveRetailer(retailer.id);
     navigation.navigate("RepCatalog", { retailerId: retailer.id, retailerName: retailer.name });
+  };
+
+  const captureStoreLocation = async (mode: "capture" | "verify") => {
+    const reading = await captureForegroundLocation();
+    if (reading.kind === "permission_denied") return Alert.alert("Location permission needed", reading.canAskAgain ? "Allow while using the app so you can verify this store." : "Turn on location access in Settings.");
+    if (reading.kind === "unavailable") return Alert.alert("Location unavailable", reading.message);
+    try {
+      const result = mode === "verify"
+        ? await repApi.verifyLocation(retailer.id, reading)
+        : await repApi.captureLocation(retailer.id, reading);
+      setLocation(result.location);
+      Alert.alert(result.location.status === "VERIFIED" ? "Store verified" : "Location captured", result.location.status === "VERIFIED" ? "This store location is now verified." : "A second reading will verify this location.");
+    } catch (error: any) {
+      Alert.alert("Couldn't save location", error?.message === "location_accuracy_too_low" ? "The GPS reading isn't accurate enough. Move near the storefront and try again." : "Try again when you're online.");
+    }
+  };
+
+  const checkIn = async () => {
+    const reading = await captureForegroundLocation();
+    if (reading.kind !== "captured") return Alert.alert("Location needed", reading.kind === "permission_denied" ? "Allow location while using the app to check in." : reading.message);
+    try {
+      const result = await repApi.checkIn(retailer.id, reading);
+      setActiveVisit(result.visit);
+      const message = result.visit.verificationStatus === "VERIFIED" ? "Visit verified." : result.visit.verificationStatus === "OUTSIDE_STORE_AREA" ? "You're outside the registered store area. You can try again or leave this visit for review." : "Location captured. This visit is available for review.";
+      Alert.alert("Check-in recorded", message);
+    } catch { Alert.alert("Couldn't check in", "Try again when you're online."); }
+  };
+
+  const checkOut = async () => {
+    if (!activeVisit) return;
+    const reading = await captureForegroundLocation();
+    if (reading.kind !== "captured") return Alert.alert("Location needed", "Allow location while using the app to check out.");
+    try { const result = await repApi.checkOut(activeVisit.id, reading); setActiveVisit(result.visit); Alert.alert("Checked out", "Your visit time has been recorded."); } catch { Alert.alert("Couldn't check out", "Try again when you're online."); }
   };
 
   return (
@@ -88,9 +135,29 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
           </TouchableOpacity>
         </View>
 
+        <View style={styles.kycCard}>
+          <View style={styles.between}>
+            <View><Text style={styles.creditTitle}>{t("retailer.kycVerification")}</Text><Text style={styles.rowSub}>{kyc?.status ? `Case ${kyc.status.replace("_", " ")}` : t("common.retry")}</Text></View>
+            <StatusPill status={kyc?.status === "approved" ? "active" : "pending"} />
+          </View>
+          {kyc?.status !== "approved" ? <><Text style={styles.warnText}>{t("kyc.title")}</Text><TouchableOpacity style={styles.kycButton} onPress={() => void startKyc()}><Text style={styles.kycButtonText}>{kyc ? t("retailer.continueKyc") : t("retailer.startKyc")}</Text></TouchableOpacity></> : <Text style={styles.successText}>{t("retailer.documentsApproved")}</Text>}
+        </View>
+
+        <View style={styles.locationCard}>
+          <View style={styles.between}>
+            <View><Text style={styles.creditTitle}>{t("retailer.storeLocation")}</Text><Text style={styles.rowSub}>{location?.status === "VERIFIED" ? "✓ Verified" : location?.status === "CAPTURED" ? "Captured — verify while at the store" : location?.status === "NEEDS_REVIEW" ? "Needs review" : "Not set"}</Text></View>
+            <MaterialCommunityIcons name="map-marker-radius-outline" size={22} color={colors.green} />
+          </View>
+          <View style={styles.locationActions}>
+            {location?.status === "VERIFIED" ? <TouchableOpacity style={styles.visitButton} onPress={() => void checkIn()}><Ionicons name="locate-outline" size={16} color={colors.onDark} /><Text style={styles.visitButtonText}>{activeVisit ? t("retailer.checkIn") : t("retailer.checkIn")}</Text></TouchableOpacity> : <TouchableOpacity style={styles.locationButton} onPress={() => void captureStoreLocation(location?.status === "CAPTURED" ? "verify" : "capture")}><Text style={styles.locationButtonText}>{location?.status === "CAPTURED" ? t("retailer.verifyStore") : t("retailer.setStore")}</Text></TouchableOpacity>}
+            {activeVisit && !activeVisit.checkedOutAt ? <TouchableOpacity style={styles.locationButton} onPress={() => void checkOut()}><Text style={styles.locationButtonText}>{t("retailer.checkOut")}</Text></TouchableOpacity> : null}
+          </View>
+          {activeVisit?.verificationStatus ? <Text style={styles.rowSub}>Visit: {activeVisit.verificationStatus === "VERIFIED" ? "Verified" : activeVisit.verificationStatus === "OUTSIDE_STORE_AREA" ? "Outside store area" : "Needs review"}{activeVisit.distanceFromStoreMeters != null ? ` · ${Math.round(Number(activeVisit.distanceFromStoreMeters))} m` : ""}</Text> : null}
+        </View>
+
         <View style={styles.creditCard}>
           <View style={styles.between}>
-            <Text style={styles.creditTitle}>Credit position</Text>
+            <Text style={styles.creditTitle}>{t("retailer.creditPosition")}</Text>
             <View style={styles.tierBadge}>
               <MaterialCommunityIcons name="crown" size={11} color={colors.gold} />
               <Text style={styles.tierText}>{retailer.tier}</Text>
@@ -99,11 +166,11 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
 
           <View style={styles.creditRow}>
             <View style={styles.creditCell}>
-              <Text style={styles.creditLabel}>Outstanding</Text>
+              <Text style={styles.creditLabel}>{t("profile.outstanding")}</Text>
               <Text style={styles.creditBig}>{inr(credit.outstanding)}</Text>
             </View>
             <View style={styles.creditCell}>
-              <Text style={styles.creditLabel}>Available</Text>
+              <Text style={styles.creditLabel}>{t("profile.availableCredit")}</Text>
               <Text style={[styles.creditBig, { color: blocked ? colors.danger : colors.green }]}>
                 {inr(credit.available)}
               </Text>
@@ -135,10 +202,10 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
           )}
         </View>
 
-        <Text style={styles.sectionTitle}>Recent orders</Text>
+        <Text style={styles.sectionTitle}>{t("retailer.recentOrders")}</Text>
         <View style={styles.card}>
           {recentOrders.length === 0 ? (
-            <Text style={styles.muted}>No orders yet.</Text>
+            <Text style={styles.muted}>{t("retailer.noOrders")}</Text>
           ) : (
             recentOrders.map((o: any, i: number) => (
               <View
@@ -167,10 +234,10 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
           )}
         </View>
 
-        <Text style={styles.sectionTitle}>Recent ledger</Text>
+        <Text style={styles.sectionTitle}>{t("retailer.recentLedger")}</Text>
         <View style={styles.card}>
           {recentLedger.length === 0 ? (
-            <Text style={styles.muted}>No transactions yet.</Text>
+            <Text style={styles.muted}>{t("retailer.noTransactions")}</Text>
           ) : (
             recentLedger.map((e: any, i: number) => (
               <View
@@ -216,7 +283,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
         >
           <Ionicons name="cart-outline" size={18} color={colors.onDark} />
           <Text style={styles.orderBtnText}>
-            {blocked ? "No credit available" : "Place order for this shop"}
+            {credit.available <= 0 ? "No credit available" : !kycApproved ? "KYC approval required" : "Place order for this shop"}
           </Text>
         </TouchableOpacity>
       </View>
@@ -259,6 +326,16 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadow.card,
   },
+  kycCard: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginTop: spacing.md },
+  locationCard: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginTop: spacing.md },
+  locationActions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
+  locationButton: { flex: 1, backgroundColor: colors.greenSoft, borderRadius: radius.sm, padding: spacing.md, alignItems: "center" },
+  locationButtonText: { color: colors.green, fontWeight: "700", fontSize: 12 },
+  visitButton: { flex: 1, backgroundColor: colors.greenDeep, borderRadius: radius.sm, padding: spacing.md, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6 },
+  visitButtonText: { color: colors.onDark, fontWeight: "700", fontSize: 12 },
+  kycButton: { marginTop: spacing.md, backgroundColor: colors.greenSoft, borderRadius: radius.md, padding: spacing.md, alignItems: "center" },
+  kycButtonText: { color: colors.green, fontWeight: "700" },
+  successText: { color: colors.green, fontSize: 12, marginTop: spacing.sm },
   creditTitle: { fontSize: 14.5, fontWeight: "700", color: colors.ink },
   tierBadge: {
     flexDirection: "row",

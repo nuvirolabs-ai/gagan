@@ -9,11 +9,13 @@ const mocks = vi.hoisted(() => ({
   createInvoice: vi.fn(),
   findAuthorization: vi.fn(),
   updateOrder: vi.fn(),
+  findRetailer: vi.fn(),
 }));
 
 vi.mock("../../../lib/prisma", () => ({
   prisma: {
     order: { findUnique: mocks.findOrder, findUniqueOrThrow: mocks.findOrderOrThrow, update: mocks.updateOrder },
+    retailer: { findUnique: mocks.findRetailer },
     dispatchAuthorization: { findFirst: mocks.findAuthorization },
     $transaction: mocks.transaction,
   },
@@ -43,6 +45,7 @@ describe("delivery API cutover", () => {
 
   it("does not dispatch when rating invalidation wins the authorization race", async () => {
     mocks.findOrder.mockResolvedValue({ id: "order-race", status: "packed" });
+    mocks.findRetailer.mockResolvedValue({ id: "retailer-1", status: "active", creditProfile: { kycVerifiedAt: new Date() }, kycCase: null });
     mocks.findAuthorization.mockResolvedValue({ id: "authorization-race" });
     mocks.transaction.mockImplementationOnce(async (work) => work({
       dispatchAuthorization: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },

@@ -5,19 +5,21 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRep } from "../context/RepContext";
 import { colors, radius, spacing, shadow, TAB_BAR_SPACE } from "../theme";
 import { ScreenHeader } from "../components/ui";
+import { useLanguage } from "../i18n/LanguageContext";
 
 export default function RepAccountScreen() {
   const { staff, rep, logout } = useRep();
+  const { language, t, setLanguage } = useLanguage();
 
   const confirmLogout = () =>
-    Alert.alert("Log out?", "You'll need your phone number and an OTP to sign back in.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Log out", style: "destructive", onPress: logout },
+    Alert.alert(t("account.logoutTitle"), t("account.logoutBody"), [
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("account.logout"), style: "destructive", onPress: logout },
     ]);
 
   return (
     <View style={styles.screen}>
-      <ScreenHeader title="Account" />
+      <ScreenHeader title={t("account.title")} />
 
       <View style={styles.card}>
         <View style={styles.avatar}>
@@ -38,6 +40,18 @@ export default function RepAccountScreen() {
         </View>
       </View>
 
+      <View style={styles.languageRow}>
+        <Text style={styles.languageLabel}>{t("account.language")}</Text>
+        <View style={styles.languageChoices}>
+          <TouchableOpacity onPress={() => void setLanguage("en")} style={[styles.languageChoice, language === "en" && styles.languageChoiceActive]}>
+            <Text style={[styles.languageChoiceText, language === "en" && styles.languageChoiceTextActive]}>English</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => void setLanguage("hi")} style={[styles.languageChoice, language === "hi" && styles.languageChoiceActive]}>
+            <Text style={[styles.languageChoiceText, language === "hi" && styles.languageChoiceTextActive]}>हिन्दी</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <View style={styles.note}>
         <Ionicons name="information-circle-outline" size={16} color={colors.green} />
         <Text style={styles.noteText}>
@@ -49,7 +63,7 @@ export default function RepAccountScreen() {
 
       <TouchableOpacity style={styles.logout} onPress={confirmLogout}>
         <Ionicons name="log-out-outline" size={17} color={colors.danger} />
-        <Text style={styles.logoutText}>Log out</Text>
+        <Text style={styles.logoutText}>{t("account.logout")}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -108,4 +122,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   logoutText: { color: colors.danger, fontWeight: "700", fontSize: 14.5 },
+  languageRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: spacing.lg, marginTop: spacing.lg, padding: spacing.md, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
+  languageLabel: { color: colors.ink, fontWeight: "700" },
+  languageChoices: { flexDirection: "row", gap: spacing.xs },
+  languageChoice: { paddingHorizontal: spacing.sm, paddingVertical: 7, borderRadius: radius.sm },
+  languageChoiceActive: { backgroundColor: colors.greenSoft },
+  languageChoiceText: { color: colors.inkMuted, fontSize: 12, fontWeight: "600" },
+  languageChoiceTextActive: { color: colors.greenDeep },
 });

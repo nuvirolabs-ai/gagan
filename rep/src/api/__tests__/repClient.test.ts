@@ -65,4 +65,25 @@ describe("staff auth API", () => {
       true
     );
   });
+
+  it("starts and submits a retailer KYC case through the staff session", async () => {
+    const request = vi.fn().mockResolvedValue({ kycCase: { id: "case-1" } });
+    const store = { load: vi.fn(), save: vi.fn(), clear: vi.fn() };
+    const api = createStaffApi(request, store);
+
+    await api.startKyc("retailer-1");
+    await api.submitKyc("case-1");
+    expect(request).toHaveBeenNthCalledWith(1, "/rep/kyc", expect.objectContaining({ method: "POST", body: JSON.stringify({ retailerId: "retailer-1" }) }), true);
+    expect(request).toHaveBeenNthCalledWith(2, "/rep/kyc/case-1/submit", expect.objectContaining({ method: "POST" }), true);
+  });
+
+  it("sends receipt bytes without exposing a storage key", async () => {
+    const request = vi.fn().mockResolvedValue({ submission: { id: "submission-1" } });
+    const store = { load: vi.fn(), save: vi.fn(), clear: vi.fn() };
+    const api = createStaffApi(request, store);
+    await api.submitCollection({ retailerId: "retailer-1", amount: 250, method: "cash", idempotencyKey: "receipt-5678", evidence: { contentType: "image/jpeg", bodyBase64: "cmVjZWlwdA==" } });
+    const [, options, auth] = request.mock.calls[0];
+    expect(auth).toBe(true);
+    expect(JSON.parse(String(options.body))).toMatchObject({ evidence: { contentType: "image/jpeg", bodyBase64: "cmVjZWlwdA==" } });
+  });
 });

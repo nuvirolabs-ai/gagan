@@ -52,5 +52,8 @@ jobs:
       - name: Apply migrations to empty database
         working-directory: backend
         run: npx prisma migrate deploy
+      - name: Seed verification database
+        working-directory: backend
+        run: npx prisma db seed
       - name: Verify repository
         run: bash scripts/verify.sh

@@ -15,9 +15,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRep } from "../context/RepContext";
 import { ApiError } from "../api/repClient";
 import { colors, radius, spacing } from "../theme";
+import { useLanguage } from "../i18n/LanguageContext";
 
 export default function RepLoginScreen() {
   const { requestOtp, login } = useRep();
+  const { t } = useLanguage();
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [stage, setStage] = useState<"phone" | "otp">("phone");
@@ -30,7 +32,7 @@ export default function RepLoginScreen() {
       await requestOtp(phone);
       setStage("otp");
     } catch (e) {
-      Alert.alert("Couldn't send OTP", e instanceof ApiError ? e.message : "Please try again.");
+      Alert.alert("Couldn't send OTP", e instanceof ApiError ? e.message : t("errors.generic"));
     } finally {
       setBusy(false);
     }
@@ -41,7 +43,7 @@ export default function RepLoginScreen() {
     try {
       await login(phone, otp);
     } catch (e) {
-      Alert.alert("Couldn't sign in", e instanceof ApiError ? e.message : "Please try again.");
+      Alert.alert("Couldn't sign in", e instanceof ApiError ? e.message : t("errors.generic"));
     } finally {
       setBusy(false);
     }
@@ -62,10 +64,10 @@ export default function RepLoginScreen() {
 
         {stage === "phone" ? (
           <>
-            <Text style={styles.label}>Sign in to order for your shops</Text>
+            <Text style={styles.label}>{t("auth.signIn")}</Text>
             <TextInput
               style={styles.input}
-              placeholder="Phone number"
+              placeholder={t("auth.phone")}
               placeholderTextColor={colors.inkFaint}
               keyboardType="phone-pad"
               value={phone}
@@ -77,7 +79,7 @@ export default function RepLoginScreen() {
                 <ActivityIndicator color={colors.onDark} />
               ) : (
                 <>
-                  <Text style={styles.buttonText}>Send OTP</Text>
+                <Text style={styles.buttonText}>{t("auth.sendOtp")}</Text>
                   <Ionicons name="arrow-forward" size={17} color={colors.onDark} />
                 </>
               )}
@@ -101,11 +103,11 @@ export default function RepLoginScreen() {
               {busy ? (
                 <ActivityIndicator color={colors.onDark} />
               ) : (
-                <Text style={styles.buttonText}>Verify & sign in</Text>
+                <Text style={styles.buttonText}>{t("auth.verify")}</Text>
               )}
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setStage("phone")}>
-              <Text style={styles.link}>Change phone number</Text>
+              <Text style={styles.link}>{t("auth.changePhone")}</Text>
             </TouchableOpacity>
           </>
         )}

@@ -17,6 +17,7 @@ import { captureForegroundLocation } from "../location/deviceLocation";
 import { useRep } from "../context/RepContext";
 import { colors, radius, spacing, shadow, inr } from "../theme";
 import { StatusPill } from "../components/ui";
+import { useLanguage } from "../i18n/LanguageContext";
 
 const LEDGER_LABELS: Record<string, string> = {
   invoice: "Invoice",
@@ -28,6 +29,7 @@ const LEDGER_LABELS: Record<string, string> = {
 export default function RepRetailerDetailScreen({ route, navigation }: any) {
   const { retailerId } = route.params;
   const { setActiveRetailer } = useRep();
+  const { t } = useLanguage();
   const [data, setData] = useState<any | null>(null);
   const [location, setLocation] = useState<any | null>(null);
   const [activeVisit, setActiveVisit] = useState<any | null>(null);
@@ -57,7 +59,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   if (!data) {
     return (
       <View style={styles.center}>
-        <Text style={styles.muted}>Couldn't load this retailer.</Text>
+        <Text style={styles.muted}>{t("errors.generic")}</Text>
       </View>
     );
   }
@@ -135,27 +137,27 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
 
         <View style={styles.kycCard}>
           <View style={styles.between}>
-            <View><Text style={styles.creditTitle}>KYC verification</Text><Text style={styles.rowSub}>{kyc?.status ? `Case ${kyc.status.replace("_", " ")}` : "No case started"}</Text></View>
+            <View><Text style={styles.creditTitle}>{t("retailer.kycVerification")}</Text><Text style={styles.rowSub}>{kyc?.status ? `Case ${kyc.status.replace("_", " ")}` : t("common.retry")}</Text></View>
             <StatusPill status={kyc?.status === "approved" ? "active" : "pending"} />
           </View>
-          {kyc?.status !== "approved" ? <><Text style={styles.warnText}>Complete and submit the three required documents before dispatch.</Text><TouchableOpacity style={styles.kycButton} onPress={() => void startKyc()}><Text style={styles.kycButtonText}>{kyc ? "Continue KYC" : "Start KYC case"}</Text></TouchableOpacity></> : <Text style={styles.successText}>Documents approved. Dispatch is enabled.</Text>}
+          {kyc?.status !== "approved" ? <><Text style={styles.warnText}>{t("kyc.title")}</Text><TouchableOpacity style={styles.kycButton} onPress={() => void startKyc()}><Text style={styles.kycButtonText}>{kyc ? t("retailer.continueKyc") : t("retailer.startKyc")}</Text></TouchableOpacity></> : <Text style={styles.successText}>{t("retailer.documentsApproved")}</Text>}
         </View>
 
         <View style={styles.locationCard}>
           <View style={styles.between}>
-            <View><Text style={styles.creditTitle}>Store location</Text><Text style={styles.rowSub}>{location?.status === "VERIFIED" ? "✓ Verified" : location?.status === "CAPTURED" ? "Captured — verify while at the store" : location?.status === "NEEDS_REVIEW" ? "Needs review" : "Not set"}</Text></View>
+            <View><Text style={styles.creditTitle}>{t("retailer.storeLocation")}</Text><Text style={styles.rowSub}>{location?.status === "VERIFIED" ? "✓ Verified" : location?.status === "CAPTURED" ? "Captured — verify while at the store" : location?.status === "NEEDS_REVIEW" ? "Needs review" : "Not set"}</Text></View>
             <MaterialCommunityIcons name="map-marker-radius-outline" size={22} color={colors.green} />
           </View>
           <View style={styles.locationActions}>
-            {location?.status === "VERIFIED" ? <TouchableOpacity style={styles.visitButton} onPress={() => void checkIn()}><Ionicons name="locate-outline" size={16} color={colors.onDark} /><Text style={styles.visitButtonText}>{activeVisit ? "Checked in" : "Check in"}</Text></TouchableOpacity> : <TouchableOpacity style={styles.locationButton} onPress={() => void captureStoreLocation(location?.status === "CAPTURED" ? "verify" : "capture")}><Text style={styles.locationButtonText}>{location?.status === "CAPTURED" ? "Verify store location" : "Set store location"}</Text></TouchableOpacity>}
-            {activeVisit && !activeVisit.checkedOutAt ? <TouchableOpacity style={styles.locationButton} onPress={() => void checkOut()}><Text style={styles.locationButtonText}>Check out</Text></TouchableOpacity> : null}
+            {location?.status === "VERIFIED" ? <TouchableOpacity style={styles.visitButton} onPress={() => void checkIn()}><Ionicons name="locate-outline" size={16} color={colors.onDark} /><Text style={styles.visitButtonText}>{activeVisit ? t("retailer.checkIn") : t("retailer.checkIn")}</Text></TouchableOpacity> : <TouchableOpacity style={styles.locationButton} onPress={() => void captureStoreLocation(location?.status === "CAPTURED" ? "verify" : "capture")}><Text style={styles.locationButtonText}>{location?.status === "CAPTURED" ? t("retailer.verifyStore") : t("retailer.setStore")}</Text></TouchableOpacity>}
+            {activeVisit && !activeVisit.checkedOutAt ? <TouchableOpacity style={styles.locationButton} onPress={() => void checkOut()}><Text style={styles.locationButtonText}>{t("retailer.checkOut")}</Text></TouchableOpacity> : null}
           </View>
           {activeVisit?.verificationStatus ? <Text style={styles.rowSub}>Visit: {activeVisit.verificationStatus === "VERIFIED" ? "Verified" : activeVisit.verificationStatus === "OUTSIDE_STORE_AREA" ? "Outside store area" : "Needs review"}{activeVisit.distanceFromStoreMeters != null ? ` · ${Math.round(Number(activeVisit.distanceFromStoreMeters))} m` : ""}</Text> : null}
         </View>
 
         <View style={styles.creditCard}>
           <View style={styles.between}>
-            <Text style={styles.creditTitle}>Credit position</Text>
+            <Text style={styles.creditTitle}>{t("retailer.creditPosition")}</Text>
             <View style={styles.tierBadge}>
               <MaterialCommunityIcons name="crown" size={11} color={colors.gold} />
               <Text style={styles.tierText}>{retailer.tier}</Text>
@@ -164,11 +166,11 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
 
           <View style={styles.creditRow}>
             <View style={styles.creditCell}>
-              <Text style={styles.creditLabel}>Outstanding</Text>
+              <Text style={styles.creditLabel}>{t("profile.outstanding")}</Text>
               <Text style={styles.creditBig}>{inr(credit.outstanding)}</Text>
             </View>
             <View style={styles.creditCell}>
-              <Text style={styles.creditLabel}>Available</Text>
+              <Text style={styles.creditLabel}>{t("profile.availableCredit")}</Text>
               <Text style={[styles.creditBig, { color: blocked ? colors.danger : colors.green }]}>
                 {inr(credit.available)}
               </Text>
@@ -200,10 +202,10 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
           )}
         </View>
 
-        <Text style={styles.sectionTitle}>Recent orders</Text>
+        <Text style={styles.sectionTitle}>{t("retailer.recentOrders")}</Text>
         <View style={styles.card}>
           {recentOrders.length === 0 ? (
-            <Text style={styles.muted}>No orders yet.</Text>
+            <Text style={styles.muted}>{t("retailer.noOrders")}</Text>
           ) : (
             recentOrders.map((o: any, i: number) => (
               <View
@@ -232,10 +234,10 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
           )}
         </View>
 
-        <Text style={styles.sectionTitle}>Recent ledger</Text>
+        <Text style={styles.sectionTitle}>{t("retailer.recentLedger")}</Text>
         <View style={styles.card}>
           {recentLedger.length === 0 ? (
-            <Text style={styles.muted}>No transactions yet.</Text>
+            <Text style={styles.muted}>{t("retailer.noTransactions")}</Text>
           ) : (
             recentLedger.map((e: any, i: number) => (
               <View

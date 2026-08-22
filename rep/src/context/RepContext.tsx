@@ -5,6 +5,7 @@ import {
   setRepUnauthorizedHandler,
 } from "../api/repClient";
 import { CartLine } from "../types";
+import { useLanguage } from "../i18n/LanguageContext";
 
 interface Rep {
   id: string;
@@ -42,6 +43,7 @@ interface RepContextValue {
 const RepContext = createContext<RepContextValue | undefined>(undefined);
 
 export function RepProvider({ children }: { children: React.ReactNode }) {
+  const { beginLoginSelection, resetSelectionGate } = useLanguage();
   const [rep, setRep] = useState<Rep | null>(null);
   const [staff, setStaff] = useState<StaffIdentity | null>(null);
   const [challengeId, setChallengeId] = useState<string | null>(null);
@@ -53,9 +55,10 @@ export function RepProvider({ children }: { children: React.ReactNode }) {
     setRepUnauthorizedHandler(() => {
       setRep(null);
       setStaff(null);
+      resetSelectionGate();
     });
     return () => setRepUnauthorizedHandler(null);
-  }, []);
+  }, [resetSelectionGate]);
 
   useEffect(() => {
     (async () => {
@@ -90,6 +93,7 @@ export function RepProvider({ children }: { children: React.ReactNode }) {
     setChallengeId(null);
     setStaff(res.staff);
     setRep(res.rep);
+    beginLoginSelection();
   };
 
   const logout = async () => {
@@ -99,6 +103,7 @@ export function RepProvider({ children }: { children: React.ReactNode }) {
       setChallengeId(null);
       setStaff(null);
       setRep(null);
+      resetSelectionGate();
       setActiveRetailerId(null);
       setLines([]);
     }

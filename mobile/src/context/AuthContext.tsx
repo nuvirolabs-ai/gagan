@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { api, retailerSessionStore, setUnauthorizedHandler } from "../api/client";
+import { useLanguage } from "../i18n/LanguageContext";
 
 interface RetailerInfo {
   id: string;
@@ -18,14 +19,18 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { beginLoginSelection, resetSelectionGate } = useLanguage();
   const [retailer, setRetailer] = useState<RetailerInfo | null>(null);
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setUnauthorizedHandler(() => setRetailer(null));
+    setUnauthorizedHandler(() => {
+      setRetailer(null);
+      resetSelectionGate();
+    });
     return () => setUnauthorizedHandler(null);
-  }, []);
+  }, [resetSelectionGate]);
 
   // Rebuild the session from the stored token. Screens key off retailer.id, so
   // this must resolve to the real record rather than a placeholder.
@@ -59,6 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const res = await api.verifyOtp(challengeId, phone, otp);
     setChallengeId(null);
     setRetailer({ id: res.retailer.id, name: res.retailer.name, phone });
+    beginLoginSelection();
   };
 
   const logout = async () => {
@@ -67,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setChallengeId(null);
       setRetailer(null);
+      resetSelectionGate();
     }
   };
 

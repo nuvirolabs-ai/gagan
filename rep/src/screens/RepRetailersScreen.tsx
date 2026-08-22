@@ -15,9 +15,11 @@ import { repApi } from "../api/repClient";
 import { useRep } from "../context/RepContext";
 import { colors, radius, spacing, shadow, inr, TAB_BAR_SPACE } from "../theme";
 import { ScreenHeader, SearchBar, EmptyState } from "../components/ui";
+import { useLanguage } from "../i18n/LanguageContext";
 
 export default function RepRetailersScreen({ navigation }: any) {
   const { rep } = useRep();
+  const { t } = useLanguage();
   const [retailers, setRetailers] = useState<any[]>([]);
   const [totals, setTotals] = useState<any>({ count: 0, outstanding: 0, overdue: 0 });
   const [query, setQuery] = useState("");
@@ -55,26 +57,26 @@ export default function RepRetailersScreen({ navigation }: any) {
 
   return (
     <View style={styles.screen}>
-      <ScreenHeader title="My retailers" subtitle={`Hi ${rep?.name ?? ""}`} />
+      <ScreenHeader title={t("retailers.title")} subtitle={`Hi ${rep?.name ?? ""}`} />
 
       <View style={styles.metrics}>
         <View style={styles.metric}>
-          <Text style={styles.metricLabel}>Retailers</Text>
+          <Text style={styles.metricLabel}>{t("retailers.title")}</Text>
           <Text style={styles.metricValue}>{totals.count}</Text>
         </View>
         <View style={styles.metric}>
-          <Text style={styles.metricLabel}>Outstanding</Text>
+          <Text style={styles.metricLabel}>{t("profile.outstanding")}</Text>
           <Text style={styles.metricValue}>{inr(totals.outstanding)}</Text>
         </View>
         <View style={styles.metric}>
-          <Text style={styles.metricLabel}>Overdue</Text>
+          <Text style={styles.metricLabel}>{t("ledger.overdue")}</Text>
           <Text style={[styles.metricValue, totals.overdue > 0 && { color: colors.danger }]}>
             {inr(totals.overdue)}
           </Text>
         </View>
       </View>
 
-      <SearchBar value={query} onChange={setQuery} placeholder="Search shop or phone" />
+      <SearchBar value={query} onChange={setQuery} placeholder={t("retailers.search")} />
 
       {loading ? (
         <View style={styles.center}>
@@ -128,11 +130,11 @@ export default function RepRetailersScreen({ navigation }: any) {
 
               <View style={styles.creditRow}>
                 <View style={styles.creditCell}>
-                  <Text style={styles.creditLabel}>Outstanding</Text>
+                  <Text style={styles.creditLabel}>{t("profile.outstanding")}</Text>
                   <Text style={styles.creditValue}>{inr(item.outstanding)}</Text>
                 </View>
                 <View style={styles.creditCell}>
-                  <Text style={styles.creditLabel}>Available</Text>
+                  <Text style={styles.creditLabel}>{t("profile.availableCredit")}</Text>
                   <Text style={[styles.creditValue, { color: colors.green }]}>
                     {inr(item.available)}
                   </Text>

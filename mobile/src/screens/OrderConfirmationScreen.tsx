@@ -1,30 +1,30 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { useLanguage } from "../i18n/LanguageContext";
 
 export default function OrderConfirmationScreen({ route, navigation }: any) {
   const { order } = route.params;
+  const { t } = useLanguage();
 
   return (
     <View style={styles.container}>
       <Text style={styles.checkmark}>✓</Text>
-      <Text style={styles.title}>Order placed</Text>
+      <Text style={styles.title}>{t("orders.orderPlaced")}</Text>
       <Text style={styles.orderId}>Order #GGN-{String(order.orderNo).padStart(5, "0")}</Text>
       <Text style={styles.total}>Total: ₹{order.orderTotal}</Text>
-      <Text style={styles.hint}>
-        We'll notify you as your order is confirmed, packed and sent out for delivery.
-      </Text>
+      <Text style={styles.hint}>{t("orders.confirmationHint")}</Text>
 
       <TouchableOpacity
         style={styles.button}
         onPress={() => navigation.navigate("Main", { screen: "Orders" })}
       >
-        <Text style={styles.buttonText}>View order history</Text>
+        <Text style={styles.buttonText}>{t("orders.viewHistory")}</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={[styles.button, styles.secondary]}
         onPress={() => navigation.navigate("Main", { screen: "Products" })}
       >
-        <Text style={[styles.buttonText, styles.secondaryText]}>Continue shopping</Text>
+        <Text style={[styles.buttonText, styles.secondaryText]}>{t("orders.continueShopping")}</Text>
       </TouchableOpacity>
     </View>
   );

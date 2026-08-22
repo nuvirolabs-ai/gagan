@@ -16,11 +16,13 @@ import { colors, radius, spacing, shadow, inr, TAB_BAR_SPACE } from "../theme";
 import ProductThumb from "../components/ProductThumb";
 import { ScreenHeader, SearchBar, ChipRow, QtyStepper, EmptyState } from "../components/ui";
 import { useCart } from "../context/CartContext";
+import { useLanguage } from "../i18n/LanguageContext";
 
 const ALL = "All";
 
 export default function CatalogScreen({ navigation }: any) {
   const { lines, addLine, updateQty } = useCart();
+  const { t } = useLanguage();
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [category, setCategory] = useState(ALL);
@@ -81,8 +83,8 @@ export default function CatalogScreen({ navigation }: any) {
   return (
     <View style={styles.screen}>
       <ScreenHeader
-        title="Products"
-        subtitle={`${rows.length} item${rows.length === 1 ? "" : "s"} at your tier price`}
+        title={t("catalog.title")}
+        subtitle={t("catalog.count", { count: rows.length })}
         right={
           cartCount > 0 ? (
             <TouchableOpacity style={styles.cartChip} onPress={() => navigation.navigate("Cart")}>
@@ -93,7 +95,7 @@ export default function CatalogScreen({ navigation }: any) {
         }
       />
 
-      <SearchBar value={query} onChange={setQuery} placeholder="Search dal, rice, sugar…" />
+      <SearchBar value={query} onChange={setQuery} placeholder={t("catalog.search")} />
 
       <View style={{ marginTop: spacing.md, marginBottom: spacing.sm }}>
         <ChipRow options={[ALL, ...categories]} value={category} onChange={setCategory} />
@@ -114,9 +116,9 @@ export default function CatalogScreen({ navigation }: any) {
           ListEmptyComponent={
             <EmptyState
               icon="magnify"
-              title="Nothing matches that"
-              body="Try a different search or category."
-              actionLabel={query || category !== ALL ? "Clear filters" : undefined}
+              title={t("common.search")}
+              body={t("errors.generic")}
+              actionLabel={query || category !== ALL ? t("common.clearFilters") : undefined}
               onAction={() => {
                 setQuery("");
                 setCategory(ALL);
@@ -147,7 +149,7 @@ export default function CatalogScreen({ navigation }: any) {
                   </Text>
                   <View style={styles.priceRow}>
                     <Text style={styles.price}>
-                      {variant.price != null ? `${inr(variant.price)} / case` : "Price on request"}
+                      {variant.price != null ? `${inr(variant.price)} / case` : t("common.priceOnRequest")}
                     </Text>
                     {variant.pricePerKg != null && (
                       <Text style={styles.perKg}>{inr(variant.pricePerKg)}/kg</Text>
@@ -156,7 +158,7 @@ export default function CatalogScreen({ navigation }: any) {
                   {variant.isOverride && (
                     <View style={styles.dealTag}>
                       <Ionicons name="pricetag" size={9} color={colors.green} />
-                      <Text style={styles.dealText}>Your special rate</Text>
+                      <Text style={styles.dealText}>{t("catalog.specialRate")}</Text>
                     </View>
                   )}
                 </View>

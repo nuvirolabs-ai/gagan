@@ -14,10 +14,12 @@ import { useCart } from "../context/CartContext";
 import { colors, radius, spacing, shadow, inr } from "../theme";
 import ProductThumb from "../components/ProductThumb";
 import { QtyStepper } from "../components/ui";
+import { useLanguage } from "../i18n/LanguageContext";
 
 export default function ProductDetailScreen({ route, navigation }: any) {
   const { productId } = route.params;
   const { lines, addLine, updateQty } = useCart();
+  const { t } = useLanguage();
   const [product, setProduct] = useState<any | null>(null);
   const [selected, setSelected] = useState<any | null>(null);
   const [config, setConfig] = useState<any>({ freeDeliveryThreshold: 0, minOrderValue: 0 });
@@ -76,7 +78,7 @@ export default function ProductDetailScreen({ route, navigation }: any) {
           <Text style={styles.category}>{product.category.toUpperCase()}</Text>
           <Text style={styles.name}>{product.name}</Text>
 
-          <Text style={styles.sectionLabel}>Pack size</Text>
+          <Text style={styles.sectionLabel}>{t("product.packSize")}</Text>
           <View style={styles.variantRow}>
             {product.variants.map((v: any) => {
               const active = selected?.id === v.id;
@@ -101,22 +103,22 @@ export default function ProductDetailScreen({ route, navigation }: any) {
             <View style={styles.priceCard}>
               <View style={styles.between}>
                 <View>
-                  <Text style={styles.priceLabel}>Your price per case</Text>
+                  <Text style={styles.priceLabel}>{t("product.pricePerCase")}</Text>
                   <Text style={styles.price}>
-                    {selected.price != null ? inr(selected.price) : "On request"}
+                    {selected.price != null ? inr(selected.price) : t("product.onRequest")}
                   </Text>
                 </View>
                 {selected.pricePerKg != null && (
                   <View style={styles.perKgBox}>
                     <Text style={styles.perKgValue}>{inr(selected.pricePerKg)}</Text>
-                    <Text style={styles.perKgLabel}>per kg</Text>
+                    <Text style={styles.perKgLabel}>{t("product.perKg")}</Text>
                   </View>
                 )}
               </View>
               {selected.isOverride && (
                 <View style={styles.override}>
                   <Ionicons name="pricetag" size={11} color={colors.green} />
-                  <Text style={styles.overrideText}>Special rate negotiated for your shop</Text>
+                  <Text style={styles.overrideText}>{t("product.override")}</Text>
                 </View>
               )}
             </View>
@@ -126,19 +128,19 @@ export default function ProductDetailScreen({ route, navigation }: any) {
             <View style={styles.infoRow}>
               <MaterialCommunityIcons name="scale-balance" size={17} color={colors.green} />
               <Text style={styles.infoText}>
-                Billed on delivered weight — commodities vary slightly per case.
+                {t("product.billedWeight")}
               </Text>
             </View>
             <View style={styles.infoRow}>
               <Feather name="truck" size={16} color={colors.green} />
               <Text style={styles.infoText}>
-                Free delivery on orders above {inr(config.freeDeliveryThreshold ?? 0)}.
+                {t("product.freeDelivery", { amount: inr(config.freeDeliveryThreshold ?? 0) })}
               </Text>
             </View>
             <View style={styles.infoRow}>
               <Feather name="shopping-bag" size={16} color={colors.green} />
               <Text style={styles.infoText}>
-                Minimum order value {inr(config.minOrderValue ?? 0)}.
+                {t("product.minimumOrder", { amount: inr(config.minOrderValue ?? 0) })}
               </Text>
             </View>
           </View>
@@ -147,14 +149,14 @@ export default function ProductDetailScreen({ route, navigation }: any) {
 
       <View style={styles.bar}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.barLabel}>{inCart > 0 ? `${inCart} case(s) in cart` : "Subtotal"}</Text>
+          <Text style={styles.barLabel}>{inCart > 0 ? `${inCart} case(s) in cart` : t("product.subtotal")}</Text>
           <Text style={styles.barValue}>{inr(lineTotal)}</Text>
         </View>
         {inCart > 0 ? (
           <View style={styles.barActions}>
             <QtyStepper qty={inCart} onChange={setQty} />
             <TouchableOpacity style={styles.viewCart} onPress={() => navigation.navigate("Main", { screen: "Cart" })}>
-              <Text style={styles.viewCartText}>View cart</Text>
+              <Text style={styles.viewCartText}>{t("product.viewCart")}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -164,7 +166,7 @@ export default function ProductDetailScreen({ route, navigation }: any) {
             onPress={() => setQty(1)}
           >
             <Ionicons name="cart-outline" size={17} color={colors.onDark} />
-            <Text style={styles.addBtnText}>Add to cart</Text>
+            <Text style={styles.addBtnText}>{t("product.addToCart")}</Text>
           </TouchableOpacity>
         )}
       </View>

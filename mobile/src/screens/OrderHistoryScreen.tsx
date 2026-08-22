@@ -15,6 +15,7 @@ import { api } from "../api/client";
 import { useCart } from "../context/CartContext";
 import { colors, radius, spacing, shadow, inr, TAB_BAR_SPACE } from "../theme";
 import { ScreenHeader, ChipRow, EmptyState, StatusPill, OrderTimeline } from "../components/ui";
+import { useLanguage } from "../i18n/LanguageContext";
 
 const FILTERS = ["All", "Active", "Delivered", "Rejected"];
 const ACTIVE = ["placed", "confirmed", "packed", "out_for_delivery"];
@@ -25,6 +26,7 @@ export default function OrderHistoryScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { addLine } = useCart();
+  const { t } = useLanguage();
 
   const load = useCallback(async () => {
     const res = await api.getOrders();
@@ -68,7 +70,7 @@ export default function OrderHistoryScreen({ navigation }: any) {
 
   return (
     <View style={styles.screen}>
-      <ScreenHeader title="Orders" subtitle={`${orders.length} total`} />
+      <ScreenHeader title={t("orders.title")} subtitle={`${orders.length} total`} />
 
       <View style={{ marginBottom: spacing.sm }}>
         <ChipRow options={FILTERS} value={filter} onChange={setFilter} />
@@ -89,13 +91,13 @@ export default function OrderHistoryScreen({ navigation }: any) {
           ListEmptyComponent={
             <EmptyState
               icon="receipt"
-              title={filter === "All" ? "No orders yet" : `No ${filter.toLowerCase()} orders`}
+              title={filter === "All" ? t("orders.noOrders") : t("errors.generic")}
               body={
                 filter === "All"
-                  ? "Your orders will appear here once you place one."
-                  : "Try a different filter."
+                  ? t("orders.noOrders")
+                  : t("common.retry")
               }
-              actionLabel={filter === "All" ? "Browse products" : undefined}
+              actionLabel={filter === "All" ? t("tabs.products") : undefined}
               onAction={() => navigation.navigate("Products")}
             />
           }
@@ -143,10 +145,10 @@ export default function OrderHistoryScreen({ navigation }: any) {
                 <View style={styles.cardFoot}>
                   <TouchableOpacity style={styles.reorder} onPress={() => reorder(item)}>
                     <MaterialCommunityIcons name="refresh" size={13} color={colors.green} />
-                    <Text style={styles.reorderText}>Reorder</Text>
+                    <Text style={styles.reorderText}>{t("orders.reorder")}</Text>
                   </TouchableOpacity>
                   <View style={styles.detailsLink}>
-                    <Text style={styles.detailsText}>Details</Text>
+                    <Text style={styles.detailsText}>{t("orders.details")}</Text>
                     <Ionicons name="chevron-forward" size={14} color={colors.inkMuted} />
                   </View>
                 </View>

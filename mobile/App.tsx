@@ -8,6 +8,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import { CartProvider } from "./src/context/CartContext";
+import { LanguageProvider, useLanguage } from "./src/i18n/LanguageContext";
 import TabBar from "./src/components/TabBar";
 import { colors } from "./src/theme";
 
@@ -24,6 +25,7 @@ import PayScreen from "./src/screens/PayScreen";
 import DeliveryTrackingScreen from "./src/screens/DeliveryTrackingScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import StoreLocationScreen from "./src/screens/StoreLocationScreen";
+import LanguageSelectionScreen from "./src/screens/LanguageSelectionScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -65,6 +67,7 @@ function MainTabs() {
 
 function RootNavigator() {
   const { retailer, loading } = useAuth();
+  const { selectionRequired, t } = useLanguage();
 
   if (loading) {
     return (
@@ -80,32 +83,34 @@ function RootNavigator() {
     <Stack.Navigator screenOptions={stackScreenOptions}>
       {!retailer ? (
         <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+      ) : selectionRequired ? (
+        <Stack.Screen name="Language" component={LanguageSelectionScreen} options={{ headerShown: false }} />
       ) : (
         <>
           <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
           <Stack.Screen
             name="ProductDetail"
             component={ProductDetailScreen}
-            options={{ title: "Product", headerBackTitle: "Back" }}
+            options={{ title: t("catalog.title"), headerBackTitle: t("common.back") }}
           />
-          <Stack.Screen name="Ledger" component={LedgerScreen} options={{ title: "Ledger", headerBackTitle: "Back" }} />
-          <Stack.Screen name="Pay" component={PayScreen} options={{ title: "Pay dues", headerBackTitle: "Back" }} />
+          <Stack.Screen name="Ledger" component={LedgerScreen} options={{ title: t("ledger.title"), headerBackTitle: t("common.back") }} />
+          <Stack.Screen name="Pay" component={PayScreen} options={{ title: t("pay.title"), headerBackTitle: t("common.back") }} />
           <Stack.Screen
             name="OrderDetail"
             component={OrderDetailScreen}
-            options={{ title: "Order details", headerBackTitle: "Orders" }}
+            options={{ title: t("orders.orderDetails"), headerBackTitle: t("tabs.orders") }}
           />
           <Stack.Screen
             name="OrderConfirmation"
             component={OrderConfirmationScreen}
-            options={{ title: "Order placed", headerBackVisible: false }}
+            options={{ title: t("orders.orderPlaced"), headerBackVisible: false }}
           />
           <Stack.Screen
             name="DeliveryTracking"
             component={DeliveryTrackingScreen}
-            options={{ title: "Delivery status", headerBackTitle: "Back" }}
+            options={{ title: t("delivery.title"), headerBackTitle: t("common.back") }}
           />
-          <Stack.Screen name="StoreLocation" component={StoreLocationScreen} options={{ title: "Store location", headerBackTitle: "Account" }} />
+          <Stack.Screen name="StoreLocation" component={StoreLocationScreen} options={{ title: t("location.title"), headerBackTitle: t("tabs.account") }} />
         </>
       )}
     </Stack.Navigator>
@@ -115,14 +120,16 @@ function RootNavigator() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <CartProvider>
-          <NavigationContainer theme={navTheme}>
-            <RootNavigator />
-            <StatusBar style="dark" />
-          </NavigationContainer>
-        </CartProvider>
-      </AuthProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <CartProvider>
+            <NavigationContainer theme={navTheme}>
+              <RootNavigator />
+              <StatusBar style="dark" />
+            </NavigationContainer>
+          </CartProvider>
+        </AuthProvider>
+      </LanguageProvider>
     </SafeAreaProvider>
   );
 }

@@ -6,6 +6,7 @@ import { api } from "../api/client";
 import { captureForegroundLocation } from "../location/deviceLocation";
 import { colors, radius, spacing, shadow } from "../theme";
 import { ScreenHeader } from "../components/ui";
+import { useLanguage } from "../i18n/LanguageContext";
 
 const STATUS_LABEL: Record<string, string> = {
   NOT_SET: "Store location not set",
@@ -15,6 +16,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default function StoreLocationScreen() {
+  const { t } = useLanguage();
   const [location, setLocation] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [capturing, setCapturing] = useState(false);
@@ -75,29 +77,29 @@ export default function StoreLocationScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: spacing.xxl }}>
-      <ScreenHeader title="Store location" subtitle="Helps Gagan deliver to your store and connect you with the right salesperson." />
+      <ScreenHeader title={t("location.title")} subtitle={t("location.subtitle")} />
       <View style={styles.card}>
         <View style={styles.statusRow}>
           <View style={styles.icon}><MaterialCommunityIcons name="map-marker-radius-outline" size={24} color={colors.green} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>{STATUS_LABEL[location?.status ?? "NOT_SET"]}</Text>
-            <Text style={styles.body}>{location?.accuracyMeters ? `Last reading ±${Math.round(Number(location.accuracyMeters))} m` : "No coordinates are saved yet."}</Text>
+            <Text style={styles.body}>{location?.accuracyMeters ? `Last reading ±${Math.round(Number(location.accuracyMeters))} m` : t("location.notSet")}</Text>
           </View>
         </View>
         {message ? <View style={styles.message}><Text style={styles.messageText}>{message}</Text></View> : null}
         {location?.status !== "VERIFIED" ? <TouchableOpacity style={styles.primary} onPress={() => void capture()} disabled={capturing}>
-          {capturing ? <ActivityIndicator color={colors.onDark} /> : <><Ionicons name="locate-outline" size={18} color={colors.onDark} /><Text style={styles.primaryText}>{location?.status === "NOT_SET" ? "I'm at my store" : "Verify location"}</Text></>}
+          {capturing ? <ActivityIndicator color={colors.onDark} /> : <><Ionicons name="locate-outline" size={18} color={colors.onDark} /><Text style={styles.primaryText}>{location?.status === "NOT_SET" ? t("location.atStore") : t("location.verify")}</Text></>}
         </TouchableOpacity> : null}
         {location?.status === "VERIFIED" ? (
           changeMode ? (
             <View style={styles.changeBox}>
-              <Text style={styles.label}>Why does the location need to change?</Text>
+              <Text style={styles.label}>{t("location.changeReason")}</Text>
               <TextInput value={reason} onChangeText={setReason} placeholder="Store moved, incorrect pin…" placeholderTextColor={colors.inkFaint} style={styles.input} />
-              <View style={styles.actions}><TouchableOpacity onPress={() => setChangeMode(false)}><Text style={styles.cancel}>Cancel</Text></TouchableOpacity><TouchableOpacity onPress={() => void submitChange()}><Text style={styles.submit}>Submit request</Text></TouchableOpacity></View>
+              <View style={styles.actions}><TouchableOpacity onPress={() => setChangeMode(false)}><Text style={styles.cancel}>{t("common.cancel")}</Text></TouchableOpacity><TouchableOpacity onPress={() => void submitChange()}><Text style={styles.submit}>{t("location.submitRequest")}</Text></TouchableOpacity></View>
             </View>
-          ) : <TouchableOpacity style={styles.secondary} onPress={() => setChangeMode(true)}><Text style={styles.secondaryText}>Request location change</Text></TouchableOpacity>
+          ) : <TouchableOpacity style={styles.secondary} onPress={() => setChangeMode(true)}><Text style={styles.secondaryText}>{t("location.requestChange")}</Text></TouchableOpacity>
         ) : null}
-        {message?.includes("Open Settings") ? <TouchableOpacity style={styles.secondary} onPress={() => void Linking.openSettings()}><Text style={styles.secondaryText}>Open Settings</Text></TouchableOpacity> : null}
+        {message?.includes("Open Settings") ? <TouchableOpacity style={styles.secondary} onPress={() => void Linking.openSettings()}><Text style={styles.secondaryText}>{t("location.openSettings")}</Text></TouchableOpacity> : null}
       </View>
     </ScrollView>
   );

@@ -19,6 +19,7 @@ import { useCart } from "../context/CartContext";
 import { colors, radius, spacing, shadow, inr } from "../theme";
 import ProductThumb from "../components/ProductThumb";
 import CreditRing from "../components/CreditRing";
+import { useLanguage } from "../i18n/LanguageContext";
 
 const ORDER_STEPS = ["confirmed", "packed", "out_for_delivery", "delivered"] as const;
 const STEP_META: Record<(typeof ORDER_STEPS)[number], { label: string; icon: string }> = {
@@ -28,16 +29,17 @@ const STEP_META: Record<(typeof ORDER_STEPS)[number], { label: string; icon: str
   delivered: { label: "Delivered", icon: "check-circle-outline" },
 };
 
-function greeting(): string {
+function greeting(t: (key: string) => string): string {
   const h = new Date().getHours();
-  if (h < 12) return "Good morning,";
-  if (h < 17) return "Good afternoon,";
-  return "Good evening,";
+  if (h < 12) return t("home.goodMorning");
+  if (h < 17) return t("home.goodAfternoon");
+  return t("home.goodEvening");
 }
 
 export default function HomeScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const { lines, addLine, updateQty } = useCart();
+  const { t } = useLanguage();
   const [data, setData] = useState<HomePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -100,9 +102,9 @@ export default function HomeScreen({ navigation }: any) {
   if (!data) {
     return (
       <View style={[styles.screen, styles.center]}>
-        <Text style={styles.muted}>Couldn't load your dashboard.</Text>
+        <Text style={styles.muted}>{t("errors.generic")}</Text>
         <TouchableOpacity style={styles.retry} onPress={onRefresh}>
-          <Text style={styles.retryText}>Retry</Text>
+          <Text style={styles.retryText}>{t("common.retry")}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -127,7 +129,7 @@ export default function HomeScreen({ navigation }: any) {
           <Text style={styles.tagline}>NUTRITION. DELIVERED.</Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.iconBtn} accessibilityLabel="Notifications">
+          <TouchableOpacity style={styles.iconBtn} accessibilityLabel={t("profile.support")}>
             <Ionicons name="notifications-outline" size={20} color={colors.ink} />
             {badges.notifications > 0 && (
               <View style={styles.badge}>
@@ -137,7 +139,7 @@ export default function HomeScreen({ navigation }: any) {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.iconBtn}
-            accessibilityLabel="Support"
+            accessibilityLabel={t("profile.support")}
             onPress={() => config.supportPhone && Linking.openURL(`tel:${config.supportPhone}`)}
           >
             <MaterialCommunityIcons name="headset" size={20} color={colors.ink} />
@@ -148,7 +150,7 @@ export default function HomeScreen({ navigation }: any) {
       {/* Greeting + salesman */}
       <View style={styles.greetRow}>
         <View style={styles.greetBlock}>
-          <Text style={styles.greetSmall}>{greeting()}</Text>
+          <Text style={styles.greetSmall}>{greeting(t)}</Text>
           <Text style={styles.greetName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
             {retailer.name} 👋
           </Text>
@@ -165,7 +167,7 @@ export default function HomeScreen({ navigation }: any) {
               </Text>
             </View>
             <View style={styles.repText}>
-              <Text style={styles.repLabel}>Your Salesman</Text>
+              <Text style={styles.repLabel}>{t("home.salesman")}</Text>
               <Text style={styles.repName} numberOfLines={1}>
                 {salesRep.name}
               </Text>
@@ -185,13 +187,13 @@ export default function HomeScreen({ navigation }: any) {
       <View style={styles.moneyRow}>
         <View style={styles.outstandingCard}>
           <View style={styles.rowCenter}>
-            <Text style={styles.outstandingLabel}>Outstanding Amount</Text>
+            <Text style={styles.outstandingLabel}>{t("home.outstandingAmount")}</Text>
             <Ionicons name="information-circle-outline" size={13} color={colors.onDarkMuted} style={{ marginLeft: 4 }} />
           </View>
           <Text style={styles.outstandingValue}>{inr(credit.outstanding)}</Text>
           {credit.overdue > 0 && <Text style={styles.overdue}>Overdue: {inr(credit.overdue)}</Text>}
           <TouchableOpacity style={styles.ledgerBtn} onPress={() => navigation.navigate("Ledger")}>
-            <Text style={styles.ledgerBtnText}>View Ledger</Text>
+            <Text style={styles.ledgerBtnText}>{t("home.viewLedger")}</Text>
             <Ionicons name="arrow-forward" size={15} color={colors.onDark} />
           </TouchableOpacity>
         </View>
@@ -199,7 +201,7 @@ export default function HomeScreen({ navigation }: any) {
         <View style={styles.creditCard}>
           <View style={styles.rowBetween}>
             <View style={{ flex: 1, paddingRight: spacing.sm }}>
-              <Text style={styles.creditLabel}>Credit Limit</Text>
+              <Text style={styles.creditLabel}>{t("home.creditLimit")}</Text>
               <Text style={styles.creditValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                 {inr(credit.creditLimit)}
               </Text>
@@ -211,12 +213,12 @@ export default function HomeScreen({ navigation }: any) {
           </View>
           <View style={styles.creditSplit}>
             <View style={styles.creditSplitCell}>
-              <Text style={styles.creditSplitLabel}>Used</Text>
+              <Text style={styles.creditSplitLabel}>{t("home.used")}</Text>
               <Text style={styles.creditSplitValue}>{inr(credit.used)}</Text>
             </View>
             <View style={styles.creditDivider} />
             <View style={styles.creditSplitCell}>
-              <Text style={styles.creditSplitLabel}>Available</Text>
+              <Text style={styles.creditSplitLabel}>{t("home.available")}</Text>
               <Text style={[styles.creditSplitValue, { color: colors.green }]}>{inr(credit.available)}</Text>
             </View>
           </View>
@@ -249,9 +251,9 @@ export default function HomeScreen({ navigation }: any) {
 
       {/* Quick order */}
       <View style={styles.sectionHead}>
-        <Text style={styles.sectionTitle}>Quick Order</Text>
+        <Text style={styles.sectionTitle}>{t("home.quickOrder")}</Text>
         <TouchableOpacity style={styles.rowCenter} onPress={() => navigation.navigate("Products")}>
-          <Text style={styles.link}>View All Products</Text>
+          <Text style={styles.link}>{t("home.viewProducts")}</Text>
           <Ionicons name="arrow-forward" size={13} color={colors.green} style={{ marginLeft: 3 }} />
         </TouchableOpacity>
       </View>
@@ -296,9 +298,9 @@ export default function HomeScreen({ navigation }: any) {
 
       {/* Active order */}
       <View style={styles.sectionHead}>
-        <Text style={styles.sectionTitle}>My Orders</Text>
+        <Text style={styles.sectionTitle}>{t("home.myOrders")}</Text>
         <TouchableOpacity style={styles.rowCenter} onPress={() => navigation.navigate("Orders")}>
-          <Text style={styles.link}>View All Orders</Text>
+          <Text style={styles.link}>{t("home.viewOrders")}</Text>
           <Ionicons name="arrow-forward" size={13} color={colors.green} style={{ marginLeft: 3 }} />
         </TouchableOpacity>
       </View>
@@ -374,7 +376,7 @@ export default function HomeScreen({ navigation }: any) {
         </TouchableOpacity>
       ) : (
         <View style={[styles.orderCard, styles.emptyOrder]}>
-          <Text style={styles.muted}>No orders in progress</Text>
+          <Text style={styles.muted}>{t("home.noOrdersProgress")}</Text>
         </View>
       )}
 
@@ -397,7 +399,7 @@ export default function HomeScreen({ navigation }: any) {
           <Ionicons name="chevron-forward" size={15} color={colors.onDarkMuted} style={styles.offersChevron} />
           <Text style={styles.offersGift}>🎁</Text>
           <View style={styles.offersText}>
-            <Text style={styles.offersTitle}>Available{"\n"}Offers</Text>
+            <Text style={styles.offersTitle}>{t("home.offers")}</Text>
             <Text style={styles.offersCount} numberOfLines={1}>
               {badges.activeOffers} Active Offers
             </Text>
@@ -410,14 +412,14 @@ export default function HomeScreen({ navigation }: any) {
         <View style={styles.infoCell}>
           <Feather name="truck" size={17} color={colors.green} />
           <View style={styles.infoText}>
-            <Text style={styles.infoTitle}>Free Delivery</Text>
+            <Text style={styles.infoTitle}>{t("home.freeDelivery")}</Text>
             <Text style={styles.infoSub}>On orders above {inr(config.freeDeliveryThreshold)}</Text>
           </View>
         </View>
         <View style={styles.infoCell}>
           <Feather name="calendar" size={17} color={colors.green} />
           <View style={styles.infoText}>
-            <Text style={styles.infoTitle}>Next Delivery</Text>
+            <Text style={styles.infoTitle}>{t("home.nextDelivery")}</Text>
             <Text style={styles.infoSub}>
               Tomorrow,{" "}
               {new Date(Date.now() + 86400000).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
@@ -427,7 +429,7 @@ export default function HomeScreen({ navigation }: any) {
         <View style={styles.infoCell}>
           <Feather name="shopping-bag" size={17} color={colors.green} />
           <View style={styles.infoText}>
-            <Text style={styles.infoTitle}>Min. Order Value</Text>
+            <Text style={styles.infoTitle}>{t("home.minimumOrder")}</Text>
             <Text style={styles.infoSub}>{inr(config.minOrderValue)}</Text>
           </View>
         </View>

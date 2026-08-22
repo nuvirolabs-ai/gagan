@@ -8,6 +8,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { RepProvider, useRep } from "./src/context/RepContext";
+import { LanguageProvider, useLanguage } from "./src/i18n/LanguageContext";
 import { colors } from "./src/theme";
 
 import RepLoginScreen from "./src/screens/RepLoginScreen";
@@ -21,6 +22,7 @@ import ApprovalDetailScreen from "./src/screens/ApprovalDetailScreen";
 import RatingReviewsScreen from "./src/screens/RatingReviewsScreen";
 import KycCaptureScreen from "./src/screens/KycCaptureScreen";
 import { staffCapabilities } from "./src/auth/staffCapabilities";
+import LanguageSelectionScreen from "./src/screens/LanguageSelectionScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -45,12 +47,14 @@ const stackScreenOptions = {
 
 function RepTabs() {
   const { staff } = useRep();
+  const { t } = useLanguage();
   const capabilities = staffCapabilities(staff?.permissions ?? []);
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         // Both tab screens render their own <ScreenHeader>.
         headerShown: false,
+        tabBarLabel: t(`tabs.${route.name.toLowerCase()}`),
         tabBarActiveTintColor: colors.green,
         tabBarInactiveTintColor: colors.inkFaint,
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
@@ -76,6 +80,7 @@ function RepTabs() {
 
 function RootNavigator() {
   const { staff, loading } = useRep();
+  const { selectionRequired, t } = useLanguage();
   const capabilities = staffCapabilities(staff?.permissions ?? []);
 
   if (loading) {
@@ -92,37 +97,39 @@ function RootNavigator() {
     <Stack.Navigator screenOptions={stackScreenOptions}>
       {!staff ? (
         <Stack.Screen name="Login" component={RepLoginScreen} options={{ headerShown: false }} />
+      ) : selectionRequired ? (
+        <Stack.Screen name="Language" component={LanguageSelectionScreen} options={{ headerShown: false }} />
       ) : (
         <>
           <Stack.Screen
             name="RepMain"
             component={RepTabs}
-            options={{ headerShown: false, title: "Retailers" }}
+            options={{ headerShown: false, title: t("tabs.retailers") }}
           />
           {capabilities.canOrderForRetailers && (
             <>
               <Stack.Screen
                 name="RepRetailerDetail"
                 component={RepRetailerDetailScreen}
-                options={{ title: "Retailer", headerBackTitle: "Retailers" }}
+                options={{ title: t("retailer.title"), headerBackTitle: t("tabs.retailers") }}
               />
               <Stack.Screen
                 name="RepCatalog"
                 component={RepCatalogScreen}
-                options={{ title: "New order", headerBackTitle: "Back" }}
+                options={{ title: t("orders.new"), headerBackTitle: t("common.back") }}
               />
-              <Stack.Screen name="KycCapture" component={KycCaptureScreen} options={{ title: "KYC documents", headerBackTitle: "Retailer" }} />
+              <Stack.Screen name="KycCapture" component={KycCaptureScreen} options={{ title: t("kyc.title"), headerBackTitle: t("retailer.title") }} />
             </>
           )}
           {capabilities.canApprove && (
             <Stack.Screen
               name="ApprovalDetail"
               component={ApprovalDetailScreen}
-              options={{ title: "Approval", headerBackTitle: "Approvals" }}
+              options={{ title: t("approval.title"), headerBackTitle: t("tabs.approvals") }}
             />
           )}
           {capabilities.canReviewRatings && (
-            <Stack.Screen name="RatingReviews" component={RatingReviewsScreen} options={{ title: "Rating reviews", headerBackTitle: "Approvals" }} />
+            <Stack.Screen name="RatingReviews" component={RatingReviewsScreen} options={{ title: t("rating.title"), headerBackTitle: t("tabs.approvals") }} />
           )}
         </>
       )}
@@ -133,12 +140,14 @@ function RootNavigator() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <RepProvider>
-        <NavigationContainer theme={navTheme}>
-          <RootNavigator />
-          <StatusBar style="dark" />
-        </NavigationContainer>
-      </RepProvider>
+      <LanguageProvider>
+        <RepProvider>
+          <NavigationContainer theme={navTheme}>
+            <RootNavigator />
+            <StatusBar style="dark" />
+          </NavigationContainer>
+        </RepProvider>
+      </LanguageProvider>
     </SafeAreaProvider>
   );
 }

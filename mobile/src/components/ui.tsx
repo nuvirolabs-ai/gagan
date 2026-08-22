@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { colors, radius, spacing, shadow } from "../theme";
+import { useLanguage } from "../i18n/LanguageContext";
 
 /** Title bar for tab screens, which have no native header. */
 export function ScreenHeader({
@@ -91,12 +92,13 @@ export function QtyStepper({
   onChange: (next: number) => void;
   compact?: boolean;
 }) {
+  const { t } = useLanguage();
   if (qty <= 0) {
     return (
       <TouchableOpacity
         style={[s.addBtn, compact && s.addBtnCompact]}
         onPress={() => onChange(1)}
-        accessibilityLabel="Add to cart"
+        accessibilityLabel={t("product.addToCart")}
       >
         <Ionicons name="add" size={compact ? 16 : 18} color={colors.onDark} />
       </TouchableOpacity>
@@ -107,7 +109,7 @@ export function QtyStepper({
       <TouchableOpacity
         style={s.stepBtn}
         onPress={() => onChange(qty - 1)}
-        accessibilityLabel="Decrease quantity"
+        accessibilityLabel={t("common.decreaseQuantity")}
       >
         <Ionicons name={qty === 1 ? "trash-outline" : "remove"} size={15} color={colors.ink} />
       </TouchableOpacity>
@@ -115,7 +117,7 @@ export function QtyStepper({
       <TouchableOpacity
         style={s.stepBtn}
         onPress={() => onChange(qty + 1)}
-        accessibilityLabel="Increase quantity"
+        accessibilityLabel={t("common.increaseQuantity")}
       >
         <Ionicons name="add" size={15} color={colors.ink} />
       </TouchableOpacity>
@@ -162,10 +164,11 @@ export const ORDER_STATUS_META: Record<string, { label: string; tint: string; bg
 };
 
 export function StatusPill({ status }: { status: string }) {
+  const { t } = useLanguage();
   const meta = ORDER_STATUS_META[status] ?? ORDER_STATUS_META.placed;
   return (
     <View style={[s.pill, { backgroundColor: meta.bg }]}>
-      <Text style={[s.pillText, { color: meta.tint }]}>{meta.label}</Text>
+      <Text style={[s.pillText, { color: meta.tint }]}>{t(`status.${status}`, { status: meta.label })}</Text>
     </View>
   );
 }
@@ -179,6 +182,7 @@ const TIMELINE_ICON: Record<string, string> = {
 };
 
 export function OrderTimeline({ status }: { status: string }) {
+  const { t } = useLanguage();
   const currentIndex = TIMELINE_STEPS.indexOf(status as any);
   return (
     <View style={s.timeline}>
@@ -196,7 +200,7 @@ export function OrderTimeline({ status }: { status: string }) {
               />
             </View>
             <Text style={[s.tlLabel, isCurrent && s.tlLabelCurrent]} numberOfLines={1}>
-              {ORDER_STATUS_META[step].label}
+              {t(`status.${step}`, { status: ORDER_STATUS_META[step].label })}
             </Text>
           </View>
         );

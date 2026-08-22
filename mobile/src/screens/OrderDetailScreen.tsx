@@ -7,6 +7,7 @@ import { api } from "../api/client";
 import { useCart } from "../context/CartContext";
 import { colors, radius, spacing, shadow, inr } from "../theme";
 import { StatusPill, OrderTimeline } from "../components/ui";
+import { useLanguage } from "../i18n/LanguageContext";
 
 const POD_LABEL: Record<string, string> = {
   photo: "Photo",
@@ -19,6 +20,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
   const [order, setOrder] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const { addLine } = useCart();
+  const { t } = useLanguage();
 
   useFocusEffect(
     useCallback(() => {
@@ -41,7 +43,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
   if (!order) {
     return (
       <View style={styles.center}>
-        <Text style={styles.muted}>Couldn't load this order.</Text>
+        <Text style={styles.muted}>{t("errors.generic")}</Text>
       </View>
     );
   }
@@ -90,7 +92,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
         </View>
       )}
 
-      <Text style={styles.sectionTitle}>Items</Text>
+      <Text style={styles.sectionTitle}>{t("orders.items")}</Text>
       <View style={styles.card}>
         {order.items.map((item: any, i: number) => {
           const short =
@@ -110,8 +112,8 @@ export default function OrderDetailScreen({ route, navigation }: any) {
                 </Text>
                 {item.weightDelivered != null && (
                   <Text style={[styles.itemWeight, short && { color: colors.danger }]}>
-                    Delivered {Number(item.weightDelivered)}kg
-                    {short ? " (short)" : ""}
+                    {t("orders.deliveredWeight", { weight: Number(item.weightDelivered) })}
+                    {short ? ` ${t("orders.short")}` : ""}
                   </Text>
                 )}
               </View>
@@ -126,21 +128,21 @@ export default function OrderDetailScreen({ route, navigation }: any) {
         })}
       </View>
 
-      <Text style={styles.sectionTitle}>Payment</Text>
+      <Text style={styles.sectionTitle}>{t("orders.payment")}</Text>
       <View style={styles.card}>
         <View style={styles.sumRow}>
-          <Text style={styles.sumLabel}>Ordered value</Text>
+          <Text style={styles.sumLabel}>{t("orders.orderedValue")}</Text>
           <Text style={styles.sumValue}>{inr(Number(order.orderTotal))}</Text>
         </View>
         {invoice ? (
           <>
             <View style={styles.sumRow}>
-              <Text style={styles.sumLabel}>Invoiced (delivered weight)</Text>
+              <Text style={styles.sumLabel}>{t("orders.invoicedWeight")}</Text>
               <Text style={[styles.sumValue, { fontWeight: "700" }]}>{inr(invoice.amount)}</Text>
             </View>
             {Math.abs(invoice.variance) >= 1 && (
               <View style={styles.sumRow}>
-                <Text style={styles.sumLabel}>Variance</Text>
+                <Text style={styles.sumLabel}>{t("orders.variance")}</Text>
                 <Text
                   style={[
                     styles.sumValue,
@@ -155,8 +157,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
             <View style={styles.noteBox}>
               <MaterialCommunityIcons name="scale-balance" size={15} color={colors.green} />
               <Text style={styles.noteText}>
-                Commodities are billed on the weight actually delivered, so the invoice can differ
-                from the ordered value.
+                {t("orders.itemsWeightNote")}
               </Text>
             </View>
           </>
@@ -164,7 +165,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
           <View style={styles.noteBox}>
             <Ionicons name="information-circle-outline" size={15} color={colors.green} />
             <Text style={styles.noteText}>
-              You'll be invoiced on delivered weight once this order is delivered.
+              {t("orders.deliveryNote")}
             </Text>
           </View>
         )}
@@ -172,29 +173,29 @@ export default function OrderDetailScreen({ route, navigation }: any) {
 
       {order.delivery && (
         <>
-          <Text style={styles.sectionTitle}>Delivery</Text>
+          <Text style={styles.sectionTitle}>{t("orders.delivery")}</Text>
           <View style={styles.card}>
             {order.delivery.routeId && (
               <View style={styles.sumRow}>
-                <Text style={styles.sumLabel}>Route</Text>
+                <Text style={styles.sumLabel}>{t("orders.route")}</Text>
                 <Text style={styles.sumValue}>{order.delivery.routeId}</Text>
               </View>
             )}
             {order.delivery.podType && (
               <View style={styles.sumRow}>
-                <Text style={styles.sumLabel}>Proof of delivery</Text>
+                <Text style={styles.sumLabel}>{t("orders.proofOfDelivery")}</Text>
                 <Text style={styles.sumValue}>{POD_LABEL[order.delivery.podType]}</Text>
               </View>
             )}
             {order.delivery.actualWeight != null && (
               <View style={styles.sumRow}>
-                <Text style={styles.sumLabel}>Total weight received</Text>
+                <Text style={styles.sumLabel}>{t("orders.totalWeight")}</Text>
                 <Text style={styles.sumValue}>{Number(order.delivery.actualWeight)}kg</Text>
               </View>
             )}
             {order.delivery.podCapturedAt && (
               <View style={styles.sumRow}>
-                <Text style={styles.sumLabel}>Delivered at</Text>
+                <Text style={styles.sumLabel}>{t("orders.deliveredAt")}</Text>
                 <Text style={styles.sumValue}>
                   {new Date(order.delivery.podCapturedAt).toLocaleString("en-IN", {
                     day: "numeric",
@@ -211,7 +212,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
 
       <TouchableOpacity style={styles.reorderBtn} onPress={reorder}>
         <MaterialCommunityIcons name="refresh" size={17} color={colors.onDark} />
-        <Text style={styles.reorderText}>Reorder these items</Text>
+        <Text style={styles.reorderText}>{t("orders.reorderItems")}</Text>
       </TouchableOpacity>
     </ScrollView>
   );

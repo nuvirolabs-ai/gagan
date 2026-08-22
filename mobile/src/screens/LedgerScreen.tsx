@@ -7,6 +7,7 @@ import { api } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { colors, radius, spacing, shadow, inr } from "../theme";
 import { EmptyState } from "../components/ui";
+import { useLanguage } from "../i18n/LanguageContext";
 
 interface Entry {
   id: string;
@@ -19,6 +20,7 @@ interface Entry {
 
 export default function LedgerScreen() {
   const { retailer } = useAuth();
+  const { t } = useLanguage();
   const [entries, setEntries] = useState<Entry[]>([]);
   const [summary, setSummary] = useState({ balance: "0", limit: "0" });
   const [loading, setLoading] = useState(true);
@@ -74,7 +76,7 @@ export default function LedgerScreen() {
   return (
     <View style={styles.screen}>
       <View style={styles.hero}>
-        <Text style={styles.heroLabel}>Outstanding balance</Text>
+        <Text style={styles.heroLabel}>{t("ledger.outstanding")}</Text>
         <Text style={styles.heroValue}>{inr(balance)}</Text>
         <View style={styles.heroTrack}>
           <View
@@ -85,8 +87,8 @@ export default function LedgerScreen() {
           />
         </View>
         <View style={styles.heroRow}>
-          <Text style={styles.heroSub}>Limit {inr(limit)}</Text>
-          <Text style={styles.heroSub}>Available {inr(Math.max(limit - balance, 0))}</Text>
+          <Text style={styles.heroSub}>{t("ledger.limit", { amount: inr(limit) })}</Text>
+          <Text style={styles.heroSub}>{t("ledger.available")} {inr(Math.max(limit - balance, 0))}</Text>
         </View>
       </View>
 
@@ -101,8 +103,8 @@ export default function LedgerScreen() {
         ListEmptyComponent={
           <EmptyState
             icon="file-document-outline"
-            title="No transactions yet"
-            body="Invoices appear here once an order is delivered, and payments once they're recorded."
+            title={t("ledger.noTransactions")}
+            body={t("ledger.noTransactionsBody")}
           />
         }
         renderSectionHeader={({ section }) => (
@@ -111,10 +113,10 @@ export default function LedgerScreen() {
         renderItem={({ item }) => {
           const isDebit = item.direction ? item.direction === "debit" : item.type === "invoice";
           const label = {
-            invoice: "Invoice",
-            payment: "Payment received",
-            credit_note: "Credit note",
-            payment_reversal: "Payment reversed",
+            invoice: t("ledger.invoice"),
+            payment: t("ledger.paymentReceived"),
+            credit_note: t("ledger.creditNote"),
+            payment_reversal: t("ledger.paymentReversed"),
           }[item.type];
           return (
             <View style={styles.entry}>
@@ -142,7 +144,7 @@ export default function LedgerScreen() {
                   {isDebit ? "+" : "−"}
                   {inr(Number(item.amount))}
                 </Text>
-                <Text style={styles.entryBalance}>Bal {inr(Number(item.balanceAfter))}</Text>
+                <Text style={styles.entryBalance}>{t("ledger.balance", { amount: inr(Number(item.balanceAfter)) })}</Text>
               </View>
             </View>
           );

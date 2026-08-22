@@ -15,9 +15,11 @@ import { api } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { colors, radius, spacing, shadow, inr, TAB_BAR_SPACE } from "../theme";
 import { ScreenHeader } from "../components/ui";
+import { useLanguage } from "../i18n/LanguageContext";
 
 export default function ProfileScreen({ navigation }: any) {
   const { logout } = useAuth();
+  const { language, t, setLanguage } = useLanguage();
   const [data, setData] = useState<any | null>(null);
 
   useFocusEffect(
@@ -30,21 +32,21 @@ export default function ProfileScreen({ navigation }: any) {
   );
 
   const call = (phone?: string | null) => {
-    if (!phone) return Alert.alert("No number available");
+    if (!phone) return Alert.alert(t("errors.generic"));
     Linking.openURL(`tel:${phone}`);
   };
 
   const whatsapp = (phone?: string | null) => {
-    if (!phone) return Alert.alert("No number available");
+    if (!phone) return Alert.alert(t("errors.generic"));
     Linking.openURL(`https://wa.me/${phone.replace(/[^0-9]/g, "")}`).catch(() =>
-      Alert.alert("WhatsApp isn't available on this device")
+      Alert.alert(t("errors.generic"))
     );
   };
 
   const confirmLogout = () =>
-    Alert.alert("Log out?", "You'll need your phone number and an OTP to sign back in.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Log out", style: "destructive", onPress: logout },
+    Alert.alert(t("profile.logoutTitle"), t("profile.logoutBody"), [
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("profile.logout"), style: "destructive", onPress: logout },
     ]);
 
   const retailer = data?.retailer;
@@ -54,39 +56,39 @@ export default function ProfileScreen({ navigation }: any) {
   const MENU = [
     {
       icon: "file-document-outline",
-      label: "Ledger & statements",
-      hint: "Invoices, payments, balance",
+      label: t("profile.ledger"),
+      hint: t("profile.ledgerHint"),
       onPress: () => navigation.navigate("Ledger"),
     },
     {
       icon: "cash-multiple",
-      label: "Pay dues",
-      hint: credit?.overdue > 0 ? `${inr(credit.overdue)} overdue` : "Clear your balance",
+      label: t("profile.payDues"),
+      hint: credit?.overdue > 0 ? `${inr(credit.overdue)} ${t("ledger.overdue")}` : t("profile.payDuesClear"),
       onPress: () => navigation.navigate("Pay"),
     },
     {
       icon: "receipt",
-      label: "My orders",
-      hint: "Track and reorder",
+      label: t("profile.myOrders"),
+      hint: t("profile.myOrdersHint"),
       onPress: () => navigation.navigate("Orders"),
     },
     {
       icon: "map-marker-radius-outline",
-      label: "Store location",
-      hint: "Confirm where Gagan delivers",
+      label: t("profile.storeLocation"),
+      hint: t("profile.storeLocationHint"),
       onPress: () => navigation.navigate("StoreLocation"),
     },
     {
       icon: "tag-outline",
-      label: "Offers & schemes",
+      label: t("profile.offers"),
       hint: `${data?.badges?.activeOffers ?? 0} active`,
-      onPress: () => Alert.alert("Offers", "Scheme details are coming in a later release."),
+      onPress: () => Alert.alert(t("profile.offers"), t("profile.offersComing")),
     },
     {
       icon: "bell-outline",
-      label: "Notifications",
+      label: t("profile.notifications"),
       hint: `${data?.badges?.notifications ?? 0} unread`,
-      onPress: () => Alert.alert("Notifications", "The notification centre is not built yet."),
+      onPress: () => Alert.alert(t("profile.notifications"), t("profile.notificationsComing")),
     },
   ];
 
@@ -96,7 +98,7 @@ export default function ProfileScreen({ navigation }: any) {
       contentContainerStyle={{ paddingBottom: TAB_BAR_SPACE + spacing.xl }}
       showsVerticalScrollIndicator={false}
     >
-      <ScreenHeader title="Account" />
+      <ScreenHeader title={t("profile.title")} />
 
       <View style={styles.profile}>
         <View style={styles.avatar}>
@@ -125,15 +127,15 @@ export default function ProfileScreen({ navigation }: any) {
       {credit && (
         <TouchableOpacity style={styles.creditCard} onPress={() => navigation.navigate("Ledger")}>
           <View style={styles.creditCol}>
-            <Text style={styles.creditLabel}>Outstanding</Text>
+            <Text style={styles.creditLabel}>{t("profile.outstanding")}</Text>
             <Text style={styles.creditValue}>{inr(credit.outstanding)}</Text>
             {credit.overdue > 0 && (
-              <Text style={styles.overdue}>{inr(credit.overdue)} overdue</Text>
+              <Text style={styles.overdue}>{inr(credit.overdue)} {t("ledger.overdue")}</Text>
             )}
           </View>
           <View style={styles.creditDivider} />
           <View style={styles.creditCol}>
-            <Text style={styles.creditLabel}>Available credit</Text>
+            <Text style={styles.creditLabel}>{t("profile.availableCredit")}</Text>
             <Text style={[styles.creditValue, { color: colors.green }]}>{inr(credit.available)}</Text>
             <Text style={styles.creditSub}>of {inr(credit.creditLimit)} limit</Text>
           </View>
@@ -153,7 +155,7 @@ export default function ProfileScreen({ navigation }: any) {
             </Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.repLabel}>Your salesman</Text>
+            <Text style={styles.repLabel}>{t("profile.salesman")}</Text>
             <Text style={styles.repName}>{rep.name}</Text>
           </View>
           <TouchableOpacity style={styles.repBtn} onPress={() => call(rep.phone)}>
@@ -187,14 +189,14 @@ export default function ProfileScreen({ navigation }: any) {
         ))}
       </View>
 
-      <Text style={styles.sectionTitle}>Support</Text>
+      <Text style={styles.sectionTitle}>{t("profile.support")}</Text>
       <View style={styles.menu}>
         <TouchableOpacity style={styles.menuRow} onPress={() => call(data?.config?.supportPhone)}>
           <View style={styles.menuIcon}>
             <Feather name="phone" size={17} color={colors.green} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.menuLabel}>Call support</Text>
+            <Text style={styles.menuLabel}>{t("profile.callSupport")}</Text>
             <Text style={styles.menuHint}>Mon–Sat, 9am to 7pm</Text>
           </View>
           <Ionicons name="chevron-forward" size={17} color={colors.inkFaint} />
@@ -207,16 +209,28 @@ export default function ProfileScreen({ navigation }: any) {
             <MaterialCommunityIcons name="whatsapp" size={18} color={colors.green} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.menuLabel}>WhatsApp us</Text>
+            <Text style={styles.menuLabel}>{t("profile.whatsapp")}</Text>
             <Text style={styles.menuHint}>Usually replies within an hour</Text>
           </View>
           <Ionicons name="chevron-forward" size={17} color={colors.inkFaint} />
         </TouchableOpacity>
       </View>
 
+      <View style={styles.languageRow}>
+        <Text style={styles.languageLabel}>{t("profile.language")}</Text>
+        <View style={styles.languageChoices}>
+          <TouchableOpacity onPress={() => void setLanguage("en")} style={[styles.languageChoice, language === "en" && styles.languageChoiceActive]}>
+            <Text style={[styles.languageChoiceText, language === "en" && styles.languageChoiceTextActive]}>English</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => void setLanguage("hi")} style={[styles.languageChoice, language === "hi" && styles.languageChoiceActive]}>
+            <Text style={[styles.languageChoiceText, language === "hi" && styles.languageChoiceTextActive]}>हिन्दी</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <TouchableOpacity style={styles.logout} onPress={confirmLogout}>
         <Ionicons name="log-out-outline" size={17} color={colors.danger} />
-        <Text style={styles.logoutText}>Log out</Text>
+        <Text style={styles.logoutText}>{t("profile.logout")}</Text>
       </TouchableOpacity>
 
       <Text style={styles.version}>Gagan Retailer · v1.0.0</Text>
@@ -351,5 +365,12 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   logoutText: { color: colors.danger, fontWeight: "700", fontSize: 14.5 },
+  languageRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: spacing.lg, marginTop: spacing.lg, padding: spacing.md, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
+  languageLabel: { color: colors.ink, fontWeight: "700" },
+  languageChoices: { flexDirection: "row", gap: spacing.xs },
+  languageChoice: { paddingHorizontal: spacing.sm, paddingVertical: 7, borderRadius: radius.sm },
+  languageChoiceActive: { backgroundColor: colors.greenSoft },
+  languageChoiceText: { color: colors.inkMuted, fontSize: 12, fontWeight: "600" },
+  languageChoiceTextActive: { color: colors.greenDeep },
   version: { textAlign: "center", fontSize: 11, color: colors.inkFaint, marginTop: spacing.sm },
 });

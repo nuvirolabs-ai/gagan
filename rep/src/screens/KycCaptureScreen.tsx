@@ -5,6 +5,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { File } from "expo-file-system";
 import { repApi } from "../api/repClient";
 import { colors, radius, spacing } from "../theme";
+import { useLanguage } from "../i18n/LanguageContext";
 
 const REQUIRED = [
   ["business_registration", "Business registration"],
@@ -14,6 +15,7 @@ const REQUIRED = [
 
 export default function KycCaptureScreen({ route }: any) {
   const { retailerId, retailerName } = route.params;
+  const { t } = useLanguage();
   const [kyc, setKyc] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -54,14 +56,14 @@ export default function KycCaptureScreen({ route }: any) {
 
   if (loading) return <View style={styles.center}><ActivityIndicator color={colors.green} /></View>;
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-    <Text style={styles.title}>KYC for {retailerName}</Text>
-    <Text style={styles.sub}>Capture clear copies. Files are encrypted and visible only to authorized ops reviewers.</Text>
+    <Text style={styles.title}>{t("kyc.forRetailer", { name: retailerName })}</Text>
+    <Text style={styles.sub}>{t("kyc.copy")}</Text>
     {error ? <Text style={styles.error}>{error}</Text> : null}
     {REQUIRED.map(([type, label]) => {
       const uploaded = kyc?.documents?.some((document: any) => document.type === type);
-      return <View style={styles.card} key={type}><View style={styles.row}><Text style={styles.label}>{label}</Text><Text style={uploaded ? styles.done : styles.required}>{uploaded ? "Uploaded" : "Required"}</Text></View><TouchableOpacity disabled={busy !== null || kyc?.status === "submitted"} style={styles.button} onPress={() => void pick(type)}><Text style={styles.buttonText}>{busy === type ? "Uploading…" : uploaded ? "Replace document" : "Choose document"}</Text></TouchableOpacity></View>;
+      return <View style={styles.card} key={type}><View style={styles.row}><Text style={styles.label}>{label}</Text><Text style={uploaded ? styles.done : styles.required}>{uploaded ? t("kyc.uploaded") : t("kyc.required")}</Text></View><TouchableOpacity disabled={busy !== null || kyc?.status === "submitted"} style={styles.button} onPress={() => void pick(type)}><Text style={styles.buttonText}>{busy === type ? "Uploading…" : uploaded ? t("kyc.replace") : t("kyc.choose")}</Text></TouchableOpacity></View>;
     })}
-    {kyc?.status === "draft" || kyc?.status === "rejected" ? <TouchableOpacity disabled={busy !== null || kyc?.documents?.length < 3} style={[styles.submit, (busy !== null || kyc?.documents?.length < 3) && styles.disabled]} onPress={() => void submit()}><Text style={styles.submitText}>{busy === "submit" ? "Submitting…" : "Submit for review"}</Text></TouchableOpacity> : <Text style={styles.status}>Case status: {kyc?.status}</Text>}
+    {kyc?.status === "draft" || kyc?.status === "rejected" ? <TouchableOpacity disabled={busy !== null || kyc?.documents?.length < 3} style={[styles.submit, (busy !== null || kyc?.documents?.length < 3) && styles.disabled]} onPress={() => void submit()}><Text style={styles.submitText}>{busy === "submit" ? "Submitting…" : t("kyc.submitReview")}</Text></TouchableOpacity> : <Text style={styles.status}>Case status: {kyc?.status}</Text>}
   </ScrollView>;
 }
 

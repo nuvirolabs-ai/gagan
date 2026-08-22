@@ -15,9 +15,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../context/AuthContext";
 import { ApiError } from "../api/client";
 import { colors, radius, spacing } from "../theme";
+import { useLanguage } from "../i18n/LanguageContext";
 
 export default function LoginScreen() {
   const auth = useAuth();
+  const { t } = useLanguage();
 
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
@@ -25,13 +27,13 @@ export default function LoginScreen() {
   const [busy, setBusy] = useState(false);
 
   const handleRequestOtp = async () => {
-    if (phone.length < 10) return Alert.alert("Enter a valid 10-digit phone number");
+    if (phone.length < 10) return Alert.alert(t("auth.validPhone"));
     setBusy(true);
     try {
       await auth.requestOtp(phone);
       setStage("otp");
     } catch (e) {
-      Alert.alert("Couldn't send OTP", e instanceof ApiError ? e.message : "Please try again.");
+      Alert.alert("Couldn't send OTP", e instanceof ApiError ? e.message : t("errors.generic"));
     } finally {
       setBusy(false);
     }
@@ -42,7 +44,7 @@ export default function LoginScreen() {
     try {
       await auth.verifyOtp(phone, otp);
     } catch (e) {
-      Alert.alert("Couldn't sign in", e instanceof ApiError ? e.message : "Please try again.");
+      Alert.alert(t("auth.invalidOtp"), e instanceof ApiError ? e.message : t("errors.generic"));
     } finally {
       setBusy(false);
     }
@@ -59,10 +61,10 @@ export default function LoginScreen() {
 
         {stage === "phone" ? (
           <>
-            <Text style={styles.label}>Sign in to your shop</Text>
+            <Text style={styles.label}>{t("auth.signIn")}</Text>
             <TextInput
               style={styles.input}
-              placeholder="Phone number"
+              placeholder={t("auth.phone")}
               placeholderTextColor={colors.inkFaint}
               keyboardType="phone-pad"
               value={phone}
@@ -74,7 +76,7 @@ export default function LoginScreen() {
                 <ActivityIndicator color={colors.onDark} />
               ) : (
                 <>
-                  <Text style={styles.buttonText}>Send OTP</Text>
+                <Text style={styles.buttonText}>{t("auth.sendOtp")}</Text>
                   <Ionicons name="arrow-forward" size={17} color={colors.onDark} />
                 </>
               )}
@@ -83,7 +85,7 @@ export default function LoginScreen() {
         ) : (
           <>
             <Text style={styles.label}>
-              Enter the code sent to {phone}
+              {`Enter the code sent to ${phone}`}
             </Text>
             <TextInput
               style={[styles.input, styles.otpInput]}
@@ -98,11 +100,11 @@ export default function LoginScreen() {
               {busy ? (
                 <ActivityIndicator color={colors.onDark} />
               ) : (
-                <Text style={styles.buttonText}>Verify & sign in</Text>
+                <Text style={styles.buttonText}>{t("auth.verify")}</Text>
               )}
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setStage("phone")}>
-              <Text style={styles.link}>Change phone number</Text>
+              <Text style={styles.link}>{t("auth.changePhone")}</Text>
             </TouchableOpacity>
           </>
         )}

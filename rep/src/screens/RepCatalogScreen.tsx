@@ -15,12 +15,14 @@ import { useRep } from "../context/RepContext";
 import { colors, radius, spacing, shadow, inr } from "../theme";
 import ProductThumb from "../components/ProductThumb";
 import { SearchBar, ChipRow, QtyStepper, EmptyState } from "../components/ui";
+import { useLanguage } from "../i18n/LanguageContext";
 
 const ALL = "All";
 
 export default function RepCatalogScreen({ route, navigation }: any) {
   const { retailerId, retailerName } = route.params;
   const { lines, addLine, updateQty, clearCart, cartTotal } = useRep();
+  const { t } = useLanguage();
 
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -78,11 +80,11 @@ export default function RepCatalogScreen({ route, navigation }: any) {
       clearCart();
       checkoutKey.current = null;
       Alert.alert(
-        "Order placed",
+        t("orders.place"),
         `GGN-${String(res.order.orderNo).padStart(5, "0")} for ${retailerName} — ${inr(
           Number(res.order.orderTotal)
         )}`,
-        [{ text: "Done", onPress: () => navigation.goBack() }]
+        [{ text: t("common.save"), onPress: () => navigation.goBack() }]
       );
     } catch (e) {
       if (e instanceof ApiError && e.status === 402) {
@@ -93,7 +95,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
           )}). Collect payment or reduce the order.`
         );
       } else {
-        Alert.alert("Couldn't place order", e instanceof ApiError ? e.message : "Please try again.");
+        Alert.alert(t("errors.generic"), e instanceof ApiError ? e.message : t("errors.generic"));
       }
     } finally {
       setPlacing(false);
@@ -111,7 +113,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
         </Text>
       </View>
 
-      <SearchBar value={query} onChange={setQuery} placeholder="Search products" />
+      <SearchBar value={query} onChange={setQuery} placeholder={t("common.search")} />
       <View style={{ marginTop: spacing.md, marginBottom: spacing.sm }}>
         <ChipRow options={[ALL, ...categories]} value={category} onChange={setCategory} />
       </View>
@@ -125,7 +127,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
           data={rows}
           keyExtractor={(r) => r.variant.id}
           contentContainerStyle={{ padding: spacing.lg, paddingBottom: cartCount > 0 ? 140 : 40 }}
-          ListEmptyComponent={<EmptyState icon="magnify" title="Nothing matches that" />}
+          ListEmptyComponent={<EmptyState icon="magnify" title={t("common.search")} />}
           renderItem={({ item }) => {
             const { product, variant } = item;
             const qty = qtyFor(variant.id);
@@ -152,7 +154,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
                       <Text style={styles.perKg}>{inr(variant.pricePerKg)}/kg</Text>
                     )}
                   </View>
-                  {variant.isOverride && <Text style={styles.override}>Special rate</Text>}
+                  {variant.isOverride && <Text style={styles.override}>{t("catalog.specialRate")}</Text>}
                 </View>
                 <QtyStepper qty={qty} onChange={(next) => setQty(product, variant, next)} compact />
               </View>
@@ -175,7 +177,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
               <ActivityIndicator color={colors.onDark} />
             ) : (
               <>
-                <Text style={styles.placeText}>Place order</Text>
+                <Text style={styles.placeText}>{t("orders.place")}</Text>
                 <Ionicons name="arrow-forward" size={16} color={colors.onDark} />
               </>
             )}

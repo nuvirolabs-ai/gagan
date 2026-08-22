@@ -2,8 +2,10 @@ import React, { useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { repApi } from "../api/repClient";
 import { colors, radius, spacing } from "../theme";
+import { useLanguage } from "../i18n/LanguageContext";
 
 export default function RatingReviewsScreen() {
+  const { t } = useLanguage();
   const [proposals, setProposals] = useState<any[]>([]);
   const [reason, setReason] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
@@ -33,12 +35,12 @@ export default function RatingReviewsScreen() {
   if (loading) return <View style={styles.center}><ActivityIndicator color={colors.green} /></View>;
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     {error ? <Text style={styles.error}>{error}</Text> : null}
-    {proposals.length === 0 ? <Text style={styles.empty}>No rating changes need review.</Text> : proposals.map((proposal) => <View style={styles.card} key={proposal.id}>
+    {proposals.length === 0 ? <Text style={styles.empty}>{t("rating.noChanges")}</Text> : proposals.map((proposal) => <View style={styles.card} key={proposal.id}>
       <Text style={styles.name}>{proposal.creditProfile.retailer.name}</Text>
       <Text style={styles.rating}>{proposal.previousRating} → {proposal.proposedRating}</Text>
       <Text style={styles.meta}>{proposal.trigger.replaceAll("_", " ")} · DSO {proposal.evidence.averageDso ?? "—"} days · {proposal.evidence.cleanInvoiceCount ?? 0} clean invoices</Text>
-      <TextInput style={styles.input} value={reason} onChangeText={setReason} placeholder="Confirmation reason" placeholderTextColor={colors.inkFaint} />
-      {selected === proposal.id ? <View style={styles.verify}><TextInput style={styles.otp} keyboardType="number-pad" maxLength={6} value={otp} onChangeText={(value) => setOtp(value.replace(/\D/g, ""))} /><TouchableOpacity style={styles.button} disabled={otp.length !== 6} onPress={() => void confirm()}><Text style={styles.buttonText}>Verify and confirm</Text></TouchableOpacity></View> : <TouchableOpacity style={styles.button} onPress={() => void begin(proposal.id)}><Text style={styles.buttonText}>Confirm rating</Text></TouchableOpacity>}
+      <TextInput style={styles.input} value={reason} onChangeText={setReason} placeholder={t("rating.confirmationReason")} placeholderTextColor={colors.inkFaint} />
+      {selected === proposal.id ? <View style={styles.verify}><TextInput style={styles.otp} keyboardType="number-pad" maxLength={6} value={otp} onChangeText={(value) => setOtp(value.replace(/\D/g, ""))} /><TouchableOpacity style={styles.button} disabled={otp.length !== 6} onPress={() => void confirm()}><Text style={styles.buttonText}>{t("rating.verifyConfirm")}</Text></TouchableOpacity></View> : <TouchableOpacity style={styles.button} onPress={() => void begin(proposal.id)}><Text style={styles.buttonText}>{t("rating.confirm")}</Text></TouchableOpacity>}
     </View>)}
   </ScrollView>;
 }

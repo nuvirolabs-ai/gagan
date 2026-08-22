@@ -14,6 +14,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { api, ApiError } from "../api/client";
 import { colors, radius, spacing, shadow, inr } from "../theme";
+import { useLanguage } from "../i18n/LanguageContext";
 
 const BUCKETS: { key: string; label: string; danger?: boolean }[] = [
   { key: "current", label: "Not yet due" },
@@ -23,6 +24,7 @@ const BUCKETS: { key: string; label: string; danger?: boolean }[] = [
 ];
 
 export default function PayScreen({ navigation }: any) {
+  const { t } = useLanguage();
   const [dues, setDues] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [amount, setAmount] = useState("");
@@ -54,7 +56,7 @@ export default function PayScreen({ navigation }: any) {
   if (!dues) {
     return (
       <View style={styles.center}>
-        <Text style={styles.muted}>Couldn't load your dues.</Text>
+        <Text style={styles.muted}>{t("errors.generic")}</Text>
       </View>
     );
   }
@@ -80,9 +82,9 @@ export default function PayScreen({ navigation }: any) {
       }
 
       await load();
-      Alert.alert("Payment received", `${inr(value)} has been credited to your account.`, [
-        { text: "View ledger", onPress: () => navigation.navigate("Ledger") },
-        { text: "Done", style: "cancel" },
+      Alert.alert(t("pay.paymentReceived"), `${inr(value)} has been credited to your account.`, [
+        { text: t("pay.viewLedger"), onPress: () => navigation.navigate("Ledger") },
+        { text: t("pay.done"), style: "cancel" },
       ]);
     } catch (e) {
       Alert.alert("Payment failed", e instanceof ApiError ? e.message : "Please try again.");
@@ -96,7 +98,7 @@ export default function PayScreen({ navigation }: any) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }}>
       <View style={styles.hero}>
-        <Text style={styles.heroLabel}>Total outstanding</Text>
+        <Text style={styles.heroLabel}>{t("pay.totalOutstanding")}</Text>
         <Text style={styles.heroValue}>{inr(dues.outstanding)}</Text>
         {dues.overdue > 0 && (
           <View style={styles.overduePill}>
@@ -106,7 +108,7 @@ export default function PayScreen({ navigation }: any) {
         )}
       </View>
 
-      <Text style={styles.sectionTitle}>How your dues age</Text>
+      <Text style={styles.sectionTitle}>{t("pay.howDuesAge")}</Text>
       <View style={styles.card}>
         {BUCKETS.map((b, i) => {
           const amt = Number(ageing[b.key] ?? 0);
@@ -130,7 +132,7 @@ export default function PayScreen({ navigation }: any) {
         )}
       </View>
 
-      <Text style={styles.sectionTitle}>Amount to pay</Text>
+      <Text style={styles.sectionTitle}>{t("pay.amountToPay")}</Text>
       <View style={styles.card}>
         <View style={styles.amountRow}>
           <Text style={styles.rupee}>₹</Text>
@@ -147,11 +149,11 @@ export default function PayScreen({ navigation }: any) {
         <View style={styles.quickRow}>
           {dues.overdue > 0 && (
             <TouchableOpacity style={styles.quickBtn} onPress={() => setAmount(String(dues.overdue))}>
-              <Text style={styles.quickText}>Pay overdue</Text>
+              <Text style={styles.quickText}>{t("pay.payOverdue")}</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity style={styles.quickBtn} onPress={() => setAmount(String(dues.outstanding))}>
-            <Text style={styles.quickText}>Pay all</Text>
+            <Text style={styles.quickText}>{t("pay.payAll")}</Text>
           </TouchableOpacity>
         </View>
 

@@ -8,6 +8,7 @@ import { useRep } from "../context/RepContext";
 import { staffCapabilities } from "../auth/staffCapabilities";
 import { repApi } from "../api/repClient";
 import { colors, radius, spacing } from "../theme";
+import { useLanguage } from "../i18n/LanguageContext";
 
 type CollectionRetailer = { id: string; name: string; phone: string; shopAddress: string };
 type CollectionSubmission = { id: string; amount: number | string; method: string; status: string; retailer: { id: string; name: string; phone: string } };
@@ -15,6 +16,7 @@ const methods = ["cash", "cheque", "neft", "upi"] as const;
 
 export default function StaffHomeScreen() {
   const { staff } = useRep();
+  const { t } = useLanguage();
   const capabilities = staffCapabilities(staff?.permissions ?? []);
   const canConfirmCollections = staff?.permissions.includes("collection.confirm") ?? false;
   const [retailers, setRetailers] = useState<CollectionRetailer[]>([]);
@@ -101,10 +103,10 @@ export default function StaffHomeScreen() {
 
   return (
     <View style={styles.screen}>
-      <ScreenHeader title="Work" subtitle={`Hi ${staff?.name ?? ""}`} />
+      <ScreenHeader title={t("tabs.work")} subtitle={`Hi ${staff?.name ?? ""}`} />
       <ScrollView contentContainerStyle={styles.content}>
         {capabilities.canCollect ? <View style={styles.card}>
-          <View style={styles.cardTitleRow}><View style={styles.icon}><Ionicons name="cash-outline" size={22} color={colors.green} /></View><View><Text style={styles.title}>Submit a collection</Text><Text style={styles.muted}>Ledger posting happens after Accounts confirms.</Text></View></View>
+          <View style={styles.cardTitleRow}><View style={styles.icon}><Ionicons name="cash-outline" size={22} color={colors.green} /></View><View><Text style={styles.title}>{t("work.submitCollection")}</Text><Text style={styles.muted}>{t("work.accountsVerify")}</Text></View></View>
           <Text style={styles.label}>Retailer</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>{retailers.map((retailer) => <TouchableOpacity key={retailer.id} onPress={() => setSelectedRetailerId(retailer.id)} style={[styles.chip, selectedRetailerId === retailer.id && styles.chipActive]}><Text style={[styles.chipText, selectedRetailerId === retailer.id && styles.chipTextActive]}>{retailer.name}</Text></TouchableOpacity>)}</ScrollView>
           <Text style={styles.label}>Amount (₹)</Text>
@@ -113,14 +115,14 @@ export default function StaffHomeScreen() {
           <View style={styles.methodRow}>{methods.map((value) => <TouchableOpacity key={value} onPress={() => setMethod(value)} style={[styles.method, method === value && styles.methodActive]}><Text style={[styles.methodText, method === value && styles.methodTextActive]}>{value.toUpperCase()}</Text></TouchableOpacity>)}</View>
           <TextInput value={reference} onChangeText={setReference} placeholder="Receipt / cheque / bank reference" placeholderTextColor={colors.inkFaint} style={styles.input} />
           <TouchableOpacity disabled={saving} onPress={() => void pickReceipt()} style={styles.attachment}><Ionicons name="attach-outline" size={17} color={colors.green} /><Text style={styles.attachmentText}>{receipt ? `Attached: ${receipt.name}` : "Attach receipt photo or PDF (optional)"}</Text></TouchableOpacity>
-          <TouchableOpacity disabled={saving} onPress={submit} style={styles.primary}><Text style={styles.primaryText}>{saving ? "Submitting…" : "Submit for Accounts"}</Text></TouchableOpacity>
+          <TouchableOpacity disabled={saving} onPress={submit} style={styles.primary}><Text style={styles.primaryText}>{saving ? t("collections.submitting") : t("collections.submit")}</Text></TouchableOpacity>
         </View> : null}
 
         {canConfirmCollections ? <View style={styles.card}>
-          <View style={styles.cardTitleRow}><View style={styles.icon}><Ionicons name="checkmark-done-outline" size={22} color={colors.green} /></View><View><Text style={styles.title}>Accounts queue</Text><Text style={styles.muted}>{submissions.length} pending verification{stepUpChallenge ? " · verification active" : ""}</Text></View></View>
+          <View style={styles.cardTitleRow}><View style={styles.icon}><Ionicons name="checkmark-done-outline" size={22} color={colors.green} /></View><View><Text style={styles.title}>{t("collections.accountsQueue")}</Text><Text style={styles.muted}>{submissions.length} pending verification{stepUpChallenge ? " · verification active" : ""}</Text></View></View>
           {submissions.map((submission) => <View key={submission.id} style={styles.queueRow}><View style={{ flex: 1 }}><Text style={styles.queueTitle}>{submission.retailer.name}</Text><Text style={styles.muted}>₹{Number(submission.amount).toLocaleString("en-IN")} · {submission.method}</Text></View><TouchableOpacity onPress={stepUpChallenge ? () => void confirm(submission.id) : () => void startConfirm()} style={styles.smallButton}><Text style={styles.smallButtonText}>{stepUpChallenge ? "Confirm" : "Verify"}</Text></TouchableOpacity></View>)}
           {stepUpChallenge ? <TextInput value={stepUpOtp} onChangeText={setStepUpOtp} keyboardType="number-pad" placeholder="Enter OTP" placeholderTextColor={colors.inkFaint} style={styles.input} /> : null}
-          {submissions.length === 0 ? <Text style={styles.muted}>No collections are waiting for confirmation.</Text> : null}
+          {submissions.length === 0 ? <Text style={styles.muted}>{t("work.noCollections")}</Text> : null}
         </View> : null}
 
         {!capabilities.canCollect && !canConfirmCollections ? <View style={styles.card}><Text style={styles.title}>Your staff access is active</Text><Text style={styles.muted}>No operational workspace has been assigned yet. Ask your administrator if you need another role.</Text></View> : null}

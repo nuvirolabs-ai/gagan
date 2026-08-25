@@ -38,8 +38,10 @@ describe("recovery commitments and timeline", () => {
 
   it("supersedes an older promise and records kept/missed transitions", async () => {
     const caseId = (await prisma.recoveryCase.findUniqueOrThrow({ where: { invoiceId: ids.invoice } })).id;
-    const first = await service.createPromise({ caseId, actorStaffId: ids.staff, actorPermissions: ["recovery.update"], amount: 400, dueAt: new Date("2026-08-25T00:00:00.000Z"), idempotencyKey: `promise-${randomUUID()}` });
-    const second = await service.createPromise({ caseId, actorStaffId: ids.staff, actorPermissions: ["recovery.update"], amount: 600, dueAt: new Date("2026-08-26T00:00:00.000Z"), idempotencyKey: `promise-${randomUUID()}` });
+    const firstDueAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const secondDueAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    const first = await service.createPromise({ caseId, actorStaffId: ids.staff, actorPermissions: ["recovery.update"], amount: 400, dueAt: firstDueAt, idempotencyKey: `promise-${randomUUID()}` });
+    const second = await service.createPromise({ caseId, actorStaffId: ids.staff, actorPermissions: ["recovery.update"], amount: 600, dueAt: secondDueAt, idempotencyKey: `promise-${randomUUID()}` });
     expect(first.status).toBe("promised");
     expect(await prisma.promiseToPay.findUnique({ where: { id: first.id } })).toMatchObject({ status: "superseded" });
     await expect(service.setPromiseStatus(second.id, "kept", { actorStaffId: ids.staff, actorPermissions: ["recovery.update"] })).resolves.toMatchObject({ status: "kept" });

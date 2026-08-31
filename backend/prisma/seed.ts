@@ -22,7 +22,19 @@ function inputJson(value: unknown): Prisma.InputJsonValue {
 async function main() {
   // Wipe transactional data so the seed is repeatable.
   await prisma.dispatchAuthorization.deleteMany();
+  // Field-operations rows reference staff, retailers and visits with
+  // onDelete: Restrict, so they are cleared before anything they point at.
+  await prisma.locationPing.deleteMany();
+  await prisma.customerActivity.deleteMany();
+  await prisma.serviceIssue.deleteMany();
+  await prisma.fieldTask.deleteMany();
+  await prisma.fieldExpense.deleteMany();
+  await prisma.salesTarget.deleteMany();
+  await prisma.workdaySession.deleteMany();
+  await prisma.leaveRequest.deleteMany();
   await prisma.salesVisit.deleteMany();
+  await prisma.routePlanStop.deleteMany();
+  await prisma.routePlan.deleteMany();
   await prisma.retailerLocationHistory.deleteMany();
   await prisma.retailerLocation.deleteMany();
   await prisma.kycReview.deleteMany();
@@ -99,9 +111,14 @@ async function main() {
     },
   });
 
+  // The calendar starts 60 days in the past so attendance history for days
+  // already worked is graded against a real working-day calendar instead of
+  // the "unknown days count as working" fallback.
+  const CALENDAR_BACKFILL_DAYS = 60;
   const calendarStart = new Date();
   calendarStart.setUTCHours(0, 0, 0, 0);
-  const workingDays = Array.from({ length: 550 }, (_, offset) => {
+  calendarStart.setUTCDate(calendarStart.getUTCDate() - CALENDAR_BACKFILL_DAYS);
+  const workingDays = Array.from({ length: 550 + CALENDAR_BACKFILL_DAYS }, (_, offset) => {
     const date = new Date(calendarStart);
     date.setUTCDate(date.getUTCDate() + offset);
     const day = date.getUTCDay();
@@ -347,18 +364,22 @@ async function main() {
   // Additional assigned stores make the Sales app useful for a realistic
   // multi-store order-taking demo. They intentionally share the same rep and
   // are approved, active accounts so each one can be opened and ordered for.
+  // Coordinates are the real Pune neighbourhoods each demo address names, so
+  // the customer map, route distances and visit verification all behave the way
+  // they will in the field instead of collapsing onto one point.
   const additionalDemoRetailers = [
-    ["Shree Ganesh Grocers", "45 Laxmi Road, Pune", "9812345601", tierA.id, 75000],
-    ["Annapurna Foods", "8 FC Road, Pune", "9812345602", tierA.id, 90000],
-    ["Lakshmi Provision Mart", "22 Pimpri Market, Pimpri", "9812345603", tierB.id, 65000],
-    ["Fresh Basket Wholesale", "14 Phase 1, Hinjewadi", "9812345604", tierA.id, 120000],
-    ["Om Sai General Store", "6 Datta Mandir Road, Wakad", "9812345605", tierB.id, 55000],
-    ["New Bharat Traders", "31 Paud Road, Kothrud", "9812345606", tierA.id, 100000],
-    ["Radha Krishna Stores", "19 Baner Road, Baner", "9812345607", tierB.id, 80000],
-    ["City Mart Foods", "5 Magarpatta Road, Hadapsar", "9812345608", tierA.id, 110000],
+    ["Shree Ganesh Grocers", "45 Laxmi Road, Pune", "9812345601", tierA.id, 75000, 18.5167, 73.8562],
+    ["Annapurna Foods", "8 FC Road, Pune", "9812345602", tierA.id, 90000, 18.5236, 73.8408],
+    ["Lakshmi Provision Mart", "22 Pimpri Market, Pimpri", "9812345603", tierB.id, 65000, 18.6279, 73.8009],
+    ["Fresh Basket Wholesale", "14 Phase 1, Hinjewadi", "9812345604", tierA.id, 120000, 18.5913, 73.7389],
+    ["Om Sai General Store", "6 Datta Mandir Road, Wakad", "9812345605", tierB.id, 55000, 18.5983, 73.7625],
+    ["New Bharat Traders", "31 Paud Road, Kothrud", "9812345606", tierA.id, 100000, 18.5074, 73.8077],
+    ["Radha Krishna Stores", "19 Baner Road, Baner", "9812345607", tierB.id, 80000, 18.5590, 73.7868],
+    ["City Mart Foods", "5 Magarpatta Road, Hadapsar", "9812345608", tierA.id, 110000, 18.5089, 73.9260],
   ] as const;
 
-  for (const [name, shopAddress, phone, tierId, creditLimit] of additionalDemoRetailers) {
+  const demoRetailerIds: string[] = [];
+  for (const [name, shopAddress, phone, tierId, creditLimit, latitude, longitude] of additionalDemoRetailers) {
     const demoRetailer = await prisma.retailer.create({
       data: {
         name,
@@ -372,7 +393,20 @@ async function main() {
         overdueAmount: 0,
       },
     });
-    await prisma.retailerLocation.create({ data: { retailerId: demoRetailer.id } });
+    demoRetailerIds.push(demoRetailer.id);
+    await prisma.retailerLocation.create({
+      data: {
+        retailerId: demoRetailer.id,
+        latitude,
+        longitude,
+        accuracyMeters: 12,
+        status: "VERIFIED",
+        source: "MIGRATION",
+        capturedAt: demoRetailer.createdAt,
+        verifiedAt: demoRetailer.createdAt,
+        locationVersion: 1,
+      },
+    });
     await prisma.kycCase.create({
       data: {
         retailerId: demoRetailer.id,
@@ -393,6 +427,71 @@ async function main() {
       },
     });
   }
+
+  // A published route for today, plus a couple of open tasks and a monthly
+  // target, so the Sales app's Today screen has a real day to run rather than
+  // an empty state. These are development fixtures only — nothing here is
+  // created by production code paths.
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  await prisma.routePlan.create({
+    data: {
+      salespersonId: salesStaff.id,
+      planDate: today,
+      name: "Kothrud & Baner beat",
+      status: "published",
+      publishedAt: new Date(),
+      createdByStaffId: platformAdmin.id,
+      stops: {
+        create: [retailer.id, ...demoRetailerIds.slice(0, 4)].map((retailerId, index) => ({
+          retailerId,
+          sequence: index + 1,
+          purpose: index === 1 ? ("collection" as const) : ("sales_call" as const),
+        })),
+      },
+    },
+  });
+
+  await prisma.fieldTask.createMany({
+    data: [
+      {
+        assignedToStaffId: salesStaff.id,
+        createdByStaffId: platformAdmin.id,
+        retailerId: retailer.id,
+        title: "Collect the signed delivery note",
+        description: "Ask for the POD copy from the last dispatch before leaving the store.",
+        priority: "high",
+        dueAt: new Date(today.getTime() + 18 * 60 * 60 * 1000),
+      },
+      {
+        assignedToStaffId: salesStaff.id,
+        createdByStaffId: platformAdmin.id,
+        title: "Photograph the new shelf display",
+        priority: "normal",
+      },
+    ],
+  });
+
+  await prisma.salesTarget.createMany({
+    data: [
+      {
+        salespersonId: salesStaff.id,
+        metric: "order_value",
+        periodStart: new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1)),
+        periodEnd: new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0)),
+        targetValue: 400000,
+        createdByStaffId: platformAdmin.id,
+      },
+      {
+        salespersonId: salesStaff.id,
+        metric: "visits",
+        periodStart: new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1)),
+        periodEnd: new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0)),
+        targetValue: 80,
+        createdByStaffId: platformAdmin.id,
+      },
+    ],
+  });
 
   // One featured scheme drives the banner; the rest feed the "8 Active Offers" count.
   await prisma.scheme.create({

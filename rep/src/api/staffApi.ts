@@ -2,6 +2,18 @@ import type { SessionStore } from "../auth/sessionStore";
 
 export type ApiRequest = (path: string, options?: RequestInit, auth?: boolean) => Promise<any>;
 
+export interface FieldCoordinates {
+  latitude: number;
+  longitude: number;
+  accuracyMeters: number;
+  devicePlatform?: string;
+}
+
+function rangeQuery(from?: string, to?: string) {
+  const parts = [from ? `from=${from}` : null, to ? `to=${to}` : null].filter(Boolean);
+  return parts.length ? `?${parts.join("&")}` : "";
+}
+
 export function createStaffApi(request: ApiRequest, store: SessionStore) {
   const post = (path: string, body?: unknown, auth = true) =>
     request(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) }, auth);
@@ -74,8 +86,100 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
     getLocation: (retailerId: string) => request(`/rep/retailers/${retailerId}/location`),
     captureLocation: (retailerId: string, body: { latitude: number; longitude: number; accuracyMeters: number; devicePlatform?: string }) => post(`/rep/retailers/${retailerId}/location/capture`, body),
     verifyLocation: (retailerId: string, body: { latitude: number; longitude: number; accuracyMeters: number; devicePlatform?: string }) => post(`/rep/retailers/${retailerId}/location/verify`, body),
-    checkIn: (retailerId: string, body: { latitude: number; longitude: number; accuracyMeters: number; devicePlatform?: string }) => post(`/rep/retailers/${retailerId}/check-in`, body),
-    checkOut: (visitId: string, body: { latitude: number; longitude: number; accuracyMeters: number; devicePlatform?: string }) => post(`/rep/visits/${visitId}/check-out`, body),
+    checkIn: (
+      retailerId: string,
+      body: {
+        latitude: number;
+        longitude: number;
+        accuracyMeters: number;
+        devicePlatform?: string;
+        purpose?: string;
+      }
+    ) => post(`/rep/retailers/${retailerId}/check-in`, body),
+    checkOut: (
+      visitId: string,
+      body: {
+        latitude: number;
+        longitude: number;
+        accuracyMeters: number;
+        devicePlatform?: string;
+        outcome?: string;
+        notes?: string;
+        followUpAt?: string;
+      }
+    ) => post(`/rep/visits/${visitId}/check-out`, body),
     visits: () => request("/rep/visits"),
+
+    /* ------------------------------ the field day ----------------------------- */
+
+    today: () => request("/rep/field/today"),
+    startDay: (body: FieldCoordinates & { photo?: { contentType: string; bodyBase64: string } }) =>
+      post("/rep/field/attendance/start", body),
+    endDay: (body: FieldCoordinates & { photo?: { contentType: string; bodyBase64: string } }) =>
+      post("/rep/field/attendance/end", body),
+    attendance: (from?: string, to?: string) =>
+      request(`/rep/field/attendance${rangeQuery(from, to)}`),
+    leaveRequests: () => request("/rep/field/leave"),
+    requestLeave: (body: { fromDate: string; toDate: string; type: string; reason: string }) =>
+      post("/rep/field/leave", body),
+    cancelLeave: (id: string) => post(`/rep/field/leave/${id}/cancel`),
+
+    route: (date?: string) => request(`/rep/field/route${date ? `?date=${date}` : ""}`),
+    routeHistory: (from?: string, to?: string) =>
+      request(`/rep/field/route/history${rangeQuery(from, to)}`),
+    skipRouteStop: (stopId: string, reason: string) =>
+      post(`/rep/field/route/stops/${stopId}/skip`, { reason }),
+
+    logActivity: (body: {
+      retailerId: string;
+      type: string;
+      visitId?: string;
+      notes?: string;
+      followUpAt?: string;
+      orderId?: string;
+      occurredAt?: string;
+      clientReference?: string;
+    }) => post("/rep/field/activities", body),
+    customerActivities: (retailerId: string) =>
+      request(`/rep/field/activities?retailerId=${retailerId}`),
+
+    tasks: () => request("/rep/field/tasks"),
+    setTaskStatus: (id: string, status: "in_progress" | "done", note?: string) =>
+      post(`/rep/field/tasks/${id}/status`, { status, note }),
+
+    trackingState: (permissionGranted: boolean) =>
+      request(`/rep/field/tracking/state?permissionGranted=${permissionGranted ? "true" : "false"}`),
+    sendPings: (pings: unknown[]) => post("/rep/field/tracking/pings", { pings }),
+
+    expenses: () => request("/rep/field/expenses"),
+    submitExpense: (body: {
+      expenseDate: string;
+      category: string;
+      amount: number;
+      description: string;
+      receipt?: { contentType: string; bodyBase64: string };
+    }) => post("/rep/field/expenses", body),
+
+    issues: (retailerId?: string) =>
+      request(`/rep/field/issues${retailerId ? `?retailerId=${retailerId}` : ""}`),
+    raiseIssue: (body: {
+      retailerId: string;
+      type: string;
+      description: string;
+      priority?: string;
+      orderId?: string;
+      visitId?: string;
+    }) => post("/rep/field/issues", body),
+
+    performance: (from?: string, to?: string) =>
+      request(`/rep/field/performance${rangeQuery(from, to)}`),
+    activityFeed: (from?: string, to?: string) =>
+      request(`/rep/field/activity-feed${rangeQuery(from, to)}`),
+    customerMap: (origin?: { latitude: number; longitude: number }) =>
+      request(
+        `/rep/field/customers/map${
+          origin ? `?latitude=${origin.latitude}&longitude=${origin.longitude}` : ""
+        }`
+      ),
   };
 }

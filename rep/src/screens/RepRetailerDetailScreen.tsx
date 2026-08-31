@@ -15,8 +15,10 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { repApi } from "../api/repClient";
 import { captureForegroundLocation } from "../location/deviceLocation";
 import { useRep } from "../context/RepContext";
+import { staffCapabilities } from "../auth/staffCapabilities";
 import { colors, radius, spacing, shadow, inr } from "../theme";
-import { StatusPill } from "../components/ui";
+import { ListRow, SecondaryButton, StatusPill, Tag } from "../components/ui";
+import ActivityComposer, { ACTIVITY_LABELS } from "../components/ActivityComposer";
 import { useLanguage } from "../i18n/LanguageContext";
 
 const LEDGER_LABELS: Record<string, string> = {
@@ -28,25 +30,41 @@ const LEDGER_LABELS: Record<string, string> = {
 
 export default function RepRetailerDetailScreen({ route, navigation }: any) {
   const { retailerId } = route.params;
-  const { setActiveRetailer } = useRep();
+  const { setActiveRetailer, staff } = useRep();
   const { t } = useLanguage();
+  const capabilities = staffCapabilities(staff?.permissions ?? []);
   const [data, setData] = useState<any | null>(null);
   const [location, setLocation] = useState<any | null>(null);
   const [activeVisit, setActiveVisit] = useState<any | null>(null);
+  const [recentVisits, setRecentVisits] = useState<any[]>([]);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [composing, setComposing] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    const [retailerData, locationData, visitData, activityData] = await Promise.all([
+      repApi.retailer(retailerId),
+      repApi.getLocation(retailerId),
+      repApi.visits(),
+      capabilities.canLogActivity
+        ? repApi.customerActivities(retailerId).catch(() => ({ activities: [] }))
+        : Promise.resolve({ activities: [] }),
+    ]);
+    const visits = (visitData.visits ?? []).filter((visit: any) => visit.retailerId === retailerId);
+    setData(retailerData);
+    setLocation(locationData.location);
+    setActiveVisit(visits.find((visit: any) => !visit.checkedOutAt) ?? null);
+    setRecentVisits(visits.slice(0, 5));
+    setActivities(activityData.activities ?? []);
+  }, [retailerId, capabilities.canLogActivity]);
 
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
-      Promise.all([repApi.retailer(retailerId), repApi.getLocation(retailerId), repApi.visits()])
-        .then(([retailerData, locationData, visitData]) => {
-          setData(retailerData);
-          setLocation(locationData.location);
-          setActiveVisit((visitData.visits ?? []).find((visit: any) => visit.retailerId === retailerId && !visit.checkedOutAt) ?? null);
-        })
+      load()
         .catch(() => { setData(null); setLocation(null); })
         .finally(() => setLoading(false));
-    }, [retailerId])
+    }, [load])
   );
 
   if (loading) {
@@ -98,17 +116,18 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
     try {
       const result = await repApi.checkIn(retailer.id, reading);
       setActiveVisit(result.visit);
-      const message = result.visit.verificationStatus === "VERIFIED" ? "Visit verified." : result.visit.verificationStatus === "OUTSIDE_STORE_AREA" ? "You're outside the registered store area. You can try again or leave this visit for review." : "Location captured. This visit is available for review.";
-      Alert.alert("Check-in recorded", message);
+      // Check-in opens the visit workspace, where the salesperson logs what
+      // happened and closes the visit out with an outcome.
+      openVisit(result.visit);
     } catch { Alert.alert("Couldn't check in", "Try again when you're online."); }
   };
 
-  const checkOut = async () => {
-    if (!activeVisit) return;
-    const reading = await captureForegroundLocation();
-    if (reading.kind !== "captured") return Alert.alert("Location needed", "Allow location while using the app to check out.");
-    try { const result = await repApi.checkOut(activeVisit.id, reading); setActiveVisit(result.visit); Alert.alert("Checked out", "Your visit time has been recorded."); } catch { Alert.alert("Couldn't check out", "Try again when you're online."); }
-  };
+  const openVisit = (visit: any) =>
+    navigation.navigate("Visit", {
+      visitId: visit.id,
+      retailerId: retailer.id,
+      retailerName: retailer.name,
+    });
 
   return (
     <View style={styles.screen}>
@@ -138,7 +157,10 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
         <View style={styles.kycCard}>
           <View style={styles.between}>
             <View><Text style={styles.creditTitle}>{t("retailer.kycVerification")}</Text><Text style={styles.rowSub}>{kyc?.status ? `Case ${kyc.status.replace("_", " ")}` : t("common.retry")}</Text></View>
-            <StatusPill status={kyc?.status === "approved" ? "active" : "pending"} />
+            <Tag
+              label={kyc?.status === "approved" ? t("status.verified") : t("status.pending")}
+              tone={kyc?.status === "approved" ? "green" : "gold"}
+            />
           </View>
           {kyc?.status !== "approved" ? <><Text style={styles.warnText}>{t("kyc.title")}</Text><TouchableOpacity style={styles.kycButton} onPress={() => void startKyc()}><Text style={styles.kycButtonText}>{kyc ? t("retailer.continueKyc") : t("retailer.startKyc")}</Text></TouchableOpacity></> : <Text style={styles.successText}>{t("retailer.documentsApproved")}</Text>}
         </View>
@@ -150,7 +172,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
           </View>
           <View style={styles.locationActions}>
             {location?.status === "VERIFIED" ? <TouchableOpacity style={styles.visitButton} onPress={() => void checkIn()}><Ionicons name="locate-outline" size={16} color={colors.onDark} /><Text style={styles.visitButtonText}>{activeVisit ? t("retailer.checkIn") : t("retailer.checkIn")}</Text></TouchableOpacity> : <TouchableOpacity style={styles.locationButton} onPress={() => void captureStoreLocation(location?.status === "CAPTURED" ? "verify" : "capture")}><Text style={styles.locationButtonText}>{location?.status === "CAPTURED" ? t("retailer.verifyStore") : t("retailer.setStore")}</Text></TouchableOpacity>}
-            {activeVisit && !activeVisit.checkedOutAt ? <TouchableOpacity style={styles.locationButton} onPress={() => void checkOut()}><Text style={styles.locationButtonText}>{t("retailer.checkOut")}</Text></TouchableOpacity> : null}
+            {activeVisit && !activeVisit.checkedOutAt ? <TouchableOpacity style={styles.locationButton} onPress={() => openVisit(activeVisit)}><Text style={styles.locationButtonText}>Open visit</Text></TouchableOpacity> : null}
           </View>
           {activeVisit?.verificationStatus ? <Text style={styles.rowSub}>Visit: {activeVisit.verificationStatus === "VERIFIED" ? "Verified" : activeVisit.verificationStatus === "OUTSIDE_STORE_AREA" ? "Outside store area" : "Needs review"}{activeVisit.distanceFromStoreMeters != null ? ` · ${Math.round(Number(activeVisit.distanceFromStoreMeters))} m` : ""}</Text> : null}
         </View>
@@ -201,6 +223,97 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
             </View>
           )}
         </View>
+
+        {capabilities.canLogActivity ? (
+          <>
+            <Text style={styles.sectionTitle}>{t("customer.activityTimeline")}</Text>
+            <View style={styles.card}>
+              {activities.length === 0 ? (
+                <Text style={styles.muted}>{t("customer.noActivity")}</Text>
+              ) : (
+                activities.slice(0, 8).map((activity: any, index: number) => (
+                  <ListRow
+                    key={activity.id}
+                    first={index === 0}
+                    icon="clipboard-outline"
+                    title={ACTIVITY_LABELS[activity.type] ?? activity.type}
+                    subtitle={[
+                      new Date(activity.occurredAt).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                      }),
+                      activity.salesperson?.name,
+                      activity.notes,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  />
+                ))
+              )}
+              <View style={{ marginTop: spacing.md, gap: spacing.sm }}>
+                {composing ? (
+                  <ActivityComposer
+                    retailerId={retailer.id}
+                    visitId={activeVisit && !activeVisit.checkedOutAt ? activeVisit.id : undefined}
+                    onCancel={() => setComposing(false)}
+                    onLogged={() => {
+                      setComposing(false);
+                      void load();
+                    }}
+                  />
+                ) : (
+                  <SecondaryButton
+                    label={t("customer.logActivity")}
+                    icon="add-circle-outline"
+                    onPress={() => setComposing(true)}
+                  />
+                )}
+                {capabilities.canRaiseIssues && !composing ? (
+                  <SecondaryButton
+                    label={t("customer.raiseIssue")}
+                    icon="alert-circle-outline"
+                    onPress={() =>
+                      navigation.navigate("Issues", {
+                        retailerId: retailer.id,
+                        retailerName: retailer.name,
+                      })
+                    }
+                  />
+                ) : null}
+              </View>
+            </View>
+
+            {recentVisits.length > 0 ? (
+              <>
+                <Text style={styles.sectionTitle}>Recent visits</Text>
+                <View style={styles.card}>
+                  {recentVisits.map((visit: any, index: number) => (
+                    <ListRow
+                      key={visit.id}
+                      first={index === 0}
+                      icon="location-outline"
+                      title={new Date(visit.checkedInAt).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                      subtitle={[
+                        visit.outcome ? visit.outcome.replace(/_/g, " ") : "In progress",
+                        visit.verificationStatus === "VERIFIED" ? "Verified" : "Needs review",
+                        visit.distanceFromStoreMeters != null
+                          ? `${Math.round(Number(visit.distanceFromStoreMeters))} m`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                      onPress={!visit.checkedOutAt ? () => openVisit(visit) : undefined}
+                    />
+                  ))}
+                </View>
+              </>
+            ) : null}
+          </>
+        ) : null}
 
         <Text style={styles.sectionTitle}>{t("retailer.recentOrders")}</Text>
         <View style={styles.card}>

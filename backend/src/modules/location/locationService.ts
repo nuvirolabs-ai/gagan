@@ -38,8 +38,22 @@ export interface CaptureLocationInput extends CoordinateInput {
   reasonForChange?: string;
 }
 
+/**
+ * Optional collaborators the composition root can supply. They let day-planning
+ * react to a check-in without the location module having to know that route
+ * plans exist.
+ */
+export interface LocationServiceHooks {
+  /** Called once a visit row exists, before the response is sent. */
+  afterCheckIn?(visit: { id: string; retailerId: string; salespersonId: string }): Promise<unknown>;
+}
+
 export class LocationService {
-  constructor(private readonly prisma: Db, private readonly config: LocationConfig) {}
+  constructor(
+    private readonly prisma: Db,
+    private readonly config: LocationConfig,
+    private readonly hooks: LocationServiceHooks = {}
+  ) {}
 
   async getLocation(retailerId: string) {
     return this.prisma.retailerLocation.findUnique({ where: { retailerId } });
@@ -264,7 +278,9 @@ export class LocationService {
     });
   }
 
-  async checkIn(input: { retailerId: string; salespersonId: string } & CoordinateInput) {
+  async checkIn(
+    input: { retailerId: string; salespersonId: string; purpose?: string } & CoordinateInput
+  ) {
     validateCoordinateInput(input);
     const current = await this.getLocation(input.retailerId);
     const hasStore = current?.status === "VERIFIED" && current.latitude != null && current.longitude != null;
@@ -280,7 +296,7 @@ export class LocationService {
       : lowAccuracy
         ? "LOW_GPS_ACCURACY"
         : classifyVisitDistance(distance!, this.config);
-    return this.prisma.salesVisit.create({
+    const visit = await this.prisma.salesVisit.create({
       data: {
         retailerId: input.retailerId,
         salespersonId: input.salespersonId,
@@ -292,12 +308,32 @@ export class LocationService {
         storeLongitudeSnapshot: hasStore ? current.longitude : null,
         distanceFromStoreMeters: distance,
         verificationStatus,
+        purpose: (input.purpose as any) ?? "sales_call",
         source: "SALESPERSON_VISIT",
       },
     });
+    // A planned stop for this store today is fulfilled by this visit rather
+    // than producing a second, parallel visit record.
+    const linked = await this.hooks.afterCheckIn?.({
+      id: visit.id,
+      retailerId: input.retailerId,
+      salespersonId: input.salespersonId,
+    });
+    // Re-read only when a hook actually changed the row, so the caller sees the
+    // route stop the visit was attached to.
+    if (!linked) return visit;
+    return (await this.prisma.salesVisit.findUnique({ where: { id: visit.id } })) ?? visit;
   }
 
-  async checkOut(input: { visitId: string; salespersonId: string } & CoordinateInput) {
+  async checkOut(
+    input: {
+      visitId: string;
+      salespersonId: string;
+      outcome?: string;
+      notes?: string;
+      followUpAt?: Date;
+    } & CoordinateInput
+  ) {
     validateCoordinateInput(input);
     const visit = await this.prisma.salesVisit.findUnique({ where: { id: input.visitId } });
     if (!visit || visit.salespersonId !== input.salespersonId) {
@@ -319,6 +355,11 @@ export class LocationService {
         checkedOutAccuracyMeters: input.accuracyMeters,
         checkedOutAt: new Date(),
         checkoutDistanceMeters: distance,
+        // The outcome is captured as the visit closes, so a visit carries what
+        // it achieved rather than only where and when it happened.
+        ...(input.outcome ? { outcome: input.outcome as any } : {}),
+        ...(input.notes !== undefined ? { notes: input.notes.trim() || null } : {}),
+        ...(input.followUpAt !== undefined ? { followUpAt: input.followUpAt } : {}),
       },
     });
   }

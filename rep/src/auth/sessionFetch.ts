@@ -14,6 +14,15 @@ export class SessionFetchError extends Error {
   }
 }
 
+/**
+ * True only when the server itself refused the session. A dropped connection,
+ * a DNS failure or a 5xx outage is not an authentication failure — a field app
+ * must not sign a salesperson out because they walked into a basement.
+ */
+export function isAuthenticationFailure(error: unknown): boolean {
+  return error instanceof SessionFetchError && (error.status === 401 || error.status === 403);
+}
+
 export function createSessionFetch(options: SessionFetchOptions) {
   const fetcher = options.fetcher ?? fetch;
   let refreshPromise: Promise<SessionTokens> | null = null;

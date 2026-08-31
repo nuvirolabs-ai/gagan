@@ -8,6 +8,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { RepProvider, useRep } from "./src/context/RepContext";
+import { FieldProvider } from "./src/context/FieldContext";
 import { LanguageProvider, useLanguage } from "./src/i18n/LanguageContext";
 import { colors } from "./src/theme";
 
@@ -21,6 +22,14 @@ import ApprovalsScreen from "./src/screens/ApprovalsScreen";
 import ApprovalDetailScreen from "./src/screens/ApprovalDetailScreen";
 import RatingReviewsScreen from "./src/screens/RatingReviewsScreen";
 import KycCaptureScreen from "./src/screens/KycCaptureScreen";
+import TodayScreen from "./src/screens/TodayScreen";
+import RouteScreen from "./src/screens/RouteScreen";
+import MyDayScreen from "./src/screens/MyDayScreen";
+import VisitScreen from "./src/screens/VisitScreen";
+import CustomerMapScreen from "./src/screens/CustomerMapScreen";
+import MyActivityScreen from "./src/screens/MyActivityScreen";
+import ExpensesScreen from "./src/screens/ExpensesScreen";
+import IssuesScreen from "./src/screens/IssuesScreen";
 import { staffCapabilities } from "./src/auth/staffCapabilities";
 import LanguageSelectionScreen from "./src/screens/LanguageSelectionScreen";
 
@@ -45,6 +54,19 @@ const stackScreenOptions = {
   contentStyle: { backgroundColor: colors.bg },
 };
 
+/**
+ * Tab icons, keyed by the tab's route name so the shape of the bar can change
+ * with permissions without the icon mapping drifting.
+ */
+const TAB_ICONS: Record<string, string> = {
+  Today: "today-outline",
+  Retailers: "storefront-outline",
+  Work: "briefcase-outline",
+  Activity: "pulse-outline",
+  Approvals: "shield-checkmark-outline",
+  More: "ellipsis-horizontal-outline",
+};
+
 function RepTabs() {
   const { staff } = useRep();
   const { t } = useLanguage();
@@ -52,7 +74,7 @@ function RepTabs() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        // Both tab screens render their own <ScreenHeader>.
+        // Every tab screen renders its own <ScreenHeader>.
         headerShown: false,
         tabBarLabel: t(`tabs.${route.name.toLowerCase()}`),
         tabBarActiveTintColor: colors.green,
@@ -60,20 +82,23 @@ function RepTabs() {
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
         tabBarIcon: ({ color, size }) => (
           <Ionicons
-            name={route.name === "Retailers" ? "storefront-outline" : route.name === "Work" ? "briefcase-outline" : route.name === "Approvals" ? "shield-checkmark-outline" : "person-outline"}
+            name={(TAB_ICONS[route.name] ?? "ellipse-outline") as any}
             size={size}
             color={color}
           />
         ),
       })}
     >
+      {/* Today is the salesperson's home: attendance, route, tasks, money due. */}
+      {capabilities.canRunFieldDay && <Tab.Screen name="Today" component={TodayScreen} />}
       {capabilities.canOrderForRetailers ? (
         <Tab.Screen name="Retailers" component={RepRetailersScreen} />
-      ) : (
+      ) : capabilities.canRunFieldDay ? null : (
         <Tab.Screen name="Work" component={StaffHomeScreen} />
       )}
+      {capabilities.canRunFieldDay && <Tab.Screen name="Activity" component={MyActivityScreen} />}
       {capabilities.canApprove && <Tab.Screen name="Approvals" component={ApprovalsScreen} />}
-      <Tab.Screen name="Account" component={RepAccountScreen} />
+      <Tab.Screen name="More" component={RepAccountScreen} />
     </Tab.Navigator>
   );
 }
@@ -121,6 +146,55 @@ function RootNavigator() {
               <Stack.Screen name="KycCapture" component={KycCaptureScreen} options={{ title: t("kyc.title"), headerBackTitle: t("retailer.title") }} />
             </>
           )}
+          {capabilities.canRunFieldDay && (
+            <>
+              <Stack.Screen
+                name="Route"
+                component={RouteScreen}
+                options={{ title: t("route.title"), headerBackTitle: t("tabs.today") }}
+              />
+              <Stack.Screen
+                name="Visit"
+                component={VisitScreen}
+                options={{ title: t("visit.title"), headerBackTitle: t("common.back") }}
+              />
+            </>
+          )}
+          {capabilities.canManageAttendance && (
+            <Stack.Screen
+              name="MyDay"
+              component={MyDayScreen}
+              options={{ title: t("myday.title"), headerBackTitle: t("tabs.more") }}
+            />
+          )}
+          {capabilities.canSeeCustomerMap && (
+            <Stack.Screen
+              name="CustomerMap"
+              component={CustomerMapScreen}
+              options={{ title: t("map.title"), headerBackTitle: t("tabs.more") }}
+            />
+          )}
+          {capabilities.canSubmitExpenses && (
+            <Stack.Screen
+              name="Expenses"
+              component={ExpensesScreen}
+              options={{ title: t("expenses.title"), headerBackTitle: t("tabs.more") }}
+            />
+          )}
+          {capabilities.canRaiseIssues && (
+            <Stack.Screen
+              name="Issues"
+              component={IssuesScreen}
+              options={{ title: t("issues.title"), headerBackTitle: t("tabs.more") }}
+            />
+          )}
+          {(capabilities.canCollect || capabilities.canOrderForRetailers) && (
+            <Stack.Screen
+              name="Collections"
+              component={StaffHomeScreen}
+              options={{ title: t("more.collections"), headerBackTitle: t("tabs.more") }}
+            />
+          )}
           {capabilities.canApprove && (
             <Stack.Screen
               name="ApprovalDetail"
@@ -142,10 +216,12 @@ export default function App() {
     <SafeAreaProvider>
       <LanguageProvider>
         <RepProvider>
-          <NavigationContainer theme={navTheme}>
-            <RootNavigator />
-            <StatusBar style="dark" />
-          </NavigationContainer>
+          <FieldProvider>
+            <NavigationContainer theme={navTheme}>
+              <RootNavigator />
+              <StatusBar style="dark" />
+            </NavigationContainer>
+          </FieldProvider>
         </RepProvider>
       </LanguageProvider>
     </SafeAreaProvider>

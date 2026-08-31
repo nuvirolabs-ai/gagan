@@ -12,6 +12,35 @@ const coordinateSchema = z.object({
   devicePlatform: z.string().trim().max(30).optional(),
 });
 
+// Check-in and check-out carry the operational shape of the visit alongside
+// the coordinates: why the salesperson came, and what came of it.
+const checkInSchema = coordinateSchema.extend({
+  purpose: z
+    .enum(["sales_call", "collection", "service", "onboarding", "merchandising", "other"])
+    .optional(),
+});
+
+const checkOutSchema = coordinateSchema.extend({
+  outcome: z
+    .enum([
+      "order_placed",
+      "no_order",
+      "payment_collected",
+      "follow_up_required",
+      "issue_raised",
+      "shop_closed",
+      "decision_maker_unavailable",
+      "other",
+    ])
+    .optional(),
+  notes: z.string().trim().max(1000).optional(),
+  followUpAt: z
+    .string()
+    .refine((value) => !Number.isNaN(Date.parse(value)))
+    .transform((value) => new Date(value))
+    .optional(),
+});
+
 function permission(permissionName: string) {
   return (req: IdentityAuthedRequest, res: any, next: any) => {
     if (!req.staffAuth?.permissions.includes(permissionName)) {
@@ -88,7 +117,7 @@ export function createLocationRouter(options: {
   });
 
   router.post("/rep/retailers/:retailerId/check-in", options.staffAuthenticate, permission(Permissions.LOCATION_CAPTURE), async (req: IdentityAuthedRequest, res, next) => {
-    const parsed = coordinateSchema.safeParse(req.body);
+    const parsed = checkInSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "invalid_location_coordinates" });
     try {
       await service.assertAssignedSalesperson(req.identityAuth!.subjectId, req.params.retailerId);
@@ -97,7 +126,7 @@ export function createLocationRouter(options: {
   });
 
   router.post("/rep/visits/:visitId/check-out", options.staffAuthenticate, permission(Permissions.LOCATION_CAPTURE), async (req: IdentityAuthedRequest, res, next) => {
-    const parsed = coordinateSchema.safeParse(req.body);
+    const parsed = checkOutSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "invalid_location_coordinates" });
     try { res.json({ visit: await service.checkOut({ ...parsed.data, visitId: req.params.visitId, salespersonId: req.identityAuth!.subjectId }) }); } catch (error) { sendError(error, res, next); }
   });

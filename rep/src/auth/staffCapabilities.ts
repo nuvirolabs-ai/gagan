@@ -6,6 +6,13 @@ export const StaffPermissions = {
   COLLECTION_CONFIRM: "collection.confirm",
   CREDIT_RATING_CONFIRM: "credit.rating_confirm",
   LEGAL_DECIDE: "legal.decide",
+  ATTENDANCE_MANAGE_SELF: "attendance.manage_self",
+  ROUTE_EXECUTE: "route.execute",
+  ACTIVITY_LOG: "activity.log",
+  TASK_COMPLETE: "task.complete",
+  EXPENSE_SUBMIT: "expense.submit",
+  ISSUE_RAISE: "issue.raise",
+  LOCATION_VIEW: "location.view",
 } as const;
 
 export function staffCapabilities(permissions: string[]) {
@@ -20,5 +27,15 @@ export function staffCapabilities(permissions: string[]) {
       StaffPermissions.LEGAL_DECIDE,
     ].some((permission) => granted.has(permission)),
     canReviewRatings: granted.has(StaffPermissions.CREDIT_RATING_CONFIRM),
+    // The field day: Today, the route and the activity timeline all hang off
+    // this one capability, so a staff member without it never sees a half-built
+    // workspace.
+    canRunFieldDay: granted.has(StaffPermissions.ROUTE_EXECUTE),
+    canManageAttendance: granted.has(StaffPermissions.ATTENDANCE_MANAGE_SELF),
+    canLogActivity: granted.has(StaffPermissions.ACTIVITY_LOG),
+    canCompleteTasks: granted.has(StaffPermissions.TASK_COMPLETE),
+    canSubmitExpenses: granted.has(StaffPermissions.EXPENSE_SUBMIT),
+    canRaiseIssues: granted.has(StaffPermissions.ISSUE_RAISE),
+    canSeeCustomerMap: granted.has(StaffPermissions.LOCATION_VIEW),
   };
 }

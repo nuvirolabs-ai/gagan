@@ -5,6 +5,8 @@ import {
   setRepUnauthorizedHandler,
 } from "../api/repClient";
 import { CartLine } from "../types";
+import { isAuthenticationFailure } from "../auth/sessionFetch";
+import { staffIdentityCache } from "../auth/identityCache";
 import { useLanguage } from "../i18n/LanguageContext";
 
 interface Rep {
@@ -42,6 +44,7 @@ interface RepContextValue {
 
 const RepContext = createContext<RepContextValue | undefined>(undefined);
 
+
 export function RepProvider({ children }: { children: React.ReactNode }) {
   const { beginLoginSelection, resetSelectionGate } = useLanguage();
   const [rep, setRep] = useState<Rep | null>(null);
@@ -53,6 +56,7 @@ export function RepProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setRepUnauthorizedHandler(() => {
+      void staffIdentityCache.clear();
       setRep(null);
       setStaff(null);
       resetSelectionGate();
@@ -71,10 +75,24 @@ export function RepProvider({ children }: { children: React.ReactNode }) {
         const res = await repApi.me();
         setStaff(res.staff);
         setRep(res.rep);
-      } catch {
-        await staffSessionStore.clear();
-        setStaff(null);
-        setRep(null);
+        await staffIdentityCache.save({ staff: res.staff, rep: res.rep ?? null });
+      } catch (error) {
+        // A salesperson opening the app in a dead zone must not be signed out:
+        // only the server rejecting the session ends it. Anything else — no
+        // signal, a 5xx — falls back to the last identity the server confirmed
+        // so the day's work can continue and sync later.
+        if (isAuthenticationFailure(error)) {
+          await staffSessionStore.clear();
+          await staffIdentityCache.clear();
+          setStaff(null);
+          setRep(null);
+        } else {
+          const cached = await staffIdentityCache.load();
+          if (cached) {
+            setStaff(cached.staff);
+            setRep(cached.rep);
+          }
+        }
       } finally {
         setLoading(false);
       }
@@ -93,6 +111,7 @@ export function RepProvider({ children }: { children: React.ReactNode }) {
     setChallengeId(null);
     setStaff(res.staff);
     setRep(res.rep);
+    await staffIdentityCache.save({ staff: res.staff, rep: res.rep ?? null });
     beginLoginSelection();
   };
 
@@ -100,6 +119,7 @@ export function RepProvider({ children }: { children: React.ReactNode }) {
     try {
       await repApi.logout();
     } finally {
+      await staffIdentityCache.clear();
       setChallengeId(null);
       setStaff(null);
       setRep(null);

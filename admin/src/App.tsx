@@ -19,6 +19,10 @@ import Locations from "./pages/Locations";
 import Visits from "./pages/Visits";
 import Dashboard from "./pages/Dashboard";
 import Warehouses from "./pages/Warehouses";
+import FieldTeam from "./pages/FieldTeam";
+import FieldPlanning from "./pages/FieldPlanning";
+import FieldExpenses from "./pages/FieldExpenses";
+import ServiceIssues from "./pages/ServiceIssues";
 
 const NAV = [
   { to: "/", label: "Overview", permissions: ["staff.manage", "dashboard.view"] },
@@ -37,6 +41,10 @@ const NAV = [
   { to: "/staff", label: "Staff access", permissions: ["staff.manage"] },
   { to: "/locations", label: "Store locations", permissions: ["location.view"] },
   { to: "/visits", label: "Sales visits", permissions: ["visit.view"] },
+  { to: "/field-team", label: "Field team", permissions: ["attendance.review"] },
+  { to: "/field-planning", label: "Routes & tasks", permissions: ["route.manage"] },
+  { to: "/field-expenses", label: "Field expenses", permissions: ["expense.review"] },
+  { to: "/service-issues", label: "Service issues", permissions: ["issue.review"] },
 ];
 
 function Shell() {
@@ -88,6 +96,10 @@ function Shell() {
           <Route path="/corrections" element={<Corrections />} />
           <Route path="/locations" element={<Locations />} />
           <Route path="/visits" element={<Visits />} />
+          <Route path="/field-team" element={<FieldTeam />} />
+          <Route path="/field-planning" element={<FieldPlanning />} />
+          <Route path="/field-expenses" element={<FieldExpenses />} />
+          <Route path="/service-issues" element={<ServiceIssues />} />
           <Route
             path="/no-access"
             element={<div className="card empty-state">No portal permissions are assigned.</div>}

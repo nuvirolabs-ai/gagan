@@ -208,6 +208,291 @@ export function OrderTimeline({ status }: { status: string }) {
   );
 }
 
+/** The app's standard surface: white, hairline border, large radius. */
+export function Card({
+  children,
+  style,
+}: {
+  children: React.ReactNode;
+  style?: object;
+}) {
+  return <View style={[s.card, style]}>{children}</View>;
+}
+
+export function SectionTitle({ title, action }: { title: string; action?: React.ReactNode }) {
+  return (
+    <View style={s.sectionTitleRow}>
+      <Text style={s.sectionTitle}>{title}</Text>
+      {action}
+    </View>
+  );
+}
+
+/** A small labelled number. Three of these fit a phone row. */
+export function MetricTile({
+  label,
+  value,
+  tone = "ink",
+}: {
+  label: string;
+  value: string;
+  tone?: "ink" | "green" | "danger";
+}) {
+  return (
+    <View style={s.metric}>
+      <Text style={s.metricLabel} numberOfLines={2}>
+        {label}
+      </Text>
+      <Text
+        style={[
+          s.metricValue,
+          tone === "green" && { color: colors.green },
+          tone === "danger" && { color: colors.danger },
+        ]}
+        numberOfLines={1}
+      >
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+export function ProgressTrack({ pct, tone }: { pct: number; tone?: "green" | "danger" }) {
+  return (
+    <View style={s.track}>
+      <View
+        style={[
+          s.trackFill,
+          {
+            width: `${Math.max(0, Math.min(100, pct))}%`,
+            backgroundColor: tone === "danger" ? colors.danger : colors.green,
+          },
+        ]}
+      />
+    </View>
+  );
+}
+
+/**
+ * A full-width notice. `attention` is used for things the salesperson has to
+ * act on, never for ordinary state.
+ */
+export function Banner({
+  tone,
+  title,
+  body,
+  icon,
+  action,
+}: {
+  tone: "active" | "idle" | "attention";
+  title: string;
+  body?: string;
+  icon?: string;
+  action?: React.ReactNode;
+}) {
+  const palette =
+    tone === "active"
+      ? { bg: colors.greenSoft, fg: colors.green }
+      : tone === "attention"
+        ? { bg: colors.goldSoft, fg: "#8A6A12" }
+        : { bg: colors.surfaceAlt, fg: colors.inkMuted };
+  return (
+    <View style={[s.banner, { backgroundColor: palette.bg }]}>
+      <Ionicons
+        name={(icon ?? (tone === "attention" ? "alert-circle-outline" : "location-outline")) as any}
+        size={17}
+        color={palette.fg}
+      />
+      <View style={{ flex: 1 }}>
+        <Text style={[s.bannerTitle, { color: palette.fg }]}>{title}</Text>
+        {body ? <Text style={s.bannerBody}>{body}</Text> : null}
+      </View>
+      {action}
+    </View>
+  );
+}
+
+/** One tappable line in a list: leading icon, title, subtitle, chevron. */
+export function ListRow({
+  icon,
+  title,
+  subtitle,
+  right,
+  onPress,
+  first,
+  danger,
+}: {
+  icon?: string;
+  title: string;
+  subtitle?: string;
+  right?: React.ReactNode;
+  onPress?: () => void;
+  first?: boolean;
+  danger?: boolean;
+}) {
+  const body = (
+    <View style={[s.listRow, !first && s.listRowDivided]}>
+      {icon ? (
+        <View style={s.listIcon}>
+          <Ionicons name={icon as any} size={17} color={danger ? colors.danger : colors.green} />
+        </View>
+      ) : null}
+      <View style={{ flex: 1 }}>
+        <Text style={[s.listTitle, danger && { color: colors.danger }]} numberOfLines={2}>
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text style={s.listSub} numberOfLines={2}>
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
+      {right ?? (onPress ? <Ionicons name="chevron-forward" size={17} color={colors.inkFaint} /> : null)}
+    </View>
+  );
+  if (!onPress) return body;
+  return (
+    <TouchableOpacity activeOpacity={0.75} onPress={onPress}>
+      {body}
+    </TouchableOpacity>
+  );
+}
+
+export function PrimaryButton({
+  label,
+  onPress,
+  disabled,
+  icon,
+  tone = "green",
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  icon?: string;
+  tone?: "green" | "danger";
+}) {
+  return (
+    <TouchableOpacity
+      style={[
+        s.primary,
+        tone === "danger" && { backgroundColor: colors.danger },
+        disabled && s.primaryDisabled,
+      ]}
+      onPress={onPress}
+      disabled={disabled}
+      activeOpacity={0.85}
+    >
+      {icon ? <Ionicons name={icon as any} size={16} color={colors.onDark} /> : null}
+      <Text style={s.primaryText}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+export function SecondaryButton({
+  label,
+  onPress,
+  icon,
+  disabled,
+}: {
+  label: string;
+  onPress: () => void;
+  icon?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <TouchableOpacity
+      style={[s.secondary, disabled && { opacity: 0.5 }]}
+      onPress={onPress}
+      disabled={disabled}
+      activeOpacity={0.75}
+    >
+      {icon ? <Ionicons name={icon as any} size={15} color={colors.green} /> : null}
+      <Text style={s.secondaryText}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+/** A neutral status label. `StatusPill` stays the order-specific one. */
+export function Tag({
+  label,
+  tone = "neutral",
+}: {
+  label: string;
+  tone?: "neutral" | "green" | "gold" | "danger";
+}) {
+  const palette =
+    tone === "green"
+      ? { bg: colors.greenSoft, fg: colors.green }
+      : tone === "gold"
+        ? { bg: colors.goldSoft, fg: "#8A6A12" }
+        : tone === "danger"
+          ? { bg: colors.dangerSoft, fg: colors.danger }
+          : { bg: colors.surfaceAlt, fg: colors.inkMuted };
+  return (
+    <View style={[s.pill, { backgroundColor: palette.bg }]}>
+      <Text style={[s.pillText, { color: palette.fg }]}>{label}</Text>
+    </View>
+  );
+}
+
+/** Short options picked inline — visit purpose, expense category, priority. */
+export function OptionGrid({
+  options,
+  value,
+  onChange,
+}: {
+  options: Array<{ value: string; label: string }>;
+  value: string | null;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <View style={s.optionGrid}>
+      {options.map((option) => {
+        const active = option.value === value;
+        return (
+          <TouchableOpacity
+            key={option.value}
+            style={[s.option, active && s.optionActive]}
+            onPress={() => onChange(option.value)}
+            activeOpacity={0.8}
+          >
+            <Text style={[s.optionText, active && s.optionTextActive]}>{option.label}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+export function Field({
+  label,
+  children,
+  hint,
+}: {
+  label: string;
+  children: React.ReactNode;
+  hint?: string;
+}) {
+  return (
+    <View style={{ gap: 6 }}>
+      <Text style={s.fieldLabel}>{label}</Text>
+      {children}
+      {hint ? <Text style={s.fieldHint}>{hint}</Text> : null}
+    </View>
+  );
+}
+
+export const inputStyle = {
+  backgroundColor: colors.surfaceAlt,
+  borderRadius: radius.md,
+  paddingHorizontal: spacing.md,
+  paddingVertical: spacing.md,
+  color: colors.ink,
+  fontSize: 14,
+  borderWidth: 1,
+  borderColor: colors.border,
+};
+
 const s = StyleSheet.create({
   header: {
     paddingHorizontal: spacing.lg,
@@ -295,6 +580,106 @@ const s = StyleSheet.create({
 
   pill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: radius.sm, alignSelf: "flex-start" },
   pillText: { fontSize: 11, fontWeight: "700" },
+
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.sm,
+    ...shadow.card,
+  },
+  sectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.sm,
+  },
+  sectionTitle: { fontSize: 15.5, fontWeight: "700", color: colors.ink },
+
+  metric: {
+    flex: 1,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  metricLabel: { fontSize: 10.5, color: colors.inkMuted, lineHeight: 14 },
+  metricValue: { fontSize: 16, fontWeight: "700", color: colors.ink, marginTop: 4 },
+
+  track: { height: 6, borderRadius: 3, backgroundColor: colors.track, overflow: "hidden" },
+  trackFill: { height: "100%", borderRadius: 3 },
+
+  banner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  bannerTitle: { fontSize: 13, fontWeight: "700" },
+  bannerBody: { fontSize: 12, color: colors.inkMuted, lineHeight: 17, marginTop: 2 },
+
+  listRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  listRowDivided: { borderTopWidth: 1, borderTopColor: colors.border },
+  listIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.pill,
+    backgroundColor: colors.greenSoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  listTitle: { fontSize: 14.5, fontWeight: "600", color: colors.ink },
+  listSub: { fontSize: 12, color: colors.inkMuted, marginTop: 2, lineHeight: 17 },
+
+  primary: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    backgroundColor: colors.green,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  primaryDisabled: { backgroundColor: colors.inkFaint },
+  primaryText: { color: colors.onDark, fontWeight: "700", fontSize: 13.5 },
+  secondary: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  secondaryText: { color: colors.green, fontWeight: "700", fontSize: 13 },
+
+  optionGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  option: {
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  optionActive: { borderColor: colors.green, backgroundColor: colors.greenSoft },
+  optionText: { fontSize: 12.5, fontWeight: "600", color: colors.inkMuted },
+  optionTextActive: { color: colors.green },
+
+  fieldLabel: { fontSize: 12, fontWeight: "700", color: colors.inkMuted },
+  fieldHint: { fontSize: 11.5, color: colors.inkFaint, lineHeight: 16 },
 
   timeline: { flexDirection: "row", marginTop: spacing.lg },
   tlStep: { flex: 1, alignItems: "center" },

@@ -10,7 +10,10 @@ import { RatingService, RatingServiceError } from "./ratingService";
 export function createRatingRouter(options: { authenticate: RequestHandler; service?: RatingService }) {
   const router = Router();
   const service = options.service ?? new RatingService();
-  router.use(options.authenticate, requirePermission(Permissions.CREDIT_RATING_CONFIRM));
+  // Scoped to the paths this router owns. A blanket `router.use` would answer
+  // 403 for every unrelated path mounted on the same prefix instead of letting
+  // it fall through to the router that actually handles it.
+  router.use("/credit", options.authenticate, requirePermission(Permissions.CREDIT_RATING_CONFIRM));
   router.get("/credit/kyc-pending", asyncRoute(async (_req, res) => {
     res.json({ profiles: await service.listKycPending() });
   }));

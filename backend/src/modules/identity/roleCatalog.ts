@@ -19,6 +19,18 @@ export const Permissions = {
   LOCATION_CAPTURE: "location.capture",
   LOCATION_VERIFY: "location.verify",
   VISIT_VIEW: "visit.view",
+  // Field operations. Each of these is a distinct governance boundary: doing
+  // your own day, versus reviewing somebody else's.
+  ATTENDANCE_MANAGE_SELF: "attendance.manage_self",
+  ATTENDANCE_REVIEW: "attendance.review",
+  ROUTE_EXECUTE: "route.execute",
+  ROUTE_MANAGE: "route.manage",
+  ACTIVITY_LOG: "activity.log",
+  TASK_COMPLETE: "task.complete",
+  EXPENSE_SUBMIT: "expense.submit",
+  EXPENSE_REVIEW: "expense.review",
+  ISSUE_RAISE: "issue.raise",
+  ISSUE_REVIEW: "issue.review",
 } as const;
 
 export type PermissionName = (typeof Permissions)[keyof typeof Permissions];
@@ -32,13 +44,42 @@ export interface RoleDefinition {
 export const ROLE_DEFINITIONS: RoleDefinition[] = [
   {
     name: "salesperson",
-    description: "Manages assigned retailers, KYC capture and retailer orders.",
-    permissions: [Permissions.ORDER_CREATE_FOR_RETAILER, Permissions.KYC_SUBMIT, Permissions.RECOVERY_VIEW, Permissions.RECOVERY_UPDATE, Permissions.LOCATION_VIEW, Permissions.LOCATION_CAPTURE, Permissions.LOCATION_VERIFY, Permissions.VISIT_VIEW],
+    description: "Manages assigned retailers, KYC capture, retailer orders and their own field day.",
+    permissions: [
+      Permissions.ORDER_CREATE_FOR_RETAILER,
+      Permissions.KYC_SUBMIT,
+      Permissions.RECOVERY_VIEW,
+      Permissions.RECOVERY_UPDATE,
+      Permissions.LOCATION_VIEW,
+      Permissions.LOCATION_CAPTURE,
+      Permissions.LOCATION_VERIFY,
+      Permissions.VISIT_VIEW,
+      Permissions.ATTENDANCE_MANAGE_SELF,
+      Permissions.ROUTE_EXECUTE,
+      Permissions.ACTIVITY_LOG,
+      Permissions.TASK_COMPLETE,
+      Permissions.EXPENSE_SUBMIT,
+      Permissions.ISSUE_RAISE,
+    ],
   },
   {
     name: "field_collector",
-    description: "Visits assigned retailers and submits collection evidence.",
-    permissions: [Permissions.COLLECTION_SUBMIT, Permissions.RECOVERY_VIEW, Permissions.RECOVERY_UPDATE, Permissions.LOCATION_VIEW, Permissions.LOCATION_CAPTURE, Permissions.LOCATION_VERIFY, Permissions.VISIT_VIEW],
+    description: "Visits assigned retailers, submits collection evidence and runs their own field day.",
+    permissions: [
+      Permissions.COLLECTION_SUBMIT,
+      Permissions.RECOVERY_VIEW,
+      Permissions.RECOVERY_UPDATE,
+      Permissions.LOCATION_VIEW,
+      Permissions.LOCATION_CAPTURE,
+      Permissions.LOCATION_VERIFY,
+      Permissions.VISIT_VIEW,
+      Permissions.ATTENDANCE_MANAGE_SELF,
+      Permissions.ROUTE_EXECUTE,
+      Permissions.ACTIVITY_LOG,
+      Permissions.TASK_COMPLETE,
+      Permissions.EXPENSE_SUBMIT,
+      Permissions.ISSUE_RAISE,
+    ],
   },
   {
     name: "credit_team",
@@ -77,6 +118,19 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: "founder_director",
     description: "Decides legal, settlement and exceptional escalation outcomes.",
     permissions: [Permissions.LEGAL_DECIDE, Permissions.RECOVERY_VIEW, Permissions.RECOVERY_UPDATE],
+  },
+  {
+    name: "field_manager",
+    description:
+      "Plans routes and tasks for a field team and reviews their attendance, leave, expenses and service issues.",
+    permissions: [
+      Permissions.ATTENDANCE_REVIEW,
+      Permissions.ROUTE_MANAGE,
+      Permissions.EXPENSE_REVIEW,
+      Permissions.ISSUE_REVIEW,
+      Permissions.VISIT_VIEW,
+      Permissions.LOCATION_VIEW,
+    ],
   },
   {
     name: "platform_admin",

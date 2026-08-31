@@ -8,7 +8,16 @@ export const ALLOWED_EVIDENCE_CONTENT_TYPES = new Set([
   "image/webp",
 ]);
 
-export type EvidencePurpose = "kyc_document" | "collection_receipt" | "pod" | "recovery_letter";
+export type EvidencePurpose =
+  | "kyc_document"
+  | "collection_receipt"
+  | "pod"
+  | "recovery_letter"
+  // Field evidence. These are storage prefixes only — unlike KYC documents
+  // they are referenced directly from their owning row rather than through an
+  // EvidenceAsset record.
+  | "attendance_photo"
+  | "expense_receipt";
 
 export interface PutObjectInput {
   purpose: EvidencePurpose;

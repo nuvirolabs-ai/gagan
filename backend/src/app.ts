@@ -17,6 +17,12 @@ import { createCollectionRouter } from "./modules/collections/collectionRoutes";
 import { createKycRouter } from "./modules/kyc/kycRoutes";
 import { createRecoveryRouter } from "./modules/recovery/recoveryRoutes";
 import { createLocationRouter } from "./modules/location/locationRoutes";
+import { LocationService } from "./modules/location/locationService";
+import { loadLocationConfig } from "./modules/location/locationConfig";
+import { createFieldRouter } from "./modules/field/fieldRoutes";
+import { createFieldAdminRouter } from "./modules/field/fieldAdminRoutes";
+import { defaultRouteService } from "./modules/field/routeService";
+import { prisma } from "./lib/prisma";
 import { createRatingRouter } from "./modules/credit/ratingRoutes";
 import { createCreditRolloutRouter } from "./modules/credit/rolloutRoutes";
 import { createRequireSession } from "./modules/identity/sessionAuth";
@@ -52,6 +58,10 @@ export function createApp(options: CreateAppOptions = {}) {
   // that accepts a bounded base64 payload, so opt it into the larger parser
   // before the default parser runs.
   app.use("/rep/kyc", express.json({ limit: "15mb" }));
+  // Attendance photos and expense receipts are bounded base64 payloads, the
+  // same shape as KYC evidence.
+  app.use("/rep/field/attendance", express.json({ limit: "8mb" }));
+  app.use("/rep/field/expenses", express.json({ limit: "15mb" }));
   app.use("/admin/kyc", express.json({ limit: "15mb" }));
   app.use(express.json({ limit: "100kb" }));
 
@@ -76,8 +86,21 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(deliveryRoutes);
   app.use(paymentRoutes);
 
+  // Composition root for the visit/day-plan seam: checking in at a store also
+  // settles that store's planned route stop, without the location module
+  // depending on the field module.
+  const locationService = new LocationService(prisma, loadLocationConfig(), {
+    afterCheckIn: (visit) =>
+      defaultRouteService.linkVisitToPlannedStop({
+        visitId: visit.id,
+        salespersonId: visit.salespersonId,
+        retailerId: visit.retailerId,
+      }),
+  });
+
   app.use(
     createLocationRouter({
+      service: locationService,
       retailerAuthenticate: requireAuth,
       staffAuthenticate: createRequireSession("staff", lazyIdentitySessionService),
       adminAuthenticate: requireAdminIdentity,
@@ -115,6 +138,12 @@ export function createApp(options: CreateAppOptions = {}) {
       authenticate: createRequireSession("staff", lazyIdentitySessionService),
     })
   );
+  app.use(
+    "/rep",
+    createFieldRouter({
+      authenticate: createRequireSession("staff", lazyIdentitySessionService),
+    })
+  );
 
   app.use("/admin", adminAuthRoutes);
   app.use(
@@ -145,6 +174,7 @@ export function createApp(options: CreateAppOptions = {}) {
     "/admin",
     createCreditRolloutRouter({ authenticate: requireAdminIdentity })
   );
+  app.use("/admin", createFieldAdminRouter({ authenticate: requireAdminIdentity }));
   app.use("/admin", adminOrderRoutes);
   app.use("/admin", adminRetailerRoutes);
   app.use("/admin", adminCatalogRoutes);

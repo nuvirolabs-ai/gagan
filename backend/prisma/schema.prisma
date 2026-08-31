@@ -362,6 +362,10 @@ model Retailer {
   location                  RetailerLocation?
   locationHistory           RetailerLocationHistory[]
   visits                    SalesVisit[]
+  routeStops                RoutePlanStop[]
+  customerActivities        CustomerActivity[]
+  fieldTasks                FieldTask[]
+  serviceIssues             ServiceIssue[]
   contacts                  RetailerContact[]
   sapAccounts               RetailerSapAccount[]
   createdAt                 DateTime                   @default(now())
@@ -475,22 +479,34 @@ model SalesRep {
 }
 
 model StaffUser {
-  id               String           @id @default(uuid())
-  name             String
-  phone            String           @unique
-  email            String           @unique
-  employeeRef      String?          @unique
-  status           StaffStatus      @default(active)
-  salesRepId       String?          @unique
-  salesRep         SalesRep?        @relation(fields: [salesRepId], references: [id])
-  adminUserId      String?          @unique
-  adminUser        AdminUser?       @relation(fields: [adminUserId], references: [id])
-  roles            StaffRole[]
-  salesVisits      SalesVisit[]     @relation("SalespersonVisits")
-  delegationsGiven RoleDelegation[] @relation("Delegator")
-  delegationsHeld  RoleDelegation[] @relation("Delegatee")
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  id                 String             @id @default(uuid())
+  name               String
+  phone              String             @unique
+  email              String             @unique
+  employeeRef        String?            @unique
+  status             StaffStatus        @default(active)
+  salesRepId         String?            @unique
+  salesRep           SalesRep?          @relation(fields: [salesRepId], references: [id])
+  adminUserId        String?            @unique
+  adminUser          AdminUser?         @relation(fields: [adminUserId], references: [id])
+  roles              StaffRole[]
+  salesVisits        SalesVisit[]       @relation("SalespersonVisits")
+  delegationsGiven   RoleDelegation[]   @relation("Delegator")
+  delegationsHeld    RoleDelegation[]   @relation("Delegatee")
+  workdaySessions    WorkdaySession[]   @relation("SalespersonWorkdays")
+  leaveRequests      LeaveRequest[]     @relation("SalespersonLeave")
+  leaveDecisions     LeaveRequest[]     @relation("LeaveDecisions")
+  routePlans         RoutePlan[]        @relation("SalespersonRoutePlans")
+  customerActivities CustomerActivity[] @relation("SalespersonActivities")
+  fieldTasksAssigned FieldTask[]        @relation("FieldTasksAssigned")
+  fieldTasksCreated  FieldTask[]        @relation("FieldTasksCreated")
+  locationPings      LocationPing[]     @relation("SalespersonPings")
+  fieldExpenses      FieldExpense[]     @relation("SalespersonExpenses")
+  expenseDecisions   FieldExpense[]     @relation("ExpenseDecisions")
+  serviceIssues      ServiceIssue[]     @relation("ServiceIssuesRaised")
+  salesTargets       SalesTarget[]      @relation("SalespersonTargets")
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
   @@index([status])
 }
@@ -562,10 +578,22 @@ model SalesVisit {
   checkedOutAt             DateTime?
   checkoutDistanceMeters   Decimal?                   @db.Decimal(10, 2)
   notes                    String?
+  /// Why the salesperson came. Defaults to a plain sales call.
+  purpose                  VisitPurpose               @default(sales_call)
+  /// Recorded when the visit is closed out; null while the visit is open.
+  outcome                  VisitOutcome?
+  followUpAt               DateTime?
+  /// Set when the visit fulfils a planned route stop, so a planned visit and
+  /// the visit that happened are one record rather than two.
+  routeStopId              String?
+  routeStop                RoutePlanStop?             @relation(fields: [routeStopId], references: [id], onDelete: SetNull)
+  activities               CustomerActivity[]
+  serviceIssues            ServiceIssue[]
   source                   LocationSource             @default(SALESPERSON_VISIT)
   createdAt                DateTime                   @default(now())
   updatedAt                DateTime                   @updatedAt
 
+  @@index([routeStopId])
   @@index([salespersonId, checkedInAt])
   @@index([retailerId, checkedInAt])
   @@index([verificationStatus, checkedInAt])
@@ -796,6 +824,16 @@ model AppConfig {
   creditPolicyApprovedAt        DateTime?
   creditPolicyApprovedByStaffId String?
   creditPolicyApprovedVersion   Int?
+  /// Attendance policy. When on, clock-in and clock-out require an attendance
+  /// photo. The photo is stored as evidence only — no biometric matching or
+  /// facial recognition is performed on it.
+  attendanceSelfieRequired      Boolean           @default(false)
+  /// Movement tracking policy. When off, the app records no location pings at
+  /// all and the tracking banner tells the salesperson so.
+  locationTrackingEnabled       Boolean           @default(true)
+  /// Sampling interval the app should use while a workday is open. Larger
+  /// values trade route resolution for battery.
+  locationPingIntervalSeconds   Int               @default(300)
 }
 
 model Product {
@@ -901,6 +939,8 @@ model Order {
   approvalRequests          ApprovalRequest[]
   dispatchAuthorizations    DispatchAuthorization[]
   creditDecisionComparisons CreditDecisionComparison[]
+  customerActivities        CustomerActivity[]
+  serviceIssues             ServiceIssue[]
   createdAt                 DateTime                   @default(now())
 
   @@unique([retailerId, idempotencyKey])
@@ -977,6 +1017,7 @@ model Invoice {
   ledgerEntry         FinancialLedgerEntry?
   creditNotes         CreditNote[]
   recoveryCase        RecoveryCase?
+  serviceIssues       ServiceIssue[]
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
 
@@ -1220,6 +1261,7 @@ model CollectionSubmission {
   confirmedAt        DateTime?
   updatedAt          DateTime                   @updatedAt
   evidence           CollectionEvidence[]
+  customerActivities CustomerActivity[]
 
   @@index([status, submittedAt])
   @@index([retailerId, submittedAt])
@@ -1538,4 +1580,392 @@ model WorkingCalendar {
   isWorkingDay Boolean
   label        String?
   createdAt    DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Field operations — the salesperson's workday.
+//
+// These entities describe how a salesperson spends a day in the field: when
+// the day starts and ends, which stores are planned for it, what happened at
+// each store, and what still has to be done. They deliberately reuse the
+// existing Retailer / Order / Invoice / SalesVisit / StaffUser entities rather
+// than introducing a parallel customer or order model.
+// ---------------------------------------------------------------------------
+
+enum WorkdayStatus {
+  open
+  closed
+}
+
+enum LeaveType {
+  casual
+  sick
+  unpaid
+  other
+}
+
+enum LeaveStatus {
+  pending
+  approved
+  rejected
+  cancelled
+}
+
+enum RoutePlanStatus {
+  draft
+  published
+  completed
+  cancelled
+}
+
+enum RouteStopStatus {
+  pending
+  visited
+  skipped
+}
+
+enum VisitPurpose {
+  sales_call
+  collection
+  service
+  onboarding
+  merchandising
+  other
+}
+
+enum VisitOutcome {
+  order_placed
+  no_order
+  payment_collected
+  follow_up_required
+  issue_raised
+  shop_closed
+  decision_maker_unavailable
+  other
+}
+
+/// Controlled vocabulary for what a salesperson did at a store. Free text
+/// lives in `notes`; the type is what dashboards and manager reporting read.
+enum CustomerActivityType {
+  order_discussion
+  order_placed
+  payment_discussion
+  collection_completed
+  product_demo
+  stock_check
+  merchandising
+  complaint_raised
+  follow_up_required
+  competitor_observation
+  no_order
+  shop_closed
+  decision_maker_unavailable
+  note
+}
+
+enum FieldTaskPriority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum FieldTaskStatus {
+  open
+  in_progress
+  done
+  cancelled
+}
+
+enum ExpenseCategory {
+  travel
+  fuel
+  food
+  lodging
+  telephone
+  other
+}
+
+enum ExpenseStatus {
+  submitted
+  approved
+  rejected
+}
+
+enum ServiceIssueType {
+  damaged_product
+  delivery_issue
+  invoice_issue
+  payment_issue
+  quality_complaint
+  service_request
+  other
+}
+
+enum ServiceIssuePriority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum ServiceIssueStatus {
+  open
+  in_progress
+  resolved
+  closed
+  rejected
+}
+
+enum SalesTargetMetric {
+  order_value
+  visits
+  collection_value
+  new_customers
+}
+
+/// One salesperson's working day. Its `open` state is the only thing that
+/// authorises movement tracking, so nothing is recorded before clock-in or
+/// after clock-out.
+model WorkdaySession {
+  id                  String         @id @default(uuid())
+  salespersonId       String
+  salesperson         StaffUser      @relation("SalespersonWorkdays", fields: [salespersonId], references: [id], onDelete: Restrict)
+  /// Calendar day the session belongs to, in the deployment's local timezone.
+  workDate            DateTime       @db.Date
+  status              WorkdayStatus  @default(open)
+  startedAt           DateTime       @default(now())
+  startLatitude       Decimal        @db.Decimal(10, 7)
+  startLongitude      Decimal        @db.Decimal(10, 7)
+  startAccuracyMeters Decimal        @db.Decimal(8, 2)
+  /// Optional attendance photo, stored through the platform object storage.
+  /// Only required when AppConfig.attendanceSelfieRequired is on. No facial
+  /// recognition is performed on it anywhere in this system.
+  startPhotoObjectKey String?
+  endedAt             DateTime?
+  endLatitude         Decimal?       @db.Decimal(10, 7)
+  endLongitude        Decimal?       @db.Decimal(10, 7)
+  endAccuracyMeters   Decimal?       @db.Decimal(8, 2)
+  endPhotoObjectKey   String?
+  devicePlatform      String?
+  /// Denormalised working minutes, written once at clock-out.
+  workedMinutes       Int?
+  locationPings       LocationPing[]
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  @@unique([salespersonId, workDate])
+  @@index([workDate, status])
+}
+
+model LeaveRequest {
+  id               String      @id @default(uuid())
+  salespersonId    String
+  salesperson      StaffUser   @relation("SalespersonLeave", fields: [salespersonId], references: [id], onDelete: Restrict)
+  fromDate         DateTime    @db.Date
+  toDate           DateTime    @db.Date
+  type             LeaveType   @default(casual)
+  reason           String
+  status           LeaveStatus @default(pending)
+  decidedByStaffId String?
+  decidedBy        StaffUser?  @relation("LeaveDecisions", fields: [decidedByStaffId], references: [id], onDelete: Restrict)
+  decidedAt        DateTime?
+  decisionNote     String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([salespersonId, fromDate])
+  @@index([status, fromDate])
+}
+
+/// The stores a salesperson is expected to cover on one date, in order.
+/// Assignment of a retailer to a salesperson still lives on Retailer.salesRepId;
+/// a route plan only schedules already-assigned retailers.
+model RoutePlan {
+  id               String          @id @default(uuid())
+  salespersonId    String
+  salesperson      StaffUser       @relation("SalespersonRoutePlans", fields: [salespersonId], references: [id], onDelete: Restrict)
+  planDate         DateTime        @db.Date
+  name             String?
+  status           RoutePlanStatus @default(draft)
+  createdByStaffId String?
+  publishedAt      DateTime?
+  completedAt      DateTime?
+  stops            RoutePlanStop[]
+  tasks            FieldTask[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@unique([salespersonId, planDate])
+  @@index([planDate, status])
+}
+
+model RoutePlanStop {
+  id          String          @id @default(uuid())
+  routePlanId String
+  routePlan   RoutePlan       @relation(fields: [routePlanId], references: [id], onDelete: Cascade)
+  retailerId  String
+  retailer    Retailer        @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  sequence    Int
+  status      RouteStopStatus @default(pending)
+  purpose     VisitPurpose    @default(sales_call)
+  note        String?
+  skipReason  String?
+  visitedAt   DateTime?
+  visits      SalesVisit[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([routePlanId, retailerId])
+  @@index([routePlanId, sequence])
+  @@index([retailerId, createdAt])
+}
+
+/// A structured record of something that happened with a customer. Written
+/// from the field, usually inside a visit; projected into customer history,
+/// the salesperson dashboard and manager reporting.
+model CustomerActivity {
+  id              String                @id @default(uuid())
+  retailerId      String
+  retailer        Retailer              @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  salespersonId   String
+  salesperson     StaffUser             @relation("SalespersonActivities", fields: [salespersonId], references: [id], onDelete: Restrict)
+  visitId         String?
+  visit           SalesVisit?           @relation(fields: [visitId], references: [id], onDelete: SetNull)
+  type            CustomerActivityType
+  notes           String?
+  followUpAt      DateTime?
+  orderId         String?
+  order           Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  collectionId    String?
+  collection      CollectionSubmission? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  serviceIssueId  String?
+  serviceIssue    ServiceIssue?         @relation(fields: [serviceIssueId], references: [id], onDelete: SetNull)
+  occurredAt      DateTime              @default(now())
+  /// Client-generated id that makes offline replay idempotent.
+  clientReference String?
+  createdAt       DateTime              @default(now())
+
+  @@unique([salespersonId, clientReference])
+  @@index([retailerId, occurredAt])
+  @@index([salespersonId, occurredAt])
+  @@index([type, occurredAt])
+}
+
+model FieldTask {
+  id                String            @id @default(uuid())
+  assignedToStaffId String
+  assignedTo        StaffUser         @relation("FieldTasksAssigned", fields: [assignedToStaffId], references: [id], onDelete: Restrict)
+  createdByStaffId  String?
+  createdBy         StaffUser?        @relation("FieldTasksCreated", fields: [createdByStaffId], references: [id], onDelete: Restrict)
+  retailerId        String?
+  retailer          Retailer?         @relation(fields: [retailerId], references: [id], onDelete: SetNull)
+  routePlanId       String?
+  routePlan         RoutePlan?        @relation(fields: [routePlanId], references: [id], onDelete: SetNull)
+  title             String
+  description       String?
+  priority          FieldTaskPriority @default(normal)
+  status            FieldTaskStatus   @default(open)
+  dueAt             DateTime?
+  completedAt       DateTime?
+  completionNote    String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([assignedToStaffId, status, dueAt])
+  @@index([retailerId, status])
+}
+
+/// One recorded position during an open workday. Rows are only accepted while
+/// the referenced WorkdaySession is open, which is what keeps tracking inside
+/// working hours.
+model LocationPing {
+  id               String         @id @default(uuid())
+  workdaySessionId String
+  workdaySession   WorkdaySession @relation(fields: [workdaySessionId], references: [id], onDelete: Cascade)
+  salespersonId    String
+  salesperson      StaffUser      @relation("SalespersonPings", fields: [salespersonId], references: [id], onDelete: Restrict)
+  recordedAt       DateTime
+  latitude         Decimal        @db.Decimal(10, 7)
+  longitude        Decimal        @db.Decimal(10, 7)
+  accuracyMeters   Decimal        @db.Decimal(8, 2)
+  speedMps         Decimal?       @db.Decimal(8, 2)
+  headingDegrees   Decimal?       @db.Decimal(6, 2)
+  batteryPct       Int?
+  /// Client-generated id so a retried offline batch cannot duplicate rows.
+  clientReference  String
+  createdAt        DateTime       @default(now())
+
+  @@unique([salespersonId, clientReference])
+  @@index([workdaySessionId, recordedAt])
+  @@index([salespersonId, recordedAt])
+}
+
+model FieldExpense {
+  id                 String          @id @default(uuid())
+  salespersonId      String
+  salesperson        StaffUser       @relation("SalespersonExpenses", fields: [salespersonId], references: [id], onDelete: Restrict)
+  expenseDate        DateTime        @db.Date
+  category           ExpenseCategory
+  amount             Decimal         @db.Decimal(12, 2)
+  description        String
+  receiptObjectKey   String?
+  receiptContentType String?
+  status             ExpenseStatus   @default(submitted)
+  submittedAt        DateTime        @default(now())
+  decidedByStaffId   String?
+  decidedBy          StaffUser?      @relation("ExpenseDecisions", fields: [decidedByStaffId], references: [id], onDelete: Restrict)
+  decidedAt          DateTime?
+  decisionNote       String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@index([salespersonId, expenseDate])
+  @@index([status, submittedAt])
+}
+
+model ServiceIssue {
+  id              String               @id @default(uuid())
+  retailerId      String
+  retailer        Retailer             @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  raisedByStaffId String
+  raisedBy        StaffUser            @relation("ServiceIssuesRaised", fields: [raisedByStaffId], references: [id], onDelete: Restrict)
+  orderId         String?
+  order           Order?               @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  invoiceId       String?
+  invoice         Invoice?             @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  visitId         String?
+  visit           SalesVisit?          @relation(fields: [visitId], references: [id], onDelete: SetNull)
+  type            ServiceIssueType
+  priority        ServiceIssuePriority @default(normal)
+  description     String
+  status          ServiceIssueStatus   @default(open)
+  assignedTeam    String?
+  resolutionNote  String?
+  resolvedAt      DateTime?
+  activities      CustomerActivity[]
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([retailerId, createdAt])
+  @@index([status, priority, createdAt])
+  @@index([raisedByStaffId, createdAt])
+}
+
+/// A target set for one salesperson over one period. Target-versus-achievement
+/// is only reported when a row exists; no target is ever invented.
+model SalesTarget {
+  id               String            @id @default(uuid())
+  salespersonId    String
+  salesperson      StaffUser         @relation("SalespersonTargets", fields: [salespersonId], references: [id], onDelete: Restrict)
+  metric           SalesTargetMetric
+  periodStart      DateTime          @db.Date
+  periodEnd        DateTime          @db.Date
+  targetValue      Decimal           @db.Decimal(14, 2)
+  createdByStaffId String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@unique([salespersonId, metric, periodStart, periodEnd])
+  @@index([periodStart, periodEnd])
 }

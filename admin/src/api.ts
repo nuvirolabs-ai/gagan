@@ -236,6 +236,92 @@ export const api = {
     const suffix = query.toString();
     return request(`/admin/visits${suffix ? `?${suffix}` : ""}`);
   },
+
+  /* ------------------------- field operations back office ------------------------ */
+
+  fieldAttendance: (date?: string) =>
+    request(`/admin/field/attendance${date ? `?date=${date}` : ""}`),
+  fieldAttendanceFor: (salespersonId: string, from?: string, to?: string) => {
+    const query = new URLSearchParams();
+    if (from) query.set("from", from);
+    if (to) query.set("to", to);
+    const suffix = query.toString();
+    return request(`/admin/field/attendance/${salespersonId}${suffix ? `?${suffix}` : ""}`);
+  },
+  leaveRequests: (status?: string) =>
+    request(`/admin/field/leave${status ? `?status=${status}` : ""}`),
+  decideLeave: (id: string, decision: "approved" | "rejected", note?: string) =>
+    post(`/admin/field/leave/${id}/decision`, { decision, note }),
+
+  routePlans: (filters?: { salespersonId?: string; from?: string; to?: string }) => {
+    const query = new URLSearchParams();
+    if (filters?.salespersonId) query.set("salespersonId", filters.salespersonId);
+    if (filters?.from) query.set("from", filters.from);
+    if (filters?.to) query.set("to", filters.to);
+    const suffix = query.toString();
+    return request(`/admin/field/routes${suffix ? `?${suffix}` : ""}`);
+  },
+  saveRoutePlan: (body: {
+    salespersonId: string;
+    planDate: string;
+    name?: string;
+    stops: Array<{ retailerId: string; purpose?: string; note?: string }>;
+  }) => post("/admin/field/routes", body),
+  publishRoutePlan: (id: string) => post(`/admin/field/routes/${id}/publish`),
+
+  fieldTasks: (filters?: { salespersonId?: string; status?: string }) => {
+    const query = new URLSearchParams();
+    if (filters?.salespersonId) query.set("salespersonId", filters.salespersonId);
+    if (filters?.status) query.set("status", filters.status);
+    const suffix = query.toString();
+    return request(`/admin/field/tasks${suffix ? `?${suffix}` : ""}`);
+  },
+  assignFieldTask: (body: {
+    assignedToStaffId: string;
+    title: string;
+    description?: string;
+    retailerId?: string;
+    priority?: string;
+    dueAt?: string;
+  }) => post("/admin/field/tasks", body),
+  cancelFieldTask: (id: string) => post(`/admin/field/tasks/${id}/cancel`),
+
+  fieldExpenses: (filters?: { status?: string; salespersonId?: string }) => {
+    const query = new URLSearchParams();
+    if (filters?.status) query.set("status", filters.status);
+    if (filters?.salespersonId) query.set("salespersonId", filters.salespersonId);
+    const suffix = query.toString();
+    return request(`/admin/field/expenses${suffix ? `?${suffix}` : ""}`);
+  },
+  decideExpense: (id: string, decision: "approved" | "rejected", note?: string) =>
+    post(`/admin/field/expenses/${id}/decision`, { decision, note }),
+
+  serviceIssues: (filters?: { status?: string; retailerId?: string }) => {
+    const query = new URLSearchParams();
+    if (filters?.status) query.set("status", filters.status);
+    if (filters?.retailerId) query.set("retailerId", filters.retailerId);
+    const suffix = query.toString();
+    return request(`/admin/field/issues${suffix ? `?${suffix}` : ""}`);
+  },
+  updateServiceIssue: (
+    id: string,
+    body: { status: string; assignedTeam?: string; resolutionNote?: string }
+  ) => post(`/admin/field/issues/${id}/status`, body),
+
+  fieldTeam: (date?: string) => request(`/admin/field/team${date ? `?to=${date}` : ""}`),
+  liveFieldPositions: () => request("/admin/field/tracking/live"),
+  fieldTrack: (salespersonId: string, date?: string) =>
+    request(`/admin/field/tracking/${salespersonId}${date ? `?date=${date}` : ""}`),
+
+  salesTargets: (salespersonId?: string) =>
+    request(`/admin/field/targets${salespersonId ? `?salespersonId=${salespersonId}` : ""}`),
+  setSalesTarget: (body: {
+    salespersonId: string;
+    metric: string;
+    periodStart: string;
+    periodEnd: string;
+    targetValue: number;
+  }) => post("/admin/field/targets", body),
 };
 
 export const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;

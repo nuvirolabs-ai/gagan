@@ -35,6 +35,12 @@ const envSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true"),
+  // Render's free tier has no background-worker compute. Staging may run the
+  // same single-instance scheduler inside the API process instead.
+  STAGING_RUN_JOBS_IN_API: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
 });
 
 export type AppEnv = z.infer<typeof envSchema>;

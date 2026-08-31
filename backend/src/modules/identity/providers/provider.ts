@@ -4,7 +4,7 @@ export interface SmsProvider {
 
 export function createSmsProvider(
   providerName: string,
-  environment: "development" | "test" | "production",
+  environment: "development" | "test" | "staging" | "production",
   providers: Record<string, SmsProvider>
 ): SmsProvider {
   if (environment === "production" && providerName.toLowerCase() === "mock") {

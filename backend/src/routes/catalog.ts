@@ -2,6 +2,7 @@ import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../lib/auth";
 import { DEFAULT_WAREHOUSE_CODE, INVENTORY_STALE_AFTER_MS } from "../modules/inventory/inventoryService";
+import { publicMediaUrl } from "../lib/media";
 
 const router = Router();
 
@@ -68,7 +69,8 @@ router.get("/catalog", requireAuth, async (req: AuthedRequest, res) => {
     id: product.id,
     name: product.name,
     category: product.category,
-    imageUrl: product.imageUrl,
+    imageUrl: publicMediaUrl(req, product.imageUrl),
+    description: product.description,
     variants: product.variants.map((v) => shapeVariant(v, resolve, product.sapMaterialId ? inventoryByMaterial.get(product.sapMaterialId) : undefined)),
   }));
 
@@ -111,7 +113,8 @@ router.get("/products/:id", requireAuth, async (req: AuthedRequest, res) => {
     id: product.id,
     name: product.name,
     category: product.category,
-    imageUrl: product.imageUrl,
+    imageUrl: publicMediaUrl(req, product.imageUrl),
+    description: product.description,
     variants: product.variants.map((v) => shapeVariant(v, resolve, product.sapMaterialId ? inventoryByMaterial.get(product.sapMaterialId) : undefined)),
     config: {
       freeDeliveryThreshold: Number(config?.freeDeliveryThreshold ?? 0),

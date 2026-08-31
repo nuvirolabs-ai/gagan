@@ -1,0 +1,127 @@
+services:
+  - type: web
+    name: gagan-staging-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci && npx prisma generate && npm run build
+    preDeployCommand: npx prisma migrate deploy
+    initialDeployHook: npm run prisma:seed
+    startCommand: npm start
+    healthCheckPath: /health/ready
+    envVars:
+      - key: NODE_ENV
+        value: staging
+      - key: DATABASE_URL
+        fromDatabase:
+          name: gagan-staging-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: REFRESH_TOKEN_SECRET
+        generateValue: true
+      - key: PORT
+        value: "10000"
+      - key: CORS_ORIGINS
+        value: https://gagan-staging-admin.vercel.app
+      - key: SMS_PROVIDER
+        value: mock
+      - key: PAYMENT_PROVIDER
+        value: mock
+      - key: SAP_MODE
+        value: mock
+      - key: MOCK_OTP
+        value: "123456"
+      - key: MOCK_PAYMENT_SECRET
+        generateValue: true
+      - key: STORAGE_PROVIDER
+        value: local
+      - key: OBJECT_STORAGE_ROOT
+        value: .data/evidence
+      - key: DISABLE_JOBS
+        value: "false"
+      - key: AGEING_INTERVAL_MINUTES
+        value: "60"
+      - key: RECOVERY_INTERVAL_MINUTES
+        value: "60"
+      - key: SAP_SYNC_INTERVAL_MINUTES
+        value: "60"
+      - key: SAP_OUTBOX_INTERVAL_MINUTES
+        value: "5"
+      - key: STORE_LOCATION_MAX_ACCURACY_METERS
+        value: "50"
+      - key: VISIT_VERIFIED_RADIUS_METERS
+        value: "150"
+      - key: VISIT_REVIEW_RADIUS_METERS
+        value: "500"
+      - key: LOGISTICS_SERVICE_TOKEN
+        generateValue: true
+
+  - type: worker
+    name: gagan-staging-worker
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci && npx prisma generate && npm run build
+    startCommand: npm run start:worker
+    envVars:
+      - key: NODE_ENV
+        value: staging
+      - key: DATABASE_URL
+        fromDatabase:
+          name: gagan-staging-db
+          property: connectionString
+      - key: JWT_SECRET
+        fromService:
+          type: web
+          name: gagan-staging-api
+          envVarKey: JWT_SECRET
+      - key: REFRESH_TOKEN_SECRET
+        fromService:
+          type: web
+          name: gagan-staging-api
+          envVarKey: REFRESH_TOKEN_SECRET
+      - key: SMS_PROVIDER
+        value: mock
+      - key: PAYMENT_PROVIDER
+        value: mock
+      - key: SAP_MODE
+        value: mock
+      - key: MOCK_OTP
+        value: "123456"
+      - key: MOCK_PAYMENT_SECRET
+        fromService:
+          type: web
+          name: gagan-staging-api
+          envVarKey: MOCK_PAYMENT_SECRET
+      - key: STORAGE_PROVIDER
+        value: local
+      - key: OBJECT_STORAGE_ROOT
+        value: .data/evidence
+      - key: DISABLE_JOBS
+        value: "false"
+      - key: AGEING_INTERVAL_MINUTES
+        value: "60"
+      - key: RECOVERY_INTERVAL_MINUTES
+        value: "60"
+      - key: SAP_SYNC_INTERVAL_MINUTES
+        value: "60"
+      - key: SAP_OUTBOX_INTERVAL_MINUTES
+        value: "5"
+      - key: STORE_LOCATION_MAX_ACCURACY_METERS
+        value: "50"
+      - key: VISIT_VERIFIED_RADIUS_METERS
+        value: "150"
+      - key: VISIT_REVIEW_RADIUS_METERS
+        value: "500"
+      - key: LOGISTICS_SERVICE_TOKEN
+        fromService:
+          type: web
+          name: gagan-staging-api
+          envVarKey: LOGISTICS_SERVICE_TOKEN
+
+databases:
+  - name: gagan-staging-db
+    plan: free
+    databaseName: gagan_staging
+    user: gagan_staging

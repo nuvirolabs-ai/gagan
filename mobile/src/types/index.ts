@@ -10,6 +10,8 @@ export interface Product {
   id: string;
   name: string;
   category: string;
+  imageUrl?: string | null;
+  description?: string | null;
   variants: Variant[];
 }
 

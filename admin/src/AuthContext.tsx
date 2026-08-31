@@ -22,6 +22,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // The browser only persists the HttpOnly refresh cookie. Access stays in memory.
   useEffect(() => {
+    // Public preview builds can show the seeded dashboard without touching the
+    // API. This is opt-in at build time and must never be enabled for production.
+    if (import.meta.env.VITE_DEMO_MODE === "true") {
+      setAdmin({ id: "demo-admin", name: "Ananya Shah", email: "demo@gagan.test" });
+      setPermissions(["dashboard.view"]);
+      setLoading(false);
+      return;
+    }
+
     (async () => {
       try {
         await api.refresh();

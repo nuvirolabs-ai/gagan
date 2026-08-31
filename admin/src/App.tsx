@@ -17,8 +17,11 @@ import Recovery from "./pages/Recovery";
 import Legal from "./pages/Legal";
 import Locations from "./pages/Locations";
 import Visits from "./pages/Visits";
+import Dashboard from "./pages/Dashboard";
+import Warehouses from "./pages/Warehouses";
 
 const NAV = [
+  { to: "/", label: "Overview", permissions: ["staff.manage", "dashboard.view"] },
   { to: "/approvals", label: "Approvals", permissions: ["approval.second_invoice", "approval.third_invoice", "legal.decide"] },
   { to: "/collections", label: "Collections", permissions: ["collection.confirm"] },
   { to: "/credit-reviews", label: "Credit reviews", permissions: ["credit.rating_confirm"] },
@@ -29,6 +32,7 @@ const NAV = [
   { to: "/retailers", label: "Retailers", permissions: ["staff.manage"] },
   { to: "/ledger", label: "Ledger", permissions: ["staff.manage"] },
   { to: "/catalog", label: "Catalog", permissions: ["staff.manage"] },
+  { to: "/warehouses", label: "Warehouses", permissions: ["staff.manage", "dashboard.view"] },
   { to: "/corrections", label: "Corrections", permissions: ["financial.correct"] },
   { to: "/staff", label: "Staff access", permissions: ["staff.manage"] },
   { to: "/locations", label: "Store locations", permissions: ["location.view"] },
@@ -66,6 +70,8 @@ function Shell() {
 
       <main className="main">
         <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/warehouses" element={<Warehouses />} />
           <Route path="/approvals" element={<Approvals />} />
           <Route path="/collections" element={<Collections />} />
           <Route path="/credit-reviews" element={<CreditReviews />} />

@@ -1,4 +1,10 @@
-const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+const BASE_URL =
+  import.meta.env.VITE_API_URL ??
+  (import.meta.env.DEV
+    ? "http://localhost:4000"
+    : (() => {
+        throw new Error("VITE_API_URL is required outside local development");
+      })());
 let accessToken: string | null = null;
 let refreshPromise: Promise<string> | null = null;
 

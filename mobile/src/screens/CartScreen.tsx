@@ -18,7 +18,7 @@ import { ScreenHeader, QtyStepper, EmptyState } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 
 export default function CartScreen({ navigation }: any) {
-  const { lines, updateQty, clear, total, staleNotice, dismissStaleNotice } = useCart();
+  const { lines, updateQty, clear, total, reconcile, staleNotice, dismissStaleNotice } = useCart();
   const { t } = useLanguage();
   const [placing, setPlacing] = useState(false);
   const checkoutKey = useRef<string | null>(null);
@@ -48,9 +48,29 @@ export default function CartScreen({ navigation }: any) {
   const handleCheckout = async () => {
     setPlacing(true);
     try {
+      // A database reset, SAP sync, or admin price edit can leave an old
+      // AsyncStorage cart with variant IDs that no longer exist. Reconcile
+      // immediately before checkout so the API never receives stale lines.
+      const freshLines = await reconcile();
+      const cartChanged =
+        freshLines.length !== lines.length ||
+        freshLines.some((fresh, index) => {
+          const previous = lines[index];
+          return (
+            !previous ||
+            fresh.variantId !== previous.variantId ||
+            fresh.unitPrice !== previous.unitPrice ||
+            fresh.qty !== previous.qty
+          );
+        });
+      if (cartChanged) {
+        checkoutKey.current = null;
+        Alert.alert("Cart updated", "Some saved items or prices changed. Please review the cart and try again.");
+        return;
+      }
       checkoutKey.current ??= `checkout-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const res = await api.createOrder(
-        lines.map((l) => ({ variantId: l.variantId, qty: l.qty })),
+        freshLines.map((l) => ({ variantId: l.variantId, qty: l.qty })),
         checkoutKey.current
       );
       clear();

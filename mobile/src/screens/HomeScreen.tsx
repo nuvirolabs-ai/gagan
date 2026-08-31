@@ -22,6 +22,25 @@ import CreditRing from "../components/CreditRing";
 import { useLanguage } from "../i18n/LanguageContext";
 
 const ORDER_STEPS = ["confirmed", "packed", "out_for_delivery", "delivered"] as const;
+const ALL_CATEGORY = "All";
+const CATEGORY_LABELS: Record<string, string> = {
+  All: "All",
+  Pulses: "Daal",
+  Daal: "Daal",
+  Rice: "Rice",
+  Sugar: "Sugar",
+  Staples: "Staples",
+  Breakfast: "Breakfast",
+};
+const CATEGORY_ICONS: Record<string, string> = {
+  All: "grid-outline",
+  Daal: "nutrition-outline",
+  Pulses: "nutrition-outline",
+  Rice: "restaurant-outline",
+  Sugar: "cube-outline",
+  Staples: "cube-outline",
+  Breakfast: "cafe-outline",
+};
 const STEP_META: Record<(typeof ORDER_STEPS)[number], { label: string; icon: string }> = {
   confirmed: { label: "Confirmed", icon: "clipboard-check-outline" },
   packed: { label: "Packed", icon: "package-variant-closed" },
@@ -43,6 +62,7 @@ export default function HomeScreen({ navigation }: any) {
   const [data, setData] = useState<HomePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORY);
 
   const load = useCallback(async () => {
     const res = await api.getHome();
@@ -111,6 +131,10 @@ export default function HomeScreen({ navigation }: any) {
   }
 
   const { retailer, salesRep, credit, scheme, quickOrder, activeOrder, config, badges } = data;
+  const categories = data.categories ?? [];
+  const visibleQuickOrder = quickOrder.filter(
+    (item) => selectedCategory === ALL_CATEGORY || item.category === selectedCategory
+  );
   const schemePct = scheme ? Math.min(100, (scheme.progress / scheme.targetAmount) * 100) : 0;
 
   return (
@@ -181,6 +205,48 @@ export default function HomeScreen({ navigation }: any) {
             </TouchableOpacity>
           </View>
         )}
+      </View>
+
+      {/* Shop by category */}
+      <View style={styles.categorySection}>
+        <View style={styles.sectionHead}>
+          <View>
+            <Text style={styles.sectionTitle}>Shop by category</Text>
+            <Text style={styles.sectionCaption}>Find your everyday staples faster</Text>
+          </View>
+          <TouchableOpacity style={styles.rowCenter} onPress={() => navigation.navigate("Products")}>
+            <Text style={styles.link}>All products</Text>
+            <Ionicons name="arrow-forward" size={13} color={colors.green} style={{ marginLeft: 3 }} />
+          </TouchableOpacity>
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoryRow}
+        >
+          {[ALL_CATEGORY, ...categories].map((value) => {
+            const active = selectedCategory === value;
+            return (
+              <TouchableOpacity
+                key={value}
+                style={[styles.categoryCard, active && styles.categoryCardActive]}
+                onPress={() => setSelectedCategory(value)}
+                activeOpacity={0.82}
+              >
+                <View style={[styles.categoryIcon, active && styles.categoryIconActive]}>
+                  <Ionicons
+                    name={(CATEGORY_ICONS[value] ?? "cube-outline") as any}
+                    size={19}
+                    color={active ? colors.onDark : colors.green}
+                  />
+                </View>
+                <Text style={[styles.categoryName, active && styles.categoryNameActive]}>
+                  {CATEGORY_LABELS[value] ?? value}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
       {/* Outstanding + credit */}
@@ -262,11 +328,11 @@ export default function HomeScreen({ navigation }: any) {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.md }}
       >
-        {quickOrder.map((item) => {
+        {visibleQuickOrder.map((item) => {
           const qty = qtyFor(item.variantId);
           return (
             <View key={item.variantId} style={styles.productCard}>
-              <ProductThumb name={item.name} category={item.category} imageUrl={item.imageUrl} />
+              <ProductThumb name={item.name} category={item.category} imageUrl={item.imageUrl} size={108} />
               <Text style={styles.productName} numberOfLines={1}>
                 {item.name}
               </Text>
@@ -529,6 +595,33 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
+  categorySection: { marginBottom: spacing.xl },
+  sectionCaption: { fontSize: 11.5, color: colors.inkMuted, marginTop: 3 },
+  categoryRow: { paddingHorizontal: spacing.lg, gap: spacing.sm },
+  categoryCard: {
+    width: 90,
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: 6,
+  },
+  categoryCardActive: { backgroundColor: colors.greenDeep, borderColor: colors.greenDeep },
+  categoryIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: radius.pill,
+    backgroundColor: colors.greenSoft,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 5,
+  },
+  categoryIconActive: { backgroundColor: "rgba(255,255,255,0.16)" },
+  categoryName: { fontSize: 11.5, fontWeight: "700", color: colors.ink, textAlign: "center" },
+  categoryNameActive: { color: colors.onDark },
+
   moneyRow: { flexDirection: "row", paddingHorizontal: spacing.lg, gap: spacing.md, marginBottom: spacing.lg },
   outstandingCard: {
     flex: 1,
@@ -616,7 +709,7 @@ const styles = StyleSheet.create({
   link: { fontSize: 13, fontWeight: "600", color: colors.green },
 
   productCard: {
-    width: 132,
+    width: 150,
     backgroundColor: colors.surface,
     borderRadius: radius.md,
     padding: spacing.md,

@@ -2,13 +2,15 @@ import React from "react";
 import { View, Text, Image, StyleSheet } from "react-native";
 import { colors, radius } from "../theme";
 
-// Product photography isn't wired up yet (no imageUrl on seeded SKUs), so this
-// renders a branded pack stand-in keyed to the category. Swap in <Image> once
-// real assets land — the shape and sizing stay the same.
+// Product photography comes from the catalog record when available. The
+// category fallback keeps offline/older SAP rows visually usable.
 const CATEGORY_TINT: Record<string, { bg: string; band: string }> = {
   Pulses: { bg: "#F5D98E", band: "#D9A62B" },
+  Daal: { bg: "#F5D98E", band: "#D9A62B" },
   Rice: { bg: "#DCE9DA", band: "#2E6B47" },
   Staples: { bg: "#D8E3F0", band: "#2F5B8F" },
+  Sugar: { bg: "#F8E7BF", band: "#C9992B" },
+  Breakfast: { bg: "#F2D6A0", band: "#B8782B" },
 };
 
 export default function ProductThumb({
@@ -23,7 +25,13 @@ export default function ProductThumb({
   size?: number;
 }) {
   if (imageUrl) {
-    return <Image source={{ uri: imageUrl }} style={{ width: size, height: size, borderRadius: radius.sm }} />;
+    return (
+      <Image
+        source={{ uri: imageUrl }}
+        resizeMode="contain"
+        style={{ width: size, height: size, borderRadius: radius.sm, backgroundColor: colors.surfaceAlt }}
+      />
+    );
   }
 
   const tint = CATEGORY_TINT[category] ?? { bg: colors.surfaceAlt, band: colors.green };

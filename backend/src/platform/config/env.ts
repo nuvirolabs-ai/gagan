@@ -3,7 +3,7 @@ import { parseSapB1Config } from "../../lib/sap/b1/config";
 import { parseLocationConfig } from "../../modules/location/locationConfig";
 
 const envSchema = z.object({
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  NODE_ENV: z.enum(["development", "test", "staging", "production"]).default("development"),
   DATABASE_URL: z.string().min(1),
   JWT_SECRET: z.string().min(32),
   REFRESH_TOKEN_SECRET: z.string().min(32),

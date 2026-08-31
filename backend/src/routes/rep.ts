@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
+import { publicMediaUrl } from "../lib/media";
 import { financialLedgerFor } from "../modules/finance/financialQueries";
 import { financialSummaryFor } from "../modules/finance/financialSummary";
 import { DEFAULT_WAREHOUSE_CODE, INVENTORY_STALE_AFTER_MS } from "../modules/inventory/inventoryService";
@@ -208,7 +209,8 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
     id: product.id,
     name: product.name,
     category: product.category,
-    imageUrl: product.imageUrl,
+      imageUrl: publicMediaUrl(req, product.imageUrl),
+    description: product.description,
     variants: product.variants.map((v) => {
       const override = overridePrice.get(v.id);
       const price = override ?? tierPrice.get(v.id) ?? null;

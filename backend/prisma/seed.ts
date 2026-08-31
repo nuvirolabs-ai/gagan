@@ -1,6 +1,8 @@
+import "dotenv/config";
 import { Prisma, PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { recomputeOverdue } from "../src/lib/ageing";
+import { upsertInventorySnapshot } from "../src/modules/inventory/inventoryService";
 import { SOP_V4_POLICY, serializePolicy } from "../src/modules/credit/policy";
 import { REASON_CATALOG } from "../src/modules/credit/reasonCodes";
 import { ROLE_DEFINITIONS } from "../src/modules/identity/roleCatalog";
@@ -67,6 +69,7 @@ async function main() {
   await prisma.orderItem.deleteMany();
   await prisma.order.deleteMany();
   await prisma.notification.deleteMany();
+  await prisma.inventorySnapshot.deleteMany();
   await prisma.priceOverride.deleteMany();
   await prisma.priceList.deleteMany();
   await prisma.variant.deleteMany();
@@ -178,23 +181,65 @@ async function main() {
     },
   });
 
-  // name, category, unitSize, unitsPerCase, unitWeightKg, [gold price, silver price]
-  const catalog: [string, string, string, number, number, [number, number]][] = [
-    ["Toor Dal", "Pulses", "1 kg", 30, 1, [3150, 3260]],
-    ["Basmati Rice", "Rice", "1 kg", 12, 1, [5400, 5580]],
-    ["Chana Dal", "Pulses", "1 kg", 30, 1, [2850, 2950]],
-    ["Sugar", "Staples", "1 kg", 30, 1, [1650, 1720]],
-    ["Moong Dal", "Pulses", "1 kg", 30, 1, [3400, 3520]],
-    ["Sona Masoori Rice", "Rice", "1 kg", 25, 1, [2200, 2290]],
-    ["Urad Dal", "Pulses", "1 kg", 30, 1, [3600, 3730]],
-    ["Poha", "Staples", "500 g", 40, 0.5, [1450, 1510]],
+  // The public Gagan site shows these three consumer pack presentations and
+  // supplies the imagery/copy. It does not publish a wholesale price list, so
+  // these case prices are explicitly local-demo values until SAP pricing is synced.
+  // The material IDs and quantities below are demo-only SAP-shaped values.
+  // Real material/stock sync replaces these rows without changing either app.
+  const catalog: [string, string, string, number, number, [number, number], string, string, string, number][] = [
+    [
+      "Gagan Toor Dal | 1 KG",
+      "Daal",
+      "1 kg",
+      30,
+      1,
+      [3150, 3260],
+      "/catalog-images/toor-dal-1kg.png",
+      "100% pure and natural toor dal, finely processed and cleaned without oil or harsh chemicals. With 24 g protein per 100 g, it is a protein-rich staple for dal, sambar, khichdi and everyday Indian cooking.",
+      "SAP-MAT-TOOR",
+      420,
+    ],
+    [
+      "Gagan Toor Dal | 5 KG",
+      "Daal",
+      "5 kg",
+      6,
+      5,
+      [3150, 3260],
+      "/catalog-images/toor-dal-5kg.png",
+      "A larger household pack of Gagan Toor Dal with natural aroma and a clean, finely processed grain for frequent family cooking.",
+      "SAP-MAT-TOOR",
+      420,
+    ],
+    [
+      "Gagan Toor Dal | 30 KG",
+      "Daal",
+      "30 kg",
+      1,
+      30,
+      [3150, 3260],
+      "/catalog-images/toor-dal-30kg.png",
+      "The bulk pack for hotels, caterers, wholesalers and high-volume kitchens. Gagan Toor Dal is a rich source of protein, fibre and essential minerals.",
+      "SAP-MAT-TOOR",
+      420,
+    ],
+    ["Basmati Rice", "Rice", "1 kg", 12, 1, [5400, 5580], "/catalog-images/basmati-rice.png", "Long-grain rice for everyday retail and food-service orders.", "SAP-MAT-BASM", 180],
+    ["Chana Dal", "Daal", "1 kg", 30, 1, [2850, 2950], "/catalog-images/chana-dal.png", "Split Bengal gram for dals, snacks and traditional Indian recipes.", "SAP-MAT-CHAN", 160],
+    ["Sugar", "Sugar", "1 kg", 30, 1, [1650, 1720], "/catalog-images/sugar.png", "Everyday refined sugar for retail and food-service use.", "SAP-MAT-SUGR", 240],
+    ["Moong Dal", "Daal", "1 kg", 30, 1, [3400, 3520], "/catalog-images/moong-dal.png", "Light, versatile split moong dal for quick-cooking meals.", "DEMO-MAT-MOON", 140],
+    ["Sona Masoori Rice", "Rice", "1 kg", 25, 1, [2200, 2290], "/catalog-images/sona-masoori-rice.png", "Everyday rice with a light texture for home-style meals.", "DEMO-MAT-SONA", 200],
+    ["Urad Dal", "Daal", "1 kg", 30, 1, [3600, 3730], "/catalog-images/urad-dal.png", "A staple pulse for idli, dosa, dal and savoury recipes.", "DEMO-MAT-URAD", 120],
+    ["Poha", "Breakfast", "500 g", 40, 0.5, [1450, 1510], "/catalog-images/poha.png", "Flattened rice for breakfast, snacks and quick meal preparation.", "DEMO-MAT-POHA", 220],
   ];
 
-  for (const [name, category, unitSize, unitsPerCase, unitWeightKg, [goldPrice, silverPrice]] of catalog) {
+  for (const [name, category, unitSize, unitsPerCase, unitWeightKg, [goldPrice, silverPrice], imageUrl, description, sapMaterialId] of catalog) {
     const product = await prisma.product.create({
       data: {
         name,
         category,
+        imageUrl: imageUrl || null,
+        description,
+        sapMaterialId,
         variants: { create: [{ unitSize, unit: "kg", unitsPerCase, unitWeightKg }] },
       },
       include: { variants: true },
@@ -205,6 +250,29 @@ async function main() {
         { tierId: tierA.id, productId: product.id, variantId: variant.id, price: goldPrice },
         { tierId: tierB.id, productId: product.id, variantId: variant.id, price: silverPrice },
       ],
+    });
+  }
+
+  // Demo stock mirrors the SAP connector shape so every seeded catalog item
+  // can be previewed and ordered immediately. Keep these snapshots fresh for
+  // a week; a successful SAP stock sync removes demo rows and writes the real
+  // warehouse quantities in their place.
+  const seededMaterials = new Set<string>();
+  for (const [name, , , , , , , , sapMaterialId, onHand] of catalog) {
+    // The three Toor Dal pack presentations share one SAP material and one
+    // warehouse quantity, so create one material-level snapshot for them.
+    if (seededMaterials.has(sapMaterialId)) continue;
+    seededMaterials.add(sapMaterialId);
+    const product = await prisma.product.findFirstOrThrow({ where: { name }, include: { variants: true } });
+    await upsertInventorySnapshot(prisma, {
+      productId: product.id,
+      variantId: product.variants[0]?.id,
+      sapMaterialId,
+      warehouseCode: "WH-001",
+      onHand,
+      committed: 0,
+      source: "demo-seed",
+      syncedAt: daysFromNow(7),
     });
   }
 
@@ -276,6 +344,56 @@ async function main() {
     },
   });
 
+  // Additional assigned stores make the Sales app useful for a realistic
+  // multi-store order-taking demo. They intentionally share the same rep and
+  // are approved, active accounts so each one can be opened and ordered for.
+  const additionalDemoRetailers = [
+    ["Shree Ganesh Grocers", "45 Laxmi Road, Pune", "9812345601", tierA.id, 75000],
+    ["Annapurna Foods", "8 FC Road, Pune", "9812345602", tierA.id, 90000],
+    ["Lakshmi Provision Mart", "22 Pimpri Market, Pimpri", "9812345603", tierB.id, 65000],
+    ["Fresh Basket Wholesale", "14 Phase 1, Hinjewadi", "9812345604", tierA.id, 120000],
+    ["Om Sai General Store", "6 Datta Mandir Road, Wakad", "9812345605", tierB.id, 55000],
+    ["New Bharat Traders", "31 Paud Road, Kothrud", "9812345606", tierA.id, 100000],
+    ["Radha Krishna Stores", "19 Baner Road, Baner", "9812345607", tierB.id, 80000],
+    ["City Mart Foods", "5 Magarpatta Road, Hadapsar", "9812345608", tierA.id, 110000],
+  ] as const;
+
+  for (const [name, shopAddress, phone, tierId, creditLimit] of additionalDemoRetailers) {
+    const demoRetailer = await prisma.retailer.create({
+      data: {
+        name,
+        shopAddress,
+        phone,
+        status: "active",
+        tierId,
+        salesRepId: rep.id,
+        creditLimit,
+        currentBalance: 0,
+        overdueAmount: 0,
+      },
+    });
+    await prisma.retailerLocation.create({ data: { retailerId: demoRetailer.id } });
+    await prisma.kycCase.create({
+      data: {
+        retailerId: demoRetailer.id,
+        status: "approved",
+        submittedAt: demoRetailer.createdAt,
+        reviewedAt: demoRetailer.createdAt,
+        reviewedByStaffId: platformAdmin.id,
+      },
+    });
+    await prisma.creditProfile.create({
+      data: {
+        retailerId: demoRetailer.id,
+        rating: "N",
+        billingPattern: "unknown",
+        accountCreatedAt: demoRetailer.createdAt,
+        kycVerifiedAt: demoRetailer.createdAt,
+        nextReviewAt: new Date(Date.UTC(2026, 9, 1)),
+      },
+    });
+  }
+
   // One featured scheme drives the banner; the rest feed the "8 Active Offers" count.
   await prisma.scheme.create({
     data: {
@@ -303,7 +421,7 @@ async function main() {
 
   // An in-flight order so Home shows a live delivery timeline.
   const toorDal = await prisma.product.findFirstOrThrow({
-    where: { name: "Toor Dal" },
+    where: { name: "Gagan Toor Dal | 1 KG" },
     include: { variants: true },
   });
   const basmati = await prisma.product.findFirstOrThrow({

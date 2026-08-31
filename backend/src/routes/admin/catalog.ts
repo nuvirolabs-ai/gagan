@@ -22,6 +22,8 @@ router.get("/products", async (_req, res) => {
       id: p.id,
       name: p.name,
       category: p.category,
+      imageUrl: p.imageUrl,
+      description: p.description,
       variants: p.variants.map((v) => ({
         id: v.id,
         unitSize: v.unitSize,
@@ -67,6 +69,8 @@ router.post("/price-list", async (req, res) => {
 const productSchema = z.object({
   name: z.string().min(1),
   category: z.string().min(1),
+  imageUrl: z.string().url().optional(),
+  description: z.string().max(2000).optional(),
   variants: z
     .array(
       z.object({
@@ -89,6 +93,8 @@ router.post("/products", async (req, res) => {
     data: {
       name: parsed.data.name,
       category: parsed.data.category,
+      imageUrl: parsed.data.imageUrl,
+      description: parsed.data.description,
       variants: { create: parsed.data.variants },
     },
     include: { variants: true },

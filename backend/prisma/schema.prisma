@@ -803,6 +803,7 @@ model Product {
   name               String
   category           String
   imageUrl           String?
+  description        String?
   sapMaterialId      String?
   variants           Variant[]
   inventorySnapshots InventorySnapshot[]

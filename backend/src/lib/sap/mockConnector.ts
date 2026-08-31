@@ -46,10 +46,10 @@ export class MockSapConnector implements SapConnector {
 
   async fetchMaterials(_since: Date | null): Promise<SapMaterial[]> {
     return [
-      { sapMaterialId: "SAP-MAT-TOOR", name: "Toor Dal", category: "Pulses", unitSize: "1 kg", unit: "kg", unitsPerCase: 30, unitWeightKg: 1 },
+      { sapMaterialId: "SAP-MAT-TOOR", name: "Gagan Toor Dal | 1 KG", category: "Daal", unitSize: "1 kg", unit: "kg", unitsPerCase: 30, unitWeightKg: 1 },
       { sapMaterialId: "SAP-MAT-BASM", name: "Basmati Rice", category: "Rice", unitSize: "1 kg", unit: "kg", unitsPerCase: 12, unitWeightKg: 1 },
-      { sapMaterialId: "SAP-MAT-CHAN", name: "Chana Dal", category: "Pulses", unitSize: "1 kg", unit: "kg", unitsPerCase: 30, unitWeightKg: 1 },
-      { sapMaterialId: "SAP-MAT-SUGR", name: "Sugar", category: "Staples", unitSize: "1 kg", unit: "kg", unitsPerCase: 30, unitWeightKg: 1 },
+      { sapMaterialId: "SAP-MAT-CHAN", name: "Chana Dal", category: "Daal", unitSize: "1 kg", unit: "kg", unitsPerCase: 30, unitWeightKg: 1 },
+      { sapMaterialId: "SAP-MAT-SUGR", name: "Sugar", category: "Sugar", unitSize: "1 kg", unit: "kg", unitsPerCase: 30, unitWeightKg: 1 },
     ];
   }
 

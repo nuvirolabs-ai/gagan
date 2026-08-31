@@ -47,6 +47,8 @@ export default function ProductDetailScreen({ route, navigation }: any) {
 
   const setQty = (next: number) => {
     if (!selected || selected.price == null) return;
+    const orderable = selected.availability?.status === "available" && Number(selected.availability.available) > 0;
+    if (next > inCart && !orderable) return;
     if (inCart === 0 && next > 0) {
       addLine({
         variantId: selected.id,
@@ -77,6 +79,7 @@ export default function ProductDetailScreen({ route, navigation }: any) {
         <View style={styles.body}>
           <Text style={styles.category}>{product.category.toUpperCase()}</Text>
           <Text style={styles.name}>{product.name}</Text>
+          {product.description ? <Text style={styles.description}>{product.description}</Text> : null}
 
           <Text style={styles.sectionLabel}>{t("product.packSize")}</Text>
           <View style={styles.variantRow}>
@@ -187,6 +190,7 @@ const styles = StyleSheet.create({
   body: { padding: spacing.lg },
   category: { fontSize: 10.5, fontWeight: "800", color: colors.gold, letterSpacing: 1 },
   name: { fontSize: 24, fontWeight: "700", color: colors.ink, marginTop: 4 },
+  description: { fontSize: 13.5, color: colors.inkMuted, lineHeight: 20, marginTop: spacing.sm },
 
   sectionLabel: {
     fontSize: 12.5,

@@ -65,6 +65,11 @@ export default function CatalogScreen({ navigation }: any) {
   const setQty = (product: any, variant: any, next: number) => {
     if (variant.price == null) return;
     const current = qtyFor(variant.id);
+    const orderable = variant.availability?.status === "available" && Number(variant.availability.available) > 0;
+    // Inventory is authoritative in the API. Allow a shopper to remove an
+    // already-saved line, but never add a new case when SAP has not supplied
+    // usable stock for it.
+    if (next > current && !orderable) return;
     if (current === 0 && next > 0) {
       addLine({
         variantId: variant.id,

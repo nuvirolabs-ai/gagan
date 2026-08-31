@@ -2,6 +2,7 @@ import "express-async-errors";
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
+import path from "node:path";
 import adminAuthRoutes from "./routes/admin/auth";
 import adminCatalogRoutes from "./routes/admin/catalog";
 import adminOrderRoutes from "./routes/admin/orders";
@@ -53,6 +54,15 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/rep/kyc", express.json({ limit: "15mb" }));
   app.use("/admin/kyc", express.json({ limit: "15mb" }));
   app.use(express.json({ limit: "100kb" }));
+
+  // The demo catalog ships with local product photography. SAP/CDN image
+  // URLs still pass through the catalog payload unchanged when synced later.
+  app.use(
+    "/catalog-images",
+    express.static(path.resolve(__dirname, "../assets/catalog"), {
+      maxAge: "1d",
+    })
+  );
 
   app.get("/health", (_req, res) => res.json({ ok: true }));
   app.get("/health/live", (_req, res) => res.json({ ok: true }));

@@ -275,7 +275,15 @@ export function syncPricing() {
 /** Persist warehouse-aware stock snapshots behind the SAP abstraction. */
 export function syncStock() {
   return runEntity("stock", async (since) => {
-    const rows = await getSapConnector().fetchStock(since);
+    const connector = getSapConnector();
+    const rows = await connector.fetchStock(since);
+
+    // Demo inventory is deliberately disposable. Once a real (or fixture)
+    // SAP stock pull succeeds, SAP becomes the source of truth and the
+    // seeded fallback rows must not remain visible for products that SAP did
+    // not return. The next loop writes the current warehouse snapshots.
+    await prisma.inventorySnapshot.deleteMany({ where: { source: "demo-seed" } });
+
     let matched = 0;
     let updated = 0;
     for (const row of rows) {

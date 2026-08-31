@@ -55,7 +55,12 @@ export default function RepCatalogScreen({ route, navigation }: any) {
 
   const setQty = (product: any, variant: any, next: number) => {
     if (variant.price == null) return;
-    if (qtyFor(variant.id) === 0 && next > 0) {
+    const current = qtyFor(variant.id);
+    const orderable = variant.availability?.status === "available" && Number(variant.availability.available) > 0;
+    // The API owns inventory. A rep can reduce a saved line, but cannot add
+    // stock that SAP has marked unavailable or stale.
+    if (next > current && !orderable) return;
+    if (current === 0 && next > 0) {
       addLine({
         variantId: variant.id,
         productName: product.name,

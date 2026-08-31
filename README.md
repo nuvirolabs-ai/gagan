@@ -31,18 +31,21 @@ promote them to a workspace package.
 
 ## Prerequisites
 
-PostgreSQL 16 running locally. For the KYC slice, use a disposable database such as
-`gagan_kyc_test`; never run the KYC tests or seed command against the final Supabase URL.
+PostgreSQL 16 running locally. The normal development database is `gagan_dev`; for the KYC
+slice, use a separate disposable database such as `gagan_kyc_test`. Never run the KYC tests or
+seed command against the final Supabase URL.
 
 ```bash
 brew services start postgresql@16
-createdb gagan_kyc_test
+createdb gagan_dev
 ```
 
 ## Backend
 
 ```bash
-cd backend && npm install && npx prisma migrate dev && npx prisma db seed && npm run dev
+cd backend && npm install && cp .env.example .env
+# Edit .env and replace YOUR_LOCAL_POSTGRES_USER with the output of: whoami
+npx prisma migrate deploy && npm run prisma:seed && npm run dev
 ```
 
 Runs on `http://localhost:4000`.
@@ -87,26 +90,88 @@ bash scripts/verify.sh
 
 The gate type-checks, tests, and builds the backend; validates Prisma; type-checks both Expo apps; and lints/builds the admin web app. CI additionally applies every Prisma migration to an empty PostgreSQL 16 database before running the gate.
 
-## Retailer app
+## Native device development
+
+The retailer and sales apps are managed Expo React Native projects. Their native `ios/` and
+`android/` folders are generated locally by Expo and intentionally ignored by Git. This lets us
+run real native builds without committing machine-specific Xcode or Gradle output.
+
+Install the dependencies first:
+
+```bash
+cd mobile && npm install
+cd ../rep && npm install
+```
+
+For the iOS Simulator, install the full Xcode application and at least one iOS Simulator runtime,
+then run either app from its folder. The script selects the full Xcode toolchain even if the Mac's
+global `xcode-select` setting still points to Command Line Tools:
+
+```bash
+cd mobile && npm run ios:native
+cd ../rep && npm run ios:native
+```
+
+For an Android phone connected through Android Studio, install Android SDK Platform 36 and Build
+Tools 36.0.0, enable Developer Options and USB debugging, confirm the phone appears under `adb devices`,
+and run. The script uses Android Studio's bundled Java runtime:
+
+```bash
+cd mobile && npm run android:native
+cd ../rep && npm run android:native
+```
+
+The first native run creates the ignored `ios/` or `android/` folder and compiles the app. The
+retailer and sales apps have different bundle/package IDs, so both can be installed side by side.
+
+The backend must be running for login and catalog data:
+
+```bash
+cd backend && npm run dev
+```
+
+The default development API fallback is `localhost:4000` for iOS Simulator and `10.0.2.2:4000`
+for the Android Emulator. For a physical Android phone, create `mobile/.env.local` or `rep/.env.local`
+with the Mac's LAN address, for example:
+
+```env
+EXPO_PUBLIC_API_URL=http://192.168.1.20:4000
+```
+
+Use the same Wi-Fi network for the phone and the Mac, and allow the backend's port through the
+macOS firewall if prompted. This local HTTP setting is for development only; preview and production
+builds must use an HTTPS API origin.
+
+### Retailer app
 
 ```bash
 cd mobile && npm install && npx expo start --ios
 ```
 
-## Sales app
+### Sales app
 
 ```bash
 cd rep && npm install && npx expo start --ios --port 8092
 ```
 
-The iOS simulator reaches the backend at `localhost`; the Android emulator uses `10.0.2.2`. For a
-physical device, change `BASE_URL` in [client.ts](mobile/src/api/client.ts) to the host machine's LAN IP.
+The `expo start` commands use Expo Go. The `npm run ios:native` and `npm run android:native`
+commands above compile the actual native apps and are the preferred path for testing secure storage,
+location permissions, navigation and device behavior.
 
 ## Admin dashboard
 
 ```bash
 cd admin && npm install && npm run dev
 ```
+
+### Public dashboard preview
+
+The current read-only SAP-style dashboard is available at:
+
+https://gagan-admin.vercel.app
+
+This is a seeded demo preview only. It uses `VITE_DEMO_MODE=true`, does not connect to the
+production API, and must not be used for real retailer, order, financial, or SAP data.
 
 ## Test logins
 

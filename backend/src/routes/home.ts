@@ -2,6 +2,7 @@ import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../lib/auth";
 import { financialSummaryFor } from "../modules/finance/financialSummary";
+import { publicMediaUrl } from "../lib/media";
 
 const router = Router();
 
@@ -43,13 +44,13 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
   const priceByVariant = new Map(priceList.map((p) => [p.variantId, p.price]));
   const overrideByVariant = new Map(overrides.map((o) => [o.variantId, o.price]));
 
-  const quickOrder = products.slice(0, 8).flatMap((product) =>
+  const quickOrder = products.flatMap((product) =>
     product.variants.slice(0, 1).map((v) => ({
       productId: product.id,
       variantId: v.id,
       name: product.name,
       category: product.category,
-      imageUrl: product.imageUrl,
+      imageUrl: publicMediaUrl(req, product.imageUrl),
       unitSize: v.unitSize,
       unitsPerCase: v.unitsPerCase,
       casePrice: overrideByVariant.get(v.id) ?? priceByVariant.get(v.id) ?? null,
@@ -105,6 +106,7 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
         }
       : null,
     quickOrder,
+    categories: [...new Set(products.map((product) => product.category))].sort(),
     activeOrder: activeOrder
       ? {
           id: activeOrder.id,

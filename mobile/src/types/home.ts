@@ -49,6 +49,7 @@ export interface HomePayload {
   credit: HomeCredit;
   scheme: HomeScheme | null;
   quickOrder: QuickOrderItem[];
+  categories: string[];
   activeOrder: HomeActiveOrder | null;
   config: { freeDeliveryThreshold: number; minOrderValue: number; supportPhone: string | null };
   badges: { notifications: number; activeOffers: number };

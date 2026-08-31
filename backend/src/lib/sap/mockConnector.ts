@@ -50,6 +50,10 @@ export class MockSapConnector implements SapConnector {
       { sapMaterialId: "SAP-MAT-BASM", name: "Basmati Rice", category: "Rice", unitSize: "1 kg", unit: "kg", unitsPerCase: 12, unitWeightKg: 1 },
       { sapMaterialId: "SAP-MAT-CHAN", name: "Chana Dal", category: "Daal", unitSize: "1 kg", unit: "kg", unitsPerCase: 30, unitWeightKg: 1 },
       { sapMaterialId: "SAP-MAT-SUGR", name: "Sugar", category: "Sugar", unitSize: "1 kg", unit: "kg", unitsPerCase: 30, unitWeightKg: 1 },
+      { sapMaterialId: "DEMO-MAT-MOON", name: "Moong Dal", category: "Daal", unitSize: "1 kg", unit: "kg", unitsPerCase: 30, unitWeightKg: 1 },
+      { sapMaterialId: "DEMO-MAT-SONA", name: "Sona Masoori Rice", category: "Rice", unitSize: "1 kg", unit: "kg", unitsPerCase: 25, unitWeightKg: 1 },
+      { sapMaterialId: "DEMO-MAT-URAD", name: "Urad Dal", category: "Daal", unitSize: "1 kg", unit: "kg", unitsPerCase: 30, unitWeightKg: 1 },
+      { sapMaterialId: "DEMO-MAT-POHA", name: "Poha", category: "Breakfast", unitSize: "500 g", unit: "kg", unitsPerCase: 40, unitWeightKg: 0.5 },
     ];
   }
 
@@ -60,6 +64,18 @@ export class MockSapConnector implements SapConnector {
       { sapMaterialId: "SAP-MAT-TOOR", priceGroup: "Silver", price: 3240 },
       { sapMaterialId: "SAP-MAT-BASM", priceGroup: "Gold", price: 5350 },
       { sapMaterialId: "SAP-MAT-BASM", priceGroup: "Silver", price: 5550 },
+      { sapMaterialId: "SAP-MAT-CHAN", priceGroup: "Gold", price: 2850 },
+      { sapMaterialId: "SAP-MAT-CHAN", priceGroup: "Silver", price: 2950 },
+      { sapMaterialId: "SAP-MAT-SUGR", priceGroup: "Gold", price: 1650 },
+      { sapMaterialId: "SAP-MAT-SUGR", priceGroup: "Silver", price: 1720 },
+      { sapMaterialId: "DEMO-MAT-MOON", priceGroup: "Gold", price: 3400 },
+      { sapMaterialId: "DEMO-MAT-MOON", priceGroup: "Silver", price: 3520 },
+      { sapMaterialId: "DEMO-MAT-SONA", priceGroup: "Gold", price: 2200 },
+      { sapMaterialId: "DEMO-MAT-SONA", priceGroup: "Silver", price: 2290 },
+      { sapMaterialId: "DEMO-MAT-URAD", priceGroup: "Gold", price: 3600 },
+      { sapMaterialId: "DEMO-MAT-URAD", priceGroup: "Silver", price: 3730 },
+      { sapMaterialId: "DEMO-MAT-POHA", priceGroup: "Gold", price: 1450 },
+      { sapMaterialId: "DEMO-MAT-POHA", priceGroup: "Silver", price: 1510 },
     ];
   }
 
@@ -67,6 +83,12 @@ export class MockSapConnector implements SapConnector {
     return [
       { sapMaterialId: "SAP-MAT-TOOR", warehouseCode: "WH-001", availableQty: 420, committedQty: 0 },
       { sapMaterialId: "SAP-MAT-BASM", warehouseCode: "WH-001", availableQty: 180, committedQty: 0 },
+      { sapMaterialId: "SAP-MAT-CHAN", warehouseCode: "WH-001", availableQty: 160, committedQty: 0 },
+      { sapMaterialId: "SAP-MAT-SUGR", warehouseCode: "WH-001", availableQty: 240, committedQty: 0 },
+      { sapMaterialId: "DEMO-MAT-MOON", warehouseCode: "WH-001", availableQty: 140, committedQty: 0 },
+      { sapMaterialId: "DEMO-MAT-SONA", warehouseCode: "WH-001", availableQty: 200, committedQty: 0 },
+      { sapMaterialId: "DEMO-MAT-URAD", warehouseCode: "WH-001", availableQty: 120, committedQty: 0 },
+      { sapMaterialId: "DEMO-MAT-POHA", warehouseCode: "WH-001", availableQty: 220, committedQty: 0 },
     ];
   }
 

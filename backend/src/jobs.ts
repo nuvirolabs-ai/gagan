@@ -101,7 +101,12 @@ export function startScheduledJobs() {
 
   // Batch pull of master data. Spec §7 leaves real-time vs batch open; this is
   // the batch answer, and a real-time connector can simply ignore the schedule.
-  const syncMins = minutesFromEnv("SAP_SYNC_INTERVAL_MINUTES", 60);
+  // Inventory snapshots become stale after one hour. Refreshing every 30
+  // minutes leaves room for scheduler jitter, and the startup pull is
+  // important for Render/free staging instances that can sleep and wake
+  // without a separate worker process.
+  const syncMins = minutesFromEnv("SAP_SYNC_INTERVAL_MINUTES", 30);
+  void safely("sap sync (startup)", syncAll);
   timers.push(setInterval(() => void safely("sap sync", syncAll), syncMins * MINUTE));
 
   // Push side runs more often — orders should reach SAP promptly.

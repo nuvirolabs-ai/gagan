@@ -51,7 +51,7 @@ services:
       - key: RECOVERY_INTERVAL_MINUTES
         value: "60"
       - key: SAP_SYNC_INTERVAL_MINUTES
-        value: "60"
+        value: "30"
       - key: SAP_OUTBOX_INTERVAL_MINUTES
         value: "5"
       - key: STORE_LOCATION_MAX_ACCURACY_METERS

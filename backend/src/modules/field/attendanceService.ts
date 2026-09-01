@@ -10,6 +10,7 @@ import {
   startOfDay,
   workedMinutes,
   type AttendanceMark,
+  isWithinScope,
 } from "./fieldDomain";
 
 type Db = PrismaClient | any;
@@ -280,9 +281,10 @@ export class AttendanceService {
     });
   }
 
-  async listLeave(input: { salespersonId?: string; status?: string }) {
+  async listLeave(input: { salespersonId?: string; status?: string; scopeStaffIds?: string[] | null }) {
     return this.prisma.leaveRequest.findMany({
       where: {
+        ...(input.scopeStaffIds ? { salespersonId: { in: input.scopeStaffIds } } : {}),
         ...(input.salespersonId ? { salespersonId: input.salespersonId } : {}),
         ...(input.status ? { status: input.status } : {}),
       },
@@ -309,12 +311,16 @@ export class AttendanceService {
     decidedByStaffId: string;
     decision: "approved" | "rejected";
     note?: string;
+    scopeStaffIds?: string[] | null;
   }) {
     const request = await this.prisma.leaveRequest.findUnique({ where: { id: input.leaveId } });
     if (!request) throw new FieldServiceError("leave_request_not_found", 404);
     if (request.status !== "pending") throw new FieldServiceError("leave_already_decided", 409);
     if (request.salespersonId === input.decidedByStaffId) {
       throw new FieldServiceError("leave_self_decision_forbidden", 403);
+    }
+    if (!isWithinScope(request.salespersonId, input.scopeStaffIds)) {
+      throw new FieldServiceError("outside_reporting_scope", 403);
     }
     return this.prisma.$transaction(async (tx: Db) => {
       const decided = await tx.leaveRequest.update({
@@ -340,11 +346,17 @@ export class AttendanceService {
   }
 
   /** Team attendance for one date, for managers and admins. */
-  async teamAttendance(date: Date) {
+  async teamAttendance(date: Date, scopeStaffIds?: string[] | null) {
     const workDate = startOfDay(date);
     const [staff, sessions, leave, calendar]: [any[], any[], any[], any] = await Promise.all([
       this.prisma.staffUser.findMany({
-        where: { status: "active", salesRepId: { not: null } },
+        // Scope is applied in the query, not filtered out of the result, so a
+        // manager never pays for reading rows they are not allowed to see.
+        where: {
+          status: "active",
+          salesRepId: { not: null },
+          ...(scopeStaffIds ? { id: { in: scopeStaffIds } } : {}),
+        },
         select: { id: true, name: true, phone: true, salesRep: { select: { territory: true } } },
         orderBy: { name: "asc" },
       }),

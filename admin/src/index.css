@@ -211,6 +211,8 @@ tr:last-child td { border-bottom: none; }
 .approval-detail { padding: 24px; min-height: 360px; }
 .approval-row { width: 100%; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: #fff; padding: 18px; display: flex; align-items: center; justify-content: space-between; text-align: left; color: inherit; }
 .approval-row.selected { background: #f2f6f2; }
+/* The org chart selects a row rather than a card. */
+tbody tr.selected { background: #f2f6f2; }
 .approval-row span { display: grid; gap: 5px; }
 .approval-row small { color: var(--ink-muted); }
 .approval-exposure { margin: 18px 0; padding: 16px; border-radius: 12px; background: #f5f2e9; display: flex; justify-content: space-between; }

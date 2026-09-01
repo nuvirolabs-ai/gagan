@@ -286,3 +286,19 @@ export function compareTargets(
       };
     });
 }
+
+/**
+ * The reporting-scope half of an authorisation check, expressed once.
+ *
+ * `staffIds` is the caller's resolved scope: a list of staff ids, or null for
+ * an org-wide reader. Null means "do not restrict"; an empty list means "nobody",
+ * which is the correct answer for a reviewer with no team rather than an error.
+ *
+ * Membership is enough for approvals because a caller's own id is in their scope
+ * but self-decision is blocked separately — so "in scope and not me" is exactly
+ * "strictly below me in the reporting tree", with no extra query.
+ */
+export function isWithinScope(subjectStaffId: string, staffIds: string[] | null | undefined): boolean {
+  if (staffIds == null) return true;
+  return staffIds.includes(subjectStaffId);
+}

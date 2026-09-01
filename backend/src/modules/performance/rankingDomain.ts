@@ -7,7 +7,14 @@
  * computed in, and the metric it used.
  */
 
-export type RankingScope = "territory" | "company";
+/**
+ * `team` is the reporting tree: a manager's people, or a salesperson measured
+ * against the peers who share their manager. `territory` is kept because a
+ * territory is still a real comparison basis for a salesperson whose manager
+ * has not been recorded, but it is descriptive metadata rather than the
+ * authorisation boundary it used to double as.
+ */
+export type RankingScope = "team" | "territory" | "company";
 
 export type RankingMetric = "target_achievement_pct" | "order_value";
 

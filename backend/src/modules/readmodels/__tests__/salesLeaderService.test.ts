@@ -44,7 +44,14 @@ function collaborators(options: {
       ),
     } as any,
     routes: {
-      routeForDate: vi.fn().mockImplementation(async (staffId: string) => options.routes?.[staffId] ?? null),
+      routeProgressForDate: vi.fn().mockImplementation(async (staffIds: string[]) => {
+        const progress = new Map<string, any>();
+        for (const staffId of staffIds) {
+          const route = options.routes?.[staffId];
+          if (route) progress.set(staffId, route.progress);
+        }
+        return progress;
+      }),
     } as any,
   };
 }
@@ -89,7 +96,7 @@ describe("team totals", () => {
         s2: { order_value: 100000, visits: 20, order_count: 5, collection_value: 10000, new_customers: 1, productive_outlets: 8 },
       },
     });
-    const result = await service.load({ territory: "Pune North", now: NOW });
+    const result = await service.load({ scopeStaffIds: ["s1", "s2"], now: NOW });
 
     expect(result.team).toMatchObject({
       salespeople: 2,
@@ -107,7 +114,7 @@ describe("team totals", () => {
 
   it("projects the period at the current run rate, and labels it", async () => {
     const service = build({ actuals: { s1: { order_value: 200000 }, s2: { order_value: 100000 } } });
-    const result = await service.load({ territory: "Pune North", now: NOW });
+    const result = await service.load({ scopeStaffIds: ["s1", "s2"], now: NOW });
     // 20 of 31 days elapsed, ₹3,00,000 so far.
     expect(result.team.projection.projected).toBe(465000);
     expect(result.team.projection.label).toBe("Projected at current run rate");
@@ -115,7 +122,7 @@ describe("team totals", () => {
 
   it("never claims the team will achieve anything", async () => {
     const service = build({ actuals: { s1: { order_value: 200000 } } });
-    const result = await service.load({ territory: "Pune North", now: NOW });
+    const result = await service.load({ scopeStaffIds: ["s1", "s2"], now: NOW });
     expect(JSON.stringify(result)).not.toMatch(/will achieve|guaranteed|certain to/i);
   });
 
@@ -127,7 +134,7 @@ describe("team totals", () => {
     ]);
     const c = collaborators({ actuals: { s1: { order_value: 200000 } } });
     const service = new SalesLeaderService(prisma, c.targets, c.ranking, c.opportunities, c.attendance, c.routes);
-    const result = await service.load({ territory: "Pune North", now: NOW });
+    const result = await service.load({ scopeStaffIds: ["s1", "s2"], now: NOW });
     expect(result.sellingDays.total).toBe(29);
     expect(result.sellingDays.elapsed).toBe(18);
   });
@@ -138,7 +145,7 @@ describe("who needs attention", () => {
     const service = build({
       actuals: { s1: { order_value: 280000 }, s2: { order_value: 60000 } },
     });
-    const result = await service.load({ territory: "Pune North", now: NOW });
+    const result = await service.load({ scopeStaffIds: ["s1", "s2"], now: NOW });
     const bela = result.members.find((member) => member.name === "Bela")!;
     expect(bela.risk.level).toBe("at_risk");
     expect(bela.risk.projectedAchievementPct).toBe(31);
@@ -152,7 +159,7 @@ describe("who needs attention", () => {
         s1: { progress: { completionPct: 40, visited: 2, total: 5 } },
       },
     });
-    const result = await service.load({ territory: "Pune North", now: NOW });
+    const result = await service.load({ scopeStaffIds: ["s1", "s2"], now: NOW });
     const anil = result.members.find((member) => member.name === "Anil")!;
     expect(anil.risk.reasons).toContain("Today's beat is 40% complete (2 of 5 stops).");
     expect(anil.route).toEqual({ completionPct: 40, visited: 2, total: 5 });
@@ -160,14 +167,14 @@ describe("who needs attention", () => {
 
   it("names absence as a reason", async () => {
     const service = build({ actuals: { s2: { order_value: 10000 } } });
-    const result = await service.load({ territory: "Pune North", now: NOW });
+    const result = await service.load({ scopeStaffIds: ["s1", "s2"], now: NOW });
     const bela = result.members.find((member) => member.name === "Bela")!;
     expect(bela.risk.reasons).toContain("Not marked present today.");
   });
 
   it("leaves a salesperson on pace alone", async () => {
     const service = build({ actuals: { s1: { order_value: 400000 }, s2: { order_value: 400000 } } });
-    const result = await service.load({ territory: "Pune North", now: NOW });
+    const result = await service.load({ scopeStaffIds: ["s1", "s2"], now: NOW });
     expect(result.members.every((member) => member.risk.level === "on_track")).toBe(true);
   });
 });
@@ -175,7 +182,7 @@ describe("who needs attention", () => {
 describe("recommended actions", () => {
   it("tells the manager who to call, and why", async () => {
     const service = build({ actuals: { s1: { order_value: 280000 }, s2: { order_value: 60000 } } });
-    const result = await service.load({ territory: "Pune North", now: NOW });
+    const result = await service.load({ scopeStaffIds: ["s1", "s2"], now: NOW });
     const coach = result.recommendedActions.find((action) => action.type === "COACH_AT_RISK")!;
     expect(coach.action).toBe("Call Bela");
     expect(coach.why).toContain("projected at current run rate");
@@ -193,7 +200,7 @@ describe("recommended actions", () => {
         },
       ],
     });
-    const result = await service.load({ territory: "Pune North", now: NOW });
+    const result = await service.load({ scopeStaffIds: ["s1", "s2"], now: NOW });
     const review = result.recommendedActions.find((action) =>
       action.type.startsWith("REVIEW_")
     )!;
@@ -203,7 +210,7 @@ describe("recommended actions", () => {
 
   it("gives every recommendation a reason", async () => {
     const service = build({ actuals: { s2: { order_value: 10000 } } });
-    const result = await service.load({ territory: "Pune North", now: NOW });
+    const result = await service.load({ scopeStaffIds: ["s1", "s2"], now: NOW });
     expect(result.recommendedActions.length).toBeGreaterThan(0);
     for (const action of result.recommendedActions) {
       expect(action.why.length).toBeGreaterThan(10);
@@ -212,7 +219,7 @@ describe("recommended actions", () => {
 
   it("stays short enough to act on", async () => {
     const service = build({ actuals: { s1: { order_value: 1 }, s2: { order_value: 1 } } });
-    const result = await service.load({ territory: "Pune North", now: NOW });
+    const result = await service.load({ scopeStaffIds: ["s1", "s2"], now: NOW });
     expect(result.recommendedActions.length).toBeLessThanOrEqual(6);
   });
 });
@@ -220,7 +227,7 @@ describe("recommended actions", () => {
 describe("an empty team", () => {
   it("returns a usable, honest shape", async () => {
     const service = build({}, []);
-    const result = await service.load({ territory: "Nowhere", now: NOW });
+    const result = await service.load({ scopeStaffIds: [], now: NOW });
     expect(result.members).toEqual([]);
     expect(result.team.salespeople).toBe(0);
     expect(result.team.projection.projected).toBeNull();
@@ -229,25 +236,83 @@ describe("an empty team", () => {
 });
 
 describe("scope", () => {
-  it("restricts the team to the territory asked for", async () => {
+  it("restricts the team to the caller's reporting tree", async () => {
     const prisma = fakePrisma();
     const c = collaborators();
     await new SalesLeaderService(prisma, c.targets, c.ranking, c.opportunities, c.attendance, c.routes).load({
-      territory: "Pune North",
+      scopeStaffIds: ["s1", "s2"],
       now: NOW,
     });
     expect(prisma.staffUser.findMany.mock.calls[0][0].where).toMatchObject({
-      salesRep: { territory: "Pune North" },
+      id: { in: ["s1", "s2"] },
     });
+    expect(c.ranking.rank.mock.calls[0][0].scope).toBe("team");
   });
 
-  it("covers the company when no territory is given", async () => {
+  it("covers the company for an org-wide reader", async () => {
     const prisma = fakePrisma();
     const c = collaborators();
     await new SalesLeaderService(prisma, c.targets, c.ranking, c.opportunities, c.attendance, c.routes).load({
       now: NOW,
     });
-    expect(prisma.staffUser.findMany.mock.calls[0][0].where.salesRep).toBeUndefined();
+    expect(prisma.staffUser.findMany.mock.calls[0][0].where.id).toBeUndefined();
     expect(c.ranking.rank.mock.calls[0][0].scope).toBe("company");
+  });
+
+  it("reads the whole team's beat progress in one query", async () => {
+    const prisma = fakePrisma();
+    const c = collaborators();
+    await new SalesLeaderService(prisma, c.targets, c.ranking, c.opportunities, c.attendance, c.routes).load({
+      scopeStaffIds: ["s1", "s2"],
+      now: NOW,
+    });
+    expect(c.routes.routeProgressForDate).toHaveBeenCalledTimes(1);
+    expect(c.routes.routeProgressForDate.mock.calls[0][0]).toEqual(["s1", "s2"]);
+  });
+
+  it("scopes attendance to the same tree rather than the whole company", async () => {
+    const prisma = fakePrisma();
+    const c = collaborators();
+    await new SalesLeaderService(prisma, c.targets, c.ranking, c.opportunities, c.attendance, c.routes).load({
+      scopeStaffIds: ["s1", "s2"],
+      now: NOW,
+    });
+    expect(c.attendance.teamAttendance.mock.calls[0][1]).toEqual(["s1", "s2"]);
+  });
+});
+
+describe("team targets", () => {
+  it("separates the sum of child targets from a target set on the manager", async () => {
+    const prisma = fakePrisma();
+    prisma.salesTarget.findMany = vi.fn().mockResolvedValue([
+      { salespersonId: "s1", metric: "order_value", targetValue: "300000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
+      { salespersonId: "s2", metric: "order_value", targetValue: "300000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
+      // The manager was asked for more than has been cascaded downward.
+      { salespersonId: "m1", metric: "order_value", targetValue: "800000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
+    ]);
+    const c = collaborators();
+    const result = await new SalesLeaderService(prisma, c.targets, c.ranking, c.opportunities, c.attendance, c.routes).load({
+      scopeStaffIds: ["s1", "s2"],
+      managerStaffId: "m1",
+      now: NOW,
+    });
+    expect(result.targets.rollup).toBe(600000);
+    expect(result.targets.assigned).toBe(800000);
+    expect(result.targets.uncascaded).toBe(200000);
+    // Progress is measured against the commitment, not against the rollup.
+    expect(result.team.target).toBe(800000);
+  });
+
+  it("falls back to the rollup when the manager has no target of their own", async () => {
+    const prisma = fakePrisma();
+    const c = collaborators();
+    const result = await new SalesLeaderService(prisma, c.targets, c.ranking, c.opportunities, c.attendance, c.routes).load({
+      scopeStaffIds: ["s1", "s2"],
+      managerStaffId: "m1",
+      now: NOW,
+    });
+    expect(result.targets.assigned).toBeNull();
+    expect(result.targets.uncascaded).toBeNull();
+    expect(result.team.target).toBe(result.targets.rollup);
   });
 });

@@ -199,10 +199,39 @@ async function main() {
       adminUserId: admin.id,
     },
   });
+
+  // A field manager with both salespeople reporting to them, so the manager
+  // surfaces have a real reporting tree to resolve rather than an empty one.
+  // Managers work in the admin portal, so this staff user needs an AdminUser
+  // to sign in with — a salesperson login would have no manager screens.
+  const managerLogin = await prisma.adminUser.upsert({
+    where: { email: "sunita@gagan.test" },
+    update: {},
+    create: {
+      name: "Sunita Rao",
+      email: "sunita@gagan.test",
+      passwordHash: admin.passwordHash,
+    },
+  });
+  const fieldManager = await prisma.staffUser.create({
+    data: {
+      name: managerLogin.name,
+      phone: "9812345672",
+      email: managerLogin.email,
+      employeeRef: "MGR-001",
+      adminUserId: managerLogin.id,
+    },
+  });
+  await prisma.staffUser.updateMany({
+    where: { id: { in: [salesStaff.id, secondSalesStaff.id] } },
+    data: { managerId: fieldManager.id },
+  });
+
   await prisma.staffRole.createMany({
     data: [
       { staffId: salesStaff.id, roleId: roleIds.get("salesperson")! },
       { staffId: secondSalesStaff.id, roleId: roleIds.get("salesperson")! },
+      { staffId: fieldManager.id, roleId: roleIds.get("field_manager")! },
       { staffId: platformAdmin.id, roleId: roleIds.get("platform_admin")! },
     ],
   });

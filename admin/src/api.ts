@@ -315,13 +315,29 @@ export const api = {
 
   /* --------------------------- sales leadership --------------------------- */
 
-  salesLeader: (territory?: string) =>
-    request(`/admin/sales-leader${territory ? `?territory=${encodeURIComponent(territory)}` : ""}`),
-  salesLeaderRanking: (scope: "territory" | "company", territory?: string) => {
+  // The team is the caller's reporting tree, resolved on the server; a
+  // salespersonId narrows within it and is rejected if it falls outside.
+  salesLeader: (salespersonId?: string) =>
+    request(`/admin/sales-leader${salespersonId ? `?salespersonId=${salespersonId}` : ""}`),
+  salesLeaderRanking: (scope: "team" | "territory" | "company", territory?: string) => {
     const query = new URLSearchParams({ scope });
     if (territory) query.set("territory", territory);
     return request(`/admin/sales-leader/ranking?${query.toString()}`);
   },
+  salesLeaderOpportunities: (view: "team" | "direct" | "person", salespersonId?: string) => {
+    const query = new URLSearchParams({ view });
+    if (salespersonId) query.set("salespersonId", salespersonId);
+    return request(`/admin/sales-leader/opportunities?${query.toString()}`);
+  },
+
+  /* --------------------------- sales organisation ------------------------- */
+
+  orgTree: () => request("/admin/org/tree"),
+  orgUnassigned: () => request("/admin/org/unassigned"),
+  orgStaff: (staffId: string) => request(`/admin/org/staff/${staffId}`),
+  orgEligibleManagers: (staffId: string) => request(`/admin/org/staff/${staffId}/eligible-managers`),
+  setOrgManager: (staffId: string, managerId: string | null, reason?: string) =>
+    post(`/admin/org/staff/${staffId}/manager`, { managerId, reason }),
 
   retailerProposals: (status?: string) =>
     request(`/admin/retailer-proposals${status ? `?status=${status}` : ""}`),

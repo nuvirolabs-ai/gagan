@@ -10,6 +10,7 @@
  * Usage:
  *   NODE_ENV=development npx ts-node --transpile-only scripts/devSession.ts 9812345670
  *   NODE_ENV=development npx ts-node --transpile-only scripts/devSession.ts 9999999999 retailer
+ *   NODE_ENV=development npx ts-node --transpile-only scripts/devSession.ts 9812345672 admin
  */
 import { prisma } from "../src/lib/prisma";
 import { lazyIdentitySessionService } from "../src/modules/identity/sessionRuntime";
@@ -21,10 +22,10 @@ async function main() {
     throw new Error("devSession requires NODE_ENV=development or NODE_ENV=test");
   }
   const phone = process.argv[2];
-  const realm = (process.argv[3] ?? "staff") as "staff" | "retailer";
+  const realm = (process.argv[3] ?? "staff") as "staff" | "retailer" | "admin";
   if (!phone) throw new Error("usage: devSession <phone> [staff|retailer]");
-  if (!["staff", "retailer"].includes(realm)) {
-    throw new Error("realm must be staff or retailer");
+  if (!["staff", "retailer", "admin"].includes(realm)) {
+    throw new Error("realm must be staff, retailer or admin");
   }
 
   const subject =

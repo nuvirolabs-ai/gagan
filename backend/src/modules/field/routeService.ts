@@ -1,7 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../../lib/prisma";
 import { FieldServiceError } from "./attendanceService";
-import { nextStop, routeProgress, startOfDay } from "./fieldDomain";
+import { isWithinScope, nextStop, routeProgress, startOfDay } from "./fieldDomain";
 
 type Db = PrismaClient | any;
 
@@ -62,6 +62,34 @@ function publicStop(stop: any): PublicRouteStop {
  */
 export class RouteService {
   constructor(private readonly prisma: Db = defaultPrisma) {}
+
+  /**
+   * Route progress for a whole team on one date, in one query.
+   *
+   * The per-person `routeForDate` is right for a salesperson opening their own
+   * day; a manager's dashboard calling it in a loop is 300 queries for a
+   * national head. This returns just the progress numbers a team view renders,
+   * keyed by salesperson, so team size changes the row count and not the query
+   * count.
+   */
+  async routeProgressForDate(salespersonIds: string[], date: Date) {
+    const progressByStaff = new Map<string, { completionPct: number; visited: number; total: number }>();
+    if (salespersonIds.length === 0) return progressByStaff;
+
+    const plans = await this.prisma.routePlan.findMany({
+      where: { salespersonId: { in: salespersonIds }, planDate: startOfDay(date) },
+      include: { stops: { orderBy: { sequence: "asc" }, include: { retailer: { select: STOP_RETAILER_SELECT } } } },
+    });
+    for (const plan of plans as any[]) {
+      const progress = routeProgress(plan.stops.map(publicStop));
+      progressByStaff.set(plan.salespersonId, {
+        completionPct: progress.completionPct,
+        visited: progress.visited,
+        total: progress.total,
+      });
+    }
+    return progressByStaff;
+  }
 
   async routeForDate(salespersonId: string, date: Date) {
     const plan = await this.prisma.routePlan.findUnique({
@@ -170,7 +198,12 @@ export class RouteService {
     name?: string;
     createdByStaffId: string;
     stops: Array<{ retailerId: string; purpose?: string; note?: string }>;
+    scopeStaffIds?: string[] | null;
   }) {
+    // Planning someone's day is a management act: it is confined to the tree.
+    if (!isWithinScope(input.salespersonId, input.scopeStaffIds)) {
+      throw new FieldServiceError("outside_reporting_scope", 403);
+    }
     const planDate = startOfDay(input.planDate);
     if (input.stops.length === 0) throw new FieldServiceError("route_requires_stops", 400);
 
@@ -242,9 +275,12 @@ export class RouteService {
     });
   }
 
-  async publishPlan(input: { planId: string; actorStaffId: string }) {
+  async publishPlan(input: { planId: string; actorStaffId: string; scopeStaffIds?: string[] | null }) {
     const plan = await this.prisma.routePlan.findUnique({ where: { id: input.planId } });
     if (!plan) throw new FieldServiceError("route_plan_not_found", 404);
+    if (!isWithinScope(plan.salespersonId, input.scopeStaffIds)) {
+      throw new FieldServiceError("outside_reporting_scope", 403);
+    }
     if (plan.status !== "draft") throw new FieldServiceError("route_plan_not_draft", 409);
     return this.prisma.$transaction(async (tx: Db) => {
       const published = await tx.routePlan.update({
@@ -264,9 +300,15 @@ export class RouteService {
     });
   }
 
-  async listPlans(filters: { salespersonId?: string; from?: Date; to?: Date }) {
+  async listPlans(filters: {
+    salespersonId?: string;
+    from?: Date;
+    to?: Date;
+    scopeStaffIds?: string[] | null;
+  }) {
     return this.prisma.routePlan.findMany({
       where: {
+        ...(filters.scopeStaffIds ? { salespersonId: { in: filters.scopeStaffIds } } : {}),
         ...(filters.salespersonId ? { salespersonId: filters.salespersonId } : {}),
         ...(filters.from || filters.to
           ? {

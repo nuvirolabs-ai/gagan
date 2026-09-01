@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import SalesLeader from "../SalesLeader";
 
 const { salesLeader } = vi.hoisted(() => ({
@@ -77,7 +78,7 @@ vi.mock("../../api", () => ({
 
 describe("Sales leader dashboard", () => {
   it("shows the team's target, achievement and projection", async () => {
-    render(<SalesLeader />);
+    render(<SalesLeader />, { wrapper: MemoryRouter });
     expect(await screen.findByText("₹6,00,000")).toBeInTheDocument();
     expect(screen.getByText("₹5,20,000")).toBeInTheDocument();
     // The projection is always labelled as a run rate, never as a promise.
@@ -85,13 +86,13 @@ describe("Sales leader dashboard", () => {
   });
 
   it("never claims anyone will achieve their target", async () => {
-    const { container } = render(<SalesLeader />);
+    const { container } = render(<SalesLeader />, { wrapper: MemoryRouter });
     await screen.findByText("₹6,00,000");
     expect(container.textContent).not.toMatch(/will achieve|guaranteed|certain/i);
   });
 
   it("names who is at risk and the measurement behind it", async () => {
-    render(<SalesLeader />);
+    render(<SalesLeader />, { wrapper: MemoryRouter });
     expect(await screen.findByText(/At risk \(1\)/)).toBeInTheDocument();
     expect(
       screen.getByText(/projected at current run rate: 43% of target\. Not marked present today\./)
@@ -99,13 +100,13 @@ describe("Sales leader dashboard", () => {
   });
 
   it("shows beat completion per salesperson", async () => {
-    render(<SalesLeader />);
+    render(<SalesLeader />, { wrapper: MemoryRouter });
     await screen.findByText("Anil");
     expect(screen.getByText("2/5 · 40%")).toBeInTheDocument();
   });
 
   it("explains which metric the leaderboard ranks on", async () => {
-    render(<SalesLeader />);
+    render(<SalesLeader />, { wrapper: MemoryRouter });
     await screen.findByText("Anil");
     fireEvent.click(screen.getByRole("button", { name: "Leaderboard" }));
     expect(await screen.findByText("2 of 2 carry a target this period.")).toBeInTheDocument();
@@ -113,7 +114,7 @@ describe("Sales leader dashboard", () => {
   });
 
   it("gives every recommended action a reason", async () => {
-    render(<SalesLeader />);
+    render(<SalesLeader />, { wrapper: MemoryRouter });
     await screen.findByText("Anil");
     fireEvent.click(screen.getByRole("button", { name: /Recommended actions/ }));
     expect(await screen.findByText("Call Bela")).toBeInTheDocument();
@@ -122,13 +123,30 @@ describe("Sales leader dashboard", () => {
     ).toBeInTheDocument();
   });
 
-  it("re-reads when a territory is applied", async () => {
-    render(<SalesLeader />);
+  it("asks the server for the caller's own team, with no client-supplied scope", async () => {
+    // The reporting tree is derived from the session. There is no territory box
+    // and no team id to type: a client cannot widen what it is allowed to read.
+    salesLeader.mockClear();
+    render(<SalesLeader />, { wrapper: MemoryRouter });
     await screen.findByText("Anil");
-    fireEvent.change(screen.getByPlaceholderText("Pune North"), {
-      target: { value: "Pune South" },
+    expect(salesLeader).toHaveBeenCalledWith();
+    expect(screen.queryByPlaceholderText("Pune North")).toBeNull();
+  });
+
+  it("opens the employee behind a name", async () => {
+    render(<SalesLeader />, { wrapper: MemoryRouter });
+    const link = await screen.findByRole("link", { name: "Anil" });
+    expect(link).toHaveAttribute("href", "/staff/s1");
+  });
+
+  it("separates a manager's own target from what has been cascaded to the team", async () => {
+    salesLeader.mockResolvedValueOnce({
+      ...(await salesLeader()),
+      targets: { rollup: 600000, assigned: 800000, uncascaded: 200000 },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
-    await waitFor(() => expect(salesLeader).toHaveBeenCalledWith("Pune South"));
+    render(<SalesLeader />, { wrapper: MemoryRouter });
+    expect(await screen.findByText("Your target")).toBeInTheDocument();
+    expect(screen.getByText(/₹6,00,000 cascaded to the team/)).toBeInTheDocument();
+    expect(screen.getByText(/₹2,00,000 not yet set/)).toBeInTheDocument();
   });
 });

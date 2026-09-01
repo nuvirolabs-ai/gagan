@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../../lib/prisma";
 import { FieldServiceError } from "./attendanceService";
+import { isWithinScope } from "./fieldDomain";
 
 type Db = PrismaClient | any;
 
@@ -59,8 +60,13 @@ export class TaskService {
     routePlanId?: string;
     priority?: "low" | "normal" | "high" | "urgent";
     dueAt?: Date;
+    scopeStaffIds?: string[] | null;
   }) {
     if (!input.title.trim()) throw new FieldServiceError("task_title_required", 400);
+    // You may only task someone you manage.
+    if (!isWithinScope(input.assignedToStaffId, input.scopeStaffIds)) {
+      throw new FieldServiceError("outside_reporting_scope", 403);
+    }
     const assignee = await this.prisma.staffUser.findUnique({
       where: { id: input.assignedToStaffId },
       select: { id: true, status: true, salesRepId: true },
@@ -93,9 +99,12 @@ export class TaskService {
     });
   }
 
-  async cancel(input: { taskId: string; actorStaffId: string }) {
+  async cancel(input: { taskId: string; actorStaffId: string; scopeStaffIds?: string[] | null }) {
     const task = await this.prisma.fieldTask.findUnique({ where: { id: input.taskId } });
     if (!task) throw new FieldServiceError("task_not_found", 404);
+    if (!isWithinScope(task.assignedToStaffId, input.scopeStaffIds)) {
+      throw new FieldServiceError("outside_reporting_scope", 403);
+    }
     if (task.status === "done") throw new FieldServiceError("task_already_closed", 409);
     return this.prisma.fieldTask.update({
       where: { id: task.id },
@@ -103,9 +112,15 @@ export class TaskService {
     });
   }
 
-  async list(filters: { assignedToStaffId?: string; status?: string; retailerId?: string }) {
+  async list(filters: {
+    assignedToStaffId?: string;
+    status?: string;
+    retailerId?: string;
+    scopeStaffIds?: string[] | null;
+  }) {
     return this.prisma.fieldTask.findMany({
       where: {
+        ...(filters.scopeStaffIds ? { assignedToStaffId: { in: filters.scopeStaffIds } } : {}),
         ...(filters.assignedToStaffId ? { assignedToStaffId: filters.assignedToStaffId } : {}),
         ...(filters.status ? { status: filters.status } : {}),
         ...(filters.retailerId ? { retailerId: filters.retailerId } : {}),

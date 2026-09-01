@@ -48,22 +48,39 @@ export class SalesLeaderService {
     private readonly routes = new RouteService(prisma ?? defaultPrisma)
   ) {}
 
-  async load(input: { territory?: string | null; period?: Period; now?: Date }) {
+  /**
+   * A manager's home, scoped to their actual reporting tree.
+   *
+   * `scopeStaffIds` is resolved on the server from the caller's session — the
+   * team is who reports to them, not who happens to share a territory string.
+   * Null means an org-wide reader, who sees the whole company.
+   *
+   * `managerStaffId` is the caller themselves. It is used only to read a target
+   * assigned *to the manager*, which is a different number from the sum of
+   * their team's targets and is reported separately rather than conflated.
+   */
+  async load(input: {
+    scopeStaffIds?: string[] | null;
+    managerStaffId?: string | null;
+    period?: Period;
+    now?: Date;
+  }) {
     const now = input.now ?? new Date();
     const period = input.period ?? currentMonth(now);
+    const scopeStaffIds = input.scopeStaffIds ?? null;
 
     const staff = await this.prisma.staffUser.findMany({
       where: {
         status: "active",
         salesRepId: { not: null },
-        ...(input.territory ? { salesRep: { territory: input.territory } } : {}),
+        ...(scopeStaffIds ? { id: { in: scopeStaffIds } } : {}),
       },
       select: { id: true, name: true, salesRepId: true, salesRep: { select: { territory: true } } },
       orderBy: { name: "asc" },
     });
 
     if (staff.length === 0) {
-      return this.emptyTeam(period, input.territory ?? null);
+      return this.emptyTeam(period);
     }
 
     const people: Array<{
@@ -89,14 +106,14 @@ export class SalesLeaderService {
           periodEnd: { gte: startOfDay(period.from) },
         },
       }),
-      this.attendance.teamAttendance(now),
+      this.attendance.teamAttendance(now, scopeStaffIds),
       this.prisma.workingCalendar.findMany({
         where: { date: { gte: startOfDay(period.from), lte: startOfDay(period.to) }, isWorkingDay: false },
         select: { date: true },
       }),
       this.ranking.rank({
-        scope: input.territory ? "territory" : "company",
-        territory: input.territory ?? null,
+        scope: scopeStaffIds ? "team" : "company",
+        staffIds: scopeStaffIds,
         period,
         now,
       }),
@@ -126,13 +143,15 @@ export class SalesLeaderService {
       standings.entries.map((entry) => [entry.salespersonId, entry.rank])
     );
 
-    // Route progress is per salesperson and small; it is the one per-person
-    // read, kept because a beat is a per-person plan by definition.
-    const routes = await Promise.all(
-      people.map((person) => this.routes.routeForDate(person.staffId, now))
+    // One query for the whole team's beat progress. This used to be one read per
+    // salesperson, which is fine for a first-line manager and 300 queries for a
+    // national head; team size must change the row count, not the query count.
+    const routeProgressByStaff = await this.routes.routeProgressForDate(
+      people.map((person) => person.staffId),
+      now
     );
 
-    const members: LeaderMember[] = people.map((person, index) => {
+    const members: LeaderMember[] = people.map((person) => {
       const actuals = actualsByStaff.get(person.staffId) ?? ({} as MetricActuals);
       const stored = targetsByStaff.get(person.staffId) ?? [];
       const progress = stored
@@ -159,12 +178,12 @@ export class SalesLeaderService {
         actual: headline ? headline.actual : actuals.order_value ?? 0,
         sellingDays,
       });
-      const route = routes[index];
+      const route = routeProgressByStaff.get(person.staffId) ?? null;
 
       const reasons: string[] = [];
-      if (route && route.progress.total > 0 && route.progress.completionPct < 60) {
+      if (route && route.total > 0 && route.completionPct < 60) {
         reasons.push(
-          `Today's beat is ${route.progress.completionPct}% complete (${route.progress.visited} of ${route.progress.total} stops).`
+          `Today's beat is ${route.completionPct}% complete (${route.visited} of ${route.total} stops).`
         );
       }
       const mark = attendanceByStaff.get(person.staffId) ?? "absent";
@@ -185,20 +204,35 @@ export class SalesLeaderService {
           reasons,
         }),
         rank: rankByStaff.get(person.staffId) ?? null,
-        route: route
-          ? {
-              completionPct: route.progress.completionPct,
-              visited: route.progress.visited,
-              total: route.progress.total,
-            }
-          : null,
+        route,
       };
     });
 
-    const teamTargets = members.flatMap((member) => member.targets);
-    const teamTarget = teamTargets
+    // Two different numbers that are easy to confuse, so they are never merged:
+    //
+    //   rollup   — the sum of the individual targets set on the team. It answers
+    //              "what has actually been committed downward?"
+    //   assigned — a target set on the manager themselves, if one exists. It
+    //              answers "what was this manager asked to deliver?"
+    //
+    // They disagree whenever a manager's number has not been fully cascaded, and
+    // that gap is exactly what a sales leader needs to see. Progress is measured
+    // against `assigned` when there is one, because that is the commitment.
+    const rollupTarget = members
+      .flatMap((member) => member.targets)
       .filter((target) => target.metric === "order_value")
       .reduce((sum, target) => sum + target.target, 0);
+
+    const assignedTarget = input.managerStaffId
+      ? (targets as any[])
+          .filter(
+            (target) =>
+              target.salespersonId === input.managerStaffId && target.metric === "order_value"
+          )
+          .reduce((sum, target) => sum + Number(target.targetValue), 0) || null
+      : null;
+
+    const teamTarget = assignedTarget ?? rollupTarget;
     const teamActual = members.reduce((sum, member) => sum + (member.actuals.order_value ?? 0), 0);
     const teamProjection = project({ actual: teamActual, sellingDays });
 
@@ -207,8 +241,18 @@ export class SalesLeaderService {
         from: period.from.toISOString().slice(0, 10),
         to: period.to.toISOString().slice(0, 10),
       },
-      territory: input.territory ?? null,
       sellingDays,
+      targets: {
+        /** Sum of the individual targets set on this team. */
+        rollup: rollupTarget,
+        /** A target set on the manager themselves, or null if none exists. */
+        assigned: assignedTarget,
+        /**
+         * Positive when the manager's own number exceeds what has been cascaded
+         * to the team; null when there is no manager target to compare against.
+         */
+        uncascaded: assignedTarget == null ? null : Math.max(0, assignedTarget - rollupTarget),
+      },
       team: {
         salespeople: members.length,
         target: teamTarget,
@@ -299,15 +343,15 @@ export class SalesLeaderService {
     return actions.sort((a, b) => b.priority - a.priority).slice(0, 6);
   }
 
-  private emptyTeam(period: Period, territory: string | null) {
+  private emptyTeam(period: Period) {
     const sellingDays = { total: 0, elapsed: 0, remaining: 0 };
     return {
       period: {
         from: period.from.toISOString().slice(0, 10),
         to: period.to.toISOString().slice(0, 10),
       },
-      territory,
       sellingDays,
+      targets: { rollup: 0, assigned: null, uncascaded: null },
       team: {
         salespeople: 0,
         target: 0,

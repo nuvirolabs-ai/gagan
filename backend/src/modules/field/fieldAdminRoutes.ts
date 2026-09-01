@@ -7,6 +7,7 @@ import { prisma } from "../../lib/prisma";
 import { defaultFieldServices, sendFieldError, type FieldServices } from "./fieldRoutes";
 import { FieldServiceError } from "./attendanceService";
 import { startOfDay } from "./fieldDomain";
+import { ScopeError, ScopeResolver, scopeResolver as defaultScopeResolver } from "../org/scope";
 
 const isoDate = z
   .string()
@@ -27,25 +28,45 @@ function parseDateParam(value: unknown, fallback: Date): Date {
 export function createFieldAdminRouter(options: {
   authenticate: RequestHandler;
   services?: Partial<FieldServices>;
+  scopes?: ScopeResolver;
 }) {
   const services = { ...defaultFieldServices, ...options.services };
+  const scopes = options.scopes ?? defaultScopeResolver;
   const router = Router();
   router.use(options.authenticate);
+
+  /**
+   * The staff ids this caller may act on, derived from their own session.
+   *
+   * `salespersonId` on the query string narrows the answer; it never widens it.
+   * An id outside the caller's tree is a 403, not an empty list — an empty list
+   * reads as "nothing happened today" and would hide the authorisation failure.
+   */
+  const scopeOf = async (req: StaffAuthedRequest, requested?: unknown) => {
+    const narrowTo = typeof requested === "string" ? requested : undefined;
+    const scope = await scopes.resolveFor(req.staffAuth!, narrowTo);
+    return scope.staffIds;
+  };
+
+  const sendError = (error: unknown, res: any, next: any) => {
+    if (error instanceof ScopeError) return res.status(error.status).json({ error: error.code });
+    return sendFieldError(error, res, next);
+  };
 
   /* ------------------------------ attendance ------------------------------ */
 
   router.get(
     "/field/attendance",
     requirePermission(Permissions.ATTENDANCE_REVIEW),
-    asyncRoute(async (req, res, next) => {
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
       const date = parseDateParam(req.query.date, new Date());
       try {
         res.json({
           date: startOfDay(date).toISOString().slice(0, 10),
-          team: await services.attendance.teamAttendance(date),
+          team: await services.attendance.teamAttendance(date, await scopeOf(req)),
         });
       } catch (error) {
-        sendFieldError(error, res, next);
+        sendError(error, res, next);
       }
     })
   );
@@ -60,6 +81,7 @@ export function createFieldAdminRouter(options: {
         new Date(startOfDay(to).getTime() - 29 * 86_400_000)
       );
       try {
+        await scopeOf(req as StaffAuthedRequest, req.params.salespersonId);
         res.json({
           days: await services.attendance.attendanceHistory({
             salespersonId: req.params.salespersonId,
@@ -68,7 +90,7 @@ export function createFieldAdminRouter(options: {
           }),
         });
       } catch (error) {
-        sendFieldError(error, res, next);
+        sendError(error, res, next);
       }
     })
   );
@@ -83,10 +105,11 @@ export function createFieldAdminRouter(options: {
         res.json({
           requests: await services.attendance.listLeave({
             status: typeof req.query.status === "string" ? req.query.status : undefined,
+            scopeStaffIds: await scopeOf(req as StaffAuthedRequest, req.query.salespersonId),
           }),
         });
       } catch (error) {
-        sendFieldError(error, res, next);
+        sendError(error, res, next);
       }
     })
   );
@@ -107,11 +130,12 @@ export function createFieldAdminRouter(options: {
           request: await services.attendance.decideLeave({
             leaveId: req.params.id,
             decidedByStaffId: req.staffAuth!.staffId,
+            scopeStaffIds: await scopeOf(req),
             ...parsed.data,
           }),
         });
       } catch (error) {
-        sendFieldError(error, res, next);
+        sendError(error, res, next);
       }
     })
   );
@@ -127,14 +151,13 @@ export function createFieldAdminRouter(options: {
       try {
         res.json({
           plans: await services.routes.listPlans({
-            salespersonId:
-              typeof req.query.salespersonId === "string" ? req.query.salespersonId : undefined,
             from,
             to,
+            scopeStaffIds: await scopeOf(req as StaffAuthedRequest, req.query.salespersonId),
           }),
         });
       } catch (error) {
-        sendFieldError(error, res, next);
+        sendError(error, res, next);
       }
     })
   );
@@ -167,10 +190,11 @@ export function createFieldAdminRouter(options: {
         const plan = await services.routes.upsertPlan({
           ...parsed.data,
           createdByStaffId: req.staffAuth!.staffId,
+          scopeStaffIds: await scopeOf(req),
         });
         res.status(201).json({ plan });
       } catch (error) {
-        sendFieldError(error, res, next);
+        sendError(error, res, next);
       }
     })
   );
@@ -184,10 +208,11 @@ export function createFieldAdminRouter(options: {
           plan: await services.routes.publishPlan({
             planId: req.params.id,
             actorStaffId: req.staffAuth!.staffId,
+            scopeStaffIds: await scopeOf(req),
           }),
         });
       } catch (error) {
-        sendFieldError(error, res, next);
+        sendError(error, res, next);
       }
     })
   );
@@ -201,13 +226,12 @@ export function createFieldAdminRouter(options: {
       try {
         res.json({
           tasks: await services.tasks.list({
-            assignedToStaffId:
-              typeof req.query.salespersonId === "string" ? req.query.salespersonId : undefined,
             status: typeof req.query.status === "string" ? req.query.status : undefined,
+            scopeStaffIds: await scopeOf(req as StaffAuthedRequest, req.query.salespersonId),
           }),
         });
       } catch (error) {
-        sendFieldError(error, res, next);
+        sendError(error, res, next);
       }
     })
   );
@@ -231,10 +255,11 @@ export function createFieldAdminRouter(options: {
         const task = await services.tasks.assign({
           ...parsed.data,
           createdByStaffId: req.staffAuth!.staffId,
+          scopeStaffIds: await scopeOf(req),
         });
         res.status(201).json({ task });
       } catch (error) {
-        sendFieldError(error, res, next);
+        sendError(error, res, next);
       }
     })
   );
@@ -248,10 +273,11 @@ export function createFieldAdminRouter(options: {
           task: await services.tasks.cancel({
             taskId: req.params.id,
             actorStaffId: req.staffAuth!.staffId,
+            scopeStaffIds: await scopeOf(req),
           }),
         });
       } catch (error) {
-        sendFieldError(error, res, next);
+        sendError(error, res, next);
       }
     })
   );
@@ -266,12 +292,11 @@ export function createFieldAdminRouter(options: {
         res.json({
           expenses: await services.expenses.list({
             status: typeof req.query.status === "string" ? req.query.status : undefined,
-            salespersonId:
-              typeof req.query.salespersonId === "string" ? req.query.salespersonId : undefined,
+            scopeStaffIds: await scopeOf(req as StaffAuthedRequest, req.query.salespersonId),
           }),
         });
       } catch (error) {
-        sendFieldError(error, res, next);
+        sendError(error, res, next);
       }
     })
   );
@@ -292,11 +317,12 @@ export function createFieldAdminRouter(options: {
           expense: await services.expenses.decide({
             expenseId: req.params.id,
             decidedByStaffId: req.staffAuth!.staffId,
+            scopeStaffIds: await scopeOf(req),
             ...parsed.data,
           }),
         });
       } catch (error) {
-        sendFieldError(error, res, next);
+        sendError(error, res, next);
       }
     })
   );
@@ -312,10 +338,11 @@ export function createFieldAdminRouter(options: {
           issues: await services.issues.list({
             status: typeof req.query.status === "string" ? req.query.status : undefined,
             retailerId: typeof req.query.retailerId === "string" ? req.query.retailerId : undefined,
+            scopeStaffIds: await scopeOf(req as StaffAuthedRequest),
           }),
         });
       } catch (error) {
-        sendFieldError(error, res, next);
+        sendError(error, res, next);
       }
     })
   );
@@ -337,11 +364,12 @@ export function createFieldAdminRouter(options: {
           issue: await services.issues.updateStatus({
             issueId: req.params.id,
             actorStaffId: req.staffAuth!.staffId,
+            scopeStaffIds: await scopeOf(req),
             ...parsed.data,
           }),
         });
       } catch (error) {
-        sendFieldError(error, res, next);
+        sendError(error, res, next);
       }
     })
   );
@@ -351,11 +379,11 @@ export function createFieldAdminRouter(options: {
   router.get(
     "/field/tracking/live",
     requirePermission(Permissions.LOCATION_VIEW),
-    asyncRoute(async (_req, res, next) => {
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
       try {
-        res.json({ salespeople: await services.tracking.lastKnownPositions() });
+        res.json({ salespeople: await services.tracking.lastKnownPositions(await scopeOf(req)) });
       } catch (error) {
-        sendFieldError(error, res, next);
+        sendError(error, res, next);
       }
     })
   );
@@ -369,6 +397,7 @@ export function createFieldAdminRouter(options: {
         const history = await services.tracking.history({
           salespersonId: req.params.salespersonId,
           date,
+          scopeStaffIds: await scopeOf(req as StaffAuthedRequest),
         });
         res.json({
           session: history.session,
@@ -381,7 +410,7 @@ export function createFieldAdminRouter(options: {
           })),
         });
       } catch (error) {
-        sendFieldError(error, res, next);
+        sendError(error, res, next);
       }
     })
   );
@@ -391,11 +420,11 @@ export function createFieldAdminRouter(options: {
   router.get(
     "/field/team",
     requirePermission(Permissions.ATTENDANCE_REVIEW),
-    asyncRoute(async (req, res, next) => {
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
       const to = parseDateParam(req.query.to, new Date());
       const from = parseDateParam(req.query.from, startOfDay(to));
       try {
-        const team = await services.attendance.teamAttendance(to);
+        const team = await services.attendance.teamAttendance(to, await scopeOf(req));
         const members = await Promise.all(
           team.map(async (member: any) => ({
             ...member,
@@ -419,7 +448,7 @@ export function createFieldAdminRouter(options: {
           })),
         });
       } catch (error) {
-        sendFieldError(error, res, next);
+        sendError(error, res, next);
       }
     })
   );
@@ -431,11 +460,9 @@ export function createFieldAdminRouter(options: {
     requirePermission(Permissions.ROUTE_MANAGE),
     asyncRoute(async (req, res, next) => {
       try {
+        const scopeStaffIds = await scopeOf(req as StaffAuthedRequest, req.query.salespersonId);
         const targets = await prisma.salesTarget.findMany({
-          where:
-            typeof req.query.salespersonId === "string"
-              ? { salespersonId: req.query.salespersonId }
-              : {},
+          where: scopeStaffIds ? { salespersonId: { in: scopeStaffIds } } : {},
           include: { salesperson: { select: { id: true, name: true } } },
           orderBy: [{ periodStart: "desc" }, { metric: "asc" }],
           take: 200,
@@ -444,7 +471,7 @@ export function createFieldAdminRouter(options: {
           targets: targets.map((target) => ({ ...target, targetValue: Number(target.targetValue) })),
         });
       } catch (error) {
-        sendFieldError(error, res, next);
+        sendError(error, res, next);
       }
     })
   );
@@ -464,6 +491,7 @@ export function createFieldAdminRouter(options: {
         .safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
       try {
+        await scopeOf(req, parsed.data.salespersonId);
         const periodStart = startOfDay(parsed.data.periodStart);
         const periodEnd = startOfDay(parsed.data.periodEnd);
         if (periodEnd < periodStart) throw new FieldServiceError("target_period_invalid", 400);
@@ -488,7 +516,7 @@ export function createFieldAdminRouter(options: {
         });
         res.status(201).json({ target: { ...target, targetValue: Number(target.targetValue) } });
       } catch (error) {
-        sendFieldError(error, res, next);
+        sendError(error, res, next);
       }
     })
   );

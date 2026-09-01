@@ -2,7 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../../lib/prisma";
 import { validateCoordinateInput } from "../location/locationDomain";
 import { FieldServiceError } from "./attendanceService";
-import { resolveTrackingState, startOfDay, TRACKING_REASON_COPY } from "./fieldDomain";
+import { isWithinScope, resolveTrackingState, startOfDay, TRACKING_REASON_COPY } from "./fieldDomain";
 
 type Db = PrismaClient | any;
 
@@ -134,7 +134,10 @@ export class TrackingService {
   }
 
   /** Movement history for one salesperson and date, for authorised reviewers. */
-  async history(input: { salespersonId: string; date: Date }) {
+  async history(input: { salespersonId: string; date: Date; scopeStaffIds?: string[] | null }) {
+    if (!isWithinScope(input.salespersonId, input.scopeStaffIds)) {
+      throw new FieldServiceError("outside_reporting_scope", 403);
+    }
     const workDate = startOfDay(input.date);
     const session = await this.prisma.workdaySession.findUnique({
       where: { salespersonId_workDate: { salespersonId: input.salespersonId, workDate } },
@@ -149,9 +152,12 @@ export class TrackingService {
   }
 
   /** The last position recorded for each salesperson who is on duty now. */
-  async lastKnownPositions() {
+  async lastKnownPositions(scopeStaffIds?: string[] | null) {
     const sessions = await this.prisma.workdaySession.findMany({
-      where: { status: "open" },
+      where: {
+        status: "open",
+        ...(scopeStaffIds ? { salespersonId: { in: scopeStaffIds } } : {}),
+      },
       include: {
         salesperson: { select: { id: true, name: true, salesRep: { select: { territory: true } } } },
         locationPings: { orderBy: { recordedAt: "desc" }, take: 1 },

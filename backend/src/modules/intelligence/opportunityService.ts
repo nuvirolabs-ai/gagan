@@ -32,25 +32,54 @@ export class OpportunityService {
     now?: Date;
     limit?: number;
   }): Promise<OpportunityResult> {
+    return this.forTeam({ staffIds: [input.salespersonId], now: input.now, limit: input.limit });
+  }
+
+  /**
+   * The same trigger engine over a whole reporting tree.
+   *
+   * Nothing is stored, so a manager's view is not a copy of their team's rows —
+   * it is the identical computation over a wider retailer set, and a store
+   * appears exactly once regardless of how many managers can see it.
+   *
+   * Query count is fixed at four (staff, retailers, orders, visits) whether the
+   * scope is one salesperson or three hundred; only the row counts grow.
+   */
+  async forTeam(input: {
+    staffIds: string[];
+    now?: Date;
+    limit?: number;
+  }): Promise<OpportunityResult> {
     const now = input.now ?? new Date();
     const since = new Date(now.getTime() - BASELINE_WINDOW_DAYS * 86_400_000);
+    const empty = {
+      triggers: [],
+      summary: [],
+      generatedAt: now,
+      windowDays: BASELINE_WINDOW_DAYS,
+      retailersConsidered: 0,
+    };
+    if (input.staffIds.length === 0) return empty;
 
-    const staff = await this.prisma.staffUser.findUnique({
-      where: { id: input.salespersonId },
-      select: { salesRepId: true },
+    const staff = await this.prisma.staffUser.findMany({
+      where: { id: { in: input.staffIds }, salesRepId: { not: null } },
+      select: { id: true, salesRepId: true },
     });
-    if (!staff?.salesRepId) {
-      return { triggers: [], summary: [], generatedAt: now, windowDays: BASELINE_WINDOW_DAYS, retailersConsidered: 0 };
-    }
+    const repIds = staff.map((row: any) => row.salesRepId).filter(Boolean) as string[];
+    if (repIds.length === 0) return empty;
+
+    // Ownership is `Retailer.salesRepId` and nothing else; a manager's book is
+    // derived from their team's reps rather than assigned to them separately.
+    const staffIdByRep = new Map<string, string>(
+      staff.map((row: any) => [row.salesRepId as string, row.id as string])
+    );
 
     const retailers = await this.prisma.retailer.findMany({
-      where: { salesRepId: staff.salesRepId, status: "active" },
-      select: { id: true, name: true, overdueAmount: true },
+      where: { salesRepId: { in: repIds }, status: "active" },
+      select: { id: true, name: true, overdueAmount: true, salesRepId: true },
       orderBy: { name: "asc" },
     });
-    if (retailers.length === 0) {
-      return { triggers: [], summary: [], generatedAt: now, windowDays: BASELINE_WINDOW_DAYS, retailersConsidered: 0 };
-    }
+    if (retailers.length === 0) return empty;
 
     const retailerIds = retailers.map((retailer: any) => retailer.id);
     const [orders, visits] = await Promise.all([
@@ -108,7 +137,7 @@ export class OpportunityService {
         ...triggersFor({
           retailerId: retailer.id,
           retailerName: retailer.name,
-          salespersonId: input.salespersonId,
+          salespersonId: staffIdByRep.get(retailer.salesRepId) ?? retailer.salesRepId,
           baseline,
           overdueAmount: Number(retailer.overdueAmount ?? 0),
           valueShare: bookValue > 0 ? (valueByRetailer.get(retailer.id) ?? 0) / bookValue : 0,

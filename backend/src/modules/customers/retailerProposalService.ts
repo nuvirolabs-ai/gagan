@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../../lib/prisma";
+import { isWithinScope } from "../field/fieldDomain";
 import { normalizeIndianPhone } from "../identity/otpService";
 
 type Db = PrismaClient | any;
@@ -105,9 +106,21 @@ export class RetailerProposalService {
     });
   }
 
-  async listForReview(filters: { status?: string } = {}) {
+  /**
+   * The reviewer's queue.
+   *
+   * Scope routes a proposal to the manager above whoever submitted it, but it
+   * does not change who is *allowed* to admit a store to the customer master —
+   * an org-wide reviewer (the existing admin approval policy) still sees every
+   * proposal, because `scopeStaffIds` is null for them. Routing and policy stay
+   * separate concerns.
+   */
+  async listForReview(filters: { status?: string; scopeStaffIds?: string[] | null } = {}) {
     return this.prisma.retailerProposal.findMany({
-      where: filters.status ? { status: filters.status } : {},
+      where: {
+        ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.scopeStaffIds ? { submittedByStaffId: { in: filters.scopeStaffIds } } : {}),
+      },
       include: {
         submittedBy: { select: { id: true, name: true } },
         reviewedBy: { select: { id: true, name: true } },
@@ -140,7 +153,12 @@ export class RetailerProposalService {
    * salesperson who proposed it, which is also what makes it count towards
    * their new-store target.
    */
-  async approve(input: { proposalId: string; reviewerStaffId: string; tierId?: string }) {
+  async approve(input: {
+    proposalId: string;
+    reviewerStaffId: string;
+    tierId?: string;
+    scopeStaffIds?: string[] | null;
+  }) {
     const proposal = await this.prisma.retailerProposal.findUnique({
       where: { id: input.proposalId },
       include: { submittedBy: { select: { salesRepId: true } } },
@@ -149,6 +167,9 @@ export class RetailerProposalService {
     if (proposal.status !== "pending") throw new ProposalError("proposal_already_decided", 409);
     if (proposal.submittedByStaffId === input.reviewerStaffId) {
       throw new ProposalError("self_review_forbidden", 403);
+    }
+    if (!isWithinScope(proposal.submittedByStaffId, input.scopeStaffIds)) {
+      throw new ProposalError("outside_reporting_scope", 403);
     }
 
     const tierId = input.tierId ?? proposal.proposedTierId;
@@ -222,7 +243,12 @@ export class RetailerProposalService {
     });
   }
 
-  async reject(input: { proposalId: string; reviewerStaffId: string; reason: string }) {
+  async reject(input: {
+    proposalId: string;
+    reviewerStaffId: string;
+    reason: string;
+    scopeStaffIds?: string[] | null;
+  }) {
     const reason = input.reason?.trim() ?? "";
     if (reason.length < 3) throw new ProposalError("rejection_reason_required", 400);
 
@@ -233,6 +259,9 @@ export class RetailerProposalService {
     if (proposal.status !== "pending") throw new ProposalError("proposal_already_decided", 409);
     if (proposal.submittedByStaffId === input.reviewerStaffId) {
       throw new ProposalError("self_review_forbidden", 403);
+    }
+    if (!isWithinScope(proposal.submittedByStaffId, input.scopeStaffIds)) {
+      throw new ProposalError("outside_reporting_scope", 403);
     }
 
     return this.prisma.$transaction(async (tx: Db) => {

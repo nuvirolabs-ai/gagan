@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../../lib/prisma";
 import { FieldServiceError } from "./attendanceService";
+import { isWithinScope } from "./fieldDomain";
 
 type Db = PrismaClient | any;
 
@@ -92,9 +93,13 @@ export class IssueService {
     retailerId?: string;
     status?: string;
     openOnly?: boolean;
+    scopeStaffIds?: string[] | null;
   }) {
     return this.prisma.serviceIssue.findMany({
       where: {
+        // An issue belongs to the team that raised it, so a manager's queue is
+        // their tree's issues — not every open issue in the company.
+        ...(filters.scopeStaffIds ? { raisedByStaffId: { in: filters.scopeStaffIds } } : {}),
         ...(filters.salespersonId ? { raisedByStaffId: filters.salespersonId } : {}),
         ...(filters.retailerId ? { retailerId: filters.retailerId } : {}),
         ...(filters.status ? { status: filters.status } : {}),
@@ -115,9 +120,13 @@ export class IssueService {
     status: "in_progress" | "resolved" | "closed" | "rejected";
     assignedTeam?: string;
     resolutionNote?: string;
+    scopeStaffIds?: string[] | null;
   }) {
     const issue = await this.prisma.serviceIssue.findUnique({ where: { id: input.issueId } });
     if (!issue) throw new FieldServiceError("issue_not_found", 404);
+    if (!isWithinScope(issue.raisedByStaffId, input.scopeStaffIds)) {
+      throw new FieldServiceError("outside_reporting_scope", 403);
+    }
     if (["resolved", "closed", "rejected"].includes(issue.status)) {
       throw new FieldServiceError("issue_already_closed", 409);
     }

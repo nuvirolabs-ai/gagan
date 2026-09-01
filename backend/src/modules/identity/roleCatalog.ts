@@ -37,6 +37,11 @@ export const Permissions = {
   RETAILER_PROPOSAL_REVIEW: "retailer.proposal_review",
   // Reading a team's performance, as opposed to your own.
   PERFORMANCE_VIEW_TEAM: "performance.view_team",
+  // Reporting-line administration. ORG_VIEW_ALL lifts the reporting-scope
+  // restriction on every manager surface; it is deliberately separate from the
+  // domain permissions, so holding it alone still grants no domain.
+  ORG_VIEW_ALL: "org.view_all",
+  ORG_MANAGE: "org.manage",
 } as const;
 
 export type PermissionName = (typeof Permissions)[keyof typeof Permissions];
@@ -125,7 +130,13 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
   {
     name: "founder_director",
     description: "Decides legal, settlement and exceptional escalation outcomes.",
-    permissions: [Permissions.LEGAL_DECIDE, Permissions.RECOVERY_VIEW, Permissions.RECOVERY_UPDATE],
+    permissions: [
+      Permissions.LEGAL_DECIDE,
+      Permissions.RECOVERY_VIEW,
+      Permissions.RECOVERY_UPDATE,
+      // A director's remit is the whole company, not one reporting line.
+      Permissions.ORG_VIEW_ALL,
+    ],
   },
   {
     name: "field_manager",

@@ -19,8 +19,9 @@ function fakePrisma(options: {
 } = {}) {
   return {
     staffUser: {
-      findUnique: vi.fn().mockResolvedValue({
-        salesRepId: options.salesRepId === undefined ? "rep-1" : options.salesRepId,
+      findMany: vi.fn().mockImplementation(async () => {
+        const salesRepId = options.salesRepId === undefined ? "rep-1" : options.salesRepId;
+        return salesRepId ? [{ id: "staff-1", salesRepId }] : [];
       }),
     },
     retailer: { findMany: vi.fn().mockResolvedValue(options.retailers ?? []) },
@@ -163,7 +164,7 @@ describe("finding a salesperson's opportunities", () => {
     const prisma = fakePrisma({ retailers: [] });
     await new OpportunityService(prisma).forSalesperson({ salespersonId: "staff-1", now: NOW });
     expect(prisma.retailer.findMany.mock.calls[0][0].where).toMatchObject({
-      salesRepId: "rep-1",
+      salesRepId: { in: ["rep-1"] },
       status: "active",
     });
   });

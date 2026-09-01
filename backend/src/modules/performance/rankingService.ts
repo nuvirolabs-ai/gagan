@@ -18,6 +18,8 @@ export interface RankingRequest {
   scope: RankingScope;
   /** Required for a territory scope; ignored for company. */
   territory?: string | null;
+  /** Required for a team scope: the reporting tree, resolved by the server. */
+  staffIds?: string[] | null;
   period?: Period;
   now?: Date;
 }
@@ -54,6 +56,9 @@ export class RankingService {
       where: {
         status: "active",
         salesRepId: { not: null },
+        ...(request.scope === "team" && request.staffIds
+          ? { id: { in: request.staffIds } }
+          : {}),
         ...(request.scope === "territory" && request.territory
           ? { salesRep: { territory: request.territory } }
           : {}),
@@ -160,7 +165,11 @@ export class RankingService {
     const people = await this.participants(request);
 
     const scopeLabel =
-      request.scope === "territory" ? (request.territory ?? "your territory") : "the company";
+      request.scope === "team"
+        ? "your team"
+        : request.scope === "territory"
+          ? (request.territory ?? "your territory")
+          : "the company";
 
     if (people.length === 0) {
       return {
@@ -215,14 +224,29 @@ export class RankingService {
   }) {
     const staff = await this.prisma.staffUser.findUnique({
       where: { id: input.salespersonId },
-      select: { salesRep: { select: { territory: true } } },
+      select: { managerId: true, salesRep: { select: { territory: true } } },
     });
     const territory = staff?.salesRep?.territory ?? null;
-    const scope: RankingScope = input.scope ?? (territory ? "territory" : "company");
+
+    // Peers are the people who share your manager — a comparison the
+    // organisation actually recognises. A territory string is the fallback for
+    // someone whose reporting line has not been recorded yet, and the company
+    // is the fallback after that.
+    const peers = staff?.managerId
+      ? await this.prisma.staffUser.findMany({
+          where: { managerId: staff.managerId, status: "active", salesRepId: { not: null } },
+          select: { id: true },
+        })
+      : [];
+    const staffIds = peers.length > 1 ? peers.map((peer: any) => peer.id) : null;
+
+    const scope: RankingScope =
+      input.scope ?? (staffIds ? "team" : territory ? "territory" : "company");
 
     const result = await this.rank({
       scope,
       territory,
+      staffIds,
       period: input.period,
       now: input.now,
     });

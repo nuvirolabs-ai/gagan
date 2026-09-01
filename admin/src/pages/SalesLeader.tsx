@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api, inr } from "../api";
 
 const RISK_PILL: Record<string, string> = {
@@ -25,7 +26,6 @@ function pct(value: number | null | undefined): string {
  * anywhere, because arithmetic on a pace is not a forecast.
  */
 export default function SalesLeader() {
-  const [territory, setTerritory] = useState("");
   const [data, setData] = useState<any | null>(null);
   const [tab, setTab] = useState<"team" | "leaderboard" | "actions">("team");
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +34,7 @@ export default function SalesLeader() {
   const load = async () => {
     setLoading(true);
     try {
-      setData(await api.salesLeader(territory || undefined));
+      setData(await api.salesLeader());
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load the sales dashboard");
@@ -58,34 +58,33 @@ export default function SalesLeader() {
     <div>
       <h1 className="page-title">Sales leader</h1>
       <p className="page-sub">
-        Team performance against target, and where the period is heading at the current pace.
+        Your team — everyone who reports to you, at any depth — measured against target, and where
+        the period is heading at the current pace.
       </p>
       {error && <div className="banner error">{error}</div>}
 
-      <div className="card">
-        <div className="form-grid">
-          <div className="field">
-            <label>Territory (blank for the whole company)</label>
-            <input
-              value={territory}
-              onChange={(event) => setTerritory(event.target.value)}
-              placeholder="Pune North"
-            />
-          </div>
-        </div>
-        <button onClick={() => void load()}>Apply</button>
-      </div>
-
       {loading ? (
         <div className="card empty-state">Loading…</div>
-      ) : !team ? (
-        <div className="card empty-state">No data for this scope.</div>
+      ) : !team || team.salespeople === 0 ? (
+        <div className="card empty-state">
+          Nobody reports to you yet. Reporting lines are set in Sales organisation.
+        </div>
       ) : (
         <>
           <div className="metrics">
             <div className="metric">
-              <div className="metric-label">Team target</div>
+              <div className="metric-label">
+                {data.targets?.assigned != null ? "Your target" : "Team target"}
+              </div>
               <div className="metric-value">{inr(team.target)}</div>
+              {data.targets?.assigned != null ? (
+                <div className="small muted">
+                  {inr(data.targets.rollup)} cascaded to the team
+                  {data.targets.uncascaded > 0 ? ` · ${inr(data.targets.uncascaded)} not yet set` : ""}
+                </div>
+              ) : (
+                <div className="small muted">Sum of the team's individual targets</div>
+              )}
             </div>
             <div className="metric">
               <div className="metric-label">Achieved</div>
@@ -196,7 +195,9 @@ export default function SalesLeader() {
                   <tbody>
                     {data.members.map((member: any) => (
                       <tr key={member.salespersonId}>
-                        <td>{member.name}</td>
+                        <td>
+                          <Link to={`/staff/${member.salespersonId}`}>{member.name}</Link>
+                        </td>
                         <td>{member.rank == null ? "—" : `#${member.rank}`}</td>
                         <td>{member.attendance}</td>
                         <td>

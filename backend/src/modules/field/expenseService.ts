@@ -3,7 +3,7 @@ import { prisma as defaultPrisma } from "../../lib/prisma";
 import { getObjectStorage } from "../../platform/storage/storageRuntime";
 import { ObjectStorageError, type ObjectStorage } from "../../platform/storage/objectStorage";
 import { FieldServiceError } from "./attendanceService";
-import { startOfDay } from "./fieldDomain";
+import { isWithinScope, startOfDay } from "./fieldDomain";
 
 type Db = PrismaClient | any;
 
@@ -75,9 +75,16 @@ export class ExpenseService {
     });
   }
 
-  async list(filters: { salespersonId?: string; status?: string; from?: Date; to?: Date }) {
+  async list(filters: {
+    salespersonId?: string;
+    status?: string;
+    from?: Date;
+    to?: Date;
+    scopeStaffIds?: string[] | null;
+  }) {
     const rows = await this.prisma.fieldExpense.findMany({
       where: {
+        ...(filters.scopeStaffIds ? { salespersonId: { in: filters.scopeStaffIds } } : {}),
         ...(filters.salespersonId ? { salespersonId: filters.salespersonId } : {}),
         ...(filters.status ? { status: filters.status } : {}),
         ...(filters.from || filters.to
@@ -113,12 +120,18 @@ export class ExpenseService {
     decidedByStaffId: string;
     decision: "approved" | "rejected";
     note?: string;
+    scopeStaffIds?: string[] | null;
   }) {
     const expense = await this.prisma.fieldExpense.findUnique({ where: { id: input.expenseId } });
     if (!expense) throw new FieldServiceError("expense_not_found", 404);
     if (expense.status !== "submitted") throw new FieldServiceError("expense_already_decided", 409);
     if (expense.salespersonId === input.decidedByStaffId) {
       throw new FieldServiceError("expense_self_decision_forbidden", 403);
+    }
+    // The reviewer must be above the claimant. Scope carries no monetary limit:
+    // the existing policy has none, and inventing tiers here would be new policy.
+    if (!isWithinScope(expense.salespersonId, input.scopeStaffIds)) {
+      throw new FieldServiceError("outside_reporting_scope", 403);
     }
     return this.prisma.$transaction(async (tx: Db) => {
       const decided = await tx.fieldExpense.update({

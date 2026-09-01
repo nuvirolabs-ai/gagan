@@ -3,6 +3,7 @@ import { z } from "zod";
 import { asyncRoute } from "../../platform/http/asyncRoute";
 import { requirePermission, type StaffAuthedRequest } from "../identity/permissions";
 import { Permissions } from "../identity/roleCatalog";
+import { ScopeError, ScopeResolver, scopeResolver as defaultScopeResolver } from "../org/scope";
 import {
   ProposalError,
   RetailerProposalService,
@@ -95,23 +96,33 @@ export function createRetailerProposalRouter(options: {
 export function createRetailerProposalAdminRouter(options: {
   authenticate: RequestHandler;
   service?: RetailerProposalService;
+  scopes?: ScopeResolver;
 }) {
   const service = options.service ?? defaultRetailerProposalService;
+  const scopes = options.scopes ?? defaultScopeResolver;
   const router = Router();
   router.use("/retailer-proposals", options.authenticate);
+
+  const scopeOf = async (req: StaffAuthedRequest) => (await scopes.resolve(req.staffAuth!)).staffIds;
+
+  const sendError = (error: unknown, res: any, next: any) => {
+    if (error instanceof ScopeError) return res.status(error.status).json({ error: error.code });
+    return sendProposalError(error, res, next);
+  };
 
   router.get(
     "/retailer-proposals",
     requirePermission(Permissions.RETAILER_PROPOSAL_REVIEW),
-    asyncRoute(async (req, res, next) => {
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
       try {
         res.json({
           proposals: await service.listForReview({
             status: typeof req.query.status === "string" ? req.query.status : undefined,
+            scopeStaffIds: await scopeOf(req),
           }),
         });
       } catch (error) {
-        sendProposalError(error, res, next);
+        sendError(error, res, next);
       }
     })
   );
@@ -128,10 +139,11 @@ export function createRetailerProposalAdminRouter(options: {
             proposalId: req.params.id,
             reviewerStaffId: req.staffAuth!.staffId,
             tierId: parsed.data.tierId,
+            scopeStaffIds: await scopeOf(req),
           })
         );
       } catch (error) {
-        sendProposalError(error, res, next);
+        sendError(error, res, next);
       }
     })
   );
@@ -148,10 +160,11 @@ export function createRetailerProposalAdminRouter(options: {
             proposalId: req.params.id,
             reviewerStaffId: req.staffAuth!.staffId,
             reason: parsed.data.reason,
+            scopeStaffIds: await scopeOf(req),
           }),
         });
       } catch (error) {
-        sendProposalError(error, res, next);
+        sendError(error, res, next);
       }
     })
   );

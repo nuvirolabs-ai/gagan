@@ -481,12 +481,21 @@ model SalesRep {
 }
 
 model StaffUser {
-  id                         String             @id @default(uuid())
-  name                       String
-  phone                      String             @unique
-  email                      String             @unique
-  employeeRef                String?            @unique
-  status                     StaffStatus        @default(active)
+  id          String      @id @default(uuid())
+  name        String
+  phone       String      @unique
+  email       String      @unique
+  employeeRef String?     @unique
+  status      StaffStatus @default(active)
+
+  // The reporting line. One nullable self-relation is the whole hierarchy:
+  // null means top of the tree, depth is unbounded, and no job title appears
+  // anywhere in the logic that reads it. SetNull rather than Cascade because
+  // removing a manager must orphan their reports upward, never delete people.
+  managerId     String?
+  manager       StaffUser?  @relation("StaffReporting", fields: [managerId], references: [id], onDelete: SetNull)
+  directReports StaffUser[] @relation("StaffReporting")
+
   salesRepId                 String?            @unique
   salesRep                   SalesRep?          @relation(fields: [salesRepId], references: [id])
   adminUserId                String?            @unique
@@ -513,6 +522,7 @@ model StaffUser {
   updatedAt                  DateTime           @updatedAt
 
   @@index([status])
+  @@index([managerId])
 }
 
 /// The single current store location. Coordinates are nullable for existing

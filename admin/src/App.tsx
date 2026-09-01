@@ -24,6 +24,7 @@ import FieldPlanning from "./pages/FieldPlanning";
 import FieldExpenses from "./pages/FieldExpenses";
 import ServiceIssues from "./pages/ServiceIssues";
 import SalesLeader from "./pages/SalesLeader";
+import SalesOrganisation from "./pages/SalesOrganisation";
 import RetailerApprovals from "./pages/RetailerApprovals";
 
 const NAV = [
@@ -41,6 +42,7 @@ const NAV = [
   { to: "/warehouses", label: "Warehouses", permissions: ["staff.manage", "dashboard.view"] },
   { to: "/corrections", label: "Corrections", permissions: ["financial.correct"] },
   { to: "/staff", label: "Staff access", permissions: ["staff.manage"] },
+  { to: "/sales-organisation", label: "Sales organisation", permissions: ["org.view_all"] },
   { to: "/locations", label: "Store locations", permissions: ["location.view"] },
   { to: "/visits", label: "Sales visits", permissions: ["visit.view"] },
   { to: "/sales-leader", label: "Sales leader", permissions: ["performance.view_team"] },
@@ -101,6 +103,7 @@ function Shell() {
           <Route path="/locations" element={<Locations />} />
           <Route path="/visits" element={<Visits />} />
           <Route path="/sales-leader" element={<SalesLeader />} />
+          <Route path="/sales-organisation" element={<SalesOrganisation />} />
           <Route path="/retailer-approvals" element={<RetailerApprovals />} />
           <Route path="/field-team" element={<FieldTeam />} />
           <Route path="/field-planning" element={<FieldPlanning />} />

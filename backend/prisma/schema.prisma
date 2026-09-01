@@ -314,14 +314,15 @@ enum PodType {
 }
 
 model Tier {
-  id              String      @id @default(uuid())
-  name            String      @unique
+  id              String             @id @default(uuid())
+  name            String             @unique
   description     String?
   /// Default credit period in days; a retailer may override it.
-  paymentTermDays Int         @default(15)
+  paymentTermDays Int                @default(15)
   retailers       Retailer[]
   priceList       PriceList[]
-  createdAt       DateTime    @default(now())
+  proposals       RetailerProposal[]
+  createdAt       DateTime           @default(now())
 }
 
 model Retailer {
@@ -364,6 +365,7 @@ model Retailer {
   visits                    SalesVisit[]
   routeStops                RoutePlanStop[]
   customerActivities        CustomerActivity[]
+  proposal                  RetailerProposal?
   fieldTasks                FieldTask[]
   serviceIssues             ServiceIssue[]
   contacts                  RetailerContact[]
@@ -479,34 +481,36 @@ model SalesRep {
 }
 
 model StaffUser {
-  id                 String             @id @default(uuid())
-  name               String
-  phone              String             @unique
-  email              String             @unique
-  employeeRef        String?            @unique
-  status             StaffStatus        @default(active)
-  salesRepId         String?            @unique
-  salesRep           SalesRep?          @relation(fields: [salesRepId], references: [id])
-  adminUserId        String?            @unique
-  adminUser          AdminUser?         @relation(fields: [adminUserId], references: [id])
-  roles              StaffRole[]
-  salesVisits        SalesVisit[]       @relation("SalespersonVisits")
-  delegationsGiven   RoleDelegation[]   @relation("Delegator")
-  delegationsHeld    RoleDelegation[]   @relation("Delegatee")
-  workdaySessions    WorkdaySession[]   @relation("SalespersonWorkdays")
-  leaveRequests      LeaveRequest[]     @relation("SalespersonLeave")
-  leaveDecisions     LeaveRequest[]     @relation("LeaveDecisions")
-  routePlans         RoutePlan[]        @relation("SalespersonRoutePlans")
-  customerActivities CustomerActivity[] @relation("SalespersonActivities")
-  fieldTasksAssigned FieldTask[]        @relation("FieldTasksAssigned")
-  fieldTasksCreated  FieldTask[]        @relation("FieldTasksCreated")
-  locationPings      LocationPing[]     @relation("SalespersonPings")
-  fieldExpenses      FieldExpense[]     @relation("SalespersonExpenses")
-  expenseDecisions   FieldExpense[]     @relation("ExpenseDecisions")
-  serviceIssues      ServiceIssue[]     @relation("ServiceIssuesRaised")
-  salesTargets       SalesTarget[]      @relation("SalespersonTargets")
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  id                         String             @id @default(uuid())
+  name                       String
+  phone                      String             @unique
+  email                      String             @unique
+  employeeRef                String?            @unique
+  status                     StaffStatus        @default(active)
+  salesRepId                 String?            @unique
+  salesRep                   SalesRep?          @relation(fields: [salesRepId], references: [id])
+  adminUserId                String?            @unique
+  adminUser                  AdminUser?         @relation(fields: [adminUserId], references: [id])
+  roles                      StaffRole[]
+  salesVisits                SalesVisit[]       @relation("SalespersonVisits")
+  delegationsGiven           RoleDelegation[]   @relation("Delegator")
+  delegationsHeld            RoleDelegation[]   @relation("Delegatee")
+  workdaySessions            WorkdaySession[]   @relation("SalespersonWorkdays")
+  leaveRequests              LeaveRequest[]     @relation("SalespersonLeave")
+  leaveDecisions             LeaveRequest[]     @relation("LeaveDecisions")
+  routePlans                 RoutePlan[]        @relation("SalespersonRoutePlans")
+  customerActivities         CustomerActivity[] @relation("SalespersonActivities")
+  fieldTasksAssigned         FieldTask[]        @relation("FieldTasksAssigned")
+  fieldTasksCreated          FieldTask[]        @relation("FieldTasksCreated")
+  locationPings              LocationPing[]     @relation("SalespersonPings")
+  fieldExpenses              FieldExpense[]     @relation("SalespersonExpenses")
+  expenseDecisions           FieldExpense[]     @relation("ExpenseDecisions")
+  serviceIssues              ServiceIssue[]     @relation("ServiceIssuesRaised")
+  salesTargets               SalesTarget[]      @relation("SalespersonTargets")
+  retailerProposalsSubmitted RetailerProposal[] @relation("RetailerProposalsSubmitted")
+  retailerProposalsReviewed  RetailerProposal[] @relation("RetailerProposalsReviewed")
+  createdAt                  DateTime           @default(now())
+  updatedAt                  DateTime           @updatedAt
 
   @@index([status])
 }
@@ -1718,10 +1722,17 @@ enum ServiceIssueStatus {
 }
 
 enum SalesTargetMetric {
+  /// Value of orders the salesperson placed, excluding rejected orders.
   order_value
   visits
   collection_value
   new_customers
+  /// Number of orders placed, regardless of value.
+  order_count
+  /// Total order lines placed — the breadth measure behind range selling.
+  line_items
+  /// Distinct stores where a visit produced an order or a collection.
+  productive_outlets
 }
 
 /// One salesperson's working day. Its `open` state is the only thing that
@@ -1968,4 +1979,113 @@ model SalesTarget {
 
   @@unique([salespersonId, metric, periodStart, periodEnd])
   @@index([periodStart, periodEnd])
+}
+
+// ---------------------------------------------------------------------------
+// Performance, recognition and field intelligence.
+//
+// Ranking, run-rate projection and next-best-action triggers are all computed
+// read models over the rows that already exist — none of them are stored. Only
+// two things here need persistence: an achievement, because it must fire once
+// and stay earned, and a retailer proposal, because it is a governance record.
+// ---------------------------------------------------------------------------
+
+enum AchievementType {
+  TARGET_50
+  TARGET_75
+  TARGET_90
+  TARGET_100
+  TARGET_EXCEEDED
+  PERSONAL_BEST
+  COLLECTION_TARGET
+  NEW_RETAILER_MILESTONE
+  RANK_UP
+  TOP_10
+  TOP_3
+}
+
+enum AchievementSubjectKind {
+  salesperson
+  retailer
+}
+
+/// A recognition event that has been earned. Recognition only — this system
+/// carries no reward, discount or payout, and nothing reads it as if it did.
+model AchievementEvent {
+  id          String                 @id @default(uuid())
+  subjectKind AchievementSubjectKind @default(salesperson)
+  /// StaffUser id for a salesperson subject, Retailer id for a retailer one.
+  subjectId   String
+  type        AchievementType
+  /// SalesTargetMetric name, or another canonical measure the event is about.
+  metric      String?
+  /// Period the event belongs to, so the same milestone can be earned again
+  /// next month without ever firing twice inside one period.
+  periodStart DateTime               @db.Date
+  periodEnd   DateTime               @db.Date
+  /// The level that was crossed, in the metric's own unit.
+  threshold   Decimal?               @db.Decimal(14, 2)
+  /// The measured value at the moment it was earned.
+  actual      Decimal?               @db.Decimal(14, 2)
+  title       String
+  message     String
+  earnedAt    DateTime               @default(now())
+  /// When this stops being worth showing. Null means it does not expire.
+  expiresAt   DateTime?
+  /// Whatever the engine measured, kept so the event stays explainable later.
+  evidence    Json?
+  /// The engine's own identity for this event — type, metric, period and level.
+  /// A composite unique over nullable columns would let Postgres treat two
+  /// null-metric events as distinct and fire the same milestone twice, so the
+  /// key is computed as one total string instead.
+  dedupeKey   String
+  createdAt   DateTime               @default(now())
+
+  @@unique([subjectKind, subjectId, dedupeKey])
+  @@index([subjectKind, subjectId, earnedAt])
+  @@index([type, earnedAt])
+}
+
+enum RetailerProposalStatus {
+  pending
+  approved
+  rejected
+  withdrawn
+}
+
+/// A salesperson's request to add a store to the customer master.
+///
+/// This is a governance record, not a second customer model: approving it
+/// creates one canonical `Retailer` and links back to it. Nothing reads a
+/// proposal as if it were a customer.
+model RetailerProposal {
+  id                 String                 @id @default(uuid())
+  status             RetailerProposalStatus @default(pending)
+  businessName       String
+  ownerName          String?
+  phone              String
+  shopAddress        String
+  /// Captured at the storefront where the device could provide it.
+  latitude           Decimal?               @db.Decimal(10, 7)
+  longitude          Decimal?               @db.Decimal(10, 7)
+  accuracyMeters     Decimal?               @db.Decimal(8, 2)
+  /// Proposed classification. The reviewer decides the tier that is applied.
+  proposedTierId     String?
+  proposedTier       Tier?                  @relation(fields: [proposedTierId], references: [id], onDelete: SetNull)
+  notes              String?
+  submittedByStaffId String
+  submittedBy        StaffUser              @relation("RetailerProposalsSubmitted", fields: [submittedByStaffId], references: [id], onDelete: Restrict)
+  submittedAt        DateTime               @default(now())
+  reviewedByStaffId  String?
+  reviewedBy         StaffUser?             @relation("RetailerProposalsReviewed", fields: [reviewedByStaffId], references: [id], onDelete: Restrict)
+  reviewedAt         DateTime?
+  rejectionReason    String?
+  /// Set when approval created the customer.
+  retailerId         String?                @unique
+  retailer           Retailer?              @relation(fields: [retailerId], references: [id], onDelete: SetNull)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  @@index([status, submittedAt])
+  @@index([submittedByStaffId, submittedAt])
 }

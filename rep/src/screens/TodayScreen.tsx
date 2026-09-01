@@ -26,6 +26,7 @@ import {
   SectionTitle,
   Tag,
 } from "../components/ui";
+import { AchievementCard, AchievementLine } from "../components/Achievement";
 import { useField } from "../context/FieldContext";
 import { useRep } from "../context/RepContext";
 import { repApi } from "../api/repClient";
@@ -34,12 +35,29 @@ import { trackingBanner } from "../tracking/fieldTracker";
 import { colors, inr, spacing, TAB_BAR_SPACE } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
 
-const TARGET_LABELS: Record<string, string> = {
-  order_value: "Order value",
-  visits: "Visits",
-  collection_value: "Collections",
-  new_customers: "New customers",
+const OPPORTUNITY_ICONS: Record<string, string> = {
+  ORDER_DUE: "time-outline",
+  HIGH_VALUE_RETAILER_MISSED: "alert-circle-outline",
+  VISIT_OVERDUE: "walk-outline",
+  COLLECTION_DUE: "cash-outline",
+  ORDER_VALUE_BELOW_NORMAL: "trending-down-outline",
+  LINE_ITEMS_BELOW_NORMAL: "list-outline",
+  CATEGORY_REORDER_OPPORTUNITY: "cube-outline",
 };
+
+/** Money reads as rupees; counts read as counts. */
+function formatTarget(value: number, unit: string): string {
+  return unit === "currency" ? inr(value) : String(Math.round(value));
+}
+
+function rankMovementLabel(ranking: any, t: (key: string, vars?: any) => string): string {
+  if (!ranking?.movement || ranking.movement.direction === "new") return ranking?.metricLabel ?? "";
+  if (ranking.movement.direction === "same") return t("today.rankSame");
+  return t(
+    ranking.movement.direction === "up" ? "today.rankUp" : "today.rankDown",
+    { places: String(ranking.movement.places) }
+  );
+}
 
 function duration(minutes: number | null | undefined): string {
   if (minutes == null) return "—";
@@ -49,7 +67,8 @@ function duration(minutes: number | null | undefined): string {
 }
 
 export default function TodayScreen({ navigation }: any) {
-  const { today, loading, error, refresh, tracking, outbox, startDay, endDay } = useField();
+  const { today, celebrations, dismissCelebration, loading, error, refresh, tracking, outbox, startDay, endDay } =
+    useField();
   const { staff } = useRep();
   const { t } = useLanguage();
   const [busy, setBusy] = useState(false);
@@ -164,6 +183,8 @@ export default function TodayScreen({ navigation }: any) {
   });
   const route = today.route;
   const metrics = today.todayMetrics;
+  const headlineTarget = today.headlineTarget;
+  const ranking = today.ranking;
 
   return (
     <View style={styles.screen}>
@@ -218,39 +239,127 @@ export default function TodayScreen({ navigation }: any) {
           <Banner tone={banner.tone} title={banner.title} body={banner.body} />
         </Card>
 
-        {/* Today's numbers, from real orders, visits and collections. */}
+        {/* What the day is asking for, in three numbers. */}
+        {headlineTarget ? (
+          <Card>
+            <View style={styles.between}>
+              <Text style={styles.subhead}>
+                {t("today.targetFor", { label: headlineTarget.label.toUpperCase() })}
+              </Text>
+              <Text style={styles.targetPct}>{headlineTarget.completionPct}%</Text>
+            </View>
+            <View style={styles.targetRow}>
+              <View style={styles.targetCell}>
+                <Text style={styles.targetCellLabel}>{t("today.target")}</Text>
+                <Text style={styles.targetBig} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                  {formatTarget(headlineTarget.target, headlineTarget.unit)}
+                </Text>
+              </View>
+              <View style={styles.targetCell}>
+                <Text style={styles.targetCellLabel}>{t("today.achieved")}</Text>
+                <Text style={styles.targetBig} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                  {formatTarget(headlineTarget.actual, headlineTarget.unit)}
+                </Text>
+              </View>
+              <View style={styles.targetCell}>
+                <Text style={styles.targetCellLabel}>{t("today.remaining")}</Text>
+                <Text
+                  style={[styles.targetBig, styles.targetRemaining]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
+                  {formatTarget(headlineTarget.remaining, headlineTarget.unit)}
+                </Text>
+              </View>
+            </View>
+            {/* Progress toward a goal is the accent's job, which is what keeps
+                the screen from being green end to end. */}
+            <ProgressTrack pct={headlineTarget.completionPct} tone="accent" />
+            <Text style={styles.targetSentence}>{headlineTarget.sentence}</Text>
+            {today.targets.length > 1 ? (
+              <TouchableOpacity onPress={() => navigation.navigate("Activity")}>
+                <Text style={styles.link}>
+                  {today.targets.length === 2
+                    ? t("today.otherTargetsOne")
+                    : t("today.otherTargets", { count: today.targets.length - 1 })}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </Card>
+        ) : null}
+
+        {/* The rest of the day at a glance. */}
         <Card>
-          <SectionTitle title={t("today.title")} />
           <View style={styles.metrics}>
-            <MetricTile label={t("today.metricVisits")} value={String(metrics.visits)} />
+            <MetricTile
+              label={t("today.beatProgress")}
+              value={route ? `${route.progress.completionPct}%` : "—"}
+            />
             <MetricTile label={t("today.metricOrders")} value={String(metrics.orders)} />
             <MetricTile
-              label={t("today.metricOrderValue")}
-              value={inr(metrics.orderValue)}
+              label={t("today.metricCollected")}
+              value={inr(metrics.collectionValueConfirmed ?? 0)}
               tone="green"
             />
           </View>
-          {today.targets.length > 0 ? (
-            <View style={{ gap: spacing.md, marginTop: spacing.sm }}>
-              <Text style={styles.subhead}>{t("today.targets")}</Text>
-              {today.targets.map((target: any) => (
-                <View key={target.metric} style={{ gap: 5 }}>
-                  <View style={styles.between}>
-                    <Text style={styles.targetLabel}>
-                      {TARGET_LABELS[target.metric] ?? target.metric}
-                    </Text>
-                    <Text style={styles.targetValue}>
-                      {target.metric.includes("value")
-                        ? `${inr(target.achieved)} / ${inr(target.target)}`
-                        : `${target.achieved} / ${target.target}`}
-                    </Text>
-                  </View>
-                  <ProgressTrack pct={target.achievementPct} />
-                </View>
-              ))}
-            </View>
+          {ranking?.rank ? (
+            <ListRow
+              first
+              icon="podium-outline"
+              title={t("today.rankLine", {
+                rank: String(ranking.rank),
+                total: String(ranking.participants),
+              })}
+              subtitle={rankMovementLabel(ranking, t)}
+              onPress={() => navigation.navigate("Activity")}
+            />
           ) : null}
         </Card>
+
+        {/* Anything just earned, celebrated once and dismissable. */}
+        {celebrations.length > 0 ? (
+          <View style={{ gap: spacing.sm }}>
+            {celebrations.map((achievement: any) => (
+              <AchievementCard
+                key={achievement.id}
+                achievement={achievement}
+                onDismiss={() => dismissCelebration(achievement.id)}
+              />
+            ))}
+          </View>
+        ) : null}
+
+        {/* The few things most worth doing, with the measurement behind each. */}
+        {(today.opportunities?.summary ?? []).length > 0 ? (
+          <Card>
+            <SectionTitle
+              title={t("today.opportunities")}
+              action={
+                <TouchableOpacity onPress={() => navigation.navigate("Opportunities")}>
+                  <Text style={styles.link}>{t("today.viewAll")}</Text>
+                </TouchableOpacity>
+              }
+            />
+            {today.opportunities.summary.slice(0, 3).map((line: any) => (
+              <Text key={line.type} style={styles.opportunitySummary}>
+                • {line.headline}
+              </Text>
+            ))}
+            {today.opportunities.actions.slice(0, 2).map((action: any, index: number) => (
+              <ListRow
+                key={`${action.type}-${action.retailerId}`}
+                first={index === 0}
+                icon={OPPORTUNITY_ICONS[action.type] ?? "bulb-outline"}
+                title={action.headline}
+                subtitle={action.why}
+                onPress={() =>
+                  navigation.navigate("RepRetailerDetail", { retailerId: action.retailerId })
+                }
+              />
+            ))}
+          </Card>
+        ) : null}
 
         {/* Route */}
         <Card>
@@ -430,6 +539,15 @@ const styles = StyleSheet.create({
 
   targetLabel: { fontSize: 12.5, color: colors.ink, fontWeight: "600" },
   targetValue: { fontSize: 12.5, color: colors.inkMuted },
+
+  targetPct: { fontSize: 15, fontWeight: "800", color: colors.accentStrong },
+  targetRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs },
+  targetCell: { flex: 1 },
+  targetCellLabel: { fontSize: 10.5, color: colors.inkMuted, textTransform: "uppercase", letterSpacing: 0.4 },
+  targetBig: { fontSize: 19, fontWeight: "800", color: colors.ink, marginTop: 3 },
+  targetRemaining: { color: colors.accentStrong },
+  targetSentence: { fontSize: 13, color: colors.ink, fontWeight: "600", marginTop: 2 },
+  opportunitySummary: { fontSize: 13, color: colors.ink, lineHeight: 20 },
 
   nextStop: { gap: 4, marginTop: spacing.sm },
   nextName: { fontSize: 16, fontWeight: "700", color: colors.ink },

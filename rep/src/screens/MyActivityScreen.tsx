@@ -11,8 +11,9 @@ import {
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { Card, EmptyState, MetricTile, ProgressTrack, ScreenHeader, SectionTitle } from "../components/ui";
+import { Card, EmptyState, ListRow, MetricTile, ProgressTrack, ScreenHeader, SectionTitle, Tag } from "../components/ui";
 import { ACTIVITY_LABELS } from "../components/ActivityComposer";
+import { AchievementLine } from "../components/Achievement";
 import { repApi } from "../api/repClient";
 import { colors, inr, radius, spacing, TAB_BAR_SPACE } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -80,16 +81,25 @@ export default function MyActivityScreen() {
   const [tab, setTab] = useState<"timeline" | "performance">("timeline");
   const [entries, setEntries] = useState<any[]>([]);
   const [performance, setPerformance] = useState<any | null>(null);
+  const [targets, setTargets] = useState<any[]>([]);
+  const [ranking, setRanking] = useState<any | null>(null);
+  const [achievements, setAchievements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
-    const [feed, stats] = await Promise.all([
+    const [feed, stats, targetData, rankData, achievementData] = await Promise.all([
       repApi.activityFeed().catch(() => ({ entries: [] })),
       repApi.performance().catch(() => null),
+      repApi.targets().catch(() => ({ targets: [] })),
+      repApi.ranking().catch(() => null),
+      repApi.achievements().catch(() => ({ achievements: [] })),
     ]);
     setEntries(feed.entries ?? []);
     setPerformance(stats);
+    setTargets(targetData.targets ?? []);
+    setRanking(rankData);
+    setAchievements(achievementData.achievements ?? []);
   }, []);
 
   useFocusEffect(
@@ -253,32 +263,76 @@ export default function MyActivityScreen() {
                 </View>
               </Card>
 
-              {performance.targets.length > 0 ? (
-                <Card>
-                  <SectionTitle title={t("today.targets")} />
-                  {performance.targets.map((target: any) => (
+              <Card>
+                <SectionTitle title={t("performance.targets")} />
+                {targets.length === 0 ? (
+                  <Text style={styles.muted}>{t("performance.noTargets")}</Text>
+                ) : (
+                  targets.map((target: any) => (
                     <View key={target.metric} style={{ gap: 5, marginTop: spacing.sm }}>
                       <View style={styles.between}>
-                        <Text style={styles.targetLabel}>
-                          {TARGET_LABELS[target.metric] ?? target.metric}
-                        </Text>
+                        <Text style={styles.targetLabel}>{target.label}</Text>
                         <Text style={styles.targetValue}>
-                          {target.metric.includes("value")
-                            ? `${inr(target.achieved)} / ${inr(target.target)}`
-                            : `${target.achieved} / ${target.target}`}
+                          {target.unit === "currency"
+                            ? `${inr(target.actual)} / ${inr(target.target)}`
+                            : `${target.actual} / ${target.target}`}
                         </Text>
                       </View>
-                      <ProgressTrack pct={target.achievementPct} />
+                      <ProgressTrack pct={target.completionPct} tone="accent" />
+                      <Text style={styles.targetSentence}>{target.sentence}</Text>
+                      {/* Where the number came from, so a target is never a black box. */}
+                      <Text style={styles.targetSource}>{target.source}</Text>
                     </View>
-                  ))}
-                </Card>
-              ) : (
-                <Card>
-                  <Text style={styles.muted}>
-                    No target has been set for this period, so no target comparison is shown.
-                  </Text>
-                </Card>
-              )}
+                  ))
+                )}
+              </Card>
+
+              <Card>
+                <SectionTitle title={t("performance.ranking")} />
+                {ranking?.rank ? (
+                  <>
+                    <View style={styles.between}>
+                      <Text style={styles.rankBig}>
+                        #{ranking.rank}
+                        <Text style={styles.rankOf}> of {ranking.participants}</Text>
+                      </Text>
+                      {ranking.movement && ranking.movement.direction !== "new" ? (
+                        <Tag
+                          label={
+                            ranking.movement.direction === "same"
+                              ? t("today.rankSame")
+                              : t(
+                                  ranking.movement.direction === "up"
+                                    ? "today.rankUp"
+                                    : "today.rankDown",
+                                  { places: String(ranking.movement.places) }
+                                )
+                          }
+                          tone={ranking.movement.direction === "up" ? "green" : "neutral"}
+                        />
+                      ) : null}
+                    </View>
+                    <Text style={styles.muted}>
+                      {ranking.metricLabel} · {ranking.scopeLabel}
+                    </Text>
+                    {/* Why this metric, so a ranking is never unexplained. */}
+                    <Text style={styles.targetSource}>{ranking.metricReason}</Text>
+                  </>
+                ) : (
+                  <Text style={styles.muted}>{t("performance.noRanking")}</Text>
+                )}
+              </Card>
+
+              <Card>
+                <SectionTitle title={t("performance.achievements")} />
+                {achievements.length === 0 ? (
+                  <Text style={styles.muted}>{t("performance.noAchievements")}</Text>
+                ) : (
+                  achievements.map((achievement: any) => (
+                    <AchievementLine key={achievement.id} achievement={achievement} />
+                  ))
+                )}
+              </Card>
             </>
           ) : (
             <EmptyState
@@ -336,5 +390,9 @@ const styles = StyleSheet.create({
   between: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   targetLabel: { fontSize: 12.5, color: colors.ink, fontWeight: "600" },
   targetValue: { fontSize: 12.5, color: colors.inkMuted },
+  targetSentence: { fontSize: 12.5, color: colors.accentStrong, fontWeight: "700" },
+  targetSource: { fontSize: 11, color: colors.inkFaint, lineHeight: 16 },
+  rankBig: { fontSize: 26, fontWeight: "800", color: colors.ink },
+  rankOf: { fontSize: 14, fontWeight: "600", color: colors.inkMuted },
   muted: { fontSize: 12.5, color: colors.inkMuted, lineHeight: 18 },
 });

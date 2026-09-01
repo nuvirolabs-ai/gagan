@@ -25,12 +25,15 @@ describe("identity role catalog", () => {
       Permissions.TASK_COMPLETE,
       Permissions.EXPENSE_SUBMIT,
       Permissions.ISSUE_RAISE,
+      Permissions.RETAILER_PROPOSE,
     ];
     const review = [
       Permissions.ATTENDANCE_REVIEW,
       Permissions.ROUTE_MANAGE,
       Permissions.EXPENSE_REVIEW,
       Permissions.ISSUE_REVIEW,
+      Permissions.RETAILER_PROPOSAL_REVIEW,
+      Permissions.PERFORMANCE_VIEW_TEAM,
     ];
     const fieldRoles = ROLE_DEFINITIONS.filter((role) =>
       ["salesperson", "field_collector"].includes(role.name)
@@ -58,6 +61,16 @@ describe("identity role catalog", () => {
     expect(
       ROLE_DEFINITIONS.find((role) => role.name === "platform_admin")?.permissions
     ).toContain(Permissions.STAFF_MANAGE);
+  });
+
+  it("never lets a field role admit a store to the customer master", () => {
+    const fieldRoles = ROLE_DEFINITIONS.filter((role) =>
+      ["salesperson", "field_collector"].includes(role.name)
+    );
+    for (const role of fieldRoles) {
+      expect(role.permissions).toContain(Permissions.RETAILER_PROPOSE);
+      expect(role.permissions).not.toContain(Permissions.RETAILER_PROPOSAL_REVIEW);
+    }
   });
 
   it("limits financial corrections to Accounts and platform administrators", () => {

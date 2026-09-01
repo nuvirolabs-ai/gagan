@@ -13,6 +13,7 @@ const NONE = {
   canSubmitExpenses: false,
   canRaiseIssues: false,
   canSeeCustomerMap: false,
+  canProposeRetailers: false,
 };
 
 describe("role-aware staff shell", () => {
@@ -37,6 +38,7 @@ describe("role-aware staff shell", () => {
     expect(staffCapabilities(["expense.submit"])).toMatchObject({ canSubmitExpenses: true });
     expect(staffCapabilities(["issue.raise"])).toMatchObject({ canRaiseIssues: true });
     expect(staffCapabilities(["location.view"])).toMatchObject({ canSeeCustomerMap: true });
+    expect(staffCapabilities(["retailer.propose"])).toMatchObject({ canProposeRetailers: true });
   });
 
   it("gives a full salesperson the whole field workspace", () => {
@@ -49,6 +51,7 @@ describe("role-aware staff shell", () => {
       "expense.submit",
       "issue.raise",
       "location.view",
+      "retailer.propose",
     ]);
     expect(salesperson).toMatchObject({
       canOrderForRetailers: true,
@@ -59,6 +62,7 @@ describe("role-aware staff shell", () => {
       canSubmitExpenses: true,
       canRaiseIssues: true,
       canSeeCustomerMap: true,
+      canProposeRetailers: true,
     });
     // A salesperson still approves nothing.
     expect(salesperson.canApprove).toBe(false);

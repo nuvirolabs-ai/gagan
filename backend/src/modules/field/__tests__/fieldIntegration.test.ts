@@ -394,9 +394,19 @@ describe("today reads real work, not placeholders", () => {
     const response = await request(app)
       .get("/rep/field/today")
       .set("Authorization", `Bearer ${tokenA}`);
-    expect(response.body.targets).toEqual([
-      { metric: "visits", target: 4, achieved: 1, achievementPct: 25 },
-    ]);
+    expect(response.body.targets).toHaveLength(1);
+    expect(response.body.targets[0]).toMatchObject({
+      metric: "visits",
+      target: 4,
+      actual: 1,
+      remaining: 3,
+      completionPct: 25,
+      // The salesperson reads a sentence, not a pair of numbers.
+      sentence: "3 more visits",
+      source: "Store check-ins you recorded this period.",
+    });
+    // Today leads with a single target rather than a list.
+    expect(response.body.headlineTarget).toMatchObject({ metric: "visits", remaining: 3 });
   });
 
   it("projects the activity timeline from canonical rows", async () => {

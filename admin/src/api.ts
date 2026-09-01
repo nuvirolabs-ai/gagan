@@ -313,6 +313,23 @@ export const api = {
   fieldTrack: (salespersonId: string, date?: string) =>
     request(`/admin/field/tracking/${salespersonId}${date ? `?date=${date}` : ""}`),
 
+  /* --------------------------- sales leadership --------------------------- */
+
+  salesLeader: (territory?: string) =>
+    request(`/admin/sales-leader${territory ? `?territory=${encodeURIComponent(territory)}` : ""}`),
+  salesLeaderRanking: (scope: "territory" | "company", territory?: string) => {
+    const query = new URLSearchParams({ scope });
+    if (territory) query.set("territory", territory);
+    return request(`/admin/sales-leader/ranking?${query.toString()}`);
+  },
+
+  retailerProposals: (status?: string) =>
+    request(`/admin/retailer-proposals${status ? `?status=${status}` : ""}`),
+  approveRetailerProposal: (id: string, tierId?: string) =>
+    post(`/admin/retailer-proposals/${id}/approve`, tierId ? { tierId } : {}),
+  rejectRetailerProposal: (id: string, reason: string) =>
+    post(`/admin/retailer-proposals/${id}/reject`, { reason }),
+
   salesTargets: (salespersonId?: string) =>
     request(`/admin/field/targets${salespersonId ? `?salespersonId=${salespersonId}` : ""}`),
   setSalesTarget: (body: {

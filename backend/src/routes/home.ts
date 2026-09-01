@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../lib/auth";
 import { financialSummaryFor } from "../modules/finance/financialSummary";
 import { publicMediaUrl } from "../lib/media";
+import { groupCatalog } from "../modules/catalog/catalogGrouping";
 
 const router = Router();
 
@@ -57,6 +58,29 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
     }))
   );
 
+  // Home shows products, not one card per pack: three Toor Dal pack products
+  // used to fill the shelf three times over. Grouped, each logical product
+  // appears once with its packs to choose from.
+  const productGroups = groupCatalog(
+    products.map((product) => ({
+      id: product.id,
+      name: product.name,
+      category: product.category,
+      imageUrl: publicMediaUrl(req, product.imageUrl),
+      description: product.description,
+      sapMaterialId: product.sapMaterialId,
+      variants: product.variants.map((v) => ({
+        id: v.id,
+        unitSize: v.unitSize,
+        unit: v.unit,
+        unitsPerCase: v.unitsPerCase,
+        caseWeightKg: Number(v.unitWeightKg) * v.unitsPerCase,
+        price: Number(overrideByVariant.get(v.id) ?? priceByVariant.get(v.id) ?? 0) || null,
+        isOverride: overrideByVariant.get(v.id) != null,
+      })),
+    }))
+  );
+
   // Scheme progress counts delivered value only — a scheme is earned on what was
   // actually fulfilled, so in-flight orders don't inflate it (and cancellations
   // can't claw back an already-unlocked discount).
@@ -106,6 +130,7 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
         }
       : null,
     quickOrder,
+    productGroups,
     categories: [...new Set(products.map((product) => product.category))].sort(),
     activeOrder: activeOrder
       ? {

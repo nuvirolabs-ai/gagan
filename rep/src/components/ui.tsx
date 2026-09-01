@@ -250,6 +250,10 @@ export function MetricTile({
           tone === "danger" && { color: colors.danger },
         ]}
         numberOfLines={1}
+        // Large rupee figures shrink to fit rather than being cut off: a
+        // truncated "₹2,60,5…" is worse than a slightly smaller number.
+        adjustsFontSizeToFit
+        minimumFontScale={0.6}
       >
         {value}
       </Text>
@@ -257,17 +261,21 @@ export function MetricTile({
   );
 }
 
-export function ProgressTrack({ pct, tone }: { pct: number; tone?: "green" | "danger" }) {
+export function ProgressTrack({
+  pct,
+  tone,
+}: {
+  pct: number;
+  tone?: "green" | "danger" | "accent";
+}) {
+  // Progress toward a goal is the warm accent's job; green stays for actions
+  // and danger stays for money that is genuinely late.
+  const fill =
+    tone === "danger" ? colors.danger : tone === "accent" ? colors.accentPrimary : colors.green;
   return (
     <View style={s.track}>
       <View
-        style={[
-          s.trackFill,
-          {
-            width: `${Math.max(0, Math.min(100, pct))}%`,
-            backgroundColor: tone === "danger" ? colors.danger : colors.green,
-          },
-        ]}
+        style={[s.trackFill, { width: `${Math.max(0, Math.min(100, pct))}%`, backgroundColor: fill }]}
       />
     </View>
   );

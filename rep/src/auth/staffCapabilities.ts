@@ -13,6 +13,7 @@ export const StaffPermissions = {
   EXPENSE_SUBMIT: "expense.submit",
   ISSUE_RAISE: "issue.raise",
   LOCATION_VIEW: "location.view",
+  RETAILER_PROPOSE: "retailer.propose",
 } as const;
 
 export function staffCapabilities(permissions: string[]) {
@@ -37,5 +38,6 @@ export function staffCapabilities(permissions: string[]) {
     canSubmitExpenses: granted.has(StaffPermissions.EXPENSE_SUBMIT),
     canRaiseIssues: granted.has(StaffPermissions.ISSUE_RAISE),
     canSeeCustomerMap: granted.has(StaffPermissions.LOCATION_VIEW),
+    canProposeRetailers: granted.has(StaffPermissions.RETAILER_PROPOSE),
   };
 }

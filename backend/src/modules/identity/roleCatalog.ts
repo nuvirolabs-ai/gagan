@@ -31,6 +31,12 @@ export const Permissions = {
   EXPENSE_REVIEW: "expense.review",
   ISSUE_RAISE: "issue.raise",
   ISSUE_REVIEW: "issue.review",
+  // Customer-master governance: proposing a store is field work, admitting it
+  // to the master is not.
+  RETAILER_PROPOSE: "retailer.propose",
+  RETAILER_PROPOSAL_REVIEW: "retailer.proposal_review",
+  // Reading a team's performance, as opposed to your own.
+  PERFORMANCE_VIEW_TEAM: "performance.view_team",
 } as const;
 
 export type PermissionName = (typeof Permissions)[keyof typeof Permissions];
@@ -60,6 +66,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       Permissions.TASK_COMPLETE,
       Permissions.EXPENSE_SUBMIT,
       Permissions.ISSUE_RAISE,
+      Permissions.RETAILER_PROPOSE,
     ],
   },
   {
@@ -79,6 +86,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       Permissions.TASK_COMPLETE,
       Permissions.EXPENSE_SUBMIT,
       Permissions.ISSUE_RAISE,
+      Permissions.RETAILER_PROPOSE,
     ],
   },
   {
@@ -130,6 +138,8 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       Permissions.ISSUE_REVIEW,
       Permissions.VISIT_VIEW,
       Permissions.LOCATION_VIEW,
+      Permissions.RETAILER_PROPOSAL_REVIEW,
+      Permissions.PERFORMANCE_VIEW_TEAM,
     ],
   },
   {

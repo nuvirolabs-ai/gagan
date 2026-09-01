@@ -39,6 +39,18 @@ export default function RepAccountScreen({ navigation }: any) {
       subtitle: "Today's planned stops",
       screen: "Route",
     },
+    capabilities.canProposeRetailers && {
+      icon: "add-circle-outline",
+      label: t("addRetailer.title"),
+      subtitle: "Send a new shop for your manager to approve",
+      screen: "AddRetailer",
+    },
+    capabilities.canRunFieldDay && {
+      icon: "bulb-outline",
+      label: t("opportunities.title"),
+      subtitle: "Stores worth chasing today, and why",
+      screen: "Opportunities",
+    },
     capabilities.canSeeCustomerMap && {
       icon: "location-outline",
       label: t("more.customerMap"),

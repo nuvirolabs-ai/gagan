@@ -29,7 +29,14 @@ export default function ProductDetailScreen({ route, navigation }: any) {
       .getProduct(productId)
       .then((res) => {
         setProduct(res);
-        setSelected(res.variants[0] ?? null);
+        // The API groups every pack of this product onto one page and says
+        // which one was asked for, so following a link to a specific pack
+        // opens here with that pack chosen rather than on a duplicate page.
+        const requested =
+          res.variants.find((variant: any) => variant.id === res.selectedVariantId) ??
+          res.variants[0] ??
+          null;
+        setSelected(requested);
         setConfig(res.config ?? {});
       })
       .catch(() => setProduct(null));
@@ -92,10 +99,10 @@ export default function ProductDetailScreen({ route, navigation }: any) {
                   onPress={() => setSelected(v)}
                 >
                   <Text style={[styles.variantTitle, active && styles.variantTitleActive]}>
-                    {v.unitSize} × {v.unitsPerCase}
+                    {v.packLabel ?? v.unitSize}
                   </Text>
                   <Text style={[styles.variantSub, active && styles.variantSubActive]}>
-                    {v.caseWeightKg}kg case
+                    {v.packDetail ?? `${v.unitSize} × ${v.unitsPerCase}`}
                   </Text>
                 </TouchableOpacity>
               );
@@ -208,11 +215,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     backgroundColor: colors.surface,
   },
-  variantActive: { borderColor: colors.green, backgroundColor: colors.greenSoft },
+  variantActive: { borderColor: colors.accentPrimary, backgroundColor: colors.accentPrimary },
   variantTitle: { fontSize: 14, fontWeight: "700", color: colors.ink },
-  variantTitleActive: { color: colors.green },
+  variantTitleActive: { color: colors.onAccent },
   variantSub: { fontSize: 11, color: colors.inkMuted, marginTop: 1 },
-  variantSubActive: { color: colors.greenMid },
+  variantSubActive: { color: colors.accentStrong },
 
   priceCard: {
     backgroundColor: colors.surface,

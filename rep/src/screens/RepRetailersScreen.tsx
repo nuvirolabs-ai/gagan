@@ -15,11 +15,13 @@ import { repApi } from "../api/repClient";
 import { useRep } from "../context/RepContext";
 import { colors, radius, spacing, shadow, inr, TAB_BAR_SPACE } from "../theme";
 import { ScreenHeader, SearchBar, EmptyState } from "../components/ui";
+import { staffCapabilities } from "../auth/staffCapabilities";
 import { useLanguage } from "../i18n/LanguageContext";
 
 export default function RepRetailersScreen({ navigation }: any) {
-  const { rep } = useRep();
+  const { rep, staff } = useRep();
   const { t } = useLanguage();
+  const capabilities = staffCapabilities(staff?.permissions ?? []);
   const [retailers, setRetailers] = useState<any[]>([]);
   const [totals, setTotals] = useState<any>({ count: 0, outstanding: 0, overdue: 0 });
   const [query, setQuery] = useState("");
@@ -57,7 +59,21 @@ export default function RepRetailersScreen({ navigation }: any) {
 
   return (
     <View style={styles.screen}>
-      <ScreenHeader title={t("retailers.title")} subtitle={`Hi ${rep?.name ?? ""}`} />
+      <ScreenHeader
+        title={t("retailers.title")}
+        subtitle={`Hi ${rep?.name ?? ""}`}
+        right={
+          capabilities.canProposeRetailers ? (
+            <TouchableOpacity
+              style={styles.addBtn}
+              onPress={() => navigation.navigate("AddRetailer")}
+              accessibilityLabel={t("addRetailer.title")}
+            >
+              <Ionicons name="add" size={18} color={colors.onDark} />
+            </TouchableOpacity>
+          ) : undefined
+        }
+      />
 
       <View style={styles.metrics}>
         <View style={styles.metric}>
@@ -171,6 +187,14 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
 
+  addBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.pill,
+    backgroundColor: colors.green,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   metrics: { flexDirection: "row", paddingHorizontal: spacing.lg, gap: spacing.sm, marginBottom: spacing.md },
   metric: {
     flex: 1,

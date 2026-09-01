@@ -18,6 +18,7 @@ import { HomePayload, QuickOrderItem } from "../types/home";
 import { useCart } from "../context/CartContext";
 import { colors, radius, spacing, shadow, inr } from "../theme";
 import ProductThumb from "../components/ProductThumb";
+import ProductGroupCard, { type ProductGroupLike, type Sku } from "../components/ProductGroupCard";
 import CreditRing from "../components/CreditRing";
 import { useLanguage } from "../i18n/LanguageContext";
 
@@ -53,6 +54,11 @@ function greeting(t: (key: string) => string): string {
   if (h < 12) return t("home.goodMorning");
   if (h < 17) return t("home.goodAfternoon");
   return t("home.goodEvening");
+}
+
+/** The card a SKU belongs to, so a cart line carries the product's real name. */
+function groupNameForSku(groups: ProductGroupLike[], variantId: string): string {
+  return groups.find((group) => group.skus.some((sku) => sku.id === variantId))?.name ?? "Product";
 }
 
 export default function HomeScreen({ navigation }: any) {
@@ -132,6 +138,31 @@ export default function HomeScreen({ navigation }: any) {
 
   const { retailer, salesRep, credit, scheme, quickOrder, activeOrder, config, badges } = data;
   const categories = data.categories ?? [];
+  const productGroups: ProductGroupLike[] = data.productGroups ?? [];
+  const visibleGroups = productGroups.filter(
+    (group) => selectedCategory === ALL_CATEGORY || group.category === selectedCategory
+  );
+
+  /**
+   * The cart is keyed on the SKU, not the product card: changing pack changes
+   * which line is being added, and an existing line for another pack is left
+   * exactly as it was.
+   */
+  const setSkuQty = (sku: Sku, next: number) => {
+    if (sku.price == null) return;
+    const current = qtyFor(sku.id);
+    if (current === 0 && next > 0) {
+      addLine({
+        variantId: sku.id,
+        productName: groupNameForSku(productGroups, sku.id),
+        packSize: sku.packDetail,
+        unitPrice: Number(sku.price),
+        qty: next,
+      });
+      return;
+    }
+    updateQty(sku.id, next);
+  };
   const visibleQuickOrder = quickOrder.filter(
     (item) => selectedCategory === ALL_CATEGORY || item.category === selectedCategory
   );
@@ -171,124 +202,121 @@ export default function HomeScreen({ navigation }: any) {
         </View>
       </View>
 
-      {/* Greeting + salesman */}
-      <View style={styles.greetRow}>
-        <View style={styles.greetBlock}>
-          <Text style={styles.greetSmall}>{greeting(t)}</Text>
-          <Text style={styles.greetName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-            {retailer.name} 👋
-          </Text>
-        </View>
-        {salesRep && (
-          <View style={styles.repCard}>
-            <View style={styles.repAvatar}>
-              <Text style={styles.repInitials}>
-                {salesRep.name
-                  .split(" ")
-                  .map((p) => p[0])
-                  .slice(0, 2)
-                  .join("")}
-              </Text>
-            </View>
-            <View style={styles.repText}>
-              <Text style={styles.repLabel}>{t("home.salesman")}</Text>
-              <Text style={styles.repName} numberOfLines={1}>
-                {salesRep.name}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.repCall}
-              accessibilityLabel={`Call ${salesRep.name}`}
-              onPress={() => Linking.openURL(`tel:${salesRep.phone}`)}
-            >
-              <Ionicons name="call" size={16} color={colors.onDark} />
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
+      {/* Search — the fastest way to a product, so it comes first. */}
+      <TouchableOpacity
+        style={styles.searchBar}
+        activeOpacity={0.85}
+        onPress={() => navigation.navigate("Products")}
+        accessibilityRole="search"
+        accessibilityLabel={t("catalog.search")}
+      >
+        <Ionicons name="search" size={17} color={colors.inkFaint} />
+        <Text style={styles.searchPlaceholder}>{t("catalog.search")}</Text>
+      </TouchableOpacity>
 
-      {/* Shop by category */}
-      <View style={styles.categorySection}>
-        <View style={styles.sectionHead}>
-          <View>
-            <Text style={styles.sectionTitle}>Shop by category</Text>
-            <Text style={styles.sectionCaption}>Find your everyday staples faster</Text>
-          </View>
-          <TouchableOpacity style={styles.rowCenter} onPress={() => navigation.navigate("Products")}>
-            <Text style={styles.link}>All products</Text>
-            <Ionicons name="arrow-forward" size={13} color={colors.green} style={{ marginLeft: 3 }} />
-          </TouchableOpacity>
-        </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryRow}
-        >
-          {[ALL_CATEGORY, ...categories].map((value) => {
-            const active = selectedCategory === value;
-            return (
-              <TouchableOpacity
-                key={value}
-                style={[styles.categoryCard, active && styles.categoryCardActive]}
-                onPress={() => setSelectedCategory(value)}
-                activeOpacity={0.82}
-              >
-                <View style={[styles.categoryIcon, active && styles.categoryIconActive]}>
-                  <Ionicons
-                    name={(CATEGORY_ICONS[value] ?? "cube-outline") as any}
-                    size={19}
-                    color={active ? colors.onDark : colors.green}
-                  />
-                </View>
-                <Text style={[styles.categoryName, active && styles.categoryNameActive]}>
-                  {CATEGORY_LABELS[value] ?? value}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* Outstanding + credit */}
-      <View style={styles.moneyRow}>
-        <View style={styles.outstandingCard}>
-          <View style={styles.rowCenter}>
-            <Text style={styles.outstandingLabel}>{t("home.outstandingAmount")}</Text>
-            <Ionicons name="information-circle-outline" size={13} color={colors.onDarkMuted} style={{ marginLeft: 4 }} />
-          </View>
-          <Text style={styles.outstandingValue}>{inr(credit.outstanding)}</Text>
-          {credit.overdue > 0 && <Text style={styles.overdue}>Overdue: {inr(credit.overdue)}</Text>}
-          <TouchableOpacity style={styles.ledgerBtn} onPress={() => navigation.navigate("Ledger")}>
-            <Text style={styles.ledgerBtnText}>{t("home.viewLedger")}</Text>
-            <Ionicons name="arrow-forward" size={15} color={colors.onDark} />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.creditCard}>
+      {/* What is owed, and the two things a retailer can do about it. A calm
+          paid-up line replaces it when nothing is outstanding, so the screen
+          never invents a debt. */}
+      {credit.outstanding > 0 ? (
+        <View style={styles.dueCard}>
           <View style={styles.rowBetween}>
-            <View style={{ flex: 1, paddingRight: spacing.sm }}>
-              <Text style={styles.creditLabel}>{t("home.creditLimit")}</Text>
-              <Text style={styles.creditValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                {inr(credit.creditLimit)}
+            <View style={{ flex: 1 }}>
+              <Text style={styles.dueLabel}>{t("home.outstandingAmount")}</Text>
+              <Text style={styles.dueValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                {inr(credit.outstanding)}
               </Text>
+              {credit.overdue > 0 ? (
+                <Text style={styles.dueOverdue}>{inr(credit.overdue)} overdue</Text>
+              ) : (
+                <Text style={styles.dueSub}>
+                  {t("home.available")} {inr(credit.available)}
+                </Text>
+              )}
             </View>
             <CreditRing pct={credit.utilisationPct} />
           </View>
-          <View style={styles.creditTrack}>
-            <View style={[styles.creditFill, { width: `${Math.min(100, credit.utilisationPct)}%` }]} />
-          </View>
-          <View style={styles.creditSplit}>
-            <View style={styles.creditSplitCell}>
-              <Text style={styles.creditSplitLabel}>{t("home.used")}</Text>
-              <Text style={styles.creditSplitValue}>{inr(credit.used)}</Text>
-            </View>
-            <View style={styles.creditDivider} />
-            <View style={styles.creditSplitCell}>
-              <Text style={styles.creditSplitLabel}>{t("home.available")}</Text>
-              <Text style={[styles.creditSplitValue, { color: colors.green }]}>{inr(credit.available)}</Text>
-            </View>
+          <View style={styles.dueActions}>
+            <TouchableOpacity
+              style={styles.payBtn}
+              onPress={() => navigation.navigate("Pay")}
+              accessibilityLabel={t("home.payNow")}
+            >
+              <Ionicons name="card-outline" size={16} color={colors.onDark} />
+              <Text style={styles.payBtnText}>{t("home.payNow")}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.ledgerOutlineBtn}
+              onPress={() => navigation.navigate("Ledger")}
+            >
+              <Text style={styles.ledgerOutlineText}>{t("home.viewLedger")}</Text>
+              <Ionicons name="arrow-forward" size={14} color={colors.green} />
+            </TouchableOpacity>
           </View>
         </View>
+      ) : (
+        <View style={styles.paidUpCard}>
+          <Ionicons name="checkmark-circle" size={18} color={colors.green} />
+          <Text style={styles.paidUpText}>{t("home.paidUp")}</Text>
+          <TouchableOpacity onPress={() => navigation.navigate("Ledger")}>
+            <Text style={styles.link}>{t("home.viewLedger")}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* A compact selector: categories are a filter, not a landing page, so
+          they take one row instead of pushing the shelf below the fold. */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipRow}
+      >
+        {[ALL_CATEGORY, ...categories].map((value) => {
+          const active = selectedCategory === value;
+          return (
+            <TouchableOpacity
+              key={value}
+              style={[styles.chip, active && styles.chipActive]}
+              onPress={() => setSelectedCategory(value)}
+              accessibilityState={{ selected: active }}
+            >
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                {CATEGORY_LABELS[value] ?? value}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      {/* Products, immediately. Each card is one logical product with its pack
+          sizes, so a shopper chooses a pack instead of scrolling past the same
+          product three times. */}
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionTitle}>
+          {selectedCategory === ALL_CATEGORY
+            ? t("home.quickOrder")
+            : CATEGORY_LABELS[selectedCategory] ?? selectedCategory}
+        </Text>
+        <TouchableOpacity style={styles.rowCenter} onPress={() => navigation.navigate("Products")}>
+          <Text style={styles.link}>{t("home.viewProducts")}</Text>
+          <Ionicons name="arrow-forward" size={13} color={colors.green} style={{ marginLeft: 3 }} />
+        </TouchableOpacity>
+      </View>
+      <View style={styles.productList}>
+        {visibleGroups.length === 0 ? (
+          <Text style={styles.emptyProducts}>{t("home.noProductsInCategory")}</Text>
+        ) : (
+          visibleGroups.map((group) => (
+            <ProductGroupCard
+              key={group.id}
+              group={group}
+              qtyFor={qtyFor}
+              onChangeQty={setSkuQty}
+              onOpen={() =>
+                navigation.navigate("ProductDetail", { productId: group.skus[0]?.productId })
+              }
+            />
+          ))
+        )}
       </View>
 
       {/* Scheme banner */}
@@ -314,53 +342,6 @@ export default function HomeScreen({ navigation }: any) {
           </View>
         </TouchableOpacity>
       )}
-
-      {/* Quick order */}
-      <View style={styles.sectionHead}>
-        <Text style={styles.sectionTitle}>{t("home.quickOrder")}</Text>
-        <TouchableOpacity style={styles.rowCenter} onPress={() => navigation.navigate("Products")}>
-          <Text style={styles.link}>{t("home.viewProducts")}</Text>
-          <Ionicons name="arrow-forward" size={13} color={colors.green} style={{ marginLeft: 3 }} />
-        </TouchableOpacity>
-      </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.md }}
-      >
-        {visibleQuickOrder.map((item) => {
-          const qty = qtyFor(item.variantId);
-          return (
-            <View key={item.variantId} style={styles.productCard}>
-              <ProductThumb name={item.name} category={item.category} imageUrl={item.imageUrl} size={108} />
-              <Text style={styles.productName} numberOfLines={1}>
-                {item.name}
-              </Text>
-              <Text style={styles.productPack}>
-                {item.unitSize} × {item.unitsPerCase}
-              </Text>
-              <Text style={styles.productPrice}>
-                {item.casePrice != null ? `${inr(Number(item.casePrice))} / case` : "—"}
-              </Text>
-              {qty > 0 ? (
-                <View style={styles.stepper}>
-                  <TouchableOpacity style={styles.stepBtn} onPress={() => bump(item, -1)}>
-                    <Ionicons name="remove" size={15} color={colors.ink} />
-                  </TouchableOpacity>
-                  <Text style={styles.stepQty}>{qty}</Text>
-                  <TouchableOpacity style={styles.stepBtn} onPress={() => bump(item, 1)}>
-                    <Ionicons name="add" size={15} color={colors.ink} />
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <TouchableOpacity style={styles.addBtn} onPress={() => bump(item, 1)}>
-                  <Ionicons name="add" size={17} color={colors.onDark} />
-                </TouchableOpacity>
-              )}
-            </View>
-          );
-        })}
-      </ScrollView>
 
       {/* Active order */}
       <View style={styles.sectionHead}>
@@ -445,6 +426,42 @@ export default function HomeScreen({ navigation }: any) {
           <Text style={styles.muted}>{t("home.noOrdersProgress")}</Text>
         </View>
       )}
+
+      {/* Greeting + salesman */}
+      <View style={styles.greetRow}>
+        <View style={styles.greetBlock}>
+          <Text style={styles.greetSmall}>{greeting(t)}</Text>
+          <Text style={styles.greetName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+            {retailer.name} 👋
+          </Text>
+        </View>
+        {salesRep && (
+          <View style={styles.repCard}>
+            <View style={styles.repAvatar}>
+              <Text style={styles.repInitials}>
+                {salesRep.name
+                  .split(" ")
+                  .map((p) => p[0])
+                  .slice(0, 2)
+                  .join("")}
+              </Text>
+            </View>
+            <View style={styles.repText}>
+              <Text style={styles.repLabel}>{t("home.salesman")}</Text>
+              <Text style={styles.repName} numberOfLines={1}>
+                {salesRep.name}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.repCall}
+              accessibilityLabel={`Call ${salesRep.name}`}
+              onPress={() => Linking.openURL(`tel:${salesRep.phone}`)}
+            >
+              <Ionicons name="call" size={16} color={colors.onDark} />
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
 
       {/* Action tiles */}
       <View style={styles.tileRow}>
@@ -594,6 +611,94 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+
+  /* ---- Search ---- */
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    marginBottom: spacing.md,
+  },
+  searchPlaceholder: { fontSize: 14, color: colors.inkFaint },
+
+  /* ---- Outstanding, Pay Now, Ledger ---- */
+  dueCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginHorizontal: spacing.lg,
+    padding: spacing.lg,
+    gap: spacing.md,
+    marginBottom: spacing.md,
+    ...shadow.card,
+  },
+  dueLabel: { fontSize: 11.5, color: colors.inkMuted, textTransform: "uppercase", letterSpacing: 0.4 },
+  dueValue: { fontSize: 27, fontWeight: "800", color: colors.ink, marginTop: 3 },
+  dueOverdue: { fontSize: 12.5, fontWeight: "700", color: colors.error, marginTop: 3 },
+  dueSub: { fontSize: 12.5, color: colors.inkMuted, marginTop: 3 },
+  dueActions: { flexDirection: "row", gap: spacing.sm },
+  payBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    backgroundColor: colors.green,
+    borderRadius: radius.md,
+    paddingVertical: 12,
+  },
+  payBtnText: { color: colors.onDark, fontWeight: "700", fontSize: 13.5 },
+  ledgerOutlineBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingVertical: 12,
+  },
+  ledgerOutlineText: { color: colors.green, fontWeight: "700", fontSize: 13 },
+  paidUpCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.successSoft,
+    borderRadius: radius.md,
+    marginHorizontal: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.md,
+  },
+  paidUpText: { flex: 1, fontSize: 13, fontWeight: "700", color: colors.green },
+
+  /* ---- Compact category selector ---- */
+  chipRow: { paddingHorizontal: spacing.lg, gap: spacing.sm, paddingBottom: spacing.md },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  chipActive: { backgroundColor: colors.greenDeep, borderColor: colors.greenDeep },
+  chipText: { fontSize: 12.5, fontWeight: "700", color: colors.inkMuted },
+  chipTextActive: { color: colors.onDark },
+
+  /* ---- The shelf ---- */
+  productList: { paddingHorizontal: spacing.lg, gap: spacing.md, marginBottom: spacing.xl },
+  emptyProducts: { fontSize: 13, color: colors.inkMuted, paddingVertical: spacing.lg },
 
   categorySection: { marginBottom: spacing.xl },
   sectionCaption: { fontSize: 11.5, color: colors.inkMuted, marginTop: 3 },

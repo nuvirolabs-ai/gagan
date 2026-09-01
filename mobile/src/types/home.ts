@@ -43,12 +43,39 @@ export interface HomeActiveOrder {
   expectedDeliveryAt: string | null;
 }
 
+/** One logical product with the packs it is sold in. The SKU stays the order unit. */
+export interface HomeSku {
+  id: string;
+  productId: string;
+  productName: string;
+  packLabel: string;
+  packDetail: string;
+  unitSize: string;
+  unit: string;
+  unitsPerCase: number;
+  price: number | null;
+  isOverride?: boolean;
+  availability?: { status?: string; available?: number | null } | null;
+}
+
+export interface HomeProductGroup {
+  id: string;
+  name: string;
+  category: string;
+  imageUrl: string | null;
+  description: string | null;
+  productIds: string[];
+  skus: HomeSku[];
+  hasMultiplePacks: boolean;
+}
+
 export interface HomePayload {
   retailer: { id: string; name: string; phone: string; tier: string };
   salesRep: HomeSalesRep | null;
   credit: HomeCredit;
   scheme: HomeScheme | null;
   quickOrder: QuickOrderItem[];
+  productGroups: HomeProductGroup[];
   categories: string[];
   activeOrder: HomeActiveOrder | null;
   config: { freeDeliveryThreshold: number; minOrderValue: number; supportPhone: string | null };

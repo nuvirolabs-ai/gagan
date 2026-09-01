@@ -30,6 +30,8 @@ import CustomerMapScreen from "./src/screens/CustomerMapScreen";
 import MyActivityScreen from "./src/screens/MyActivityScreen";
 import ExpensesScreen from "./src/screens/ExpensesScreen";
 import IssuesScreen from "./src/screens/IssuesScreen";
+import OpportunitiesScreen from "./src/screens/OpportunitiesScreen";
+import AddRetailerScreen from "./src/screens/AddRetailerScreen";
 import { staffCapabilities } from "./src/auth/staffCapabilities";
 import LanguageSelectionScreen from "./src/screens/LanguageSelectionScreen";
 
@@ -158,7 +160,19 @@ function RootNavigator() {
                 component={VisitScreen}
                 options={{ title: t("visit.title"), headerBackTitle: t("common.back") }}
               />
+              <Stack.Screen
+                name="Opportunities"
+                component={OpportunitiesScreen}
+                options={{ title: t("opportunities.title"), headerBackTitle: t("tabs.today") }}
+              />
             </>
+          )}
+          {capabilities.canProposeRetailers && (
+            <Stack.Screen
+              name="AddRetailer"
+              component={AddRetailerScreen}
+              options={{ title: t("addRetailer.title"), headerBackTitle: t("tabs.customers") }}
+            />
           )}
           {capabilities.canManageAttendance && (
             <Stack.Screen

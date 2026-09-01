@@ -31,6 +31,14 @@ export interface TrackingState {
 
 interface FieldContextValue {
   today: any | null;
+  /**
+   * Achievements earned since this session opened, kept until the salesperson
+   * dismisses them. The server hands each one over exactly once, so holding
+   * them here is what stops a background refresh from swallowing a celebration
+   * before it has been seen.
+   */
+  celebrations: any[];
+  dismissCelebration: (id: string) => void;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -86,6 +94,7 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
   const enabled = capabilities.canRunFieldDay;
 
   const [today, setToday] = useState<any | null>(null);
+  const [celebrations, setCelebrations] = useState<any[]>([]);
   const [tracking, setTracking] = useState<TrackingState | null>(null);
   const [outbox, setOutbox] = useState<OutboxSummary>(EMPTY_SUMMARY);
   const [loading, setLoading] = useState(false);
@@ -118,6 +127,13 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
       const payload = await repApi.today();
       setToday(payload);
       setTracking(payload.tracking ?? null);
+      const earned: any[] = payload.achievements?.new ?? [];
+      if (earned.length > 0) {
+        setCelebrations((current) => {
+          const seen = new Set(current.map((event) => event.id));
+          return [...current, ...earned.filter((event) => !seen.has(event.id))];
+        });
+      }
       setError(null);
     } catch (err) {
       // A failed refresh must not wipe the last good day the salesperson saw,
@@ -133,6 +149,7 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
     if (!enabled) {
       setToday(null);
       setTracking(null);
+      setCelebrations([]);
       return;
     }
     void refresh();
@@ -247,9 +264,15 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
     [refresh]
   );
 
+  const dismissCelebration = useCallback((id: string) => {
+    setCelebrations((current) => current.filter((event) => event.id !== id));
+  }, []);
+
   const value = useMemo<FieldContextValue>(
     () => ({
       today,
+      celebrations,
+      dismissCelebration,
       loading,
       error,
       refresh,
@@ -260,7 +283,20 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
       endDay,
       logActivity,
     }),
-    [today, loading, error, refresh, tracking, outbox, flushOutbox, startDay, endDay, logActivity]
+    [
+      today,
+      celebrations,
+      dismissCelebration,
+      loading,
+      error,
+      refresh,
+      tracking,
+      outbox,
+      flushOutbox,
+      startDay,
+      endDay,
+      logActivity,
+    ]
   );
 
   return <FieldContext.Provider value={value}>{children}</FieldContext.Provider>;

@@ -7,7 +7,9 @@
  * outside a development or test NODE_ENV, and needs the database and signing
  * secrets it would take to mint a token by hand anyway.
  *
- * Usage: NODE_ENV=development npx ts-node --transpile-only scripts/devSession.ts 9812345670
+ * Usage:
+ *   NODE_ENV=development npx ts-node --transpile-only scripts/devSession.ts 9812345670
+ *   NODE_ENV=development npx ts-node --transpile-only scripts/devSession.ts 9999999999 retailer
  */
 import { prisma } from "../src/lib/prisma";
 import { lazyIdentitySessionService } from "../src/modules/identity/sessionRuntime";
@@ -19,19 +21,32 @@ async function main() {
     throw new Error("devSession requires NODE_ENV=development or NODE_ENV=test");
   }
   const phone = process.argv[2];
-  if (!phone) throw new Error("usage: devSession <phone>");
-  const staff = await prisma.staffUser.findFirstOrThrow({
-    where: { phone: { in: [phone, `91${phone}`] } },
-    select: { id: true, name: true },
-  });
+  const realm = (process.argv[3] ?? "staff") as "staff" | "retailer";
+  if (!phone) throw new Error("usage: devSession <phone> [staff|retailer]");
+  if (!["staff", "retailer"].includes(realm)) {
+    throw new Error("realm must be staff or retailer");
+  }
+
+  const subject =
+    realm === "retailer"
+      ? await prisma.retailer.findFirstOrThrow({
+          where: { phone: { in: [phone, `91${phone}`] } },
+          select: { id: true, name: true },
+        })
+      : await prisma.staffUser.findFirstOrThrow({
+          where: { phone: { in: [phone, `91${phone}`] } },
+          select: { id: true, name: true },
+        });
+
   const session = await lazyIdentitySessionService.createSession({
-    realm: "staff",
-    subjectId: staff.id,
+    realm,
+    subjectId: subject.id,
     deviceName: "local-verification",
   });
   console.log(
     JSON.stringify({
-      staff,
+      realm,
+      subject,
       accessToken: session.accessToken,
       refreshToken: session.refreshToken,
     })

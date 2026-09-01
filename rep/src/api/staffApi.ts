@@ -175,6 +175,31 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
       request(`/rep/field/performance${rangeQuery(from, to)}`),
     activityFeed: (from?: string, to?: string) =>
       request(`/rep/field/activity-feed${rangeQuery(from, to)}`),
+    /* ------------------------ performance and intelligence ----------------------- */
+
+    targets: () => request("/rep/performance/targets"),
+    ranking: () => request("/rep/performance/ranking"),
+    achievements: () => request("/rep/performance/achievements"),
+    opportunities: (limit?: number) =>
+      request(`/rep/intelligence/opportunities${limit ? `?limit=${limit}` : ""}`),
+    retailerBaseline: (retailerId: string) =>
+      request(`/rep/intelligence/retailers/${retailerId}/baseline`),
+
+    /* ------------------------------ new retailers ------------------------------ */
+
+    retailerProposals: () => request("/rep/retailer-proposals"),
+    proposeRetailer: (body: {
+      businessName: string;
+      ownerName?: string;
+      phone: string;
+      shopAddress: string;
+      latitude?: number;
+      longitude?: number;
+      accuracyMeters?: number;
+      notes?: string;
+    }) => post("/rep/retailer-proposals", body),
+    withdrawRetailerProposal: (id: string) => post(`/rep/retailer-proposals/${id}/withdraw`),
+
     customerMap: (origin?: { latitude: number; longitude: number }) =>
       request(
         `/rep/field/customers/map${

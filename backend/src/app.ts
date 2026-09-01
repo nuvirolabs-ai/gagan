@@ -21,6 +21,14 @@ import { LocationService } from "./modules/location/locationService";
 import { loadLocationConfig } from "./modules/location/locationConfig";
 import { createFieldRouter } from "./modules/field/fieldRoutes";
 import { createFieldAdminRouter } from "./modules/field/fieldAdminRoutes";
+import {
+  createPerformanceRouter,
+  createSalesLeaderRouter,
+} from "./modules/performance/performanceRoutes";
+import {
+  createRetailerProposalAdminRouter,
+  createRetailerProposalRouter,
+} from "./modules/customers/proposalRoutes";
 import { defaultRouteService } from "./modules/field/routeService";
 import { prisma } from "./lib/prisma";
 import { createRatingRouter } from "./modules/credit/ratingRoutes";
@@ -144,6 +152,18 @@ export function createApp(options: CreateAppOptions = {}) {
       authenticate: createRequireSession("staff", lazyIdentitySessionService),
     })
   );
+  app.use(
+    "/rep",
+    createPerformanceRouter({
+      authenticate: createRequireSession("staff", lazyIdentitySessionService),
+    })
+  );
+  app.use(
+    "/rep",
+    createRetailerProposalRouter({
+      authenticate: createRequireSession("staff", lazyIdentitySessionService),
+    })
+  );
 
   app.use("/admin", adminAuthRoutes);
   app.use(
@@ -175,6 +195,8 @@ export function createApp(options: CreateAppOptions = {}) {
     createCreditRolloutRouter({ authenticate: requireAdminIdentity })
   );
   app.use("/admin", createFieldAdminRouter({ authenticate: requireAdminIdentity }));
+  app.use("/admin", createSalesLeaderRouter({ authenticate: requireAdminIdentity }));
+  app.use("/admin", createRetailerProposalAdminRouter({ authenticate: requireAdminIdentity }));
   app.use("/admin", adminOrderRoutes);
   app.use("/admin", adminRetailerRoutes);
   app.use("/admin", adminCatalogRoutes);

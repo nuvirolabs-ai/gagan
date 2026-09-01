@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { api, retailerSessionStore, setUnauthorizedHandler } from "../api/client";
+import { isAuthenticationFailure } from "../auth/sessionFetch";
 import { useLanguage } from "../i18n/LanguageContext";
 
 interface RetailerInfo {
@@ -44,9 +45,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const res = await api.me();
         setRetailer(res.retailer);
-      } catch {
-        await retailerSessionStore.clear();
-        setRetailer(null);
+      } catch (error) {
+        // Only the server refusing the session ends it. A shop with no signal
+        // keeps its stored session so it can order as soon as it reconnects,
+        // rather than being asked for an OTP it cannot receive.
+        if (isAuthenticationFailure(error)) {
+          await retailerSessionStore.clear();
+          setRetailer(null);
+        }
       } finally {
         setLoading(false);
       }

@@ -23,6 +23,8 @@ import FieldTeam from "./pages/FieldTeam";
 import FieldPlanning from "./pages/FieldPlanning";
 import FieldExpenses from "./pages/FieldExpenses";
 import ServiceIssues from "./pages/ServiceIssues";
+import SalesLeader from "./pages/SalesLeader";
+import RetailerApprovals from "./pages/RetailerApprovals";
 
 const NAV = [
   { to: "/", label: "Overview", permissions: ["staff.manage", "dashboard.view"] },
@@ -41,6 +43,8 @@ const NAV = [
   { to: "/staff", label: "Staff access", permissions: ["staff.manage"] },
   { to: "/locations", label: "Store locations", permissions: ["location.view"] },
   { to: "/visits", label: "Sales visits", permissions: ["visit.view"] },
+  { to: "/sales-leader", label: "Sales leader", permissions: ["performance.view_team"] },
+  { to: "/retailer-approvals", label: "New retailers", permissions: ["retailer.proposal_review"] },
   { to: "/field-team", label: "Field team", permissions: ["attendance.review"] },
   { to: "/field-planning", label: "Routes & tasks", permissions: ["route.manage"] },
   { to: "/field-expenses", label: "Field expenses", permissions: ["expense.review"] },
@@ -96,6 +100,8 @@ function Shell() {
           <Route path="/corrections" element={<Corrections />} />
           <Route path="/locations" element={<Locations />} />
           <Route path="/visits" element={<Visits />} />
+          <Route path="/sales-leader" element={<SalesLeader />} />
+          <Route path="/retailer-approvals" element={<RetailerApprovals />} />
           <Route path="/field-team" element={<FieldTeam />} />
           <Route path="/field-planning" element={<FieldPlanning />} />
           <Route path="/field-expenses" element={<FieldExpenses />} />

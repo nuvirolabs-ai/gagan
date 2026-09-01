@@ -19,6 +19,10 @@ import {
   FieldDashboardService,
   defaultFieldDashboardService,
 } from "./dashboardService";
+import {
+  SalespersonTodayService,
+  defaultSalespersonTodayService,
+} from "../readmodels/salespersonTodayService";
 import { CUSTOMER_ACTIVITY_TYPES, startOfDay } from "./fieldDomain";
 
 export interface FieldServices {
@@ -30,6 +34,8 @@ export interface FieldServices {
   expenses: ExpenseService;
   issues: IssueService;
   dashboard: FieldDashboardService;
+  /** Today is composed from the field day plus targets, standing and actions. */
+  todayReadModel: SalespersonTodayService;
 }
 
 export const defaultFieldServices: FieldServices = {
@@ -41,6 +47,7 @@ export const defaultFieldServices: FieldServices = {
   expenses: defaultExpenseService,
   issues: defaultIssueService,
   dashboard: defaultFieldDashboardService,
+  todayReadModel: defaultSalespersonTodayService,
 };
 
 const coordinate = z.object({
@@ -93,7 +100,9 @@ export function createFieldRouter(options: {
     requirePermission(Permissions.ROUTE_EXECUTE),
     asyncRoute(async (req: StaffAuthedRequest, res, next) => {
       try {
-        res.json(await services.dashboard.today({ salespersonId: req.staffAuth!.staffId }));
+        // One request for the whole screen: field day, targets, standing,
+        // recognition and next best actions.
+        res.json(await services.todayReadModel.load({ salespersonId: req.staffAuth!.staffId }));
       } catch (error) {
         sendFieldError(error, res, next);
       }

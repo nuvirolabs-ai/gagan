@@ -22,6 +22,10 @@ function inputJson(value: unknown): Prisma.InputJsonValue {
 async function main() {
   // Wipe transactional data so the seed is repeatable.
   await prisma.dispatchAuthorization.deleteMany();
+  // Recognition and customer-master proposals reference staff the same way, so
+  // they go before the staff they point at.
+  await prisma.achievementEvent.deleteMany();
+  await prisma.retailerProposal.deleteMany();
   // Field-operations rows reference staff, retailers and visits with
   // onDelete: Restrict, so they are cleared before anything they point at.
   await prisma.locationPing.deleteMany();
@@ -171,6 +175,21 @@ async function main() {
       salesRepId: rep.id,
     },
   });
+
+  // A second salesperson in the same territory, so ranking has a scope with
+  // more than one person in it and a leaderboard means something.
+  const secondRep = await prisma.salesRep.create({
+    data: { name: "Priya Deshmukh", phone: "9812345671", territory: rep.territory },
+  });
+  const secondSalesStaff = await prisma.staffUser.create({
+    data: {
+      name: secondRep.name,
+      phone: secondRep.phone,
+      email: "priya@gagan.test",
+      employeeRef: "SALES-002",
+      salesRepId: secondRep.id,
+    },
+  });
   const platformAdmin = await prisma.staffUser.create({
     data: {
       name: admin.name,
@@ -183,6 +202,7 @@ async function main() {
   await prisma.staffRole.createMany({
     data: [
       { staffId: salesStaff.id, roleId: roleIds.get("salesperson")! },
+      { staffId: secondSalesStaff.id, roleId: roleIds.get("salesperson")! },
       { staffId: platformAdmin.id, roleId: roleIds.get("platform_admin")! },
     ],
   });
@@ -472,25 +492,37 @@ async function main() {
     ],
   });
 
+  const periodStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+  const periodEnd = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0));
   await prisma.salesTarget.createMany({
     data: [
-      {
-        salespersonId: salesStaff.id,
-        metric: "order_value",
-        periodStart: new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1)),
-        periodEnd: new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0)),
-        targetValue: 400000,
-        createdByStaffId: platformAdmin.id,
-      },
-      {
-        salespersonId: salesStaff.id,
-        metric: "visits",
-        periodStart: new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1)),
-        periodEnd: new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0)),
-        targetValue: 80,
-        createdByStaffId: platformAdmin.id,
-      },
+      // Every metric here has a canonical source: orders, order lines, visits,
+      // productive visits and confirmed collections.
+      { salespersonId: salesStaff.id, metric: "order_value", periodStart, periodEnd, targetValue: 400000, createdByStaffId: platformAdmin.id },
+      { salespersonId: salesStaff.id, metric: "visits", periodStart, periodEnd, targetValue: 80, createdByStaffId: platformAdmin.id },
+      { salespersonId: salesStaff.id, metric: "order_count", periodStart, periodEnd, targetValue: 24, createdByStaffId: platformAdmin.id },
+      { salespersonId: salesStaff.id, metric: "line_items", periodStart, periodEnd, targetValue: 40, createdByStaffId: platformAdmin.id },
+      { salespersonId: salesStaff.id, metric: "productive_outlets", periodStart, periodEnd, targetValue: 12, createdByStaffId: platformAdmin.id },
+      { salespersonId: salesStaff.id, metric: "collection_value", periodStart, periodEnd, targetValue: 150000, createdByStaffId: platformAdmin.id },
+      { salespersonId: secondSalesStaff.id, metric: "order_value", periodStart, periodEnd, targetValue: 400000, createdByStaffId: platformAdmin.id },
+      { salespersonId: secondSalesStaff.id, metric: "visits", periodStart, periodEnd, targetValue: 80, createdByStaffId: platformAdmin.id },
     ],
+  });
+
+  // A store waiting for a manager's decision, so the approval queue is real.
+  await prisma.retailerProposal.create({
+    data: {
+      businessName: "Sai Krupa Provision Store",
+      ownerName: "Mahesh Jadhav",
+      phone: "9812345690",
+      shopAddress: "27 Sinhagad Road, Pune",
+      latitude: 18.4655,
+      longitude: 73.8271,
+      accuracyMeters: 11,
+      proposedTierId: tierB.id,
+      notes: "Busy corner shop near the bus stand, buys weekly.",
+      submittedByStaffId: salesStaff.id,
+    },
   });
 
   // One featured scheme drives the banner; the rest feed the "8 Active Offers" count.
@@ -562,6 +594,79 @@ async function main() {
         createdAt: daysFromNow(-daysAgo),
         items: {
           create: [{ variantId: chana.variants[0].id, qtyOrdered: 3, unitPrice: 2850 }],
+        },
+      },
+    });
+  }
+
+  // Behavioural history: several stores on their own steady order cycle, one
+  // of them now well past it. This is what the intelligence engine reads to
+  // say "usually orders every N days" — without it there is no baseline and,
+  // correctly, no trigger.
+  const cycleStores: Array<[string, number, number, number]> = [
+    // [retailer name, cycle days, typical order value, days since last order]
+    ["Shree Ganesh Grocers", 12, 22400, 19],
+    ["Annapurna Foods", 14, 31000, 6],
+    ["Lakshmi Provision Mart", 10, 16500, 21],
+    ["New Bharat Traders", 21, 48000, 9],
+  ];
+  for (const [name, cycleDays, typicalValue, sinceLast] of cycleStores) {
+    const store = await prisma.retailer.findFirst({ where: { name } });
+    if (!store) continue;
+    for (let index = 0; index < 6; index += 1) {
+      const placedDaysAgo = sinceLast + index * cycleDays;
+      // The most recent order for one store is deliberately a small one, so a
+      // below-normal basket has something real to be measured against.
+      const isSmallLastOrder = name === "Lakshmi Provision Mart" && index === 0;
+      await prisma.order.create({
+        data: {
+          retailerId: store.id,
+          status: "delivered",
+          placedBy: "rep",
+          placedByRepId: rep.id,
+          orderTotal: isSmallLastOrder ? Math.round(typicalValue * 0.4) : typicalValue,
+          createdAt: daysFromNow(-placedDaysAgo),
+          items: {
+            create: isSmallLastOrder
+              ? [{ variantId: toorDal.variants[0].id, qtyOrdered: 2, unitPrice: 3150 }]
+              : [
+                  { variantId: toorDal.variants[0].id, qtyOrdered: 4, unitPrice: 3150 },
+                  { variantId: basmati.variants[0].id, qtyOrdered: 3, unitPrice: 5400 },
+                  { variantId: chana.variants[0].id, qtyOrdered: 2, unitPrice: 2850 },
+                ],
+          },
+        },
+      });
+    }
+  }
+
+  // Orders placed today by the salesperson, so the current period has real
+  // movement to show against the monthly targets rather than a period that has
+  // only just begun.
+  const todayOrders: Array<[string, number, number]> = [
+    // [retailer name, order value, lines]
+    ["Om Sai General Store", 84000, 3],
+    ["Radha Krishna Stores", 61500, 2],
+    ["City Mart Foods", 72400, 3],
+    ["Fresh Basket Wholesale", 42600, 2],
+  ];
+  for (const [name, total, lines] of todayOrders) {
+    const store = await prisma.retailer.findFirst({ where: { name } });
+    if (!store) continue;
+    const lineVariants = [toorDal.variants[0].id, basmati.variants[0].id, chana.variants[0].id];
+    await prisma.order.create({
+      data: {
+        retailerId: store.id,
+        status: "confirmed",
+        placedBy: "rep",
+        placedByRepId: rep.id,
+        orderTotal: total,
+        items: {
+          create: lineVariants.slice(0, lines).map((variantId, index) => ({
+            variantId,
+            qtyOrdered: 3 + index,
+            unitPrice: 3150,
+          })),
         },
       },
     });

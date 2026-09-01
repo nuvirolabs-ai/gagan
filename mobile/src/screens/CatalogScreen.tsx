@@ -13,8 +13,8 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "../api/client";
 import { colors, radius, spacing, shadow, inr, TAB_BAR_SPACE } from "../theme";
-import ProductThumb from "../components/ProductThumb";
-import { ScreenHeader, SearchBar, ChipRow, QtyStepper, EmptyState } from "../components/ui";
+import ProductGroupCard, { type ProductGroupLike, type Sku } from "../components/ProductGroupCard";
+import { ScreenHeader, SearchBar, ChipRow, EmptyState } from "../components/ui";
 import { useCart } from "../context/CartContext";
 import { useLanguage } from "../i18n/LanguageContext";
 
@@ -23,7 +23,7 @@ const ALL = "All";
 export default function CatalogScreen({ navigation }: any) {
   const { lines, addLine, updateQty } = useCart();
   const { t } = useLanguage();
-  const [products, setProducts] = useState<any[]>([]);
+  const [groups, setGroups] = useState<ProductGroupLike[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [category, setCategory] = useState(ALL);
   const [query, setQuery] = useState("");
@@ -32,7 +32,9 @@ export default function CatalogScreen({ navigation }: any) {
 
   const load = useCallback(async () => {
     const res = await api.getCatalog();
-    setProducts(res.catalog);
+    // The grouped read model is what the shelf renders: one card per logical
+    // product, with its pack sizes to choose from.
+    setGroups(res.groups ?? []);
     setCategories(res.categories ?? []);
   }, []);
 
@@ -40,7 +42,7 @@ export default function CatalogScreen({ navigation }: any) {
     useCallback(() => {
       setLoading(true);
       load()
-        .catch(() => setProducts([]))
+        .catch(() => setGroups([]))
         .finally(() => setLoading(false));
     }, [load])
   );
@@ -51,35 +53,45 @@ export default function CatalogScreen({ navigation }: any) {
     setRefreshing(false);
   };
 
-  // One row per sellable case, so a multi-variant product lists each pack size.
+  // One row per logical product. A pack size is a choice inside the card, not
+  // a reason to list the same product again.
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return products
-      .filter((p) => category === ALL || p.category === category)
-      .filter((p) => !q || p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q))
-      .flatMap((p) => p.variants.map((v: any) => ({ product: p, variant: v })));
-  }, [products, category, query]);
+    return groups
+      .filter((group) => category === ALL || group.category === category)
+      .filter(
+        (group) =>
+          !q ||
+          group.name.toLowerCase().includes(q) ||
+          group.category.toLowerCase().includes(q) ||
+          group.skus.some((sku) => sku.packLabel.toLowerCase().includes(q))
+      );
+  }, [groups, category, query]);
 
   const qtyFor = (variantId: string) => lines.find((l) => l.variantId === variantId)?.qty ?? 0;
 
-  const setQty = (product: any, variant: any, next: number) => {
-    if (variant.price == null) return;
-    const current = qtyFor(variant.id);
-    const orderable = variant.availability?.status === "available" && Number(variant.availability.available) > 0;
+  const setQty = (group: ProductGroupLike, sku: Sku, next: number) => {
+    if (sku.price == null) return;
+    const current = qtyFor(sku.id);
+    const availability = sku.availability;
+    const orderable =
+      !availability || availability.status == null || availability.status === "unknown"
+        ? true
+        : availability.status === "available" && Number(availability.available ?? 0) > 0;
     // Inventory is authoritative in the API. Allow a shopper to remove an
     // already-saved line, but never add a new case when SAP has not supplied
     // usable stock for it.
     if (next > current && !orderable) return;
     if (current === 0 && next > 0) {
       addLine({
-        variantId: variant.id,
-        productName: product.name,
-        packSize: `${variant.unitSize} × ${variant.unitsPerCase}`,
-        unitPrice: Number(variant.price),
+        variantId: sku.id,
+        productName: group.name,
+        packSize: sku.packDetail,
+        unitPrice: Number(sku.price),
         qty: next,
       });
     } else {
-      updateQty(variant.id, next);
+      updateQty(sku.id, next);
     }
   };
 
@@ -113,8 +125,8 @@ export default function CatalogScreen({ navigation }: any) {
       ) : (
         <FlatList
           data={rows}
-          keyExtractor={(r) => r.variant.id}
-          contentContainerStyle={{ padding: spacing.lg, paddingBottom: TAB_BAR_SPACE }}
+          keyExtractor={(group) => group.id}
+          contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: TAB_BAR_SPACE }}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.green} />
           }
@@ -130,49 +142,16 @@ export default function CatalogScreen({ navigation }: any) {
               }}
             />
           }
-          renderItem={({ item }) => {
-            const { product, variant } = item;
-            const qty = qtyFor(variant.id);
-            return (
-              <TouchableOpacity
-                style={styles.card}
-                activeOpacity={0.85}
-                onPress={() => navigation.navigate("ProductDetail", { productId: product.id })}
-              >
-                <ProductThumb
-                  name={product.name}
-                  category={product.category}
-                  imageUrl={product.imageUrl}
-                  size={72}
-                />
-                <View style={styles.cardBody}>
-                  <Text style={styles.name} numberOfLines={1}>
-                    {product.name}
-                  </Text>
-                  <Text style={styles.pack}>
-                    {variant.unitSize} × {variant.unitsPerCase} · {variant.caseWeightKg}kg case
-                  </Text>
-                  <View style={styles.priceRow}>
-                    <Text style={styles.price}>
-                      {variant.price != null ? `${inr(variant.price)} / case` : t("common.priceOnRequest")}
-                    </Text>
-                    {variant.pricePerKg != null && (
-                      <Text style={styles.perKg}>{inr(variant.pricePerKg)}/kg</Text>
-                    )}
-                  </View>
-                  {variant.isOverride && (
-                    <View style={styles.dealTag}>
-                      <Ionicons name="pricetag" size={9} color={colors.green} />
-                      <Text style={styles.dealText}>{t("catalog.specialRate")}</Text>
-                    </View>
-                  )}
-                </View>
-                <View style={styles.action}>
-                  <QtyStepper qty={qty} onChange={(next) => setQty(product, variant, next)} compact />
-                </View>
-              </TouchableOpacity>
-            );
-          }}
+          renderItem={({ item }) => (
+            <ProductGroupCard
+              group={item}
+              qtyFor={qtyFor}
+              onChangeQty={(sku, next) => setQty(item, sku, next)}
+              onOpen={() =>
+                navigation.navigate("ProductDetail", { productId: item.skus[0]?.productId })
+              }
+            />
+          )}
         />
       )}
     </View>

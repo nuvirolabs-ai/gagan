@@ -1,28 +1,9 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { explain } from "../errorCopy";
 
 const TABS = ["pending", "approved", "rejected"] as const;
 
-/**
- * The API answers with a code; a reviewer needs a sentence. Anything not
- * listed falls back to the raw message rather than being swallowed.
- */
-const ERROR_COPY: Record<string, string> = {
-  tier_required:
-    "Choose a tier to apply — this request did not come with one, and a customer cannot be created without it.",
-  tier_not_found: "That tier no longer exists. Pick another one.",
-  proposal_already_decided: "Somebody has already decided this request.",
-  retailer_already_exists:
-    "A customer with this phone number already exists. Assign the existing customer instead.",
-  self_review_forbidden: "A salesperson cannot review their own request.",
-  rejection_reason_required: "Give the salesperson a reason before rejecting.",
-  proposal_not_found: "That request no longer exists.",
-};
-
-function explain(error: unknown): string {
-  const message = error instanceof Error ? error.message : "";
-  return ERROR_COPY[message] ?? message ?? "Something went wrong.";
-}
 
 const STATUS_PILL: Record<string, string> = {
   pending: "placed",
@@ -56,7 +37,7 @@ export default function RetailerApprovals() {
       setTiers(tierList.tiers ?? tierList ?? []);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load retailer requests");
+      setError(explain(err, "Could not load retailer requests"));
     } finally {
       setLoading(false);
     }

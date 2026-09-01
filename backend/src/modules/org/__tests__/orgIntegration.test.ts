@@ -37,6 +37,7 @@ const ids = {
   sellerW2: randomUUID(),
   sellerE1: randomUUID(),
   outsider: randomUUID(),
+  platform: randomUUID(),
   repW1: randomUUID(),
   repW2: randomUUID(),
   repE1: randomUUID(),
@@ -54,6 +55,7 @@ const staffIds = [
   ids.sellerW2,
   ids.sellerE1,
   ids.outsider,
+  ids.platform,
 ];
 
 const tokens: Record<string, string> = {};
@@ -126,6 +128,10 @@ beforeAll(async () => {
   tokens.sellerE1 = await makeStaff({ id: ids.sellerE1, name: "Org Seller E1", index: 7, role: "salesperson", managerId: ids.regionalEast, salesRepId: ids.repE1 });
   // Nobody's manager, nobody's report: the "not yet in the chart" case.
   tokens.outsider = await makeStaff({ id: ids.outsider, name: "Org Outsider", index: 8, role: "salesperson" });
+  // A genuine platform admin, so org-wide reads are proven with a real session
+  // rather than inferred. Deliberately placed nowhere in the tree: org.view_all
+  // must work without the holder having a single report.
+  tokens.platform = await makeStaff({ id: ids.platform, name: "Org Platform Admin", index: 9, role: "platform_admin", admin: true });
 
   const [w1, e1] = await Promise.all([
     prisma.fieldExpense.create({
@@ -387,6 +393,94 @@ describe("authorising manager surfaces over HTTP", () => {
     // A salesperson sits inside a tree but holds no review permission.
     const response = await get("/admin/field/expenses", tokens.sellerW1);
     expect([401, 403]).toContain(response.status);
+  });
+});
+
+describe("moving somebody between managers", () => {
+  const get = (path: string, token: string) =>
+    request(app).get(path).set("Authorization", `Bearer ${token}`);
+
+  it("moves the team, the retailers and the audit trail together, and nothing else", async () => {
+    const storesBefore = await prisma.retailer.findMany({
+      where: { id: { in: [ids.storeW1, ids.storeW2, ids.storeE1] } },
+      select: { id: true, salesRepId: true },
+      orderBy: { id: "asc" },
+    });
+
+    // Before: sellerW1 is West's, and East cannot see them at all.
+    const westBefore = await get("/admin/field/expenses", tokens.regionalWest).expect(200);
+    expect(westBefore.body.expenses.map((e: any) => e.salespersonId)).toContain(ids.sellerW1);
+    const eastBefore = await get("/admin/field/expenses", tokens.regionalEast).expect(200);
+    expect(eastBefore.body.expenses.map((e: any) => e.salespersonId)).not.toContain(ids.sellerW1);
+
+    const move = await request(app)
+      .post(`/admin/org/staff/${ids.sellerW1}/manager`)
+      .set("Authorization", `Bearer ${tokens.platform}`)
+      .send({ managerId: ids.regionalEast, reason: "Covering the East beat" });
+    expect(move.status).toBe(200);
+
+    try {
+      // The old manager loses them.
+      const westAfter = await get("/admin/field/expenses", tokens.regionalWest).expect(200);
+      expect(westAfter.body.expenses.map((e: any) => e.salespersonId)).not.toContain(ids.sellerW1);
+      // The new manager gains them.
+      const eastAfter = await get("/admin/field/expenses", tokens.regionalEast).expect(200);
+      expect(eastAfter.body.expenses.map((e: any) => e.salespersonId)).toContain(ids.sellerW1);
+
+      // The retailer book follows, without a single store being reassigned.
+      expect(await hierarchy.getManagerTeamRetailers(ids.regionalEast)).toContain(ids.storeW1);
+      const storesAfter = await prisma.retailer.findMany({
+        where: { id: { in: [ids.storeW1, ids.storeW2, ids.storeE1] } },
+        select: { id: true, salesRepId: true },
+        orderBy: { id: "asc" },
+      });
+      expect(storesAfter).toEqual(storesBefore);
+
+      // And the move is on the record, with both managers named.
+      const history = await hierarchy.managerHistory(ids.sellerW1);
+      expect(history[0]).toMatchObject({
+        previousManagerId: ids.areaWest,
+        newManagerId: ids.regionalEast,
+        changedById: ids.platform,
+        reason: "Covering the East beat",
+      });
+    } finally {
+      await hierarchy.setManager({ employeeId: ids.sellerW1, managerId: ids.areaWest, actorStaffId: ids.platform });
+    }
+  });
+});
+
+describe("org-wide authorisation", () => {
+  const get = (path: string, token: string) =>
+    request(app).get(path).set("Authorization", `Bearer ${token}`);
+
+  it("lets a platform admin with no reports of their own see every team", async () => {
+    const response = await get("/admin/field/expenses", tokens.platform).expect(200);
+    const owners = response.body.expenses.map((expense: any) => expense.salespersonId);
+    expect(owners).toEqual(expect.arrayContaining([ids.sellerW1, ids.sellerE1]));
+  });
+
+  it("still refuses to let them approve their own claim", async () => {
+    const own = await prisma.fieldExpense.create({
+      data: {
+        salespersonId: ids.platform,
+        expenseDate: new Date("2026-03-03"),
+        category: "travel",
+        amount: "99.00",
+        description: "Own claim",
+      },
+    });
+    const response = await request(app)
+      .post(`/admin/field/expenses/${own.id}/decision`)
+      .set("Authorization", `Bearer ${tokens.platform}`)
+      .send({ decision: "approved" });
+    expect(response.status).toBe(403);
+    expect(response.body.error).toBe("expense_self_decision_forbidden");
+  });
+
+  it("reaches the whole chart, which a field manager cannot", async () => {
+    await get("/admin/org/tree", tokens.platform).expect(200);
+    await get("/admin/org/tree", tokens.national).expect(403);
   });
 });
 

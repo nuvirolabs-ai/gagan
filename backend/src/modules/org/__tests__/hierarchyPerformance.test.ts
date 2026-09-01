@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { HierarchyService } from "../hierarchyService";
 import { TargetService } from "../../performance/targetService";
 import { OpportunityService } from "../../intelligence/opportunityService";
+import { SalesLeaderService } from "../../readmodels/salesLeaderService";
 
 /**
  * A synthetic organisation at the scale the business expects:
@@ -37,6 +38,7 @@ function countingRun<T>(work: () => Promise<T>): Promise<{ result: T; queries: n
 const hierarchy = new HierarchyService(counted);
 const targets = new TargetService(counted);
 const opportunities = new OpportunityService(counted);
+const salesLeader = new SalesLeaderService(counted);
 
 const tierId = randomUUID();
 const ids = { national: randomUUID(), regional: [] as string[], area: [] as string[], sellers: [] as string[] };
@@ -171,6 +173,22 @@ describe("preserving the bounded reads the dashboards depend on", () => {
     // Team size changes the rows scanned, never the number of round trips.
     expect(many).toBe(few);
     console.log(`bulkActuals: ${many} queries for 300 people, ${few} for 2`);
+  });
+
+  it("loads a whole manager dashboard in a fixed number of queries", async () => {
+    // The end-to-end read a national head actually triggers: staff, targets,
+    // attendance, calendar, ranking, beat progress and recommended actions.
+    // This is the number that regresses first if anything reintroduces a loop.
+    const period = { from: new Date("2026-03-01"), to: new Date("2026-03-31") };
+    const started = Date.now();
+    const { queries: many } = await countingRun(() =>
+      salesLeader.load({ scopeStaffIds: ids.sellers, managerStaffId: ids.national, period })
+    );
+    const { queries: few } = await countingRun(() =>
+      salesLeader.load({ scopeStaffIds: ids.sellers.slice(0, 2), managerStaffId: ids.national, period })
+    );
+    expect(many).toBe(few);
+    console.log(`salesLeader.load: ${many} queries for 300 people, ${few} for 2, ${Date.now() - started}ms`);
   });
 
   it("aggregates opportunities across the whole tree in a fixed number of queries", async () => {

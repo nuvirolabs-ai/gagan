@@ -162,3 +162,87 @@ export function flattenTree(roots: TreeNode[]): Array<HierarchyNode & { depth: n
   for (const root of roots) walk(root);
   return out;
 }
+
+/* --------------------------- rollout auditing ---------------------------- */
+
+export interface AuditableStaff {
+  id: string;
+  name: string;
+  status: string;
+  managerId: string | null;
+}
+
+export interface ChainAudit {
+  /** Levels above each employee, or -1 when their chain never reaches a root. */
+  depth: Map<string, number>;
+  /** Each distinct loop once, as names in walk order. */
+  cycles: string[][];
+  /** Employees whose managerId points at nobody. */
+  invalidRefs: AuditableStaff[];
+  /** Employees whose managerId is their own id. */
+  selfManaged: AuditableStaff[];
+}
+
+/**
+ * Walk every employee's chain upward and report what is structurally wrong.
+ *
+ * This is what a pre-deployment check needs and what `HierarchyService` cannot
+ * give it: the service is built to *survive* bad data (its CTEs terminate on a
+ * cycle rather than reporting it), whereas a rollout check has to name the
+ * damage. Keeping it pure means the failure modes can be tested exhaustively
+ * without writing a cycle into a real database to see what happens.
+ */
+export function auditChains(staff: AuditableStaff[], maxDepth = MAX_HIERARCHY_DEPTH): ChainAudit {
+  const byId = new Map(staff.map((row) => [row.id, row]));
+  const depth = new Map<string, number>();
+  const cycles: string[][] = [];
+  const invalidRefs: AuditableStaff[] = [];
+  const selfManaged: AuditableStaff[] = [];
+  const seenCycle = new Set<string>();
+
+  for (const person of staff) {
+    if (person.managerId === person.id) {
+      selfManaged.push(person);
+      depth.set(person.id, -1);
+      continue;
+    }
+
+    const path: string[] = [person.id];
+    const visited = new Set<string>([person.id]);
+    let current = person.managerId;
+    let broken = false;
+
+    while (current) {
+      if (visited.has(current)) {
+        // Key on the sorted members so one loop reported from five different
+        // employees prints once rather than five times.
+        const start = path.indexOf(current);
+        const loop = path.slice(start === -1 ? 0 : start);
+        const key = [...loop].sort().join("|");
+        if (!seenCycle.has(key)) {
+          seenCycle.add(key);
+          cycles.push(loop.map((id) => byId.get(id)?.name ?? id));
+        }
+        broken = true;
+        break;
+      }
+      const manager = byId.get(current);
+      if (!manager) {
+        invalidRefs.push(person);
+        broken = true;
+        break;
+      }
+      path.push(current);
+      visited.add(current);
+      current = manager.managerId;
+      if (path.length > maxDepth) {
+        broken = true;
+        break;
+      }
+    }
+
+    depth.set(person.id, broken ? -1 : path.length - 1);
+  }
+
+  return { depth, cycles, invalidRefs, selfManaged };
+}

@@ -1,22 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
+import { explain } from "../errorCopy";
 
-const ERROR_COPY: Record<string, string> = {
-  self_management: "Someone cannot report to themselves.",
-  cycle: "That manager already reports to this person, directly or further down.",
-  manager_not_found: "That manager no longer exists.",
-  manager_inactive: "That manager is not active.",
-  employee_not_found: "That employee no longer exists.",
-  employee_inactive: "That employee is not active, so their reporting line is frozen.",
-  max_depth_exceeded: "That would make the reporting chain too deep.",
-  permission_required: "You do not have permission to change reporting lines.",
-};
-
-function explain(error: unknown): string {
-  const code = (error as any)?.body?.error ?? (error as any)?.message;
-  return ERROR_COPY[code] ?? (error instanceof Error ? error.message : "Something went wrong");
-}
 
 /**
  * The reporting hierarchy: who reports to whom, and every change ever made.

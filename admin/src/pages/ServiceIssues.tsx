@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { explain } from "../errorCopy";
 
 const TABS = ["", "open", "in_progress", "resolved", "closed", "rejected"];
 
@@ -39,7 +40,7 @@ export default function ServiceIssues() {
       setIssues(result.issues ?? []);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load service issues");
+      setError(explain(err, "Could not load service issues"));
     } finally {
       setLoading(false);
     }
@@ -64,7 +65,7 @@ export default function ServiceIssues() {
       setResolution("");
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not update the issue");
+      setError(explain(err, "Could not update the issue"));
     }
   };
 

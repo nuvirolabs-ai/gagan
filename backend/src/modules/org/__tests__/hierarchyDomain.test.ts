@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ancestorIds,
+  auditChains,
   buildTree,
   flattenTree,
   validateManagerAssignment,
@@ -238,5 +239,86 @@ describe("shaping a tree", () => {
     expect(flat.map((node) => node.id)).toContain("c");
     // The cycle produces no infinite nesting; each node appears at most once.
     expect(new Set(flat.map((node) => node.id)).size).toBe(flat.length);
+  });
+});
+
+describe("auditing a hierarchy before deployment", () => {
+  const person = (id: string, managerId: string | null, status = "active") => ({
+    id,
+    name: id,
+    status,
+    managerId,
+  });
+
+  it("reports the depth of a healthy chain", () => {
+    const audit = auditChains([
+      person("national", null),
+      person("regional", "national"),
+      person("area", "regional"),
+      person("sales", "area"),
+    ]);
+    expect(audit.depth.get("national")).toBe(0);
+    expect(audit.depth.get("sales")).toBe(3);
+    expect(audit.cycles).toEqual([]);
+    expect(audit.invalidRefs).toEqual([]);
+  });
+
+  it("names a cycle once, not once per member", () => {
+    // Three people in a loop would otherwise be reported three times, and an
+    // operator reading the output would think there were three problems.
+    const audit = auditChains([person("a", "b"), person("b", "c"), person("c", "a")]);
+    expect(audit.cycles).toHaveLength(1);
+    expect(audit.cycles[0].sort()).toEqual(["a", "b", "c"]);
+  });
+
+  it("reports two separate loops separately", () => {
+    const audit = auditChains([
+      person("a", "b"),
+      person("b", "a"),
+      person("x", "y"),
+      person("y", "x"),
+    ]);
+    expect(audit.cycles).toHaveLength(2);
+  });
+
+  it("flags a manager id that points at nobody", () => {
+    const audit = auditChains([person("orphan", "ghost")]);
+    expect(audit.invalidRefs.map((row) => row.id)).toEqual(["orphan"]);
+    // The chain is broken, so the depth is unknowable rather than zero.
+    expect(audit.depth.get("orphan")).toBe(-1);
+  });
+
+  it("flags someone reporting to themselves", () => {
+    const audit = auditChains([person("loner", "loner")]);
+    expect(audit.selfManaged.map((row) => row.id)).toEqual(["loner"]);
+    expect(audit.cycles).toEqual([]);
+  });
+
+  it("marks everyone below a break as disconnected, not as depth zero", () => {
+    // The distinction matters: depth 0 means "top of the tree", which is fine.
+    const audit = auditChains([
+      person("root", null),
+      person("mid", "ghost"),
+      person("leaf", "mid"),
+    ]);
+    expect(audit.depth.get("root")).toBe(0);
+    expect(audit.depth.get("mid")).toBe(-1);
+    expect(audit.depth.get("leaf")).toBe(-1);
+  });
+
+  it("stops rather than looping forever on a chain longer than the ceiling", () => {
+    const deep = Array.from({ length: 60 }, (_, level) =>
+      person(`level-${level}`, level === 0 ? null : `level-${level - 1}`)
+    );
+    const audit = auditChains(deep);
+    expect(audit.depth.get("level-59")).toBe(-1);
+    expect(audit.depth.get("level-5")).toBe(5);
+  });
+
+  it("says nothing about an inactive employee's own chain", () => {
+    // Status is the caller's concern; this function only reports structure.
+    const audit = auditChains([person("boss", null, "suspended"), person("report", "boss")]);
+    expect(audit.depth.get("report")).toBe(1);
+    expect(audit.cycles).toEqual([]);
   });
 });

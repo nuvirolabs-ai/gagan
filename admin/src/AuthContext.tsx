@@ -9,12 +9,14 @@ import { AuthContext, type Admin } from "./auth-context";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [admin, setAdmin] = useState<Admin | null>(null);
+  const [staffId, setStaffId] = useState<string | null>(null);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
       setAdmin(null);
+      setStaffId(null);
       setPermissions([]);
     });
     return () => setUnauthorizedHandler(null);
@@ -26,6 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // API. This is opt-in at build time and must never be enabled for production.
     if (import.meta.env.VITE_DEMO_MODE === "true") {
       setAdmin({ id: "demo-admin", name: "Ananya Shah", email: "demo@gagan.test" });
+      setStaffId(null);
       setPermissions(["dashboard.view"]);
       setLoading(false);
       return;
@@ -36,10 +39,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await api.refresh();
         const res = await api.me();
         setAdmin(res.admin);
+        setStaffId(res.staffId ?? null);
         setPermissions(res.permissions ?? []);
       } catch {
         clearAccessToken();
         setAdmin(null);
+        setStaffId(null);
         setPermissions([]);
       } finally {
         setLoading(false);
@@ -52,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAccessToken(res.accessToken);
     const identity = await api.me();
     setAdmin(identity.admin);
+    setStaffId(identity.staffId ?? null);
     setPermissions(identity.permissions ?? []);
   };
 
@@ -66,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ admin, permissions, loading, login, logout }}>
+    <AuthContext.Provider value={{ admin, staffId, permissions, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

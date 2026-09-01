@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, inr } from "../api";
+import { explain } from "../errorCopy";
+import { useAuth } from "../useAuth";
 
 const TABS = ["submitted", "approved", "rejected"] as const;
 
@@ -9,6 +11,7 @@ const TABS = ["submitted", "approved", "rejected"] as const;
  * outside this module.
  */
 export default function FieldExpenses() {
+  const { staffId } = useAuth();
   const [status, setStatus] = useState<(typeof TABS)[number]>("submitted");
   const [expenses, setExpenses] = useState<any[]>([]);
   const [note, setNote] = useState("");
@@ -22,7 +25,7 @@ export default function FieldExpenses() {
       setExpenses(result.expenses ?? []);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load expenses");
+      setError(explain(err, "Could not load expenses"));
     } finally {
       setLoading(false);
     }
@@ -39,7 +42,7 @@ export default function FieldExpenses() {
       setNote("");
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not record the decision");
+      setError(explain(err, "Could not record the decision"));
     }
   };
 
@@ -114,7 +117,15 @@ export default function FieldExpenses() {
                     )}
                   </td>
                   <td>
-                    {expense.status === "submitted" ? (
+                    {expense.status !== "submitted" ? (
+                      <span className="small muted">{expense.decisionNote ?? "—"}</span>
+                    ) : expense.salespersonId === staffId ? (
+                      // A reviewer's own claim reaches their queue because they
+                      // are inside their own reporting scope. The server refuses
+                      // the decision either way; offering the button anyway just
+                      // produces a guaranteed failure.
+                      <span className="small muted">Your own claim — someone above you decides it</span>
+                    ) : (
                       <div className="row" style={{ gap: 6 }}>
                         <button className="sm" onClick={() => void decide(expense.id, "approved")}>
                           Approve
@@ -126,8 +137,6 @@ export default function FieldExpenses() {
                           Reject
                         </button>
                       </div>
-                    ) : (
-                      <span className="small muted">{expense.decisionNote ?? "—"}</span>
                     )}
                   </td>
                 </tr>

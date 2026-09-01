@@ -19,7 +19,9 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "ts-node prisma/seed.ts",
     "financial:backfill": "ts-node --transpile-only scripts/backfillFinancialCore.ts",
-    "financial:reconcile": "ts-node --transpile-only scripts/reconcileFinancialCore.ts"
+    "financial:reconcile": "ts-node --transpile-only scripts/reconcileFinancialCore.ts",
+    "check:sales-org-readiness": "ts-node --transpile-only scripts/checkSalesOrgReadiness.ts",
+    "seed:staging-hierarchy": "ts-node --transpile-only scripts/seedStagingHierarchy.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1115.0",

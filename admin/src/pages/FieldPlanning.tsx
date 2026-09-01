@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { explain } from "../errorCopy";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -59,7 +60,7 @@ export default function FieldPlanning() {
       setTargets(targetResult.targets ?? []);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load field planning");
+      setError(explain(err, "Could not load field planning"));
     }
   };
 
@@ -94,7 +95,7 @@ export default function FieldPlanning() {
       await load();
     } catch (err) {
       setMessage(null);
-      setError(err instanceof Error ? err.message : "Could not save the route");
+      setError(explain(err, "Could not save the route"));
     }
   };
 
@@ -118,7 +119,7 @@ export default function FieldPlanning() {
       await load();
     } catch (err) {
       setMessage(null);
-      setError(err instanceof Error ? err.message : "Could not assign the task");
+      setError(explain(err, "Could not assign the task"));
     }
   };
 
@@ -143,7 +144,7 @@ export default function FieldPlanning() {
       await load();
     } catch (err) {
       setMessage(null);
-      setError(err instanceof Error ? err.message : "Could not save the target");
+      setError(explain(err, "Could not save the target"));
     }
   };
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, inr } from "../api";
+import { explain } from "../errorCopy";
 
 const MARK_PILL: Record<string, string> = {
   present: "confirmed",
@@ -49,7 +50,7 @@ export default function FieldTeam() {
       setPositions(liveResult.salespeople ?? []);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load the field team");
+      setError(explain(err, "Could not load the field team"));
     } finally {
       setLoading(false);
     }
@@ -66,7 +67,7 @@ export default function FieldTeam() {
       setNote("");
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not record the decision");
+      setError(explain(err, "Could not record the decision"));
     }
   };
 

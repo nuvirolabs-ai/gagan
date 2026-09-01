@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, inr } from "../api";
+import { explain } from "../errorCopy";
 
 const RISK_PILL: Record<string, string> = {
   at_risk: "rejected",
@@ -37,7 +38,7 @@ export default function SalesLeader() {
       setData(await api.salesLeader());
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load the sales dashboard");
+      setError(explain(err, "Could not load the sales dashboard"));
     } finally {
       setLoading(false);
     }

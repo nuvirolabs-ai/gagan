@@ -5,6 +5,41 @@ written from the shipped code and verified only against the automated suites and
 a desktop browser. Every box below is unticked on purpose: this is the script a
 tester follows on a real phone, not a record of a test that happened.
 
+## Why it has not been run, and what unblocks it
+
+| Platform | Blocker | Who can clear it |
+|---|---|---|
+| **Android** | `adb` is not installed on this machine and no device is attached. Nothing here can detect, install to, or drive a handset. | Install Android platform-tools and connect a phone with USB debugging on. |
+| **iOS Simulator** | `Xcode.app` is installed but `xcode-select -p` points at `/Library/Developer/CommandLineTools`, so `simctl` does not exist. | You — the fix needs your password, so it cannot be run from here. |
+| **iPhone (physical)** | Blocked behind the same Xcode setup, plus provisioning. | You. |
+
+The one command that unblocks the iOS side:
+
+```bash
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+```
+
+Once that succeeds, the simulator can be driven from here and the §9 checks
+below can be run against it. A physical iPhone still needs a device build and
+free-provisioning setup, and a simulator pass is never evidence for a handset.
+
+## Getting the build onto a phone
+
+The staging profile already exists (`rep/eas.json`) and points at the hosted
+API, not localhost:
+
+```bash
+cd rep && npx eas-cli build --profile staging --platform android
+```
+
+That produces an installable APK against `https://gagan-staging-api.onrender.com`
+with the staging database behind it. EAS project `c9163a8c…`, owner
+`signorvale`, package `com.gagan.sales`.
+
+**Do not point a device build at `localhost`.** A phone cannot reach it, and a
+tunnel changes the network characteristics that half of these tests exist to
+exercise.
+
 ## Why a real device is required
 
 Four things behave differently on a handset than anywhere else, and all four are
@@ -107,3 +142,43 @@ seeded data, no permission) is **blocked**, not passed.
 Do not add features to make a box tick. If a box fails, that is a defect to
 raise; if a box describes something the product deliberately does not do, correct
 this document rather than the product.
+
+## 9. iOS-specific checks
+
+Run these on the Simulator first (once `xcode-select` is fixed), then on a
+physical iPhone. **A simulator pass is not an iPhone pass** — record them
+separately.
+
+- [ ] Safe areas: nothing sits under the notch, the Dynamic Island, or the home
+      indicator on a device that has them.
+- [ ] The floating tab bar does not cover content at the bottom of any scroll
+      view (the apps reserve `TAB_BAR_SPACE`; check it is enough on a small
+      screen).
+- [ ] Keyboard: opening it on the order, collection, expense and add-retailer
+      forms does not hide the field being typed into, and the form scrolls.
+- [ ] Keyboard dismisses on scroll and on tapping outside.
+- [ ] Navigation: the back swipe works everywhere and never strands a
+      half-finished form.
+- [ ] Background the app mid-visit, wait two minutes, foreground it: state is
+      intact and nothing double-posts.
+- [ ] Location permission: deny it, and confirm the app explains what stops
+      working rather than crashing or silently doing nothing.
+- [ ] Grant "While Using", not "Always", and confirm the workday still functions
+      — the product deliberately does not ask for background location.
+- [ ] Cold start with no network: the app opens on cached data and says so.
+- [ ] Check in, place an order, and add a retailer end to end.
+- [ ] Long names: a 60-character shop name does not break any card or row.
+
+## 10. Cross-platform edge cases
+
+Run on both platforms.
+
+- [ ] Poor network (throttled, high latency): writes queue rather than hang, and
+      the UI says which state each one is in.
+- [ ] No network mid-flow: see §5.
+- [ ] App killed from the switcher and reopened: nothing lost, nothing doubled.
+- [ ] Location denied, then granted later without reinstalling.
+- [ ] Poor GPS (indoors, urban canyon): check-in behaviour is stated, not
+      silently wrong.
+- [ ] Empty states: a salesperson with no route, no retailers and no target sees
+      an explanation, not a blank screen or a zero pretending to be data.

@@ -1,21 +1,24 @@
 import React, { useCallback, useState } from "react";
-import {
-  ActivityIndicator,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { Ionicons } from "@expo/vector-icons";
 
-import { Card, EmptyState, ListRow, MetricTile, ProgressTrack, ScreenHeader, SectionTitle, Tag } from "../components/ui";
+import {
+  AppScreen,
+  EmptyState,
+  FilterChip,
+  MetricStrip,
+  ProgressRow,
+  ScreenHeader,
+  SectionHeader,
+  Skeleton,
+  StatusChip,
+  Surface,
+  TimelineEvent,
+} from "../components/ui";
 import { ACTIVITY_LABELS } from "../components/ActivityComposer";
 import { AchievementLine } from "../components/Achievement";
 import { repApi } from "../api/repClient";
-import { colors, inr, radius, spacing, TAB_BAR_SPACE } from "../theme";
+import { colors, inr, spacing, TAB_BAR_SPACE } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
 
 const KIND_META: Record<string, { icon: string; label: string }> = {
@@ -24,17 +27,10 @@ const KIND_META: Record<string, { icon: string; label: string }> = {
   visit: { icon: "location-outline", label: "Visit" },
   activity: { icon: "clipboard-outline", label: "Activity" },
   order: { icon: "cart-outline", label: "Order" },
-  collection: { icon: "cash-outline", label: "Collection" },
-  task_completed: { icon: "checkmark-done-outline", label: "Task" },
-  expense: { icon: "wallet-outline", label: "Expense" },
+  collection: { icon: "wallet-outline", label: "Collection" },
+  task_completed: { icon: "checkmark-circle-outline", label: "Task" },
+  expense: { icon: "receipt-outline", label: "Expense" },
   service_issue: { icon: "alert-circle-outline", label: "Issue" },
-};
-
-const TARGET_LABELS: Record<string, string> = {
-  order_value: "Order value",
-  visits: "Visits",
-  collection_value: "Collections",
-  new_customers: "New customers",
 };
 
 const OUTCOME_LABELS: Record<string, string> = {
@@ -53,7 +49,6 @@ const OUTCOME_LABELS: Record<string, string> = {
   LOW_GPS_ACCURACY: "Weak GPS",
 };
 
-/** Enum values reach the feed raw; show the salesperson words, not columns. */
 function humanise(detail: string | null): string | null {
   if (!detail) return null;
   return detail
@@ -62,23 +57,21 @@ function humanise(detail: string | null): string | null {
     .join(" · ");
 }
 
-function dayLabel(iso: string) {
+function dayGroup(iso: string, t: (key: string) => string) {
   const date = new Date(iso);
   const today = new Date();
-  const isToday = date.toDateString() === today.toDateString();
-  return isToday
-    ? "Today"
-    : date.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  if (date.toDateString() === today.toDateString()) return t("common.today");
+  if (date.toDateString() === yesterday.toDateString()) return t("activity.yesterday");
+  return t("activity.earlier");
 }
 
-/**
- * The salesperson's own history and performance. Both are projections of the
- * canonical rows — visits, orders, collections, workdays — rather than a
- * separate timeline table.
- */
-export default function MyActivityScreen() {
+export default function MyActivityScreen({ route }: any) {
   const { t } = useLanguage();
-  const [tab, setTab] = useState<"timeline" | "performance">("timeline");
+  const [tab, setTab] = useState<"timeline" | "performance">(
+    route?.params?.tab === "performance" ? "performance" : "timeline"
+  );
   const [entries, setEntries] = useState<any[]>([]);
   const [performance, setPerformance] = useState<any | null>(null);
   const [targets, setTargets] = useState<any[]>([]);
@@ -110,35 +103,31 @@ export default function MyActivityScreen() {
   );
 
   const grouped = entries.reduce<Record<string, any[]>>((groups, entry) => {
-    const key = dayLabel(entry.at);
+    const key = dayGroup(entry.at, t);
     (groups[key] ??= []).push(entry);
     return groups;
   }, {});
 
+  const monthLabel = new Date().toLocaleDateString("en-IN", { month: "long" });
+
   return (
-    <View style={styles.screen}>
+    <AppScreen>
       <ScreenHeader title={t("activity.title")} />
 
       <View style={styles.tabs}>
-        {(
-          [
-            ["timeline", t("activity.timeline")],
-            ["performance", t("activity.performance")],
-          ] as const
-        ).map(([value, label]) => (
-          <TouchableOpacity
-            key={value}
-            style={[styles.tab, tab === value && styles.tabActive]}
-            onPress={() => setTab(value)}
-          >
-            <Text style={[styles.tabText, tab === value && styles.tabTextActive]}>{label}</Text>
-          </TouchableOpacity>
-        ))}
+        <FilterChip label={t("activity.timeline")} active={tab === "timeline"} onPress={() => setTab("timeline")} />
+        <FilterChip
+          label={t("activity.performance")}
+          active={tab === "performance"}
+          onPress={() => setTab("performance")}
+        />
       </View>
 
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.green} />
+        <View style={styles.skel}>
+          <Skeleton height={72} />
+          <Skeleton height={72} />
+          <Skeleton height={72} />
         </View>
       ) : (
         <ScrollView
@@ -151,7 +140,7 @@ export default function MyActivityScreen() {
                 await load();
                 setRefreshing(false);
               }}
-              tintColor={colors.green}
+              tintColor={colors.primary}
             />
           }
         >
@@ -164,167 +153,139 @@ export default function MyActivityScreen() {
               />
             ) : (
               Object.entries(grouped).map(([day, dayEntries]) => (
-                <View key={day} style={{ gap: spacing.sm }}>
+                <View key={day}>
                   <Text style={styles.dayHeading}>{day}</Text>
-                  <Card>
-                    {dayEntries.map((entry, index) => {
-                      const meta = KIND_META[entry.kind] ?? { icon: "ellipse-outline", label: entry.kind };
-                      return (
-                        <View
-                          key={entry.id}
-                          style={[styles.entry, index > 0 && styles.entryDivided]}
-                        >
-                          <View style={styles.entryIcon}>
-                            <Ionicons name={meta.icon as any} size={16} color={colors.green} />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.entryTitle} numberOfLines={2}>
-                              {entry.kind === "activity"
-                                ? ACTIVITY_LABELS[entry.title] ?? entry.title
-                                : entry.title}
-                            </Text>
-                            <Text style={styles.entrySub} numberOfLines={2}>
-                              {[
-                                new Date(entry.at).toLocaleTimeString("en-IN", {
-                                  hour: "numeric",
-                                  minute: "2-digit",
-                                }),
-                                entry.retailer?.name,
-                                humanise(entry.detail),
-                              ]
-                                .filter(Boolean)
-                                .join(" · ")}
-                            </Text>
-                          </View>
-                          {entry.amount ? (
-                            <Text style={styles.entryAmount}>{inr(entry.amount)}</Text>
-                          ) : null}
-                        </View>
-                      );
-                    })}
-                  </Card>
+                  {dayEntries.map((entry, index) => {
+                    const meta = KIND_META[entry.kind] ?? { icon: "ellipse-outline", label: entry.kind };
+                    return (
+                      <TimelineEvent
+                        key={entry.id}
+                        icon={meta.icon}
+                        title={
+                          entry.kind === "activity" ? ACTIVITY_LABELS[entry.title] ?? entry.title : entry.title
+                        }
+                        context={[entry.retailer?.name, humanise(entry.detail)].filter(Boolean).join(" · ")}
+                        amount={entry.amount ? inr(entry.amount) : undefined}
+                        time={new Date(entry.at).toLocaleTimeString("en-IN", {
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                        last={index === dayEntries.length - 1}
+                      />
+                    );
+                  })}
                 </View>
               ))
             )
           ) : performance ? (
             <>
-              <Card>
-                <SectionTitle title={t("common.today")} />
-                <View style={styles.metrics}>
-                  <MetricTile label={t("today.metricVisits")} value={String(performance.today.visits)} />
-                  <MetricTile label={t("today.metricOrders")} value={String(performance.today.orders)} />
-                  <MetricTile
-                    label={t("today.metricOrderValue")}
-                    value={inr(performance.today.orderValue)}
-                    tone="green"
-                  />
-                </View>
-              </Card>
+              <View>
+                <Text style={styles.month}>{monthLabel}</Text>
+                <Text style={styles.sales} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                  {inr(performance.period.orderValue)}
+                </Text>
+                <Text style={styles.salesSub}>
+                  {t("activity.salesHeadline")} · {performance.period.orders} {t("today.metricOrders").toLowerCase()} ·{" "}
+                  {performance.period.visits} {t("today.metricVisits").toLowerCase()}
+                </Text>
+              </View>
 
-              <Card>
-                <SectionTitle title={t("activity.thisMonth")} />
-                <View style={styles.metrics}>
-                  <MetricTile label={t("today.metricVisits")} value={String(performance.period.visits)} />
-                  <MetricTile
-                    label={t("activity.productiveVisits")}
-                    value={String(performance.period.productiveVisits)}
-                    tone="green"
-                  />
-                  <MetricTile
-                    label={t("activity.customersCovered")}
-                    value={String(performance.period.customersCovered)}
-                  />
-                </View>
-                <View style={styles.metrics}>
-                  <MetricTile label={t("today.metricOrders")} value={String(performance.period.orders)} />
-                  <MetricTile
-                    label={t("today.metricOrderValue")}
-                    value={inr(performance.period.orderValue)}
-                  />
-                  <MetricTile
-                    label={t("today.metricCollected")}
-                    value={inr(performance.period.collectionValueConfirmed)}
-                    tone="green"
-                  />
-                </View>
-                <View style={styles.metrics}>
-                  <MetricTile
-                    label={t("activity.daysWorked")}
-                    value={`${performance.period.attendance.present}/${performance.period.attendance.workingDays}`}
-                  />
-                  <MetricTile
-                    label={t("myday.onLeave")}
-                    value={String(performance.period.attendance.leave)}
-                  />
-                  <MetricTile
-                    label={t("activity.newCustomers")}
-                    value={String(performance.period.newCustomers)}
-                  />
-                </View>
-              </Card>
+              {targets[0] ? (
+                <Surface>
+                  <SectionHeader title={t("performance.targets")} />
+                  <Text style={styles.targetLine}>
+                    {targets[0].unit === "currency"
+                      ? `${inr(targets[0].actual)} / ${inr(targets[0].target)}`
+                      : `${targets[0].actual} / ${targets[0].target}`}{" "}
+                    · {targets[0].completionPct}%
+                  </Text>
+                  <ProgressRow pct={targets[0].completionPct} tone="gold" />
+                </Surface>
+              ) : null}
 
-              <Card>
-                <SectionTitle title={t("performance.targets")} />
+              <Surface>
+                <SectionHeader title={t("activity.thisMonth")} />
+                <MetricStrip
+                  bare
+                  items={[
+                    { label: t("today.metricVisits"), value: String(performance.period.visits) },
+                    { label: t("activity.productiveVisits"), value: String(performance.period.productiveVisits) },
+                    { label: t("activity.customersCovered"), value: String(performance.period.customersCovered) },
+                  ]}
+                />
+                <View style={{ height: spacing.md }} />
+                <MetricStrip
+                  bare
+                  items={[
+                    { label: t("today.metricOrders"), value: String(performance.period.orders) },
+                    { label: t("today.metricCollected"), value: inr(performance.period.collectionValueConfirmed) },
+                    { label: t("activity.newCustomers"), value: String(performance.period.newCustomers) },
+                  ]}
+                />
+                <Text style={styles.days}>
+                  {t("activity.daysWorked")} · {performance.period.attendance.present} /{" "}
+                  {performance.period.attendance.workingDays}
+                </Text>
+              </Surface>
+
+              <Surface>
+                <SectionHeader title={t("performance.targets")} />
                 {targets.length === 0 ? (
                   <Text style={styles.muted}>{t("performance.noTargets")}</Text>
                 ) : (
                   targets.map((target: any) => (
-                    <View key={target.metric} style={{ gap: 5, marginTop: spacing.sm }}>
+                    <View key={target.metric} style={{ gap: 6, marginTop: spacing.sm }}>
                       <View style={styles.between}>
                         <Text style={styles.targetLabel}>{target.label}</Text>
-                        <Text style={styles.targetValue}>
+                        <Text style={styles.muted}>
                           {target.unit === "currency"
                             ? `${inr(target.actual)} / ${inr(target.target)}`
                             : `${target.actual} / ${target.target}`}
                         </Text>
                       </View>
-                      <ProgressTrack pct={target.completionPct} tone="accent" />
-                      <Text style={styles.targetSentence}>{target.sentence}</Text>
-                      {/* Where the number came from, so a target is never a black box. */}
+                      <ProgressRow pct={target.completionPct} tone="gold" />
                       <Text style={styles.targetSource}>{target.source}</Text>
                     </View>
                   ))
                 )}
-              </Card>
+              </Surface>
 
-              <Card>
-                <SectionTitle title={t("performance.ranking")} />
+              <Surface>
+                <SectionHeader title={t("activity.teamPosition")} />
                 {ranking?.rank ? (
                   <>
-                    <View style={styles.between}>
-                      <Text style={styles.rankBig}>
-                        #{ranking.rank}
-                        <Text style={styles.rankOf}> of {ranking.participants}</Text>
-                      </Text>
-                      {ranking.movement && ranking.movement.direction !== "new" ? (
-                        <Tag
+                    <Text style={styles.rank}>#{ranking.rank}</Text>
+                    <Text style={styles.muted}>
+                      {ranking.participants === 1
+                        ? t("activity.ofSalespeople", { count: ranking.participants })
+                        : t("activity.ofSalespeoplePlural", { count: ranking.participants })}
+                    </Text>
+                    {ranking.participants <= 1 ? null : ranking.movement && ranking.movement.direction !== "new" ? (
+                      <View style={{ marginTop: spacing.sm }}>
+                        <StatusChip
                           label={
                             ranking.movement.direction === "same"
                               ? t("today.rankSame")
                               : t(
-                                  ranking.movement.direction === "up"
-                                    ? "today.rankUp"
-                                    : "today.rankDown",
+                                  ranking.movement.direction === "up" ? "today.rankUp" : "today.rankDown",
                                   { places: String(ranking.movement.places) }
                                 )
                           }
                           tone={ranking.movement.direction === "up" ? "green" : "neutral"}
                         />
-                      ) : null}
-                    </View>
-                    <Text style={styles.muted}>
+                      </View>
+                    ) : null}
+                    <Text style={styles.targetSource}>
                       {ranking.metricLabel} · {ranking.scopeLabel}
                     </Text>
-                    {/* Why this metric, so a ranking is never unexplained. */}
-                    <Text style={styles.targetSource}>{ranking.metricReason}</Text>
                   </>
                 ) : (
                   <Text style={styles.muted}>{t("performance.noRanking")}</Text>
                 )}
-              </Card>
+              </Surface>
 
-              <Card>
-                <SectionTitle title={t("performance.achievements")} />
+              <Surface>
+                <SectionHeader title={t("performance.achievements")} />
                 {achievements.length === 0 ? (
                   <Text style={styles.muted}>{t("performance.noAchievements")}</Text>
                 ) : (
@@ -332,7 +293,7 @@ export default function MyActivityScreen() {
                     <AchievementLine key={achievement.id} achievement={achievement} />
                   ))
                 )}
-              </Card>
+              </Surface>
             </>
           ) : (
             <EmptyState
@@ -343,56 +304,30 @@ export default function MyActivityScreen() {
           )}
         </ScrollView>
       )}
-    </View>
+    </AppScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  content: { padding: spacing.lg, gap: spacing.lg, paddingBottom: TAB_BAR_SPACE + spacing.xl },
-
-  tabs: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
+  tabs: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.xl, paddingBottom: spacing.md },
+  skel: { paddingHorizontal: spacing.xl, gap: spacing.md },
+  content: { paddingHorizontal: spacing.xl, gap: spacing.section, paddingBottom: TAB_BAR_SPACE + spacing.xl },
+  dayHeading: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.textSecondary,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    marginBottom: spacing.sm,
   },
-  tab: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 9,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  tabActive: { backgroundColor: colors.greenSoft, borderColor: colors.green },
-  tabText: { fontSize: 13, fontWeight: "700", color: colors.inkMuted },
-  tabTextActive: { color: colors.green },
-
-  dayHeading: { fontSize: 12, fontWeight: "800", color: colors.inkMuted, letterSpacing: 0.4 },
-  entry: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.md },
-  entryDivided: { borderTopWidth: 1, borderTopColor: colors.border },
-  entryIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: radius.pill,
-    backgroundColor: colors.greenSoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  entryTitle: { fontSize: 14, fontWeight: "600", color: colors.ink },
-  entrySub: { fontSize: 11.5, color: colors.inkMuted, marginTop: 2, lineHeight: 16 },
-  entryAmount: { fontSize: 13, fontWeight: "700", color: colors.ink },
-
-  metrics: { flexDirection: "row", gap: spacing.sm },
-  between: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  targetLabel: { fontSize: 12.5, color: colors.ink, fontWeight: "600" },
-  targetValue: { fontSize: 12.5, color: colors.inkMuted },
-  targetSentence: { fontSize: 12.5, color: colors.accentStrong, fontWeight: "700" },
-  targetSource: { fontSize: 11, color: colors.inkFaint, lineHeight: 16 },
-  rankBig: { fontSize: 26, fontWeight: "800", color: colors.ink },
-  rankOf: { fontSize: 14, fontWeight: "600", color: colors.inkMuted },
-  muted: { fontSize: 12.5, color: colors.inkMuted, lineHeight: 18 },
+  month: { fontSize: 13, fontWeight: "600", color: colors.textSecondary, textTransform: "uppercase", letterSpacing: 0.4 },
+  sales: { fontSize: 32, fontWeight: "600", color: colors.ink, letterSpacing: -0.6, marginTop: 4 },
+  salesSub: { fontSize: 13, color: colors.textSecondary, marginTop: 4 },
+  targetLine: { fontSize: 15, fontWeight: "600", color: colors.goldStrong },
+  days: { fontSize: 13, color: colors.textSecondary, marginTop: spacing.md },
+  muted: { fontSize: 13, color: colors.textSecondary, lineHeight: 18 },
+  between: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
+  targetLabel: { fontSize: 14, fontWeight: "600", color: colors.ink, flex: 1 },
+  targetSource: { fontSize: 11, color: colors.textTertiary, lineHeight: 16 },
+  rank: { fontSize: 32, fontWeight: "600", color: colors.ink, letterSpacing: -0.6 },
 });

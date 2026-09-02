@@ -69,6 +69,26 @@ export interface HomeProductGroup {
   hasMultiplePacks: boolean;
 }
 
+export interface HomeLastOrderItem {
+  variantId: string;
+  productId: string;
+  name: string;
+  category: string;
+  imageUrl: string | null;
+  packLabel: string;
+  packDetail: string;
+  qty: number;
+  /** Current selling price from the live price list. */
+  price: number;
+}
+
+export interface HomeLastOrder {
+  id: string;
+  createdAt: string;
+  status: string;
+  items: HomeLastOrderItem[];
+}
+
 export interface HomePayload {
   retailer: { id: string; name: string; phone: string; tier: string };
   salesRep: HomeSalesRep | null;
@@ -78,6 +98,7 @@ export interface HomePayload {
   productGroups: HomeProductGroup[];
   categories: string[];
   activeOrder: HomeActiveOrder | null;
+  lastOrder: HomeLastOrder | null;
   config: { freeDeliveryThreshold: number; minOrderValue: number; supportPhone: string | null };
   badges: { notifications: number; activeOffers: number };
 }

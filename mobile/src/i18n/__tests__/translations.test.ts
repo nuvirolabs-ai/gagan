@@ -12,5 +12,8 @@ describe("retailer translations", () => {
 
   it("interpolates variables without translating business data", () => {
     expect(translate("hi", "cart.itemCount", { count: 2 })).toBe("2 आइटम");
+    expect(translate("en", "home.schemeAway", { amount: "₹3,200" })).toBe(
+      "You're ₹3,200 away from this week's benefit."
+    );
   });
 });

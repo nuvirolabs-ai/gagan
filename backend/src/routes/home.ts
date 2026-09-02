@@ -4,6 +4,7 @@ import { requireAuth, AuthedRequest } from "../lib/auth";
 import { financialSummaryFor } from "../modules/finance/financialSummary";
 import { publicMediaUrl } from "../lib/media";
 import { groupCatalog } from "../modules/catalog/catalogGrouping";
+import { presentLastOrder } from "../modules/catalog/lastOrder";
 
 const router = Router();
 
@@ -22,7 +23,7 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
   const financialSummary = await financialSummaryFor(prisma, retailer.id, now);
   if (!financialSummary) return res.status(404).json({ error: "Retailer not found" });
 
-  const [config, featuredScheme, activeSchemeCount, unreadCount, activeOrder, priceList, products] =
+  const [config, featuredScheme, activeSchemeCount, unreadCount, activeOrder, lastDeliveredOrder, priceList, products] =
     await Promise.all([
       prisma.appConfig.findUnique({ where: { id: "singleton" } }),
       prisma.scheme.findFirst({
@@ -37,6 +38,11 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
         orderBy: { createdAt: "desc" },
         include: { items: true },
       }),
+      prisma.order.findFirst({
+        where: { retailerId: retailer.id, status: "delivered" },
+        orderBy: { createdAt: "desc" },
+        include: { items: { include: { variant: { include: { product: true } } } } },
+      }),
       prisma.priceList.findMany({ where: { tierId: retailer.tierId } }),
       prisma.product.findMany({ include: { variants: true }, orderBy: { createdAt: "asc" } }),
     ]);
@@ -44,6 +50,13 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
   const overrides = await prisma.priceOverride.findMany({ where: { retailerId: retailer.id } });
   const priceByVariant = new Map(priceList.map((p) => [p.variantId, p.price]));
   const overrideByVariant = new Map(overrides.map((o) => [o.variantId, o.price]));
+  const currentPriceByVariant = new Map<string, number | null>();
+  for (const product of products) {
+    for (const variant of product.variants) {
+      const raw = overrideByVariant.get(variant.id) ?? priceByVariant.get(variant.id);
+      currentPriceByVariant.set(variant.id, raw != null ? Number(raw) : null);
+    }
+  }
 
   const quickOrder = products.flatMap((product) =>
     product.variants.slice(0, 1).map((v) => ({
@@ -143,6 +156,9 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
           expectedDeliveryAt: activeOrder.expectedDeliveryAt,
         }
       : null,
+    lastOrder: presentLastOrder(lastDeliveredOrder, currentPriceByVariant, (url) =>
+      publicMediaUrl(req, url)
+    ),
     config: {
       freeDeliveryThreshold: Number(config?.freeDeliveryThreshold ?? 0),
       minOrderValue: Number(config?.minOrderValue ?? 0),

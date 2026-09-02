@@ -50,12 +50,15 @@ export default function ProductGroupCard({
   onChangeQty,
   onOpen,
   compact,
+  appearance = "card",
 }: {
   group: ProductGroupLike;
   qtyFor: (variantId: string) => number;
   onChangeQty: (sku: Sku, next: number) => void;
   onOpen?: () => void;
   compact?: boolean;
+  /** Home merchandising: featured wash or compact row. Catalog keeps "card". */
+  appearance?: "card" | "featured" | "row";
 }) {
   // A pack the shopper already has in the cart is the one they mean; otherwise
   // start on the first orderable pack rather than a sold-out one.
@@ -68,9 +71,12 @@ export default function ProductGroupCard({
   const selected = group.skus.find((sku) => sku.id === selectedId) ?? group.skus[0];
   const qty = selected ? qtyFor(selected.id) : 0;
   const orderable = isOrderable(selected);
+  const row = appearance === "row";
+  const featured = appearance === "featured";
+  const thumb = row ? 56 : featured ? 96 : compact ? 60 : 72;
 
   return (
-    <View style={[styles.card, compact && styles.cardCompact]}>
+    <View style={[styles.card, compact && styles.cardCompact, featured && styles.cardFeatured, row && styles.cardRow]}>
       <TouchableOpacity
         activeOpacity={onOpen ? 0.85 : 1}
         onPress={onOpen}
@@ -81,16 +87,16 @@ export default function ProductGroupCard({
           name={group.name}
           category={group.category}
           imageUrl={group.imageUrl}
-          size={compact ? 60 : 72}
+          size={thumb}
         />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.name} numberOfLines={2}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[styles.name, featured && styles.nameFeatured]} numberOfLines={2}>
             {group.name}
           </Text>
           <Text style={styles.pack} numberOfLines={1}>
             {selected ? selected.packDetail : "—"}
           </Text>
-          <Text style={styles.price}>
+          <Text style={styles.price} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
             {selected?.price != null ? `${inr(selected.price)} / case` : "Price on request"}
           </Text>
           {!orderable && selected ? <Text style={styles.outOfStock}>Out of stock</Text> : null}
@@ -104,9 +110,10 @@ export default function ProductGroupCard({
             return (
               <TouchableOpacity
                 key={sku.id}
-                style={[styles.packChip, active && styles.packChipActive]}
+                style={[styles.packChip, row && styles.packChipRow, active && styles.packChipActive]}
                 onPress={() => setSelectedId(sku.id)}
                 accessibilityLabel={`${group.name} ${sku.packLabel}`}
+                accessibilityRole="button"
                 accessibilityState={{ selected: active }}
               >
                 <Text style={[styles.packChipText, active && styles.packChipTextActive]}>
@@ -148,6 +155,26 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   cardCompact: { padding: spacing.sm + 2 },
+  cardFeatured: {
+    backgroundColor: colors.cream,
+    borderWidth: 0,
+    shadowOpacity: 0,
+    elevation: 0,
+    padding: spacing.md,
+  },
+  cardRow: {
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    borderRadius: 0,
+    shadowOpacity: 0,
+    elevation: 0,
+    paddingHorizontal: 0,
+    paddingVertical: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  nameFeatured: { fontSize: 16 },
+  packChipRow: { minHeight: 36, paddingVertical: 8, paddingHorizontal: 12 },
   head: { flexDirection: "row", gap: spacing.md, alignItems: "center" },
   name: { fontSize: 14.5, fontWeight: "700", color: colors.ink },
   pack: { fontSize: 11.5, color: colors.inkMuted, marginTop: 2 },

@@ -13,6 +13,7 @@ import {
 import { useFocusEffect } from "@react-navigation/native";
 
 import {
+  AppScreen,
   Card,
   EmptyState,
   Field,
@@ -108,26 +109,28 @@ export default function RouteScreen({ navigation }: any) {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.green} />
-      </View>
+      <AppScreen>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </AppScreen>
     );
   }
 
   if (!route) {
     return (
-      <View style={styles.screen}>
+      <AppScreen>
         <EmptyState
           icon="map-marker-path"
           title={t("route.emptyTitle")}
-          body={t("route.emptyBody")}
+          body={t("today.noRoutePublished")}
         />
-      </View>
+      </AppScreen>
     );
   }
 
   return (
-    <View style={styles.screen}>
+    <AppScreen>
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={
@@ -251,7 +254,7 @@ export default function RouteScreen({ navigation }: any) {
           </Card>
         ))}
       </ScrollView>
-    </View>
+    </AppScreen>
   );
 }
 

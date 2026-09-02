@@ -79,15 +79,29 @@ function RepTabs() {
         // Every tab screen renders its own <ScreenHeader>.
         headerShown: false,
         tabBarLabel: t(`tabs.${route.name.toLowerCase()}`),
-        tabBarActiveTintColor: colors.green,
+        tabBarActiveTintColor: colors.primaryDeep,
         tabBarInactiveTintColor: colors.inkFaint,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
-        tabBarIcon: ({ color, size }) => (
-          <Ionicons
-            name={(TAB_ICONS[route.name] ?? "ellipse-outline") as any}
-            size={size}
-            color={color}
-          />
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.separator,
+          paddingTop: 6,
+        },
+        tabBarIcon: ({ color, focused }) => (
+          <View
+            style={{
+              backgroundColor: focused ? colors.primarySoft : "transparent",
+              borderRadius: 12,
+              paddingHorizontal: 10,
+              paddingVertical: 4,
+            }}
+          >
+            <Ionicons
+              name={(TAB_ICONS[route.name] ?? "ellipse-outline") as any}
+              size={20}
+              color={color}
+            />
+          </View>
         ),
       })}
     >

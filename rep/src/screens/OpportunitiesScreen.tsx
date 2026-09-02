@@ -11,7 +11,7 @@ import {
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { Card, EmptyState, SectionTitle, Tag } from "../components/ui";
+import { AppScreen, Card, EmptyState, SectionTitle, Tag } from "../components/ui";
 import { repApi } from "../api/repClient";
 import { colors, radius, spacing } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -61,16 +61,18 @@ export default function OpportunitiesScreen({ navigation }: any) {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.green} />
-      </View>
+      <AppScreen>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </AppScreen>
     );
   }
 
   const triggers: any[] = data?.triggers ?? [];
 
   return (
-    <View style={styles.screen}>
+    <AppScreen>
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={
@@ -151,7 +153,7 @@ export default function OpportunitiesScreen({ navigation }: any) {
           ))
         )}
       </ScrollView>
-    </View>
+    </AppScreen>
   );
 }
 

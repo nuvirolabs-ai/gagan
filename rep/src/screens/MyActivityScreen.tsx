@@ -409,7 +409,7 @@ const styles = StyleSheet.create({
   conclusion: { fontSize: 13, color: colors.textSecondary, lineHeight: 18, marginBottom: spacing.md },
   visualBars: { gap: spacing.sm },
   barRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  barLabel: { width: 38, fontSize: 11, color: colors.textSecondary },
+  barLabel: { width: 46, fontSize: 11, color: colors.textSecondary },
   barTrack: { flex: 1, height: 8, borderRadius: 99, backgroundColor: colors.track, overflow: "hidden" },
   barFill: { height: "100%", borderRadius: 99, backgroundColor: colors.green },
   barValue: { width: 60, fontSize: 11, color: colors.ink, textAlign: "right" },

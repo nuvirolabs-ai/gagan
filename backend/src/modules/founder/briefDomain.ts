@@ -27,6 +27,12 @@ export function largestRisk(issues: Array<{ title: string; businessImpact: { amo
   return `Largest risk: ${issues[0].title}.`;
 }
 
+export function largestUnresolved(issues: Array<{ title: string }>): string | null {
+  const next = issues.find((issue, index) => index > 0 && issue.title !== issues[0].title);
+  if (!next) return null;
+  return `Biggest unresolved issue: ${next.title}.`;
+}
+
 export function teamConcern(reason: string | null, status: string | null): string | null {
   if (!status || status === "HEALTHY" || !reason) return null;
   return reason;

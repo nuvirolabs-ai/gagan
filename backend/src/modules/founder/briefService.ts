@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import {
   fillVsComparable,
   largestRisk,
+  largestUnresolved,
   moneyVsComparable,
   pendingDecisionLine,
   teamConcern,
@@ -74,9 +75,4 @@ function previousFromDelta(row: { value: number | null; delta: { amount: number;
   if (row.delta.direction === "up") return row.value - row.delta.amount;
   if (row.delta.direction === "down") return row.value + row.delta.amount;
   return row.value;
-}
-
-function largestUnresolved(issues: Array<{ title: string }>): string | null {
-  if (issues.length === 0) return null;
-  return `Biggest unresolved issue: ${issues[0].title}.`;
 }

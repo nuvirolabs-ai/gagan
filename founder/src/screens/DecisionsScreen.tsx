@@ -10,6 +10,7 @@ import { usePreferences } from "../context/PreferencesContext";
 import { formatAge, formatDue } from "../format/age";
 import { formatInrExecutive } from "../format/inr";
 import { friendlyError } from "../pulse/viewState";
+import { SCREEN_PAD_TOP } from "../theme";
 
 export default function DecisionsScreen() {
   const { colors } = usePreferences();
@@ -41,7 +42,7 @@ export default function DecisionsScreen() {
   return (
     <View style={[styles.root, { backgroundColor: colors.canvas }]}>
       <ScrollView
-        contentContainerStyle={{ paddingTop: insets.top + 8, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}
+        contentContainerStyle={{ paddingTop: insets.top + SCREEN_PAD_TOP, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}
         refreshControl={<RefreshControl refreshing={loading && !!payload} onRefresh={() => { setLoading(true); void load(); }} />}
       >
         <Text style={[styles.kicker, { color: colors.secondary }]}>DECISIONS</Text>

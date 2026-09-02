@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SCREEN_PAD_TOP } from "../theme";
 import { founderApi } from "../api/founder";
 import type { FounderTeam } from "../api/types";
 import { usePreferences } from "../context/PreferencesContext";
@@ -27,7 +28,7 @@ export default function TeamScreen({ navigation }: { navigation: { goBack: () =>
 
   return (
     <View style={[styles.root, { backgroundColor: colors.canvas }]}>
-      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 8, paddingHorizontal: 20, paddingBottom: insets.bottom + 32 }}>
+      <ScrollView contentContainerStyle={{ paddingTop: insets.top + SCREEN_PAD_TOP, paddingHorizontal: 20, paddingBottom: insets.bottom + 32 }}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
           <Text style={[styles.back, { color: colors.info }]}>Pulse</Text>
         </Pressable>

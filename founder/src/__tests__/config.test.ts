@@ -8,6 +8,8 @@ describe("founder api config", () => {
       "https://gagan-staging-api.onrender.com"
     );
     expect(() => resolveApiBaseUrl("http://localhost:4000", false, "ios")).toThrow(/HTTPS/);
+    expect(resolveApiBaseUrl(undefined, false, "web")).toBe("");
+    expect(() => resolveApiBaseUrl(undefined, false, "android")).toThrow(/EXPO_PUBLIC_API_URL/);
     expect(resolveApiBaseUrl(undefined, true, "ios")).toContain("localhost:4000");
   });
 });

@@ -30,8 +30,9 @@
     "test": "vitest run",
     "start": "expo start",
     "typecheck": "tsc --noEmit",
-    "ios": "expo start --ios",
-    "android": "expo start --android",
-    "web": "expo start --web"
+    "ios": "expo run:ios",
+    "android": "expo run:android",
+    "web": "expo start --web",
+    "export:web": "expo export --platform web"
   }
 }

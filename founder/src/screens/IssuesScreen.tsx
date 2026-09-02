@@ -10,6 +10,7 @@ import { usePreferences } from "../context/PreferencesContext";
 import { formatAge } from "../format/age";
 import { impactLabel } from "../format/impact";
 import { friendlyError } from "../pulse/viewState";
+import { SCREEN_PAD_TOP } from "../theme";
 
 export default function IssuesScreen() {
   const { colors } = usePreferences();
@@ -41,7 +42,7 @@ export default function IssuesScreen() {
   return (
     <View style={[styles.root, { backgroundColor: colors.canvas }]}>
       <ScrollView
-        contentContainerStyle={{ paddingTop: insets.top + 8, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}
+        contentContainerStyle={{ paddingTop: insets.top + SCREEN_PAD_TOP, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}
         refreshControl={<RefreshControl refreshing={loading && issues.length > 0} onRefresh={() => { setLoading(true); void load(); }} />}
       >
         <Text style={[styles.kicker, { color: colors.secondary }]}>ISSUES</Text>

@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { founderApi } from "../api/founder";
 import type { FounderDecision } from "../api/types";
 import { usePreferences } from "../context/PreferencesContext";
 import { formatInrExecutive } from "../format/inr";
 import { friendlyError } from "../pulse/viewState";
+import { SCREEN_PAD_TOP } from "../theme";
 
 export default function DecisionDetailScreen({ route, navigation }: any) {
   const { colors } = usePreferences();
@@ -37,7 +38,12 @@ export default function DecisionDetailScreen({ route, navigation }: any) {
           : await founderApi.decline(decision.id, reason || "Declined by founder.");
       setDecision(next);
     } catch (caught) {
-      Alert.alert("Decision not recorded", friendlyError(caught));
+      const message = friendlyError(caught);
+      if (Platform.OS === "web") {
+        window.alert(`Decision not recorded\n${message}`);
+      } else {
+        Alert.alert("Decision not recorded", message);
+      }
     } finally {
       setBusy(false);
     }
@@ -45,7 +51,7 @@ export default function DecisionDetailScreen({ route, navigation }: any) {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.canvas }]}>
-      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 8, paddingHorizontal: 20, paddingBottom: insets.bottom + 32 }}>
+      <ScrollView contentContainerStyle={{ paddingTop: insets.top + SCREEN_PAD_TOP, paddingHorizontal: 20, paddingBottom: insets.bottom + 32 }}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
           <Text style={[styles.back, { color: colors.info }]}>Decisions</Text>
         </Pressable>

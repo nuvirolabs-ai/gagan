@@ -8,6 +8,7 @@ describe("INR executive formatting", () => {
     expect(formatInrExecutive(127_800_000)).toBe("₹12.78Cr");
     expect(formatInrExecutive(12_500)).toBe("₹12,500");
     expect(formatInrExecutive(100_000)).toBe("₹1L");
+    expect(formatInrExecutive(124_800)).toBe("₹1.25L");
   });
 
   it("formats deltas without mixing units", () => {

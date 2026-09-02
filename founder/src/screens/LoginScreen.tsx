@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../context/AuthContext";
-import { tokensFor } from "../theme";
+import { SCREEN_PAD_TOP, tokensFor } from "../theme";
 import { useColorScheme } from "react-native";
 import { SessionFetchError } from "../auth/sessionFetch";
 
@@ -58,7 +58,7 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: colors.canvas, paddingTop: insets.top + 12 }]}
+      style={[styles.root, { backgroundColor: colors.canvas, paddingTop: insets.top + SCREEN_PAD_TOP }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <Text style={[styles.kicker, { color: colors.secondary }]}>FOUNDER</Text>

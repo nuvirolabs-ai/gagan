@@ -52,3 +52,6 @@ export function contrastRatio(a: string, b: string): number {
 }
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 28, title: 34 };
+
+/** Extra offset below the system inset so kickers clear Dynamic Island / status chrome. */
+export const SCREEN_PAD_TOP = 16;

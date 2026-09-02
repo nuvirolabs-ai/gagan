@@ -36,8 +36,16 @@ Ask AI, chatbot, LLM brief, forecasting, ML, voice, automatic deciding, notifica
 - Fill rate unavailable until fulfilment starts
 - Outstanding/overdue unavailable without local invoices
 - Next-day commitment omitted (no canonical commitment source)
-- iOS Simulator visual QA requires Xcode selected
+- iOS Simulator visual QA is in progress on iPhone 17. Issue Detail, Decisions, Settings, morning brief, and iPhone 17e have not been opened on device yet. Feature freeze is not declared.
+
+## Visual polish landed (not frozen)
+
+- Evening brief no longer repeats the same credit hold as both largest risk and biggest unresolved issue
+- Trends sparklines show compact min/max and start/end dates
+- Large-title screens use a shared top pad so kickers clear Dynamic Island
+- Lakh amounts use two decimals then trim (`₹1.25L` for ₹1,24,800)
+- Tab bar follows the in-app appearance tokens
 
 ## Readiness
 
-See the close-out report in the implementing chat for the scored `/100` after tests and visual QA.
+See the close-out report in the implementing chat for the scored `/100` after tests and visual QA. Founder V1 is **not feature-frozen** until remaining native screens are opened.

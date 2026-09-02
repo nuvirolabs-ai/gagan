@@ -6,6 +6,7 @@ import type { FounderBrief } from "../api/types";
 import Segmented from "../components/Segmented";
 import { usePreferences } from "../context/PreferencesContext";
 import { friendlyError } from "../pulse/viewState";
+import { SCREEN_PAD_TOP } from "../theme";
 
 export default function BriefScreen({ navigation }: { navigation: { goBack: () => void } }) {
   const { colors } = usePreferences();
@@ -29,7 +30,7 @@ export default function BriefScreen({ navigation }: { navigation: { goBack: () =
 
   return (
     <View style={[styles.root, { backgroundColor: colors.canvas }]}>
-      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 8, paddingHorizontal: 20, paddingBottom: insets.bottom + 32 }}>
+      <ScrollView contentContainerStyle={{ paddingTop: insets.top + SCREEN_PAD_TOP, paddingHorizontal: 20, paddingBottom: insets.bottom + 32 }}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
           <Text style={[styles.back, { color: colors.info }]}>Pulse</Text>
         </Pressable>

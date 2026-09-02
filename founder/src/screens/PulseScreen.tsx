@@ -14,7 +14,7 @@ import { formatDelta, formatInrExecutive, formatMetricValue } from "../format/in
 import { friendlyError, pulseViewState, type FounderMetric, type FounderPulse } from "../pulse/viewState";
 import { useNavigation } from "@react-navigation/native";
 import { usePreferences } from "../context/PreferencesContext";
-import type { Tokens } from "../theme";
+import { SCREEN_PAD_TOP, type Tokens } from "../theme";
 
 function statusColor(status: string, colors: Tokens) {
   if (status === "AT_RISK") return colors.negative;
@@ -202,7 +202,7 @@ export default function PulseScreen({ preview }: { preview?: FounderPulse }) {
   return (
     <View style={[styles.root, { backgroundColor: colors.canvas }]}>
       <ScrollView
-        contentContainerStyle={{ paddingTop: insets.top + 4, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}
+        contentContainerStyle={{ paddingTop: insets.top + SCREEN_PAD_TOP, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}
         refreshControl={<RefreshControl refreshing={loading && !!pulse} onRefresh={() => { setLoading(true); void load(); }} />}
       >
         <Pressable onPress={() => navigation.navigate("Settings")} hitSlop={12} style={styles.avatarWrap}>

@@ -8,6 +8,7 @@ import { formatAge } from "../format/age";
 import { formatInrExecutive } from "../format/inr";
 import { friendlyError } from "../pulse/viewState";
 import { impactLabel } from "../format/impact";
+import { SCREEN_PAD_TOP } from "../theme";
 
 export default function IssueDetailScreen({ route, navigation }: any) {
   const { colors } = usePreferences();
@@ -29,7 +30,7 @@ export default function IssueDetailScreen({ route, navigation }: any) {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.canvas }]}>
-      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 8, paddingHorizontal: 20, paddingBottom: insets.bottom + 32 }}>
+      <ScrollView contentContainerStyle={{ paddingTop: insets.top + SCREEN_PAD_TOP, paddingHorizontal: 20, paddingBottom: insets.bottom + 32 }}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
           <Text style={[styles.back, { color: colors.info }]}>Issues</Text>
         </Pressable>

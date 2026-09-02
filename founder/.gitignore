@@ -1,0 +1,5 @@
+.vercel
+.env*
+*.keystore
+*.jks
+android/app/founder-staging.keystore

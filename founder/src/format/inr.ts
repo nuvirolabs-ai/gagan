@@ -10,7 +10,7 @@ export function formatInrExecutive(amount: number): string {
     return `${sign}₹${trimZeros((abs / 10_000_000).toFixed(2))}Cr`;
   }
   if (abs >= 100_000) {
-    return `${sign}₹${trimZeros((abs / 100_000).toFixed(1))}L`;
+    return `${sign}₹${trimZeros((abs / 100_000).toFixed(2))}L`;
   }
   return `${sign}₹${Math.round(abs).toLocaleString("en-IN")}`;
 }

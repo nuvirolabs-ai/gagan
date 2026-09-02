@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   fillVsComparable,
   largestRisk,
+  largestUnresolved,
   moneyVsComparable,
   pendingDecisionLine,
   teamConcern,
@@ -18,6 +19,10 @@ describe("brief sentences", () => {
     expect(largestRisk([{ title: "Orders waiting on credit approval", businessImpact: { amount: 78_000 } }])).toBe(
       "Largest risk: Orders waiting on credit approval."
     );
+    expect(largestUnresolved([{ title: "Orders waiting on credit approval" }])).toBeNull();
+    expect(
+      largestUnresolved([{ title: "Orders waiting on credit approval" }, { title: "Inventory hold on premium SKUs" }])
+    ).toBe("Biggest unresolved issue: Inventory hold on premium SKUs.");
     expect(teamConcern("Coverage is thin versus the roster.", "WATCH")).toBe("Coverage is thin versus the roster.");
     expect(teamConcern("ok", "HEALTHY")).toBeNull();
     expect(pendingDecisionLine(0)).toBe("No decisions are waiting.");

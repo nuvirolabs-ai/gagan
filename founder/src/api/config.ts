@@ -16,11 +16,14 @@ export function resolveApiBaseUrl(
 ) {
   if (configured) {
     const normalized = configured.replace(/\/$/, "");
+    if (normalized === "" && platform === "web") return "";
     if (!development && !normalized.startsWith("https://")) {
       throw new Error("EXPO_PUBLIC_API_URL must use HTTPS outside development");
     }
     return normalized;
   }
+  // Hosted web preview talks same-origin; Vercel rewrites /founder to staging.
+  if (!development && platform === "web") return "";
   if (!development) throw new Error("EXPO_PUBLIC_API_URL is required outside development");
   return developmentFallback(platform);
 }

@@ -6,6 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import { usePreferences } from "../context/PreferencesContext";
 import type { TrendPeriod } from "../api/types";
 import type { AppearancePref } from "../settings/preferences";
+import { SCREEN_PAD_TOP } from "../theme";
 
 export default function SettingsScreen({ navigation }: { navigation: { goBack: () => void } }) {
   const { colors, preferences, setDefaultPeriod, setAppearance } = usePreferences();
@@ -14,7 +15,7 @@ export default function SettingsScreen({ navigation }: { navigation: { goBack: (
 
   return (
     <View style={[styles.root, { backgroundColor: colors.canvas }]}>
-      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 8, paddingHorizontal: 20, paddingBottom: insets.bottom + 32 }}>
+      <ScrollView contentContainerStyle={{ paddingTop: insets.top + SCREEN_PAD_TOP, paddingHorizontal: 20, paddingBottom: insets.bottom + 32 }}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
           <Text style={[styles.back, { color: colors.info }]}>Close</Text>
         </Pressable>

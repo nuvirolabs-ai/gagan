@@ -104,13 +104,13 @@ export function trackingBanner(state: {
     case "tracking_active":
       return {
         tone: "active",
-        title: "Location sharing is on",
-        body: `Your route is recorded while your day is running, and stops when you end your day.${queued}`,
+        title: "Location sharing on",
+        body: `Used to verify routes and store visits. Recording stops when you end your day.${queued}`,
       };
     case "policy_disabled":
       return {
         tone: "idle",
-        title: "Location sharing is off",
+        title: "Location sharing off",
         body: "Your organisation has turned off route recording. Nothing is being recorded.",
       };
     case "permission_required":
@@ -122,8 +122,8 @@ export function trackingBanner(state: {
     default:
       return {
         tone: "idle",
-        title: "Location sharing is off",
-        body: `Nothing is recorded while you are off duty. Start your day to share your route.${queued}`,
+        title: "Location sharing off",
+        body: `Location is only recorded while you're on duty.${queued}`,
       };
   }
 }

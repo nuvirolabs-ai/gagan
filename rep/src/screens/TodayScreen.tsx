@@ -1,62 +1,54 @@
 import React, { useCallback, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Linking,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { Ionicons } from "@expo/vector-icons";
 
 import {
-  Banner,
-  Card,
+  AppScreen,
+  AttentionRow,
   EmptyState,
-  ListRow,
-  MetricTile,
+  FocusCard,
+  MetricStrip,
+  OfflineBanner,
+  PersonalGreeting,
   PrimaryButton,
-  ProgressTrack,
-  ScreenHeader,
+  ProgressRow,
   SecondaryButton,
-  SectionTitle,
-  Tag,
+  SectionHeader,
+  Skeleton,
+  Surface,
+  TaskRow,
+  TextButton,
 } from "../components/ui";
-import { AchievementCard, AchievementLine } from "../components/Achievement";
+import { AchievementCard } from "../components/Achievement";
+import { haptic } from "../feedback/haptics";
 import { useField } from "../context/FieldContext";
 import { useRep } from "../context/RepContext";
 import { repApi } from "../api/repClient";
 import { captureForegroundLocation } from "../location/deviceLocation";
 import { trackingBanner } from "../tracking/fieldTracker";
-import { colors, inr, spacing, TAB_BAR_SPACE } from "../theme";
+import { colors, greetingForHour, inr, spacing, TAB_BAR_SPACE } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
 
 const OPPORTUNITY_ICONS: Record<string, string> = {
   ORDER_DUE: "time-outline",
   HIGH_VALUE_RETAILER_MISSED: "alert-circle-outline",
   VISIT_OVERDUE: "walk-outline",
-  COLLECTION_DUE: "cash-outline",
+  COLLECTION_DUE: "wallet-outline",
   ORDER_VALUE_BELOW_NORMAL: "trending-down-outline",
   LINE_ITEMS_BELOW_NORMAL: "list-outline",
   CATEGORY_REORDER_OPPORTUNITY: "cube-outline",
 };
 
-/** Money reads as rupees; counts read as counts. */
 function formatTarget(value: number, unit: string): string {
   return unit === "currency" ? inr(value) : String(Math.round(value));
-}
-
-function rankMovementLabel(ranking: any, t: (key: string, vars?: any) => string): string {
-  if (!ranking?.movement || ranking.movement.direction === "new") return ranking?.metricLabel ?? "";
-  if (ranking.movement.direction === "same") return t("today.rankSame");
-  return t(
-    ranking.movement.direction === "up" ? "today.rankUp" : "today.rankDown",
-    { places: String(ranking.movement.places) }
-  );
 }
 
 function duration(minutes: number | null | undefined): string {
@@ -64,6 +56,15 @@ function duration(minutes: number | null | undefined): string {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
   return hours > 0 ? `${hours}h ${rest}m` : `${rest}m`;
+}
+
+function formatClock(iso?: string | null) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
+}
+
+function formatLongDate(date = new Date()) {
+  return date.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
 }
 
 export default function TodayScreen({ navigation }: any) {
@@ -88,10 +89,13 @@ export default function TodayScreen({ navigation }: any) {
 
   const attendance = today?.attendance;
   const dayOpen = attendance?.status === "open";
+  const dayClosed = attendance?.status === "closed";
+  const firstName = staff?.name?.split(" ")[0] ?? "";
 
   const toggleDay = async () => {
     const reading = await captureForegroundLocation();
     if (reading.kind === "permission_denied") {
+      haptic("warning");
       return Alert.alert(
         "Location permission needed",
         reading.canAskAgain
@@ -100,16 +104,20 @@ export default function TodayScreen({ navigation }: any) {
       );
     }
     if (reading.kind === "unavailable") {
+      haptic("warning");
       return Alert.alert("Location unavailable", reading.message);
     }
     setBusy(true);
     try {
       if (dayOpen) {
         await endDay(reading);
+        haptic("success");
       } else {
         await startDay(reading);
+        haptic("medium");
       }
     } catch (err: any) {
+      haptic("warning");
       Alert.alert(
         dayOpen ? "Could not end your day" : "Could not start your day",
         err?.message === "workday_already_completed"
@@ -126,6 +134,7 @@ export default function TodayScreen({ navigation }: any) {
   const completeTask = async (taskId: string) => {
     try {
       await repApi.setTaskStatus(taskId, "done");
+      haptic("success");
       await refresh();
     } catch {
       Alert.alert("Could not update the task", "Try again when you have a connection.");
@@ -140,8 +149,6 @@ export default function TodayScreen({ navigation }: any) {
         "This store has no saved location yet. Open the store and capture it while you are there."
       );
     }
-    // Hand off to whichever maps app the phone uses, rather than embedding a
-    // paid map provider in the app.
     const url = `geo:${latitude},${longitude}?q=${latitude},${longitude}(${encodeURIComponent(name)})`;
     Linking.openURL(url).catch(() =>
       Linking.openURL(`https://maps.google.com/?q=${latitude},${longitude}`).catch(() =>
@@ -150,21 +157,30 @@ export default function TodayScreen({ navigation }: any) {
     );
   };
 
+  const salutation =
+    greetingForHour(new Date().getHours()) === "morning"
+      ? t("today.goodMorning")
+      : greetingForHour(new Date().getHours()) === "afternoon"
+        ? t("today.goodAfternoon")
+        : t("today.goodEvening");
+
   if (loading && !today) {
     return (
-      <View style={styles.screen}>
-        <ScreenHeader title={t("today.title")} />
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.green} />
+      <AppScreen>
+        <PersonalGreeting name={staff?.name ?? ""} salutation={salutation} dateLabel={formatLongDate()} />
+        <View style={styles.pad}>
+          <Skeleton height={148} radius={24} />
+          <View style={{ height: spacing.section }} />
+          <Skeleton height={72} radius={16} />
         </View>
-      </View>
+      </AppScreen>
     );
   }
 
   if (!today) {
     return (
-      <View style={styles.screen}>
-        <ScreenHeader title={t("today.title")} />
+      <AppScreen>
+        <PersonalGreeting name={staff?.name ?? ""} salutation={salutation} dateLabel={formatLongDate()} />
         <EmptyState
           icon="calendar-blank-outline"
           title="Your day is not available"
@@ -172,7 +188,7 @@ export default function TodayScreen({ navigation }: any) {
           actionLabel={t("common.retry")}
           onAction={() => void refresh()}
         />
-      </View>
+      </AppScreen>
     );
   }
 
@@ -184,49 +200,81 @@ export default function TodayScreen({ navigation }: any) {
   const route = today.route;
   const metrics = today.todayMetrics;
   const headlineTarget = today.headlineTarget;
-  const ranking = today.ranking;
+  const nextStop = route?.nextStop;
+  const overdueLead = today.pendingCollections?.retailers?.[0];
+  const pendingRetailers = today.pendingCollections?.retailers ?? [];
+  const opportunityLead = today.opportunities?.actions?.[0];
+
+  const hero =
+    dayOpen && overdueLead && Number(overdueLead.overdue) > 0
+      ? {
+          kind: "attention" as const,
+          name: overdueLead.name,
+          address: overdueLead.shopAddress,
+          primary: `${inr(overdueLead.overdue)} overdue`,
+          secondary: "Collection follow-up recommended",
+          retailerId: overdueLead.id,
+          stop: null,
+        }
+      : dayOpen && nextStop
+        ? {
+            kind: "route" as const,
+            name: nextStop.retailer.name,
+            address: nextStop.retailer.shopAddress,
+            primary: nextStop.retailer.shopAddress,
+            secondary: null,
+            retailerId: nextStop.retailer.id,
+            stop: nextStop,
+          }
+        : dayOpen && opportunityLead
+          ? {
+              kind: "attention" as const,
+              name: opportunityLead.headline,
+              address: opportunityLead.why,
+              primary: opportunityLead.why,
+              secondary: null,
+              retailerId: opportunityLead.retailerId,
+              stop: null,
+            }
+          : null;
+
+  const remainingTasks = today.tasks.filter((task: any) => task.status !== "done" && task.status !== "cancelled");
+  const planned = route?.progress?.total ?? 0;
+  const visited = (route?.progress?.visited ?? 0) + (route?.progress?.skipped ?? 0);
 
   return (
-    <View style={styles.screen}>
-      <ScreenHeader
-        title={t("today.title")}
-        subtitle={t("today.greeting", { name: staff?.name?.split(" ")[0] ?? "" })}
+    <AppScreen>
+      <PersonalGreeting
+        name={staff?.name ?? ""}
+        salutation={dayClosed ? t("today.niceWork", { name: firstName }) : salutation}
+        dateLabel={formatLongDate()}
       />
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.green} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       >
-        {error ? (
-          <Banner tone="attention" title="Showing your last loaded day" body={error} icon="cloud-offline-outline" />
-        ) : null}
+        {error ? <OfflineBanner title={t("today.offline")} body={error || t("today.offlineBody")} /> : null}
 
-        {/* Attendance — the switch the whole day hangs off. */}
-        <Card>
-          <View style={styles.dayRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.dayState}>
-                {dayOpen
-                  ? t("today.dayRunning", { duration: duration(attendance.minutesSoFar) })
-                  : attendance.status === "closed"
-                    ? t("today.dayEnded", { duration: duration(attendance.minutesSoFar) })
-                    : t("today.dayNotStarted")}
-              </Text>
-              <Text style={styles.daySub}>
-                {attendance.startedAt
-                  ? `Started ${new Date(attendance.startedAt).toLocaleTimeString("en-IN", {
-                      hour: "numeric",
-                      minute: "2-digit",
-                    })}`
-                  : "Start your day to share your route and record attendance."}
-              </Text>
-            </View>
-            <Tag
-              label={attendance.mark === "present" ? t("myday.present") : t("myday.absent")}
-              tone={attendance.mark === "present" ? "green" : "neutral"}
-            />
-          </View>
+        <FocusCard tone={dayClosed ? "gold" : dayOpen ? "green" : "neutral"}>
+          <Text style={styles.dayEyebrow}>
+            {dayOpen ? t("today.dayRunning") : dayClosed ? t("today.dayEnded") : t("today.dayNotStarted")}
+          </Text>
+          <Text style={styles.dayTitle}>
+            {dayClosed
+              ? t("today.worked", { duration: duration(attendance.minutesSoFar) })
+              : dayOpen
+                ? t("today.startedAt", { time: formatClock(attendance.startedAt) })
+                : planned > 0
+                  ? t("today.storesPlanned", { count: planned })
+                  : t("today.noRoutePublished")}
+          </Text>
+          {dayClosed && planned > 0 ? (
+            <Text style={styles.daySupport}>
+              {t("today.visitsCompleted", { done: visited, total: planned })}
+            </Text>
+          ) : (
+            <Text style={styles.daySupport}>{banner.body}</Text>
+          )}
           {attendance.status !== "closed" ? (
             <PrimaryButton
               label={dayOpen ? t("today.endDay") : t("today.startDay")}
@@ -235,89 +283,92 @@ export default function TodayScreen({ navigation }: any) {
               disabled={busy}
               onPress={() => void toggleDay()}
             />
-          ) : null}
-          <Banner tone={banner.tone} title={banner.title} body={banner.body} />
-        </Card>
+          ) : (
+            <TextButton label={t("today.seeActivity")} onPress={() => navigation.navigate("Activity")} />
+          )}
+        </FocusCard>
 
-        {/* What the day is asking for, in three numbers. */}
-        {headlineTarget ? (
-          <Card>
-            <View style={styles.between}>
-              <Text style={styles.subhead}>
-                {t("today.targetFor", { label: headlineTarget.label.toUpperCase() })}
-              </Text>
-              <Text style={styles.targetPct}>{headlineTarget.completionPct}%</Text>
-            </View>
-            <View style={styles.targetRow}>
-              <View style={styles.targetCell}>
-                <Text style={styles.targetCellLabel}>{t("today.target")}</Text>
-                <Text style={styles.targetBig} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                  {formatTarget(headlineTarget.target, headlineTarget.unit)}
-                </Text>
-              </View>
-              <View style={styles.targetCell}>
-                <Text style={styles.targetCellLabel}>{t("today.achieved")}</Text>
-                <Text style={styles.targetBig} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                  {formatTarget(headlineTarget.actual, headlineTarget.unit)}
-                </Text>
-              </View>
-              <View style={styles.targetCell}>
-                <Text style={styles.targetCellLabel}>{t("today.remaining")}</Text>
-                <Text
-                  style={[styles.targetBig, styles.targetRemaining]}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.7}
-                >
-                  {formatTarget(headlineTarget.remaining, headlineTarget.unit)}
-                </Text>
-              </View>
-            </View>
-            {/* Progress toward a goal is the accent's job, which is what keeps
-                the screen from being green end to end. */}
-            <ProgressTrack pct={headlineTarget.completionPct} tone="accent" />
-            <Text style={styles.targetSentence}>{headlineTarget.sentence}</Text>
-            {today.targets.length > 1 ? (
-              <TouchableOpacity onPress={() => navigation.navigate("Activity")}>
-                <Text style={styles.link}>
-                  {today.targets.length === 2
-                    ? t("today.otherTargetsOne")
-                    : t("today.otherTargets", { count: today.targets.length - 1 })}
-                </Text>
-              </TouchableOpacity>
-            ) : null}
-          </Card>
+        {dayClosed ? (
+          <MetricStrip
+            items={[
+              { label: t("today.metricVisits"), value: String(metrics.visits ?? visited) },
+              { label: t("today.metricOrders"), value: String(metrics.orders) },
+              { label: t("today.metricOrderValue"), value: inr(metrics.orderValue ?? 0) },
+            ]}
+          />
         ) : null}
 
-        {/* The rest of the day at a glance. */}
-        <Card>
-          <View style={styles.metrics}>
-            <MetricTile
-              label={t("today.beatProgress")}
-              value={route ? `${route.progress.completionPct}%` : "—"}
-            />
-            <MetricTile label={t("today.metricOrders")} value={String(metrics.orders)} />
-            <MetricTile
-              label={t("today.metricCollected")}
-              value={inr(metrics.collectionValueConfirmed ?? 0)}
-              tone="green"
-            />
-          </View>
-          {ranking?.rank ? (
-            <ListRow
-              first
-              icon="podium-outline"
-              title={t("today.rankLine", {
-                rank: String(ranking.rank),
-                total: String(ranking.participants),
-              })}
-              subtitle={rankMovementLabel(ranking, t)}
-              onPress={() => navigation.navigate("Activity")}
-            />
-          ) : null}
-        </Card>
+        {hero && !dayClosed ? (
+          <FocusCard tone={hero.kind === "attention" ? "danger" : "green"}>
+            <SectionHeader title={t("today.upNext")} />
+            <Text style={styles.heroName} numberOfLines={2}>
+              {hero.name}
+            </Text>
+            {hero.address ? (
+              <Text style={styles.heroAddress} numberOfLines={2}>
+                {hero.address}
+              </Text>
+            ) : null}
+            {hero.kind === "attention" && hero.secondary ? (
+              <Text style={styles.heroNote}>{hero.secondary}</Text>
+            ) : null}
+            <View style={styles.actions}>
+              <View style={{ flex: 1 }}>
+                <PrimaryButton
+                  label={t("today.openStore")}
+                  icon="storefront-outline"
+                  onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: hero.retailerId })}
+                />
+              </View>
+              {hero.stop ? (
+                <View style={{ flex: 1 }}>
+                  <SecondaryButton label={t("route.navigate")} icon="navigate-outline" onPress={() => navigateTo(hero.stop)} />
+                </View>
+              ) : null}
+            </View>
+          </FocusCard>
+        ) : null}
 
-        {/* Anything just earned, celebrated once and dismissable. */}
+        {!dayClosed ? (
+          <MetricStrip
+            items={[
+              {
+                label: t("today.metricVisits"),
+                value: route ? `${route.progress.visited} / ${route.progress.total}` : "—",
+              },
+              { label: t("today.metricOrders"), value: String(metrics.orders) },
+              { label: t("today.metricOrderValue"), value: inr(metrics.orderValue ?? 0) },
+              { label: t("today.metricCollected"), value: inr(metrics.collectionValueConfirmed ?? 0) },
+            ]}
+          />
+        ) : null}
+
+        {headlineTarget ? (
+          <Surface>
+            <SectionHeader
+              title={headlineTarget.label || t("today.monthlySales")}
+              action={
+                today.targets.length > 1 ? (
+                  <TextButton label={t("today.seeAllTargets")} onPress={() => navigation.navigate("Activity")} />
+                ) : undefined
+              }
+            />
+            <Text style={styles.targetActual} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
+              {formatTarget(headlineTarget.actual, headlineTarget.unit)}
+            </Text>
+            <Text style={styles.targetOf}>
+              {t("today.ofTarget", { target: formatTarget(headlineTarget.target, headlineTarget.unit) })} ·{" "}
+              {headlineTarget.completionPct}%
+            </Text>
+            <ProgressRow pct={headlineTarget.completionPct} tone="gold" />
+            <Text style={styles.targetRemain}>
+              {headlineTarget.completionPct < 8
+                ? t("today.tooEarly")
+                : t("today.remainingOf", { amount: formatTarget(headlineTarget.remaining, headlineTarget.unit) })}
+            </Text>
+          </Surface>
+        ) : null}
+
         {celebrations.length > 0 ? (
           <View style={{ gap: spacing.sm }}>
             {celebrations.map((achievement: any) => (
@@ -330,53 +381,15 @@ export default function TodayScreen({ navigation }: any) {
           </View>
         ) : null}
 
-        {/* The few things most worth doing, with the measurement behind each. */}
-        {(today.opportunities?.summary ?? []).length > 0 ? (
-          <Card>
-            <SectionTitle
-              title={t("today.opportunities")}
-              action={
-                <TouchableOpacity onPress={() => navigation.navigate("Opportunities")}>
-                  <Text style={styles.link}>{t("today.viewAll")}</Text>
-                </TouchableOpacity>
-              }
-            />
-            {today.opportunities.summary.slice(0, 3).map((line: any) => (
-              <Text key={line.type} style={styles.opportunitySummary}>
-                • {line.headline}
-              </Text>
-            ))}
-            {today.opportunities.actions.slice(0, 2).map((action: any, index: number) => (
-              <ListRow
-                key={`${action.type}-${action.retailerId}`}
-                first={index === 0}
-                icon={OPPORTUNITY_ICONS[action.type] ?? "bulb-outline"}
-                title={action.headline}
-                subtitle={action.why}
-                onPress={() =>
-                  navigation.navigate("RepRetailerDetail", { retailerId: action.retailerId })
-                }
-              />
-            ))}
-          </Card>
-        ) : null}
-
-        {/* Route */}
-        <Card>
-          <SectionTitle
+        <View>
+          <SectionHeader
             title={t("today.route")}
-            action={
-              route ? (
-                <TouchableOpacity onPress={() => navigation.navigate("Route")}>
-                  <Text style={styles.link}>{t("today.viewRoute")}</Text>
-                </TouchableOpacity>
-              ) : undefined
-            }
+            action={route ? <TextButton label={t("today.viewRoute")} onPress={() => navigation.navigate("Route")} /> : undefined}
           />
           {route ? (
-            <>
+            <Surface>
               <View style={styles.between}>
-                <Text style={styles.muted}>
+                <Text style={styles.caption}>
                   {t("today.progress", {
                     done: route.progress.visited + route.progress.skipped,
                     total: route.progress.total,
@@ -384,182 +397,150 @@ export default function TodayScreen({ navigation }: any) {
                 </Text>
                 <Text style={styles.pct}>{route.progress.completionPct}%</Text>
               </View>
-              <ProgressTrack pct={route.progress.completionPct} />
-              {route.nextStop ? (
-                <View style={styles.nextStop}>
-                  <Text style={styles.subhead}>{t("today.nextCustomer")}</Text>
+              <ProgressRow pct={route.progress.completionPct} tone="green" />
+              {hero?.kind === "route" ? (
+                <Text style={styles.caption}>
+                  {t("today.stopsRemaining", {
+                    count: Math.max(0, route.progress.total - route.progress.visited - route.progress.skipped),
+                  })}
+                </Text>
+              ) : nextStop ? (
+                <>
                   <Text style={styles.nextName} numberOfLines={1}>
-                    {route.nextStop.retailer.name}
-                  </Text>
-                  <Text style={styles.muted} numberOfLines={2}>
-                    {route.nextStop.retailer.shopAddress}
+                    {nextStop.retailer.name}
                   </Text>
                   <View style={styles.actions}>
                     <View style={{ flex: 1 }}>
                       <PrimaryButton
-                        label="Open store"
+                        label={t("today.openStore")}
                         icon="storefront-outline"
                         onPress={() =>
-                          navigation.navigate("RepRetailerDetail", {
-                            retailerId: route.nextStop.retailer.id,
-                          })
+                          navigation.navigate("RepRetailerDetail", { retailerId: nextStop.retailer.id })
                         }
                       />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <SecondaryButton
-                        label={t("route.navigate")}
-                        icon="navigate-outline"
-                        onPress={() => navigateTo(route.nextStop)}
-                      />
+                      <SecondaryButton label={t("route.navigate")} icon="navigate-outline" onPress={() => navigateTo(nextStop)} />
                     </View>
                   </View>
-                </View>
+                </>
               ) : (
-                <Text style={styles.muted}>Every stop on today's route is settled.</Text>
+                <Text style={styles.caption}>{t("today.routeSettled")}</Text>
               )}
-            </>
+            </Surface>
           ) : (
-            <View style={{ gap: 6 }}>
-              <Text style={styles.dayState}>{t("today.noRoute")}</Text>
-              <Text style={styles.muted}>{t("today.noRouteBody")}</Text>
-            </View>
+            <Text style={styles.caption}>{t("today.noRouteBody")}</Text>
           )}
-        </Card>
+        </View>
 
-        {/* Tasks */}
-        <Card>
-          <SectionTitle title={t("today.tasks")} />
-          {today.tasks.length === 0 ? (
-            <Text style={styles.muted}>{t("today.noTasks")}</Text>
+        <View>
+          <SectionHeader
+            title={t("today.opportunities")}
+            action={
+              (today.opportunities?.actions?.length ?? 0) > 0 ? (
+                <TextButton label={t("today.viewAll")} onPress={() => navigation.navigate("Opportunities")} />
+              ) : undefined
+            }
+          />
+          {(today.opportunities?.actions ?? []).length === 0 && pendingRetailers.length === 0 ? (
+            <Text style={styles.caption}>{t("today.noCollectionsCalm")}</Text>
           ) : (
-            today.tasks.slice(0, 5).map((task: any, index: number) => (
-              <ListRow
-                key={task.id}
-                first={index === 0}
-                icon={task.overdue ? "alert-circle-outline" : "checkbox-outline"}
-                danger={task.overdue}
-                title={task.title}
-                subtitle={[
-                  task.retailer?.name,
-                  task.dueAt
-                    ? `Due ${new Date(task.dueAt).toLocaleDateString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                      })}`
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-                right={
-                  <TouchableOpacity
-                    style={styles.doneBtn}
-                    onPress={() => void completeTask(task.id)}
-                    accessibilityLabel={`Mark ${task.title} done`}
-                  >
-                    <Ionicons name="checkmark" size={16} color={colors.green} />
-                  </TouchableOpacity>
-                }
-              />
-            ))
-          )}
-        </Card>
-
-        {/* Receivables the salesperson is expected to chase. */}
-        <Card>
-          <SectionTitle title={t("today.collections")} />
-          {today.pendingCollections.retailers.length === 0 ? (
-            <Text style={styles.muted}>{t("today.noCollections")}</Text>
-          ) : (
-            <>
-              <View style={styles.between}>
-                <Text style={styles.muted}>
-                  {today.pendingCollections.retailers.length} customer
-                  {today.pendingCollections.retailers.length === 1 ? "" : "s"}
-                </Text>
-                <Text style={styles.overdueTotal}>
-                  {inr(today.pendingCollections.totalOverdue)} overdue
-                </Text>
-              </View>
-              {today.pendingCollections.retailers.slice(0, 5).map((retailer: any, index: number) => (
-                <ListRow
+            <Surface>
+              {pendingRetailers.slice(0, 1).map((retailer: any) => (
+                <AttentionRow
                   key={retailer.id}
-                  first={index === 0}
-                  icon="cash-outline"
+                  tone="danger"
+                  icon="wallet-outline"
                   title={retailer.name}
-                  subtitle={retailer.shopAddress}
-                  right={<Text style={styles.overdueTotal}>{inr(retailer.overdue)}</Text>}
-                  onPress={() =>
-                    navigation.navigate("RepRetailerDetail", { retailerId: retailer.id })
-                  }
+                  subtitle={`${inr(retailer.overdue)} overdue`}
+                  onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: retailer.id })}
                 />
               ))}
-            </>
+              {(today.opportunities?.actions ?? []).slice(0, 3).map((action: any) => (
+                <AttentionRow
+                  key={`${action.type}-${action.retailerId}`}
+                  tone={action.type === "COLLECTION_DUE" ? "danger" : "gold"}
+                  icon={OPPORTUNITY_ICONS[action.type] ?? "bulb-outline"}
+                  title={action.headline}
+                  subtitle={action.why}
+                  onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: action.retailerId })}
+                />
+              ))}
+            </Surface>
           )}
-        </Card>
+        </View>
 
-        {/* Follow-ups the salesperson promised a customer. */}
-        {today.followUps.length > 0 ? (
-          <Card>
-            <SectionTitle title={t("today.followUps")} />
-            {today.followUps.map((followUp: any, index: number) => (
-              <ListRow
-                key={followUp.id}
-                first={index === 0}
-                icon="time-outline"
-                title={followUp.retailer?.name ?? "Customer"}
-                subtitle={followUp.notes ?? undefined}
-                onPress={() =>
-                  navigation.navigate("RepRetailerDetail", { retailerId: followUp.retailer?.id })
-                }
-              />
-            ))}
-          </Card>
+        <View>
+          <SectionHeader
+            title={t("today.tasks")}
+            action={
+              remainingTasks.length > 0 ? (
+                <Text style={styles.caption}>{t("today.tasksRemaining", { count: remainingTasks.length })}</Text>
+              ) : undefined
+            }
+          />
+          {today.tasks.length === 0 ? (
+            <Text style={styles.caption}>{t("today.noTasksCalm")}</Text>
+          ) : (
+            <Surface>
+              {today.tasks.slice(0, 5).map((task: any) => (
+                <TaskRow
+                  key={task.id}
+                  title={task.title}
+                  subtitle={[
+                    task.retailer?.name,
+                    task.dueAt
+                      ? `Due ${new Date(task.dueAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                  done={task.status === "done"}
+                  overdue={task.overdue}
+                  onComplete={() => void completeTask(task.id)}
+                />
+              ))}
+            </Surface>
+          )}
+        </View>
+
+        {(today.followUps ?? []).length > 0 ? (
+          <View>
+            <SectionHeader title={t("today.followUps")} />
+            <Surface>
+              {(today.followUps ?? []).map((followUp: any) => (
+                <AttentionRow
+                  key={followUp.id}
+                  tone="warning"
+                  icon="time-outline"
+                  title={followUp.retailer?.name ?? "Customer"}
+                  subtitle={followUp.notes ?? undefined}
+                  onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: followUp.retailer?.id })}
+                />
+              ))}
+            </Surface>
+          </View>
         ) : null}
       </ScrollView>
-    </View>
+    </AppScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  content: { padding: spacing.lg, gap: spacing.lg, paddingBottom: TAB_BAR_SPACE + spacing.xl },
-
-  dayRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
-  dayState: { fontSize: 15.5, fontWeight: "700", color: colors.ink },
-  daySub: { fontSize: 12.5, color: colors.inkMuted, marginTop: 3, lineHeight: 18 },
-
-  metrics: { flexDirection: "row", gap: spacing.sm },
-  subhead: { fontSize: 12, fontWeight: "700", color: colors.inkMuted },
+  pad: { paddingHorizontal: spacing.xl, paddingTop: spacing.md },
+  content: { paddingHorizontal: spacing.xl, gap: spacing.section, paddingBottom: TAB_BAR_SPACE + spacing.xl },
+  dayEyebrow: { fontSize: 12, fontWeight: "600", color: colors.textSecondary, letterSpacing: 0.4, textTransform: "uppercase" },
+  dayTitle: { fontSize: 22, fontWeight: "600", color: colors.ink, letterSpacing: -0.3 },
+  daySupport: { fontSize: 13, color: colors.textSecondary, lineHeight: 18 },
+  heroName: { fontSize: 22, fontWeight: "600", color: colors.ink, letterSpacing: -0.3 },
+  heroAddress: { fontSize: 14, color: colors.textSecondary, lineHeight: 20 },
+  heroNote: { fontSize: 13, fontWeight: "600", color: colors.danger },
+  actions: { flexDirection: "row", gap: spacing.sm },
+  targetActual: { fontSize: 32, fontWeight: "600", color: colors.ink, letterSpacing: -0.6 },
+  targetOf: { fontSize: 13, color: colors.goldStrong, fontWeight: "600" },
+  targetRemain: { fontSize: 13, color: colors.textSecondary },
+  caption: { fontSize: 13, color: colors.textSecondary, lineHeight: 18 },
+  pct: { fontSize: 13, fontWeight: "600", color: colors.primary },
   between: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  muted: { fontSize: 12.5, color: colors.inkMuted, lineHeight: 18 },
-  pct: { fontSize: 13, fontWeight: "700", color: colors.green },
-  link: { fontSize: 12.5, fontWeight: "700", color: colors.green },
-
-  targetLabel: { fontSize: 12.5, color: colors.ink, fontWeight: "600" },
-  targetValue: { fontSize: 12.5, color: colors.inkMuted },
-
-  targetPct: { fontSize: 15, fontWeight: "800", color: colors.accentStrong },
-  targetRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs },
-  targetCell: { flex: 1 },
-  targetCellLabel: { fontSize: 10.5, color: colors.inkMuted, textTransform: "uppercase", letterSpacing: 0.4 },
-  targetBig: { fontSize: 19, fontWeight: "800", color: colors.ink, marginTop: 3 },
-  targetRemaining: { color: colors.accentStrong },
-  targetSentence: { fontSize: 13, color: colors.ink, fontWeight: "600", marginTop: 2 },
-  opportunitySummary: { fontSize: 13, color: colors.ink, lineHeight: 20 },
-
-  nextStop: { gap: 4, marginTop: spacing.sm },
-  nextName: { fontSize: 16, fontWeight: "700", color: colors.ink },
-  actions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
-
-  doneBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.greenSoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  overdueTotal: { fontSize: 13, fontWeight: "700", color: colors.danger },
+  nextName: { fontSize: 16, fontWeight: "600", color: colors.ink, marginTop: spacing.sm },
 });

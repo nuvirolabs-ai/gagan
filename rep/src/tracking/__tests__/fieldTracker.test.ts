@@ -92,7 +92,7 @@ describe("what the salesperson is told", () => {
 
   it("says plainly when nothing is recorded off duty", () => {
     const banner = trackingBanner({ tracking: false, reason: "off_duty" });
-    expect(banner.body).toMatch(/Nothing is recorded while you are off duty/i);
+    expect(banner.body).toMatch(/only recorded while you're on duty/i);
   });
 
   it("names the organisation policy when tracking is switched off", () => {

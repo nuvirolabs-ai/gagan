@@ -6,6 +6,25 @@ surface has now been checked on a physical Android handset; that evidence is
 recorded immediately below rather than treating the remaining checklist as
 complete.
 
+## V1 readiness freeze
+
+- SALESPERSON FUNCTIONAL V1 — FROZEN
+- SALESPERSON VISUAL V1 — FROZEN
+- SFA CAPABILITY DEPTH V1 — FROZEN
+
+No further Salesperson App capability or visual work is planned under this
+freeze. Changes are permitted only for a launch-critical defect, a real defect
+found by physical iOS QA, or an integration change required by SAP Business
+One UAT.
+
+Known follow-up: a clean UAT identity is still required to exercise the fresh
+Start My Day → EOD note → End My Day mutation sequence. This is a documented
+UAT limitation, not an invitation to expand the feature set.
+
+Next workstream: real SAP Business One UAT after the SAP team supplies Service
+Layer credentials and field mappings. Real SAP B1, production deployment, and
+main-branch merge are out of scope for this freeze.
+
 ## SFA CAPABILITY DEPTH V1 ACCEPTED
 
 Physical Android verification completed on 2 September 2026 using a Motorola

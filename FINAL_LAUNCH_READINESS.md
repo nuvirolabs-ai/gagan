@@ -1,7 +1,7 @@
 # Final launch readiness
 
-**Code reviewed:** `codex/gagan-staging` after this pre-SAP pass (on top of `b88fe32`).  
-**Product freeze commit:** `f99a651` — Close V1 operating gaps before SAP UAT.  
+**Code reviewed:** `codex/gagan-staging` through the accepted SFA capability-depth commits.
+**Accepted SFA commits:** `f8a308d`, `9374755`, `920f59b`.
 **Do not merge main. Do not deploy production automatically.**
 
 Staging at freeze:
@@ -25,7 +25,7 @@ Staging at freeze:
 | Security | 88 | IDOR + RBAC; in-process rate limits |
 | Data consistency | 92 | One retailer/order/SKU; order refs now 8-digit `GGN-########` |
 | Operations | 85 | Employees can act on core queues including SAP retry |
-| Physical-device readiness | 82 | Fresh `f99a651` APKs on Desktop; no handset attached this pass |
+| Physical-device readiness | 82 | Approved SFA capability-depth surface accepted on a physical Motorola E13 Android handset; broader device checklist and fresh iOS pass remain open |
 | Production infrastructure | 55 | Checklist exists; secrets/SMS/pay/SAP not provisioned |
 | SAP readiness | 45 | Mock + outbox UI; credentials and field maps missing |
 
@@ -49,12 +49,19 @@ Production shoppers still need real SMS + real payments. ERP still needs Busines
 
 ## V1 FEATURE FREEZE
 
-V1 feature development is frozen at `f99a651`.
+The Salesperson V1 surfaces are frozen at the accepted SFA capability-depth
+pass:
 
-No new non-SAP feature work should begin unless:
+- SALESPERSON FUNCTIONAL V1 — FROZEN
+- SALESPERSON VISUAL V1 — FROZEN
+- SFA CAPABILITY DEPTH V1 — FROZEN
+
+Do not add further SFA/Bizom-reference capabilities. Salesperson App changes
+are allowed only if:
 
 - a launch-critical defect is discovered, or
-- SAP UAT reveals a required integration change.
+- physical iOS QA exposes a real defect, or
+- SAP Business One UAT reveals a required integration change.
 
 Do not start Procurement, WMS, notification centre, or a scheme engine.  
 Do not connect real SAP B1 without the SAP handoff.  
@@ -75,7 +82,7 @@ Allowed after freeze: staging verification, launch-critical defect fixes, SAP in
 | Retailer APK | `/Users/tanutejas/Desktop/gagan-retailer-f99a651.apk` |
 | Salesperson APK | `/Users/tanutejas/Desktop/gagan-sales-f99a651.apk` |
 | Physical retailer smoke | NOT RUN (no Android device attached) |
-| Physical salesperson smoke | NOT RUN (no Android device attached) |
+| Physical salesperson smoke | PASS for the approved SFA capability-depth surface on Motorola E13; broader device checklist remains open |
 
 **NON-SAP PRODUCT READINESS: 88 / 100**  
 **READY FOR SAP B1 UAT: YES**
@@ -93,3 +100,8 @@ Admin staging builds must bake `VITE_API_URL=https://gagan-staging-api.onrender.
 - Credit enforcement activation has API but no UI
 - Real SAP B1 is not connected
 - Real SMS / payment providers are not configured |
+
+The remaining documented UAT limitation is a fresh Start My Day → EOD note →
+End My Day mutation sequence using a clean UAT identity. The next engineering
+workstream is real SAP Business One UAT after the SAP team provides Service
+Layer credentials and field mappings.

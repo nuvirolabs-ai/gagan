@@ -1,9 +1,13 @@
 # Gagan Sales V1 — readiness
 
-Assessed at commit `db7edb3` plus this cycle's rollout-safety work.
+The original assessment below predates the accepted physical Android UAT. Its
+physical-device conclusions are superseded by the acceptance addendum in
+`SALESPERSON_REAL_DEVICE_UAT.md` and the current status recorded here.
 Evidence is automated tests, code inspection, and browser-driven UAT against a
 live API and a live Postgres. **No mobile build has been run on a physical
-device**, and that limitation propagates into several scores below.
+device for the original assessment**, and that limitation still applies to the
+broader GPS/offline/camera/battery checklist; the approved SFA capability-depth
+surface has since passed on a physical Android handset.
 
 Suites at the time of writing: backend **750**, retailer **31**, salesperson
 **77**, admin **50** — all green.
@@ -27,7 +31,7 @@ Suites at the time of writing: backend **750**, retailer **31**, salesperson
 | Opportunities | READY |
 | New retailer acquisition | READY |
 | Performance | READY |
-| Physical-device readiness | **NOT READY** |
+| Physical-device readiness | READY WITH LIMITATION |
 
 ---
 
@@ -37,8 +41,10 @@ Suites at the time of writing: backend **750**, retailer **31**, salesperson
 location, field tracking, translations and design tokens. Every screen in the
 day exists and is wired to canonical data.
 
-**Limitation:** never executed on a handset. Everything below in Geo, Offline
-and Physical-device readiness applies here.
+**Limitation:** the approved SFA capability-depth surface has passed on a
+physical Android handset. The broader GPS, offline, camera, battery, and
+cross-platform checklist remains open, as does the clean-identity
+Start My Day → EOD note → End My Day mutation sequence.
 
 ### Manager Experience — READY
 
@@ -139,17 +145,31 @@ inside the test rather than seeded:
 
 Every count is flat with team size. Nothing is N+1.
 
-### Physical-device readiness — NOT READY
+### Physical-device readiness — READY WITH LIMITATION
 
-No Android or iOS build has run on hardware.
+The approved SFA capability-depth surface has passed on a physical Motorola E13
+Android handset using the standalone staging APK. No fresh physical iOS pass
+has been completed in this cycle.
 
-- `adb` is not installed and no handset is attached.
-- `Xcode.app` exists but `xcode-select` points at CommandLineTools, so even the
-  iOS Simulator is unavailable.
+- The broader GPS, offline, camera, battery, and cross-platform cases remain
+  unexecuted.
+- A clean UAT identity is still required for the fresh Start My Day → EOD note
+  → End My Day mutation sequence.
 
-`SALESPERSON_REAL_DEVICE_UAT.md` holds the full script, the blockers, and the
-build command. Until it is executed, GPS, camera, real network loss, OS
-backgrounding and battery behaviour are all unobserved.
+`SALESPERSON_REAL_DEVICE_UAT.md` holds the approved-surface evidence and the
+remaining physical-device script.
+
+## Current V1 freeze
+
+- SALESPERSON FUNCTIONAL V1 — FROZEN
+- SALESPERSON VISUAL V1 — FROZEN
+- SFA CAPABILITY DEPTH V1 — FROZEN
+
+Do not add further SFA/Bizom-reference capabilities. Salesperson App changes
+are limited to a launch-critical defect, a real defect found by physical iOS
+QA, or an integration change required by SAP Business One UAT. The next
+engineering workstream is real SAP Business One UAT after Service Layer
+credentials and field mappings are supplied by the SAP team.
 
 ---
 

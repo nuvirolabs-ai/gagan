@@ -50,17 +50,25 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   const [activeVisit, setActiveVisit] = useState<any | null>(null);
   const [recentVisits, setRecentVisits] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
+  const [baseline, setBaseline] = useState<any | null>(null);
+  const [opportunities, setOpportunities] = useState<any[]>([]);
+  const [todayField, setTodayField] = useState<any | null>(null);
+  const [schemes, setSchemes] = useState<any[]>([]);
   const [composing, setComposing] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const [retailerData, locationData, visitData, activityData] = await Promise.all([
+    const [retailerData, locationData, visitData, activityData, baselineData, opportunityData, todayData, schemeData] = await Promise.all([
       repApi.retailer(retailerId),
       repApi.getLocation(retailerId),
       repApi.visits(),
       capabilities.canLogActivity
         ? repApi.customerActivities(retailerId).catch(() => ({ activities: [] }))
         : Promise.resolve({ activities: [] }),
+      repApi.retailerBaseline(retailerId).catch(() => ({ baseline: null })),
+      repApi.opportunities(50).catch(() => ({ actions: [] })),
+      repApi.today().catch(() => null),
+      repApi.schemes(retailerId).catch(() => ({ schemes: [] })),
     ]);
     const visits = (visitData.visits ?? []).filter((visit: any) => visit.retailerId === retailerId);
     setData(retailerData);
@@ -68,6 +76,10 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
     setActiveVisit(visits.find((visit: any) => !visit.checkedOutAt) ?? null);
     setRecentVisits(visits.slice(0, 5));
     setActivities(activityData.activities ?? []);
+    setBaseline(baselineData.baseline ?? null);
+    setOpportunities((opportunityData.actions ?? []).filter((item: any) => item.retailerId === retailerId));
+    setTodayField(todayData);
+    setSchemes(schemeData.schemes ?? []);
   }, [retailerId, capabilities.canLogActivity]);
 
   useFocusEffect(
@@ -106,6 +118,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   const blocked = credit.available <= 0 || !kycApproved;
   const visiting = Boolean(activeVisit && !activeVisit.checkedOutAt);
   const lastOrder = recentOrders[0];
+  const todayStop = todayField?.route?.stops?.find((stop: any) => stop.retailer?.id === retailer.id);
 
   const startKyc = async () => {
     navigation.navigate("KycCapture", { retailerId: retailer.id, retailerName: retailer.name });
@@ -238,6 +251,55 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
             </View>
           </View>
         </Surface>
+
+        {baseline ? (
+          <Surface>
+            <SectionHeader title="Store intelligence" />
+            <View style={styles.intelligenceGrid}>
+              <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Last order</Text><Text style={styles.intelligenceValue}>{baseline.lastOrderAt ? new Date(baseline.lastOrderAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "No order yet"}</Text></View>
+              <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Days since order</Text><Text style={styles.intelligenceValue}>{baseline.daysSinceLastOrder ?? "—"}</Text></View>
+              <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Average order</Text><Text style={styles.intelligenceValue}>{baseline.averageOrderValue == null ? "—" : inr(baseline.averageOrderValue)}</Text></View>
+              <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Usual cycle</Text><Text style={styles.intelligenceValue}>{baseline.medianIntervalDays == null ? "Building" : `${baseline.medianIntervalDays} days`}</Text></View>
+              <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Last visit</Text><Text style={styles.intelligenceValue}>{baseline.lastVisitAt ? new Date(baseline.lastVisitAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"}</Text></View>
+              <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Route today</Text><Text style={styles.intelligenceValue}>{todayStop ? (todayStop.status === "visited" ? "Visited" : "Planned") : "Not planned"}</Text></View>
+            </View>
+            <Text style={styles.intelligenceFoot}>Regular categories: {baseline.regularCategories?.length ? baseline.regularCategories.join(", ") : "Building from order history"}</Text>
+            {baseline.trend !== "unknown" ? <StatusChip label={`Recent order trend ${baseline.trend}`} tone={baseline.trend === "rising" ? "green" : baseline.trend === "falling" ? "warning" : "neutral"} /> : null}
+            {opportunities.length > 0 ? (
+              <View style={styles.attentionBox}><Text style={styles.attentionTitle}>Needs attention</Text>{opportunities.slice(0, 2).map((item) => <Text key={item.id ?? item.headline} style={styles.muted}>• {item.headline}</Text>)}</View>
+            ) : null}
+          </Surface>
+        ) : null}
+
+        {schemes.length > 0 ? (
+          <Surface>
+            <SectionHeader title="Schemes for this store" />
+            {schemes.map((scheme) => (
+              <View key={scheme.id} style={styles.schemeRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.lineTitle}>{scheme.name}</Text>
+                  <Text style={styles.muted}>{scheme.headline} · Benefit {inr(scheme.discountAmount)}</Text>
+                  {scheme.progressPct != null ? <Text style={styles.muted}>{inr(scheme.progress)} of {inr(scheme.targetAmount)} delivered · {scheme.progressPct}%</Text> : <Text style={styles.muted}>Progress is calculated from delivered orders.</Text>}
+                </View>
+                {scheme.remaining != null ? <StatusChip label={scheme.remaining > 0 ? `${inr(scheme.remaining)} to go` : "Unlocked"} tone={scheme.remaining > 0 ? "gold" : "green"} /> : null}
+              </View>
+            ))}
+          </Surface>
+        ) : null}
+
+        {recentOrders.length >= 3 ? (
+          <Surface>
+            <SectionHeader title="Last 6 orders" />
+            <Text style={styles.muted}>A small view of this store's recent order value.</Text>
+            <View style={styles.orderBars}>
+              {recentOrders.slice(0, 6).map((order: any) => {
+                const value = Number(order.orderTotal) || 0;
+                const max = Math.max(...recentOrders.slice(0, 6).map((item: any) => Number(item.orderTotal) || 0), 1);
+                return <View key={order.id} style={styles.orderBarRow}><Text style={styles.orderBarDate}>{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</Text><View style={styles.orderBarTrack}><View style={[styles.orderBarFill, { width: `${Math.max(5, (value / max) * 100)}%` }]} /></View><Text style={styles.orderBarValue}>{inr(value)}</Text></View>;
+              })}
+            </View>
+          </Surface>
+        ) : null}
 
         {credit.overdue > 0 ? (
           <FocusCard tone="danger">
@@ -512,4 +574,17 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.separator,
   },
+  intelligenceGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
+  intelligenceCell: { width: "46%" },
+  intelligenceValue: { fontSize: 15, fontWeight: "600", color: colors.ink, marginTop: 3 },
+  intelligenceFoot: { fontSize: 12, color: colors.textSecondary, lineHeight: 17, marginTop: spacing.md },
+  attentionBox: { marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.separator, gap: 4 },
+  attentionTitle: { fontSize: 13, fontWeight: "600", color: colors.danger },
+  orderBars: { marginTop: spacing.md, gap: spacing.sm },
+  orderBarRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  orderBarDate: { width: 42, fontSize: 11, color: colors.textSecondary },
+  orderBarTrack: { flex: 1, height: 8, borderRadius: 99, backgroundColor: colors.track, overflow: "hidden" },
+  orderBarFill: { height: "100%", borderRadius: 99, backgroundColor: colors.gold },
+  orderBarValue: { width: 64, textAlign: "right", fontSize: 11, color: colors.ink },
+  schemeRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.separator },
 });

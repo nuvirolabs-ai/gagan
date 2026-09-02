@@ -53,6 +53,12 @@ export default function RepAccountScreen({ navigation }: any) {
       subtitle: t("more.attentionSubtitle"),
       screen: "Opportunities",
     },
+    capabilities.canRunFieldDay && {
+      icon: "folder-open-outline",
+      label: "Sales Kit",
+      subtitle: "Product and scheme material",
+      screen: "SalesKit",
+    },
   ].filter(Boolean) as Array<{ icon: string; label: string; subtitle: string; screen: string }>;
 
   const grow = [

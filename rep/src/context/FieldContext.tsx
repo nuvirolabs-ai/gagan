@@ -49,7 +49,7 @@ interface FieldContextValue {
   flushOutbox: (options?: { retryFailed?: boolean }) => Promise<void>;
 
   startDay: (input: { latitude: number; longitude: number; accuracyMeters: number }) => Promise<void>;
-  endDay: (input: { latitude: number; longitude: number; accuracyMeters: number }) => Promise<void>;
+  endDay: (input: { latitude: number; longitude: number; accuracyMeters: number; managerNote?: string }) => Promise<void>;
 
   /**
    * Logs a customer activity. Sends it now when there is a connection, and
@@ -229,7 +229,7 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
   }, [enabled, tracking?.tracking, tracking?.pingIntervalSeconds, flushOutbox]);
 
   const startDay = useCallback(
-    async (input: { latitude: number; longitude: number; accuracyMeters: number }) => {
+    async (input: { latitude: number; longitude: number; accuracyMeters: number; managerNote?: string }) => {
       await repApi.startDay({ ...input, devicePlatform: Platform.OS });
       lastReading.current = null;
       await refresh();

@@ -34,6 +34,7 @@ import OpportunitiesScreen from "./src/screens/OpportunitiesScreen";
 import AddRetailerScreen from "./src/screens/AddRetailerScreen";
 import { staffCapabilities } from "./src/auth/staffCapabilities";
 import LanguageSelectionScreen from "./src/screens/LanguageSelectionScreen";
+import SalesKitScreen from "./src/screens/SalesKitScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -194,6 +195,9 @@ function RootNavigator() {
               component={MyDayScreen}
               options={{ title: t("myday.title"), headerBackTitle: t("tabs.more") }}
             />
+          )}
+          {capabilities.canRunFieldDay && (
+            <Stack.Screen name="SalesKit" component={SalesKitScreen} options={{ title: "Sales Kit", headerBackTitle: t("tabs.more") }} />
           )}
           {capabilities.canSeeCustomerMap && (
             <Stack.Screen

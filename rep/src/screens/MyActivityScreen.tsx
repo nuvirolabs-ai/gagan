@@ -77,6 +77,7 @@ export default function MyActivityScreen({ route }: any) {
   const [targets, setTargets] = useState<any[]>([]);
   const [ranking, setRanking] = useState<any | null>(null);
   const [achievements, setAchievements] = useState<any[]>([]);
+  const [windowDays, setWindowDays] = useState<7 | 30>(30);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -89,9 +90,11 @@ export default function MyActivityScreen({ route }: any) {
   );
 
   const load = useCallback(async () => {
+    const to = new Date();
+    const from = new Date(to.getTime() - (windowDays - 1) * 86_400_000);
     const [feed, stats, targetData, rankData, achievementData] = await Promise.all([
       repApi.activityFeed().catch(() => ({ entries: [] })),
-      repApi.performance().catch(() => null),
+      repApi.performance(from.toISOString(), to.toISOString()).catch(() => null),
       repApi.targets().catch(() => ({ targets: [] })),
       repApi.ranking().catch(() => null),
       repApi.achievements().catch(() => ({ achievements: [] })),
@@ -101,7 +104,7 @@ export default function MyActivityScreen({ route }: any) {
     setTargets(targetData.targets ?? []);
     setRanking(rankData);
     setAchievements(achievementData.achievements ?? []);
-  }, []);
+  }, [windowDays]);
 
   useFocusEffect(
     useCallback(() => {
@@ -116,7 +119,7 @@ export default function MyActivityScreen({ route }: any) {
     return groups;
   }, {});
 
-  const monthLabel = new Date().toLocaleDateString("en-IN", { month: "long" });
+  const monthLabel = windowDays === 7 ? "Last 7 days" : "Last 30 days";
 
   return (
     <AppScreen>
@@ -188,7 +191,13 @@ export default function MyActivityScreen({ route }: any) {
           ) : performance ? (
             <>
               <View>
+                <View style={styles.between}>
                 <Text style={styles.month}>{monthLabel}</Text>
+                  <View style={styles.windowChips}>
+                    <FilterChip label="7D" active={windowDays === 7} onPress={() => setWindowDays(7)} />
+                    <FilterChip label="30D" active={windowDays === 30} onPress={() => setWindowDays(30)} />
+                  </View>
+                </View>
                 <Text style={styles.sales} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                   {inr(performance.period.orderValue)}
                 </Text>
@@ -200,7 +209,7 @@ export default function MyActivityScreen({ route }: any) {
 
               {targets[0] ? (
                 <Surface>
-                  <SectionHeader title={t("performance.targets")} />
+                  <SectionHeader title="Target trajectory" />
                   <Text style={styles.targetLine}>
                     {targets[0].unit === "currency"
                       ? `${inr(targets[0].actual)} / ${inr(targets[0].target)}`
@@ -208,6 +217,7 @@ export default function MyActivityScreen({ route }: any) {
                     · {targets[0].completionPct}%
                   </Text>
                   <ProgressRow pct={targets[0].completionPct} tone="gold" />
+                  <Text style={styles.conclusion}>Actual progress is {targets[0].completionPct}% of the current target.</Text>
                 </Surface>
               ) : null}
 
@@ -229,6 +239,53 @@ export default function MyActivityScreen({ route }: any) {
                   {performance.period.attendance.workingDays}
                 </Text>
               </Surface>
+
+              {performance.visuals?.hasEnoughHistory ? (
+                <>
+                  <Surface>
+                    <SectionHeader title="Sales trend" />
+                    <Text style={styles.conclusion}>
+                      {performance.period.orders > 0
+                        ? `${performance.period.orders} orders contributed ${inr(performance.period.orderValue)} in this window.`
+                        : "No orders were recorded in this window."}
+                    </Text>
+                    <VisualBars rows={(performance.visuals.salesTrend ?? []).map((row: any) => ({ label: row.date.slice(5), value: row.value, display: inr(row.value) }))} />
+                  </Surface>
+                  <Surface>
+                    <SectionHeader title="Visits and productivity" />
+                    <Text style={styles.conclusion}>
+                      {performance.visuals.productivityPct == null
+                        ? "There is not enough visit history to calculate productivity."
+                        : `${performance.visuals.productivityPct}% of visits were productive in this window.`}
+                    </Text>
+                    <VisualBars rows={(performance.visuals.visitsTrend ?? []).map((row: any) => ({ label: row.date.slice(5), value: row.visits, display: `${row.productiveVisits}/${row.visits}` }))} />
+                  </Surface>
+                  <Surface>
+                    <SectionHeader title="Orders by selling day" />
+                    <Text style={styles.conclusion}>{performance.period.orders} orders were recorded across the selected days.</Text>
+                    <VisualBars rows={(performance.visuals.ordersByDay ?? []).map((row: any) => ({ label: row.date.slice(5), value: row.orders, display: String(row.orders) }))} />
+                  </Surface>
+                  <Surface>
+                    <SectionHeader title="Collections trend" />
+                    <Text style={styles.conclusion}>{inr(performance.period.collectionValueConfirmed)} has been confirmed in collections during this window.</Text>
+                    <VisualBars rows={(performance.visuals.collectionsTrend ?? []).map((row: any) => ({ label: row.date.slice(5), value: row.confirmedValue, display: inr(row.confirmedValue) }))} />
+                  </Surface>
+                  {(performance.visuals.categoryContribution ?? []).length > 0 ? (
+                    <Surface>
+                      <SectionHeader title="Category contribution" />
+                      <Text style={styles.conclusion}>The strongest category in this window is {performance.visuals.categoryContribution[0].category}.</Text>
+                      <VisualBars rows={performance.visuals.categoryContribution.slice(0, 5).map((row: any) => ({ label: row.category, value: row.sharePct, display: `${row.sharePct}%` }))} />
+                    </Surface>
+                  ) : null}
+                  {(performance.visuals.routeCompletionTrend ?? []).length > 1 ? (
+                    <Surface>
+                      <SectionHeader title="Route completion" />
+                      <Text style={styles.conclusion}>Route completion is shown only for published route days.</Text>
+                      <VisualBars rows={performance.visuals.routeCompletionTrend.map((row: any) => ({ label: row.date.slice(5), value: row.completionPct, display: `${row.completionPct}%` }))} />
+                    </Surface>
+                  ) : null}
+                </>
+              ) : null}
 
               <Surface>
                 <SectionHeader title={t("performance.targets")} />
@@ -310,6 +367,22 @@ export default function MyActivityScreen({ route }: any) {
   );
 }
 
+function VisualBars({ rows }: { rows: Array<{ label: string; value: number; display: string }> }) {
+  const visible = rows.slice(-7);
+  const max = Math.max(...visible.map((row) => row.value), 1);
+  return (
+    <View style={styles.visualBars}>
+      {visible.map((row) => (
+        <View key={row.label} style={styles.barRow}>
+          <Text style={styles.barLabel}>{row.label}</Text>
+          <View style={styles.barTrack}><View style={[styles.barFill, { width: `${Math.max(4, (row.value / max) * 100)}%` }]} /></View>
+          <Text style={styles.barValue}>{row.display}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   tabs: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.xl, paddingBottom: spacing.md },
   skel: { paddingHorizontal: spacing.xl, gap: spacing.md },
@@ -332,4 +405,12 @@ const styles = StyleSheet.create({
   targetLabel: { fontSize: 14, fontWeight: "600", color: colors.ink, flex: 1 },
   targetSource: { fontSize: 11, color: colors.textTertiary, lineHeight: 16 },
   rank: { fontSize: 32, fontWeight: "600", color: colors.ink, letterSpacing: -0.6 },
+  windowChips: { flexDirection: "row", gap: spacing.xs },
+  conclusion: { fontSize: 13, color: colors.textSecondary, lineHeight: 18, marginBottom: spacing.md },
+  visualBars: { gap: spacing.sm },
+  barRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  barLabel: { width: 38, fontSize: 11, color: colors.textSecondary },
+  barTrack: { flex: 1, height: 8, borderRadius: 99, backgroundColor: colors.track, overflow: "hidden" },
+  barFill: { height: "100%", borderRadius: 99, backgroundColor: colors.green },
+  barValue: { width: 60, fontSize: 11, color: colors.ink, textAlign: "right" },
 });

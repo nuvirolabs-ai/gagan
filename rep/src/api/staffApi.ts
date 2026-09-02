@@ -115,8 +115,10 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
     today: () => request("/rep/field/today"),
     startDay: (body: FieldCoordinates & { photo?: { contentType: string; bodyBase64: string } }) =>
       post("/rep/field/attendance/start", body),
-    endDay: (body: FieldCoordinates & { photo?: { contentType: string; bodyBase64: string } }) =>
+    endDay: (body: FieldCoordinates & { photo?: { contentType: string; bodyBase64: string }; managerNote?: string }) =>
       post("/rep/field/attendance/end", body),
+    salesKit: () => request("/rep/field/sales-kit"),
+    schemes: (retailerId?: string) => request(`/rep/field/schemes${retailerId ? `?retailerId=${retailerId}` : ""}`),
     attendance: (from?: string, to?: string) =>
       request(`/rep/field/attendance${rangeQuery(from, to)}`),
     leaveRequests: () => request("/rep/field/leave"),

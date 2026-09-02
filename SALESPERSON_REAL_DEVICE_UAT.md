@@ -182,3 +182,32 @@ Run on both platforms.
       silently wrong.
 - [ ] Empty states: a salesperson with no route, no retailers and no target sees
       an explanation, not a blank screen or a zero pretending to be data.
+
+## 11. SFA capability-depth pass
+
+These checks cover only the five approved additions. The PDF reference is a
+capability reference, not a visual or navigation template.
+
+- [ ] Activity > Performance switches between 7D and 30D without a second
+      analytics screen or one-network-request-per-chart pattern.
+- [ ] Sales trend, visits/productivity, category contribution and route
+      completion show a plain-language conclusion above each visual.
+- [ ] Empty or thin history hides unsupported trend claims instead of drawing a
+      fake flat line or presenting a prediction.
+- [ ] Retailer Detail shows Store Intelligence from the assigned retailer's
+      canonical baseline and deterministic opportunities only.
+- [ ] Last 6 orders appears only when enough real orders exist; values match the
+      retailer order history.
+- [ ] Canonical scheme progress uses delivered order value and does not invent
+      variable discounts.
+- [ ] Today > End My Day opens a review summary before closing the day.
+- [ ] The manager note is optional, limited, and appears in the workday-ended
+      audit metadata; no chat or messaging record is created.
+- [ ] After closing, the app shows the calm completed-day state and tracking
+      stops.
+- [ ] More > Sales Kit loads approved read-only staging collateral, groups it by
+      category, and opens links without relying on Metro or local files.
+- [ ] Sales Kit displays its demo/staging source internally until a canonical
+      content/storage contract is approved.
+- [ ] No stock audit, survey/photo capture, return, signature, distributor, or
+      real SAP B1 workflow has appeared as an accidental side effect.

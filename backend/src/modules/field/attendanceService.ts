@@ -36,6 +36,8 @@ export interface ClockInInput extends CoordinateInput {
 export interface ClockOutInput extends CoordinateInput {
   salespersonId: string;
   photo?: AttendancePhotoInput;
+  /** Optional, auditable handoff note captured before the field day closes. */
+  managerNote?: string;
   now?: Date;
 }
 
@@ -184,7 +186,10 @@ export class AttendanceService {
           action: "workday.ended",
           subjectType: "workday_session",
           subjectId: session.id,
-          metadata: { workedMinutes: closed.workedMinutes },
+          metadata: {
+            workedMinutes: closed.workedMinutes,
+            ...(input.managerNote ? { managerNote: input.managerNote } : {}),
+          },
         },
       });
       return closed;

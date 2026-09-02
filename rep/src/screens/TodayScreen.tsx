@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
@@ -75,6 +76,8 @@ export default function TodayScreen({ navigation }: any) {
   const { t } = useLanguage();
   const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [eodOpen, setEodOpen] = useState(false);
+  const [managerNote, setManagerNote] = useState("");
 
   useFocusEffect(
     useCallback(() => {
@@ -91,7 +94,7 @@ export default function TodayScreen({ navigation }: any) {
   const attendance = today?.attendance;
   const dayOpen = attendance?.status === "open";
   const dayClosed = attendance?.status === "closed";
-  const toggleDay = async () => {
+  const toggleDay = async (note?: string) => {
     const reading = await captureForegroundLocation();
     if (reading.kind === "permission_denied") {
       haptic("warning");
@@ -109,8 +112,10 @@ export default function TodayScreen({ navigation }: any) {
     setBusy(true);
     try {
       if (dayOpen) {
-        await endDay(reading);
+        await endDay({ ...reading, managerNote: note?.trim() || undefined });
         haptic("success");
+        setEodOpen(false);
+        setManagerNote("");
       } else {
         await startDay(reading);
         haptic("medium");
@@ -280,16 +285,45 @@ export default function TodayScreen({ navigation }: any) {
           )}
           {attendance.status !== "closed" ? (
             <PrimaryButton
-              label={dayOpen ? t("today.endDay") : t("today.startDay")}
+              label={dayOpen ? (eodOpen ? "Review summary" : t("today.endDay")) : t("today.startDay")}
               icon={dayOpen ? "stop-circle-outline" : "play-circle-outline"}
               tone={dayOpen ? "danger" : "green"}
               disabled={busy}
-              onPress={() => void toggleDay()}
+              onPress={() => (dayOpen ? setEodOpen(true) : void toggleDay())}
             />
           ) : (
             <TextButton label={t("today.seeActivity")} onPress={() => navigation.navigate("Activity")} />
           )}
         </FocusCard>
+
+        {eodOpen && dayOpen ? (
+          <Surface>
+            <SectionHeader title="End-of-day summary" />
+            <Text style={styles.summaryIntro}>Here is what will be reported for today.</Text>
+            <View style={styles.summaryGrid}>
+              <View><Text style={styles.summaryLabel}>Visits</Text><Text style={styles.summaryValue}>{metrics.visits}</Text></View>
+              <View><Text style={styles.summaryLabel}>Productive</Text><Text style={styles.summaryValue}>{metrics.productiveVisits}</Text></View>
+              <View><Text style={styles.summaryLabel}>Orders</Text><Text style={styles.summaryValue}>{metrics.orders}</Text></View>
+              <View><Text style={styles.summaryLabel}>Order value</Text><Text style={styles.summaryValue}>{inr(metrics.orderValue ?? 0)}</Text></View>
+              <View><Text style={styles.summaryLabel}>Collections</Text><Text style={styles.summaryValue}>{inr(metrics.collectionValueConfirmed ?? 0)}</Text></View>
+              <View><Text style={styles.summaryLabel}>Route</Text><Text style={styles.summaryValue}>{planned ? `${Math.round((visited / planned) * 100)}%` : "—"}</Text></View>
+            </View>
+            <Text style={styles.noteLabel}>Anything your manager should know? <Text style={styles.optional}>Optional</Text></Text>
+            <TextInput
+              value={managerNote}
+              onChangeText={setManagerNote}
+              placeholder="Add a short handoff note"
+              placeholderTextColor={colors.inkFaint}
+              multiline
+              maxLength={1000}
+              style={styles.noteInput}
+            />
+            <View style={styles.actions}>
+              <View style={{ flex: 1 }}><SecondaryButton label="Keep working" onPress={() => setEodOpen(false)} /></View>
+              <View style={{ flex: 1 }}><PrimaryButton label="End My Day" icon="checkmark-circle-outline" tone="danger" disabled={busy} onPress={() => void toggleDay(managerNote)} /></View>
+            </View>
+          </Surface>
+        ) : null}
 
         {dayClosed ? (
           <MetricStrip
@@ -544,4 +578,11 @@ const styles = StyleSheet.create({
   pct: { fontSize: 13, fontWeight: "600", color: colors.primary },
   between: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   nextName: { fontSize: 16, fontWeight: "600", color: colors.ink, marginTop: spacing.sm },
+  summaryIntro: { fontSize: 13, color: colors.textSecondary, lineHeight: 18, marginBottom: spacing.md },
+  summaryGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md, marginBottom: spacing.md },
+  summaryLabel: { fontSize: 12, color: colors.textSecondary },
+  summaryValue: { fontSize: 16, fontWeight: "600", color: colors.ink, marginTop: 3 },
+  noteLabel: { fontSize: 13, fontWeight: "600", color: colors.ink, marginBottom: spacing.sm },
+  optional: { color: colors.textTertiary, fontWeight: "400" },
+  noteInput: { minHeight: 76, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: spacing.md, color: colors.ink, textAlignVertical: "top", marginBottom: spacing.md },
 });

@@ -9,10 +9,12 @@ import { TrackingService } from "./trackingService";
 import {
   compareTargets,
   endOfDay,
+  eachDay,
   isProductiveVisit,
   startOfDay,
   workedMinutes,
 } from "./fieldDomain";
+import { buildPerformanceVisuals } from "./performanceVisuals";
 
 type Db = PrismaClient | any;
 
@@ -244,10 +246,11 @@ export class FieldDashboardService {
   /** Today plus a chosen period, with target comparison for the period. */
   async performance(input: { salespersonId: string; from: Date; to: Date; now?: Date }) {
     const now = input.now ?? new Date();
-    const [today, period, targets] = await Promise.all([
+    const [today, period, targets, visuals] = await Promise.all([
       this.metricsFor({ salespersonId: input.salespersonId, from: startOfDay(now), to: endOfDay(now) }),
       this.metricsFor({ salespersonId: input.salespersonId, from: input.from, to: input.to }),
       this.targetsFor({ salespersonId: input.salespersonId, from: input.from, to: input.to }),
+      this.performanceVisuals({ salespersonId: input.salespersonId, from: input.from, to: input.to }),
     ]);
     const attendance = await this.attendance.attendanceHistory({
       salespersonId: input.salespersonId,
@@ -277,7 +280,60 @@ export class FieldDashboardService {
           new_customers: period.newCustomers,
         }
       ),
+      visuals,
     };
+  }
+
+  /** One bounded read model for the Activity > Performance visuals. */
+  private async performanceVisuals(input: { salespersonId: string; from: Date; to: Date }) {
+    const salesRepId = await this.salesRepIdFor(input.salespersonId);
+    const range = { gte: input.from, lte: input.to };
+    const [orders, visits, collections, routeCompletionTrend] = await Promise.all([
+      salesRepId
+        ? this.prisma.order.findMany({
+            where: { placedByRepId: salesRepId, placedBy: "rep", createdAt: range },
+            select: {
+              createdAt: true,
+              orderTotal: true,
+              items: { select: { variant: { select: { product: { select: { category: true } } } } } },
+            },
+          })
+        : Promise.resolve([]),
+      this.prisma.salesVisit.findMany({
+        where: { salespersonId: input.salespersonId, checkedInAt: range },
+        select: { checkedInAt: true, outcome: true, activities: { select: { type: true } } },
+      }),
+      this.prisma.collectionSubmission.findMany({
+        where: { collectorStaffId: input.salespersonId, submittedAt: range },
+        select: { submittedAt: true, amount: true, status: true },
+      }),
+      typeof this.routes.routeHistory === "function"
+        ? this.routes.routeHistory(input.salespersonId, input.from, input.to)
+        : Promise.resolve([]),
+    ]);
+    return buildPerformanceVisuals({
+      from: input.from,
+      to: input.to,
+      orders: (orders as any[]).map((order) => ({
+        createdAt: order.createdAt,
+        orderTotal: money(order.orderTotal),
+        categories: order.items.map((item: any) => item.variant.product.category),
+      })),
+      visits: (visits as any[]).map((visit) => ({
+        checkedInAt: visit.checkedInAt,
+        outcome: visit.outcome,
+        activityTypes: visit.activities.map((activity: any) => activity.type),
+      })),
+      collections: (collections as any[]).map((collection) => ({
+        submittedAt: collection.submittedAt,
+        amount: money(collection.amount),
+        status: collection.status,
+      })),
+      routeCompletionTrend: (routeCompletionTrend as any[]).map((plan) => ({
+        date: plan.planDate,
+        completionPct: plan.progress.completionPct,
+      })),
+    });
   }
 
   /**

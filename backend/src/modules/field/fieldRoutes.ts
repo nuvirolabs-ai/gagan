@@ -24,6 +24,8 @@ import {
   defaultSalespersonTodayService,
 } from "../readmodels/salespersonTodayService";
 import { CUSTOMER_ACTIVITY_TYPES, startOfDay } from "./fieldDomain";
+import { STAGING_SALES_KIT } from "./salesKit";
+import { prisma } from "../../lib/prisma";
 
 export interface FieldServices {
   attendance: AttendanceService;
@@ -133,7 +135,9 @@ export function createFieldRouter(options: {
     "/field/attendance/end",
     requirePermission(Permissions.ATTENDANCE_MANAGE_SELF),
     asyncRoute(async (req: StaffAuthedRequest, res, next) => {
-      const parsed = coordinate.extend({ photo: photo.optional() }).safeParse(req.body);
+      const parsed = coordinate
+        .extend({ photo: photo.optional(), managerNote: z.string().trim().max(1000).optional() })
+        .safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "invalid_location_coordinates" });
       try {
         const session = await services.attendance.clockOut({
@@ -581,6 +585,52 @@ export function createFieldRouter(options: {
       } catch (error) {
         sendFieldError(error, res, next);
       }
+    })
+  );
+
+  router.get(
+    "/field/schemes",
+    requirePermission(Permissions.ROUTE_EXECUTE),
+    asyncRoute(async (req: StaffAuthedRequest, res) => {
+      const retailerId = typeof req.query.retailerId === "string" ? req.query.retailerId : null;
+      if (retailerId) {
+        const staff = await prisma.staffUser.findUnique({ where: { id: req.staffAuth!.staffId }, select: { salesRepId: true } });
+        const retailer = await prisma.retailer.findUnique({ where: { id: retailerId }, select: { salesRepId: true } });
+        if (!staff?.salesRepId || retailer?.salesRepId !== staff.salesRepId) return res.status(404).json({ error: "retailer_not_assigned" });
+      }
+      const now = new Date();
+      const schemes = await prisma.scheme.findMany({
+        where: { active: true, startsAt: { lte: now }, endsAt: { gte: now } },
+        orderBy: [{ featured: "desc" }, { endsAt: "asc" }],
+      });
+      const items = await Promise.all(schemes.map(async (scheme) => {
+        const progress = retailerId
+          ? Number((await prisma.order.aggregate({ _sum: { orderTotal: true }, where: { retailerId, status: "delivered", createdAt: { gte: scheme.startsAt, lte: scheme.endsAt } }}))._sum.orderTotal ?? 0)
+          : null;
+        const targetAmount = Number(scheme.targetAmount);
+        return {
+          id: scheme.id,
+          name: scheme.name,
+          headline: scheme.headline,
+          targetAmount,
+          discountAmount: Number(scheme.discountAmount),
+          startsAt: scheme.startsAt,
+          endsAt: scheme.endsAt,
+          progress,
+          remaining: progress == null ? null : Math.max(targetAmount - progress, 0),
+          progressPct: progress == null || targetAmount <= 0 ? null : Math.min(100, Math.round((progress / targetAmount) * 100)),
+          source: "canonical_scheme",
+        };
+      }));
+      res.json({ schemes: items });
+    })
+  );
+
+  router.get(
+    "/field/sales-kit",
+    requirePermission(Permissions.ROUTE_EXECUTE),
+    asyncRoute(async (_req: StaffAuthedRequest, res) => {
+      res.json({ items: STAGING_SALES_KIT, source: "demo", readOnly: true });
     })
   );
 

@@ -211,12 +211,6 @@ export default function MyActivityScreen({ route }: any) {
                     { label: t("today.metricVisits"), value: String(performance.period.visits) },
                     { label: t("activity.productiveVisits"), value: String(performance.period.productiveVisits) },
                     { label: t("activity.customersCovered"), value: String(performance.period.customersCovered) },
-                  ]}
-                />
-                <View style={{ height: spacing.md }} />
-                <MetricStrip
-                  bare
-                  items={[
                     { label: t("today.metricOrders"), value: String(performance.period.orders) },
                     { label: t("today.metricCollected"), value: inr(performance.period.collectionValueConfirmed) },
                     { label: t("activity.newCustomers"), value: String(performance.period.newCustomers) },

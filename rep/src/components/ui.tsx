@@ -1,15 +1,17 @@
 import React from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { colors, control, radius, spacing } from "../theme";
+import { colors, control, FILTER_ROW_HEIGHT, radius, spacing } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
+import { useHeaderPaddingTop } from "./companion";
 export {
   AppScreen,
   AttentionRow,
   CustomerRow,
+  CustomerRowSkeleton,
   ErrorState,
   FilterChip,
+  FilterChipRow,
   FocusCard,
   InitialsBadge,
   MetricStrip,
@@ -23,6 +25,7 @@ export {
   TaskRow,
   TextButton,
   TimelineEvent,
+  useHeaderPaddingTop,
 } from "./companion";
 
 /** Title bar for tab screens, which have no native header. */
@@ -35,9 +38,9 @@ export function ScreenHeader({
   subtitle?: string;
   right?: React.ReactNode;
 }) {
-  const insets = useSafeAreaInsets();
+  const paddingTop = useHeaderPaddingTop();
   return (
-    <View style={[s.header, { paddingTop: insets.top + spacing.sm }]}>
+    <View style={[s.header, { paddingTop }]}>
       <View style={{ flex: 1 }}>
         <Text style={s.headerTitle}>{title}</Text>
         {subtitle ? <Text style={s.headerSub}>{subtitle}</Text> : null}
@@ -85,7 +88,13 @@ export function ChipRow({
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.sm }}
+      style={{ flexGrow: 0, height: FILTER_ROW_HEIGHT }}
+      contentContainerStyle={{
+        paddingHorizontal: spacing.lg,
+        gap: spacing.sm,
+        alignItems: "center",
+        height: FILTER_ROW_HEIGHT,
+      }}
     >
       {options.map((opt) => {
         const active = opt === value;

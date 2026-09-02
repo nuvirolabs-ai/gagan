@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { colors, contrastRatio, greetingForHour, initials } from "../theme";
+import {
+  colors,
+  composeGreeting,
+  contrastRatio,
+  FILTER_CHIP_HEIGHT,
+  FILTER_ROW_HEIGHT,
+  greetingForHour,
+  headerInsetTop,
+  initials,
+  metricColumnCount,
+  spacing,
+} from "../theme";
 
 /** WCAG AA: 4.5:1 for body text, 3:1 for large text and UI boundaries. */
 const AA_TEXT = 4.5;
@@ -88,5 +99,34 @@ describe("companion helpers", () => {
     expect(greetingForHour(8)).toBe("morning");
     expect(greetingForHour(14)).toBe("afternoon");
     expect(greetingForHour(20)).toBe("evening");
+  });
+
+  it("composes a greeting with the first name only once", () => {
+    expect(composeGreeting("Good morning", "Ravi Kumar")).toBe("Good morning, Ravi");
+    expect(composeGreeting("Nice work", "Ravi Kumar")).toBe("Nice work, Ravi");
+    expect(composeGreeting("Nice work, Ravi.", "Ravi Kumar")).toBe("Nice work, Ravi");
+    expect(composeGreeting("Nice work, Ravi., Ravi", "Ravi Kumar")).toBe("Nice work, Ravi");
+    expect(composeGreeting("Good evening", "")).toBe("Good evening");
+  });
+
+  it("uses the larger of safe-area and Android status-bar height", () => {
+    expect(headerInsetTop(0, 24)).toBe(24 + spacing.md);
+    expect(headerInsetTop(48, 24)).toBe(48 + spacing.md);
+    expect(headerInsetTop(0, 0)).toBe(spacing.md);
+  });
+
+  it("wraps KPI grids on narrow phones and long labels", () => {
+    expect(metricColumnCount(360, 3, 18)).toBe(2);
+    expect(metricColumnCount(360, 6, 18)).toBe(2);
+    expect(metricColumnCount(420, 3, 6)).toBe(3);
+    expect(metricColumnCount(420, 4, 11)).toBe(2);
+  });
+
+  it("keeps filter chips at a stable pill height", () => {
+    expect(FILTER_CHIP_HEIGHT).toBeGreaterThanOrEqual(36);
+    expect(FILTER_CHIP_HEIGHT).toBeLessThanOrEqual(44);
+    expect(FILTER_ROW_HEIGHT).toBe(44);
+    expect(FILTER_ROW_HEIGHT).toBeGreaterThanOrEqual(FILTER_CHIP_HEIGHT);
+    expect(FILTER_ROW_HEIGHT).toBeLessThanOrEqual(48);
   });
 });

@@ -143,6 +143,39 @@ export const control = {
  */
 export const TAB_BAR_SPACE = 88;
 
+/** Chip row must never inherit leftover column height while lists load. */
+export const FILTER_CHIP_HEIGHT = 40;
+export const FILTER_ROW_HEIGHT = 44;
+
+export function headerInsetTop(safeTop: number, androidStatusBar = 0): number {
+  return Math.max(safeTop, androidStatusBar) + spacing.md;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function composeGreeting(salutation: string, fullName: string): string {
+  const first = fullName.trim().split(/\s+/).filter(Boolean)[0] ?? "";
+  const phrase = salutation.trim();
+  if (!first) return phrase.replace(/[.,]+$/, "");
+  const cleaned = phrase
+    .replace(new RegExp(`[,.\\s]*${escapeRegExp(first)}`, "gi"), " ")
+    .replace(/[.,]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned ? `${cleaned}, ${first}` : first;
+}
+
+/** Narrow phones wrap KPI grids instead of squeezing three truncated labels. */
+export function metricColumnCount(width: number, itemCount: number, longestLabelLength = 0): number {
+  if (itemCount <= 1) return 1;
+  if (itemCount === 2) return 2;
+  if (itemCount >= 4) return 2;
+  if (width < 390 || longestLabelLength > 12) return 2;
+  return 3;
+}
+
 /**
  * WCAG 2.1 relative luminance, used to keep the palette honest: a token pair
  * that fails contrast is a bug the tests catch rather than something a reader

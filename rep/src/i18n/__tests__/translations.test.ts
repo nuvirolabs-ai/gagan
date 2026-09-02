@@ -14,4 +14,9 @@ describe("salesperson translations", () => {
     expect(translate("hi", "approvals.title")).toBe("अनुमोदन");
     expect(translate("hi", "collections.submit")).toBe("Accounts को भेजें");
   });
+
+  it("keeps the closed-day greeting as a salutation without a name", () => {
+    expect(translate("en", "today.niceWork")).toBe("Nice work");
+    expect(translate("hi", "today.niceWork")).toBe("अच्छा काम");
+  });
 });

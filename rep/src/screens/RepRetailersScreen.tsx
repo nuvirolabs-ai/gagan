@@ -6,17 +6,24 @@ import {
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
-  ScrollView,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { repApi } from "../api/repClient";
 import { useRep } from "../context/RepContext";
 import { useField } from "../context/FieldContext";
 import { colors, inr, radius, spacing, TAB_BAR_SPACE } from "../theme";
-import { AppScreen, CustomerRow, EmptyState, FilterChip, SearchBar, Skeleton } from "../components/ui";
+import {
+  AppScreen,
+  CustomerRow,
+  CustomerRowSkeleton,
+  EmptyState,
+  FilterChip,
+  FilterChipRow,
+  SearchBar,
+  useHeaderPaddingTop,
+} from "../components/ui";
 import { staffCapabilities } from "../auth/staffCapabilities";
 import { useLanguage } from "../i18n/LanguageContext";
 
@@ -26,7 +33,7 @@ export default function RepRetailersScreen({ navigation }: any) {
   const { staff } = useRep();
   const { today } = useField();
   const { t } = useLanguage();
-  const insets = useSafeAreaInsets();
+  const headerPaddingTop = useHeaderPaddingTop();
   const capabilities = staffCapabilities(staff?.permissions ?? []);
   const [retailers, setRetailers] = useState<any[]>([]);
   const [totals, setTotals] = useState<any>({ count: 0, outstanding: 0, overdue: 0 });
@@ -86,7 +93,7 @@ export default function RepRetailersScreen({ navigation }: any) {
 
   return (
     <AppScreen>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
+      <View style={[styles.header, { paddingTop: headerPaddingTop }]}>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>{t("retailers.title")}</Text>
           <Text style={styles.sub}>{t("retailers.accounts", { count: totals.count })}</Text>
@@ -109,11 +116,7 @@ export default function RepRetailersScreen({ navigation }: any) {
 
       <SearchBar value={query} onChange={setQuery} placeholder={t("retailers.search")} />
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.chips}
-      >
+      <FilterChipRow>
         {filters.map((item) => (
           <FilterChip
             key={item.id}
@@ -122,13 +125,16 @@ export default function RepRetailersScreen({ navigation }: any) {
             onPress={() => setFilter(item.id)}
           />
         ))}
-      </ScrollView>
+      </FilterChipRow>
 
-      {loading ? (
+      {loading && retailers.length === 0 ? (
         <View style={styles.skel}>
-          <Skeleton height={72} />
-          <Skeleton height={72} />
-          <Skeleton height={72} />
+          <CustomerRowSkeleton />
+          <CustomerRowSkeleton />
+          <CustomerRowSkeleton />
+          <CustomerRowSkeleton />
+          <CustomerRowSkeleton />
+          <CustomerRowSkeleton />
         </View>
       ) : (
         <FlatList
@@ -195,7 +201,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  chips: { paddingHorizontal: spacing.xl, gap: spacing.sm, paddingVertical: spacing.md },
-  skel: { paddingHorizontal: spacing.xl, gap: spacing.md, paddingTop: spacing.md },
+  skel: { paddingTop: spacing.sm },
   divider: { height: 1, backgroundColor: colors.separator, marginLeft: 76 },
 });

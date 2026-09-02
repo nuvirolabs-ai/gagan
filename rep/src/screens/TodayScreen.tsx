@@ -28,6 +28,7 @@ import {
   TextButton,
 } from "../components/ui";
 import { AchievementCard } from "../components/Achievement";
+import { visibleAttentionItems } from "./attentionFeed";
 import { haptic } from "../feedback/haptics";
 import { useField } from "../context/FieldContext";
 import { useRep } from "../context/RepContext";
@@ -90,8 +91,6 @@ export default function TodayScreen({ navigation }: any) {
   const attendance = today?.attendance;
   const dayOpen = attendance?.status === "open";
   const dayClosed = attendance?.status === "closed";
-  const firstName = staff?.name?.split(" ")[0] ?? "";
-
   const toggleDay = async () => {
     const reading = await captureForegroundLocation();
     if (reading.kind === "permission_denied") {
@@ -203,6 +202,10 @@ export default function TodayScreen({ navigation }: any) {
   const nextStop = route?.nextStop;
   const overdueLead = today.pendingCollections?.retailers?.[0];
   const pendingRetailers = today.pendingCollections?.retailers ?? [];
+  const attentionItems = visibleAttentionItems({
+    overdueRetailers: pendingRetailers,
+    opportunityActions: today.opportunities?.actions ?? [],
+  });
   const opportunityLead = today.opportunities?.actions?.[0];
 
   const hero =
@@ -246,7 +249,7 @@ export default function TodayScreen({ navigation }: any) {
     <AppScreen>
       <PersonalGreeting
         name={staff?.name ?? ""}
-        salutation={dayClosed ? t("today.niceWork", { name: firstName }) : salutation}
+        salutation={dayClosed ? t("today.niceWork") : salutation}
         dateLabel={formatLongDate()}
       />
       <ScrollView
@@ -442,28 +445,26 @@ export default function TodayScreen({ navigation }: any) {
               ) : undefined
             }
           />
-          {(today.opportunities?.actions ?? []).length === 0 && pendingRetailers.length === 0 ? (
+          {attentionItems.length === 0 ? (
             <Text style={styles.caption}>{t("today.noCollectionsCalm")}</Text>
           ) : (
             <Surface>
-              {pendingRetailers.slice(0, 1).map((retailer: any) => (
+              {attentionItems.map((item) => (
                 <AttentionRow
-                  key={retailer.id}
-                  tone="danger"
-                  icon="wallet-outline"
-                  title={retailer.name}
-                  subtitle={`${inr(retailer.overdue)} overdue`}
-                  onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: retailer.id })}
-                />
-              ))}
-              {(today.opportunities?.actions ?? []).slice(0, 3).map((action: any) => (
-                <AttentionRow
-                  key={`${action.type}-${action.retailerId}`}
-                  tone={action.type === "COLLECTION_DUE" ? "danger" : "gold"}
-                  icon={OPPORTUNITY_ICONS[action.type] ?? "bulb-outline"}
-                  title={action.headline}
-                  subtitle={action.why}
-                  onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: action.retailerId })}
+                  key={item.key}
+                  tone={item.source === "overdue" || item.type === "COLLECTION_DUE" ? "danger" : "gold"}
+                  icon={
+                    item.source === "overdue"
+                      ? "wallet-outline"
+                      : (OPPORTUNITY_ICONS[item.type ?? ""] ?? "bulb-outline")
+                  }
+                  title={item.title}
+                  subtitle={
+                    item.source === "overdue" && item.overdue != null
+                      ? `${inr(item.overdue)} overdue`
+                      : item.subtitle
+                  }
+                  onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: item.retailerId })}
                 />
               ))}
             </Surface>

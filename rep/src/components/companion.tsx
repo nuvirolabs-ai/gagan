@@ -3,8 +3,12 @@ import {
   AccessibilityInfo,
   Animated,
   Pressable,
+  ScrollView,
+  Platform,
+  StatusBar,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
   type ViewStyle,
 } from "react-native";
@@ -12,14 +16,25 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   colors,
+  composeGreeting,
   control,
   elevation,
+  FILTER_CHIP_HEIGHT,
+  FILTER_ROW_HEIGHT,
+  headerInsetTop,
   initials,
+  metricColumnCount,
   motion,
   radius,
   spacing,
   type as typeRoles,
 } from "../theme";
+
+export function useHeaderPaddingTop(): number {
+  const insets = useSafeAreaInsets();
+  const androidStatus = Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0;
+  return headerInsetTop(insets.top, androidStatus);
+}
 
 export function AppScreen({
   children,
@@ -40,16 +55,15 @@ export function PersonalGreeting({
   salutation: string;
   dateLabel: string;
 }) {
-  const insets = useSafeAreaInsets();
+  const paddingTop = useHeaderPaddingTop();
   return (
-    <View style={[styles.greeting, { paddingTop: insets.top + spacing.sm }]}>
+    <View style={[styles.greeting, { paddingTop }]}>
       <View style={styles.greetingAvatar}>
         <Text style={styles.greetingInitials}>{initials(name || "?")}</Text>
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.greetingHello} numberOfLines={1}>
-          {salutation}
-          {name ? `, ${name.split(" ")[0]}` : ""}
+          {composeGreeting(salutation, name)}
         </Text>
         <Text style={styles.greetingDate}>{dateLabel}</Text>
       </View>
@@ -115,12 +129,21 @@ export function MetricStrip({
   items: Array<{ label: string; value: string; tone?: "ink" | "danger" | "gold" }>;
   bare?: boolean;
 }) {
+  const { width } = useWindowDimensions();
+  const longest = items.reduce((max, item) => Math.max(max, item.label.length), 0);
+  const columns = metricColumnCount(width, items.length, longest);
+  const wrapped = columns < items.length;
+
   return (
-    <View style={[styles.metricStrip, bare && styles.metricStripBare]}>
+    <View style={[styles.metricStrip, bare && styles.metricStripBare, wrapped && styles.metricStripWrap]}>
       {items.map((item, index) => (
         <View
           key={item.label}
-          style={[styles.metricItem, index > 0 && styles.metricItemDivided]}
+          style={[
+            styles.metricItem,
+            wrapped ? [styles.metricItemWrap, { width: `${100 / columns}%` as `${number}%` }] : null,
+            !wrapped && index > 0 ? styles.metricItemDivided : null,
+          ]}
         >
           <Text
             style={[
@@ -134,7 +157,7 @@ export function MetricStrip({
           >
             {item.value}
           </Text>
-          <Text style={styles.metricLabel} numberOfLines={1}>
+          <Text style={styles.metricLabel} numberOfLines={2}>
             {item.label}
           </Text>
         </View>
@@ -240,8 +263,37 @@ export function FilterChip({
         pressed && { opacity: 0.85 },
       ]}
     >
-      <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{label}</Text>
+      <Text style={[styles.filterChipText, active && styles.filterChipTextActive]} numberOfLines={1}>
+        {label}
+      </Text>
     </Pressable>
+  );
+}
+
+export function FilterChipRow({ children }: { children: React.ReactNode }) {
+  return (
+    <View style={styles.chipRow}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.chipScroll}
+        contentContainerStyle={styles.chipContent}
+      >
+        {children}
+      </ScrollView>
+    </View>
+  );
+}
+
+export function CustomerRowSkeleton() {
+  return (
+    <View style={styles.customerRow} accessibilityRole="progressbar">
+      <View style={styles.skelAvatar} />
+      <View style={{ flex: 1, gap: 8 }}>
+        <View style={[styles.skelLine, { width: "58%" }]} />
+        <View style={[styles.skelLine, { width: "36%", height: 10 }]} />
+      </View>
+    </View>
   );
 }
 
@@ -591,8 +643,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.separator,
     ...elevation.card,
   },
 
@@ -600,16 +650,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.separator,
     paddingVertical: spacing.md,
   },
   metricStripBare: {
     backgroundColor: "transparent",
-    borderWidth: 0,
     paddingVertical: 0,
   },
+  metricStripWrap: {
+    flexWrap: "wrap",
+    alignItems: "flex-start",
+  },
   metricItem: { flex: 1, paddingHorizontal: spacing.sm, alignItems: "center" },
+  metricItemWrap: { flexGrow: 0, flexShrink: 0, paddingVertical: spacing.sm, borderLeftWidth: 0 },
   metricItemDivided: { borderLeftWidth: 1, borderLeftColor: colors.separator },
   metricValue: { ...typeRoles.metricMedium, textAlign: "center" },
   metricLabel: { ...typeRoles.micro, marginTop: 4, textAlign: "center" },
@@ -621,7 +673,9 @@ const styles = StyleSheet.create({
   textBtnLabel: { color: colors.primary, fontWeight: "600", fontSize: 13 },
 
   filterChip: {
-    minHeight: control.chipHeight,
+    height: FILTER_CHIP_HEIGHT,
+    minHeight: FILTER_CHIP_HEIGHT,
+    maxHeight: FILTER_CHIP_HEIGHT,
     paddingHorizontal: 14,
     borderRadius: radius.pill,
     borderWidth: 1,
@@ -629,6 +683,35 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center",
+    alignSelf: "center",
+    flexGrow: 0,
+    flexShrink: 0,
+  },
+  chipRow: {
+    height: FILTER_ROW_HEIGHT,
+    flexGrow: 0,
+    flexShrink: 0,
+  },
+  chipScroll: {
+    flexGrow: 0,
+    height: FILTER_ROW_HEIGHT,
+  },
+  chipContent: {
+    alignItems: "center",
+    paddingHorizontal: spacing.xl,
+    gap: spacing.sm,
+    height: FILTER_ROW_HEIGHT,
+  },
+  skelAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceSecondary,
+  },
+  skelLine: {
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.surfaceSecondary,
   },
   filterChipActive: { backgroundColor: colors.primaryDeep, borderColor: colors.primaryDeep },
   filterChipText: { fontSize: 13, fontWeight: "600", color: colors.textSecondary },

@@ -927,7 +927,7 @@ model PriceOverride {
 
 model Order {
   id                        String                     @id @default(uuid())
-  // Human-facing reference shown to retailers (rendered as GGN-00001).
+  // Human-facing reference shown to retailers (rendered as GGN-00000001).
   orderNo                   Int                        @unique @default(autoincrement())
   retailerId                String
   retailer                  Retailer                   @relation(fields: [retailerId], references: [id])

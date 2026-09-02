@@ -16,6 +16,7 @@ import { useCart } from "../context/CartContext";
 import { colors, radius, spacing, shadow, inr, TAB_BAR_SPACE } from "../theme";
 import { ScreenHeader, ChipRow, EmptyState, StatusPill, OrderTimeline } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
+import { formatOrderRef } from "../lib/orderRef";
 
 const FILTERS = ["All", "Active", "Delivered", "Rejected"];
 const ACTIVE = ["placed", "confirmed", "packed", "out_for_delivery"];
@@ -25,19 +26,24 @@ export default function OrderHistoryScreen({ navigation }: any) {
   const [filter, setFilter] = useState("All");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const { addLine } = useCart();
   const { t } = useLanguage();
 
   const load = useCallback(async () => {
     const res = await api.getOrders();
     setOrders(res.orders);
+    setLoadError(false);
   }, []);
 
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
       load()
-        .catch(() => setOrders([]))
+        .catch(() => {
+          setOrders([]);
+          setLoadError(true);
+        })
         .finally(() => setLoading(false));
     }, [load])
   );
@@ -90,15 +96,11 @@ export default function OrderHistoryScreen({ navigation }: any) {
           }
           ListEmptyComponent={
             <EmptyState
-              icon="receipt"
-              title={filter === "All" ? t("orders.noOrders") : t("errors.generic")}
-              body={
-                filter === "All"
-                  ? t("orders.noOrders")
-                  : t("common.retry")
-              }
-              actionLabel={filter === "All" ? t("tabs.products") : undefined}
-              onAction={() => navigation.navigate("Products")}
+              icon={loadError ? "alert-circle-outline" : "receipt"}
+              title={loadError ? t("orders.loadError") : filter === "All" ? t("orders.noOrders") : t("orders.emptyFilter")}
+              body={loadError ? t("errors.checkConnection") : t("orders.noOrdersBody")}
+              actionLabel={loadError ? t("common.retry") : filter === "All" ? t("tabs.products") : undefined}
+              onAction={() => (loadError ? void load() : navigation.navigate("Products"))}
             />
           }
           renderItem={({ item }) => {
@@ -111,9 +113,7 @@ export default function OrderHistoryScreen({ navigation }: any) {
               >
                 <View style={styles.cardTop}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.orderId}>
-                      GGN-{String(item.orderNo).padStart(5, "0")}
-                    </Text>
+                    <Text style={styles.orderId}>{formatOrderRef(item)}</Text>
                     <Text style={styles.date}>
                       {new Date(item.createdAt).toLocaleDateString("en-IN", {
                         day: "numeric",

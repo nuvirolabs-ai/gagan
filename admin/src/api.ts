@@ -355,6 +355,14 @@ export const api = {
     periodEnd: string;
     targetValue: number;
   }) => post("/admin/field/targets", body),
+
+  sapStatus: () => request("/admin/sap/status"),
+  sapSync: (entity: "customers" | "materials" | "pricing" | "stock" | "all" = "all") =>
+    post("/admin/sap/sync", { entity }),
+  sapOutbox: (status?: string) =>
+    request(`/admin/sap/outbox${status ? `?status=${status}` : ""}`),
+  sapDrain: () => post("/admin/sap/outbox/drain"),
+  sapRetry: (id: string) => post(`/admin/sap/outbox/${id}/retry`),
 };
 
 export const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;

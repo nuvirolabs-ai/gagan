@@ -39,8 +39,7 @@ export default function CartScreen({ navigation }: any) {
     }, [])
   );
 
-  const deliveryFee = total >= (config.freeDeliveryThreshold ?? 0) || total === 0 ? 0 : 250;
-  const payable = total + deliveryFee;
+  const payable = total;
   const belowMin = total > 0 && total < (config.minOrderValue ?? 0);
   const overCredit = credit != null && payable > credit.available;
   const canCheckout = lines.length > 0 && !belowMin && !overCredit && !placing;
@@ -153,9 +152,7 @@ export default function CartScreen({ navigation }: any) {
           </View>
           <View style={styles.sumRow}>
             <Text style={styles.sumLabel}>{t("cart.delivery")}</Text>
-            <Text style={[styles.sumValue, deliveryFee === 0 && { color: colors.green }]}>
-              {deliveryFee === 0 ? "FREE" : inr(deliveryFee)}
-            </Text>
+            <Text style={[styles.sumValue, { color: colors.green }]}>{t("cart.deliveryIncluded")}</Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.sumRow}>
@@ -163,14 +160,14 @@ export default function CartScreen({ navigation }: any) {
             <Text style={styles.totalValue}>{inr(payable)}</Text>
           </View>
 
-          {deliveryFee > 0 && (
+          {config.freeDeliveryThreshold > 0 && total > 0 && total < config.freeDeliveryThreshold ? (
             <View style={styles.hint}>
               <Feather name="truck" size={13} color={colors.gold} />
               <Text style={styles.hintText}>
-                Add {inr((config.freeDeliveryThreshold ?? 0) - total)} more for free delivery
+                Typical free-delivery guidance is {inr(config.freeDeliveryThreshold)}. This order total is what you will be billed.
               </Text>
             </View>
-          )}
+          ) : null}
         </View>
 
         {credit && (

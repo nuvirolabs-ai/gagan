@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { useRoute } from "@react-navigation/native";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
@@ -17,6 +18,8 @@ const methods = ["cash", "cheque", "neft", "upi"] as const;
 export default function StaffHomeScreen() {
   const { staff } = useRep();
   const { t } = useLanguage();
+  const route = useRoute<any>();
+  const presetRetailerId = typeof route.params?.retailerId === "string" ? route.params.retailerId : "";
   const capabilities = staffCapabilities(staff?.permissions ?? []);
   const canConfirmCollections = staff?.permissions.includes("collection.confirm") ?? false;
   const [retailers, setRetailers] = useState<CollectionRetailer[]>([]);
@@ -40,12 +43,13 @@ export default function StaffHomeScreen() {
       ]);
       setRetailers(assigned.retailers.map((a: any) => a.retailer));
       setSubmissions(queue.submissions);
+      if (presetRetailerId) setSelectedRetailerId(presetRetailerId);
     } catch (error) {
       Alert.alert("Could not load collections", error instanceof Error ? error.message : "Try again.");
     } finally {
       setLoading(false);
     }
-  }, [canConfirmCollections, capabilities.canCollect]);
+  }, [canConfirmCollections, capabilities.canCollect, presetRetailerId]);
 
   useEffect(() => { void load(); }, [load]);
 

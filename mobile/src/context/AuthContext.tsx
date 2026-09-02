@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { api, retailerSessionStore, setUnauthorizedHandler } from "../api/client";
+import { retailerIdentityCache } from "../auth/identityCache";
 import { isAuthenticationFailure } from "../auth/sessionFetch";
 import { useLanguage } from "../i18n/LanguageContext";
 
@@ -28,6 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setUnauthorizedHandler(() => {
       setRetailer(null);
+      void retailerIdentityCache.clear();
       resetSelectionGate();
     });
     return () => setUnauthorizedHandler(null);
@@ -44,14 +46,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       try {
         const res = await api.me();
-        setRetailer(res.retailer);
+        const next = { id: res.retailer.id, name: res.retailer.name, phone: res.retailer.phone ?? "" };
+        setRetailer(next);
+        await retailerIdentityCache.save(next);
       } catch (error) {
         // Only the server refusing the session ends it. A shop with no signal
         // keeps its stored session so it can order as soon as it reconnects,
         // rather than being asked for an OTP it cannot receive.
         if (isAuthenticationFailure(error)) {
           await retailerSessionStore.clear();
+          await retailerIdentityCache.clear();
           setRetailer(null);
+        } else {
+          const cached = await retailerIdentityCache.load();
+          if (cached) setRetailer({ id: cached.id, name: cached.name, phone: cached.phone });
         }
       } finally {
         setLoading(false);
@@ -69,7 +77,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!challengeId) throw new Error("Request a new OTP first");
     const res = await api.verifyOtp(challengeId, phone, otp);
     setChallengeId(null);
-    setRetailer({ id: res.retailer.id, name: res.retailer.name, phone });
+    const next = { id: res.retailer.id, name: res.retailer.name, phone };
+    setRetailer(next);
+    await retailerIdentityCache.save(next);
     beginLoginSelection();
   };
 
@@ -79,6 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setChallengeId(null);
       setRetailer(null);
+      await retailerIdentityCache.clear();
       resetSelectionGate();
     }
   };

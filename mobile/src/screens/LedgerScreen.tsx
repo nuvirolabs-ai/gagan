@@ -25,26 +25,31 @@ export default function LedgerScreen() {
   const [summary, setSummary] = useState({ balance: "0", limit: "0" });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
     if (!retailer?.id) return;
     const res = await api.getLedger(retailer.id);
     setEntries(res.entries);
     setSummary({ balance: res.currentBalance, limit: res.creditLimit });
+    setLoadError(false);
   }, [retailer?.id]);
 
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
       load()
-        .catch(() => setEntries([]))
+        .catch(() => {
+          setEntries([]);
+          setLoadError(true);
+        })
         .finally(() => setLoading(false));
     }, [load])
   );
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await load().catch(() => {});
+    await load().catch(() => setLoadError(true));
     setRefreshing(false);
   };
 
@@ -102,9 +107,11 @@ export default function LedgerScreen() {
         }
         ListEmptyComponent={
           <EmptyState
-            icon="file-document-outline"
-            title={t("ledger.noTransactions")}
-            body={t("ledger.noTransactionsBody")}
+            icon={loadError ? "alert-circle-outline" : "file-document-outline"}
+            title={loadError ? t("ledger.loadError") : t("ledger.noTransactions")}
+            body={loadError ? t("errors.checkConnection") : t("ledger.noTransactionsBody")}
+            actionLabel={loadError ? t("common.retry") : undefined}
+            onAction={loadError ? () => void load() : undefined}
           />
         }
         renderSectionHeader={({ section }) => (

@@ -160,6 +160,11 @@ function RootNavigator() {
                 options={{ title: t("orders.new"), headerBackTitle: t("common.back") }}
               />
               <Stack.Screen name="KycCapture" component={KycCaptureScreen} options={{ title: t("kyc.title"), headerBackTitle: t("retailer.title") }} />
+              <Stack.Screen
+                name="Visit"
+                component={VisitScreen}
+                options={{ title: t("visit.title"), headerBackTitle: t("common.back") }}
+              />
             </>
           )}
           {capabilities.canRunFieldDay && (
@@ -168,11 +173,6 @@ function RootNavigator() {
                 name="Route"
                 component={RouteScreen}
                 options={{ title: t("route.title"), headerBackTitle: t("tabs.today") }}
-              />
-              <Stack.Screen
-                name="Visit"
-                component={VisitScreen}
-                options={{ title: t("visit.title"), headerBackTitle: t("common.back") }}
               />
               <Stack.Screen
                 name="Opportunities"

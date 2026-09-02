@@ -9,6 +9,7 @@ vi.mock("../../api", () => ({
     recoveryTimeline: vi.fn(),
     logRecoveryCall: vi.fn(),
     createRecoveryPromise: vi.fn(),
+    setRecoveryPromiseStatus: vi.fn(),
   },
   inr: (amount: number) => `₹${amount}`,
 }));

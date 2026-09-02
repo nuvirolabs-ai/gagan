@@ -24,21 +24,9 @@ export default function Login() {
   return (
     <div className="login-wrap">
       <form className="login-card" onSubmit={submit}>
-        <div style={{ fontSize: 24, fontWeight: 700, color: "var(--green)", letterSpacing: 1 }}>
-          GAGAN
-        </div>
-        <div
-          style={{
-            fontSize: 8,
-            fontWeight: 700,
-            color: "var(--gold)",
-            letterSpacing: 1.4,
-            marginBottom: 22,
-          }}
-        >
-          NUTRITION. DELIVERED.
-        </div>
-        <h2 style={{ margin: "0 0 18px", fontSize: 17 }}>Admin sign in</h2>
+        <div className="brand-mark">Gagan</div>
+        <div className="brand-kicker">Business OS</div>
+        <h2 style={{ margin: "0 0 18px", fontSize: 17, fontWeight: 650 }}>Employee sign in</h2>
 
         {error && <div className="banner error">{error}</div>}
 

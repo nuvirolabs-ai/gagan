@@ -14,6 +14,7 @@ import { captureForegroundLocation } from "../location/deviceLocation";
 import { useRep } from "../context/RepContext";
 import { staffCapabilities } from "../auth/staffCapabilities";
 import { colors, inr, spacing } from "../theme";
+import { formatOrderRef } from "../lib/orderRef";
 import {
   AppScreen,
   FocusCard,
@@ -265,7 +266,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
                 <SecondaryButton
                   label={t("customer.collect")}
                   icon="wallet-outline"
-                  onPress={() => navigation.navigate("Collections")}
+                  onPress={() => navigation.navigate("Collections", { retailerId: retailer.id })}
                 />
               </View>
               <View style={{ flex: 1 }}>
@@ -404,7 +405,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
               <View key={o.id} style={styles.line}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.lineTitle}>
-                    GGN-{String(o.orderNo).padStart(5, "0")}
+                    {formatOrderRef(o)}
                     {o.placedBy === "rep" ? "  · by you" : ""}
                   </Text>
                   <Text style={styles.muted}>

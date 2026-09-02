@@ -80,6 +80,14 @@ export default function MyActivityScreen({ route }: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (route?.params?.tab === "performance" || route?.params?.tab === "timeline") {
+        setTab(route.params.tab);
+      }
+    }, [route?.params?.tab])
+  );
+
   const load = useCallback(async () => {
     const [feed, stats, targetData, rankData, achievementData] = await Promise.all([
       repApi.activityFeed().catch(() => ({ entries: [] })),

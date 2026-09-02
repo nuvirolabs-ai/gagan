@@ -156,6 +156,9 @@ export default function ServiceIssues() {
                         <button className="sm" onClick={() => void update(issue.id, "resolved")}>
                           Resolve
                         </button>
+                        <button className="sm secondary" onClick={() => void update(issue.id, "closed")}>
+                          Close
+                        </button>
                         <button className="sm danger" onClick={() => void update(issue.id, "rejected")}>
                           Reject
                         </button>

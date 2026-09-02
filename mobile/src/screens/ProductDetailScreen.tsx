@@ -13,7 +13,7 @@ import { api } from "../api/client";
 import { useCart } from "../context/CartContext";
 import { colors, radius, spacing, shadow, inr } from "../theme";
 import ProductThumb from "../components/ProductThumb";
-import { QtyStepper } from "../components/ui";
+import { QtyStepper, EmptyState } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 
 export default function ProductDetailScreen({ route, navigation }: any) {
@@ -23,8 +23,10 @@ export default function ProductDetailScreen({ route, navigation }: any) {
   const [product, setProduct] = useState<any | null>(null);
   const [selected, setSelected] = useState<any | null>(null);
   const [config, setConfig] = useState<any>({ freeDeliveryThreshold: 0, minOrderValue: 0 });
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
+    setLoadError(false);
     api
       .getProduct(productId)
       .then((res) => {
@@ -39,8 +41,39 @@ export default function ProductDetailScreen({ route, navigation }: any) {
         setSelected(requested);
         setConfig(res.config ?? {});
       })
-      .catch(() => setProduct(null));
+      .catch(() => {
+        setProduct(null);
+        setLoadError(true);
+      });
   }, [productId]);
+
+  if (loadError) {
+    return (
+      <View style={styles.center}>
+        <EmptyState
+          icon="alert-circle-outline"
+          title={t("product.loadError")}
+          body={t("errors.checkConnection")}
+          actionLabel={t("common.retry")}
+          onAction={() => {
+            setLoadError(false);
+            api
+              .getProduct(productId)
+              .then((res) => {
+                setProduct(res);
+                setSelected(
+                  res.variants.find((variant: any) => variant.id === res.selectedVariantId) ??
+                    res.variants[0] ??
+                    null
+                );
+                setConfig(res.config ?? {});
+              })
+              .catch(() => setLoadError(true));
+          }}
+        />
+      </View>
+    );
+  }
 
   if (!product) {
     return (

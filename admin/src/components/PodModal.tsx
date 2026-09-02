@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { api, inr } from "../api";
+import { formatOrderRef } from "../orderRef";
 
 interface Props {
   order: any;
@@ -92,7 +93,7 @@ export default function PodModal({ order, onClose, onDone }: Props) {
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2 style={{ margin: "0 0 4px", fontSize: 18 }}>
-          Capture delivery — GGN-{String(order.orderNo).padStart(5, "0")}
+          Capture delivery — {formatOrderRef(order)}
         </h2>
         <p className="muted small" style={{ margin: "0 0 18px" }}>
           {order.retailer.name} · invoice is generated from delivered weight

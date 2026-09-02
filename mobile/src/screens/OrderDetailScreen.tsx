@@ -6,8 +6,9 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { api } from "../api/client";
 import { useCart } from "../context/CartContext";
 import { colors, radius, spacing, shadow, inr } from "../theme";
-import { StatusPill, OrderTimeline } from "../components/ui";
+import { StatusPill, OrderTimeline, EmptyState } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
+import { formatOrderRef } from "../lib/orderRef";
 
 const POD_LABEL: Record<string, string> = {
   photo: "Photo",
@@ -22,15 +23,22 @@ export default function OrderDetailScreen({ route, navigation }: any) {
   const { addLine } = useCart();
   const { t } = useLanguage();
 
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.getOrder(orderId);
+      setOrder(res.order);
+    } catch {
+      setOrder(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [orderId]);
+
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
-      api
-        .getOrder(orderId)
-        .then((res) => setOrder(res.order))
-        .catch(() => setOrder(null))
-        .finally(() => setLoading(false));
-    }, [orderId])
+      void load();
+    }, [load])
   );
 
   if (loading) {
@@ -43,7 +51,13 @@ export default function OrderDetailScreen({ route, navigation }: any) {
   if (!order) {
     return (
       <View style={styles.center}>
-        <Text style={styles.muted}>{t("errors.generic")}</Text>
+        <EmptyState
+          icon="alert-circle-outline"
+          title={t("orders.loadError")}
+          body={t("errors.checkConnection")}
+          actionLabel={t("common.retry")}
+          onAction={() => void load()}
+        />
       </View>
     );
   }
@@ -68,7 +82,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
     <ScrollView style={styles.screen} contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }}>
       <View style={styles.head}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.orderId}>GGN-{String(order.orderNo).padStart(5, "0")}</Text>
+          <Text style={styles.orderId}>{formatOrderRef(order)}</Text>
           <Text style={styles.date}>
             Placed{" "}
             {new Date(order.createdAt).toLocaleDateString("en-IN", {

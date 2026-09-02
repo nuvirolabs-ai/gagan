@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api } from "../api";
+import { formatOrderRef } from "../orderRef";
 
 interface Props {
   order: any;
@@ -19,7 +20,7 @@ export default function AssignModal({ order, onClose, onDone }: Props) {
     setError(null);
     try {
       await api.assign(order.id, routeId, slot ? new Date(slot).toISOString() : undefined);
-      onDone(`GGN-${String(order.orderNo).padStart(5, "0")} sent out on ${routeId}`);
+      onDone(`${formatOrderRef(order)} sent out on ${routeId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not assign route");
       setBusy(false);
@@ -30,7 +31,7 @@ export default function AssignModal({ order, onClose, onDone }: Props) {
     <div className="modal-backdrop" onClick={onClose}>
       <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <h2 style={{ margin: "0 0 4px", fontSize: 18 }}>
-          Assign route — GGN-{String(order.orderNo).padStart(5, "0")}
+          Assign route — {formatOrderRef(order)}
         </h2>
         <p className="muted small" style={{ margin: "0 0 18px" }}>
           {order.retailer.name} · {order.retailer.shopAddress}

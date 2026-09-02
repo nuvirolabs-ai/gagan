@@ -29,20 +29,23 @@ export default function CatalogScreen({ navigation }: any) {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
     const res = await api.getCatalog();
-    // The grouped read model is what the shelf renders: one card per logical
-    // product, with its pack sizes to choose from.
     setGroups(res.groups ?? []);
     setCategories(res.categories ?? []);
+    setLoadError(false);
   }, []);
 
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
       load()
-        .catch(() => setGroups([]))
+        .catch(() => {
+          setGroups([]);
+          setLoadError(true);
+        })
         .finally(() => setLoading(false));
     }, [load])
   );
@@ -132,14 +135,23 @@ export default function CatalogScreen({ navigation }: any) {
           }
           ListEmptyComponent={
             <EmptyState
-              icon="magnify"
-              title={t("common.search")}
-              body={t("errors.generic")}
-              actionLabel={query || category !== ALL ? t("common.clearFilters") : undefined}
-              onAction={() => {
-                setQuery("");
-                setCategory(ALL);
-              }}
+              icon={loadError ? "alert-circle-outline" : "magnify"}
+              title={loadError ? t("catalog.loadError") : query || category !== ALL ? t("catalog.empty") : t("catalog.empty")}
+              body={loadError ? t("errors.checkConnection") : t("catalog.emptyBody")}
+              actionLabel={loadError ? t("common.retry") : query || category !== ALL ? t("common.clearFilters") : undefined}
+              onAction={
+                loadError
+                  ? () => {
+                      setLoading(true);
+                      void load()
+                        .catch(() => setLoadError(true))
+                        .finally(() => setLoading(false));
+                    }
+                  : () => {
+                      setQuery("");
+                      setCategory(ALL);
+                    }
+              }
             />
           }
           renderItem={({ item }) => (

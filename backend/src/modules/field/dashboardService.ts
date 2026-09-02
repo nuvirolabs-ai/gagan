@@ -419,7 +419,7 @@ export class FieldDashboardService {
         id: `order-${order.id}`,
         kind: "order",
         at: order.createdAt,
-        title: `Order GGN-${String(order.orderNo).padStart(5, "0")}`,
+        title: `Order GGN-${String(order.orderNo).padStart(8, "0")}`,
         detail: order.status,
         retailer: order.retailer,
         amount: money(order.orderTotal),

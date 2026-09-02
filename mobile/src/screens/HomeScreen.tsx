@@ -21,6 +21,7 @@ import ProductThumb from "../components/ProductThumb";
 import ProductGroupCard, { type ProductGroupLike, type Sku } from "../components/ProductGroupCard";
 import CreditRing from "../components/CreditRing";
 import { useLanguage } from "../i18n/LanguageContext";
+import { formatOrderRef } from "../lib/orderRef";
 
 const ORDER_STEPS = ["confirmed", "packed", "out_for_delivery", "delivered"] as const;
 const ALL_CATEGORY = "All";
@@ -184,14 +185,14 @@ export default function HomeScreen({ navigation }: any) {
           <Text style={styles.tagline}>NUTRITION. DELIVERED.</Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.iconBtn} accessibilityLabel={t("profile.support")}>
+          <View style={styles.iconBtn} accessibilityLabel={t("profile.notifications")}>
             <Ionicons name="notifications-outline" size={20} color={colors.ink} />
             {badges.notifications > 0 && (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{badges.notifications}</Text>
               </View>
             )}
-          </TouchableOpacity>
+          </View>
           <TouchableOpacity
             style={styles.iconBtn}
             accessibilityLabel={t("profile.support")}
@@ -321,7 +322,7 @@ export default function HomeScreen({ navigation }: any) {
 
       {/* Scheme banner */}
       {scheme && (
-        <TouchableOpacity style={styles.scheme} activeOpacity={0.9}>
+        <View style={styles.scheme}>
           <View style={{ flex: 1 }}>
             <View style={styles.rowCenter}>
               <MaterialCommunityIcons name="crown" size={15} color={colors.gold} />
@@ -337,10 +338,7 @@ export default function HomeScreen({ navigation }: any) {
                 : `Unlocked — ${inr(scheme.discountAmount)} discount earned`}
             </Text>
           </View>
-          <View style={styles.schemeChevron}>
-            <Ionicons name="chevron-forward" size={18} color={colors.onDark} />
-          </View>
-        </TouchableOpacity>
+        </View>
       )}
 
       {/* Active order */}
@@ -363,7 +361,7 @@ export default function HomeScreen({ navigation }: any) {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.orderId} numberOfLines={1}>
-                Order #GGN-{String(activeOrder.orderNo).padStart(5, "0")}
+                Order #{formatOrderRef(activeOrder)}
               </Text>
               <Text style={styles.orderMeta}>
                 Placed on{" "}
@@ -478,16 +476,15 @@ export default function HomeScreen({ navigation }: any) {
             </Text>
           </TouchableOpacity>
         ))}
-        <TouchableOpacity style={styles.offersTile} activeOpacity={0.9}>
-          <Ionicons name="chevron-forward" size={15} color={colors.onDarkMuted} style={styles.offersChevron} />
+        <View style={styles.offersTile}>
           <Text style={styles.offersGift}>🎁</Text>
           <View style={styles.offersText}>
             <Text style={styles.offersTitle}>{t("home.offers")}</Text>
             <Text style={styles.offersCount} numberOfLines={1}>
-              {badges.activeOffers} Active Offers
+              {badges.activeOffers} active
             </Text>
           </View>
-        </TouchableOpacity>
+        </View>
       </View>
 
       {/* Info strip */}
@@ -504,8 +501,13 @@ export default function HomeScreen({ navigation }: any) {
           <View style={styles.infoText}>
             <Text style={styles.infoTitle}>{t("home.nextDelivery")}</Text>
             <Text style={styles.infoSub}>
-              Tomorrow,{" "}
-              {new Date(Date.now() + 86400000).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+              {activeOrder?.expectedDeliveryAt
+                ? new Date(activeOrder.expectedDeliveryAt).toLocaleDateString("en-IN", {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "short",
+                  })
+                : "Shown when an order is on the way"}
             </Text>
           </View>
         </View>

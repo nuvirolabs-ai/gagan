@@ -17,6 +17,7 @@ import { haptic } from "../feedback/haptics";
 import ProductThumb from "../components/ProductThumb";
 import { SearchBar, ChipRow, QtyStepper, EmptyState } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
+import { formatOrderRef } from "../lib/orderRef";
 
 const ALL = "All";
 
@@ -88,7 +89,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
       haptic("success");
       Alert.alert(
         "Order placed",
-        `GGN-${String(res.order.orderNo).padStart(5, "0")}\n${inr(Number(res.order.orderTotal))}`,
+        `${formatOrderRef(res.order)}\n${inr(Number(res.order.orderTotal))}`,
         [{ text: t("common.save"), onPress: () => navigation.goBack() }]
       );
     } catch (e) {

@@ -1,7 +1,6 @@
-import Dashboard from "./Dashboard";
+import { Navigate } from "react-router-dom";
 
-// SAP is the system of record. This route intentionally reuses the read-only
-// warehouse pulse so leaders see the same imported state as the overview.
+/** Warehouse master data lives in SAP. This route used to show demo stock. */
 export default function Warehouses() {
-  return <Dashboard />;
+  return <Navigate to="/sap" replace />;
 }

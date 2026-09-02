@@ -256,7 +256,12 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
         await repApi.logActivity({ ...input, clientReference: reference });
         void refresh();
         return "sent";
-      } catch {
+      } catch (error) {
+        const raw = error instanceof Error ? error.message : "";
+        const looksOffline =
+          error instanceof TypeError ||
+          /network request failed|failed to fetch|load failed/i.test(raw);
+        if (!looksOffline) throw error;
         setOutbox(await queue.current!.queueActivity(reference, input));
         return "queued";
       }

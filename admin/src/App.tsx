@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, NavLink, Navigate } from "react-router-dom";
+import type { ReactNode } from "react";
 import { AuthProvider } from "./AuthContext";
 import { useAuth } from "./useAuth";
 import Login from "./pages/Login";
@@ -19,6 +20,7 @@ import Locations from "./pages/Locations";
 import Visits from "./pages/Visits";
 import Dashboard from "./pages/Dashboard";
 import Warehouses from "./pages/Warehouses";
+import SapSync from "./pages/SapSync";
 import FieldTeam from "./pages/FieldTeam";
 import FieldPlanning from "./pages/FieldPlanning";
 import FieldExpenses from "./pages/FieldExpenses";
@@ -27,56 +29,141 @@ import SalesLeader from "./pages/SalesLeader";
 import SalesOrganisation from "./pages/SalesOrganisation";
 import RetailerApprovals from "./pages/RetailerApprovals";
 
-const NAV = [
-  { to: "/", label: "Overview", permissions: ["staff.manage", "dashboard.view"] },
-  { to: "/approvals", label: "Approvals", permissions: ["approval.second_invoice", "approval.third_invoice", "legal.decide"] },
-  { to: "/collections", label: "Collections", permissions: ["collection.confirm"] },
-  { to: "/credit-reviews", label: "Credit reviews", permissions: ["credit.rating_confirm"] },
-  { to: "/kyc", label: "KYC", permissions: ["kyc.view", "kyc.review"] },
-  { to: "/recovery", label: "Recovery", permissions: ["recovery.view", "recovery.update"] },
-  { to: "/legal", label: "Legal", permissions: ["staff.manage", "legal.decide"] },
-  { to: "/orders", label: "Order queue", permissions: ["staff.manage"] },
-  { to: "/retailers", label: "Retailers", permissions: ["staff.manage"] },
-  { to: "/ledger", label: "Ledger", permissions: ["staff.manage"] },
-  { to: "/catalog", label: "Catalog", permissions: ["staff.manage"] },
-  { to: "/warehouses", label: "Warehouses", permissions: ["staff.manage", "dashboard.view"] },
-  { to: "/corrections", label: "Corrections", permissions: ["financial.correct"] },
-  { to: "/staff", label: "Staff access", permissions: ["staff.manage"] },
-  { to: "/sales-organisation", label: "Sales organisation", permissions: ["org.view_all"] },
-  { to: "/locations", label: "Store locations", permissions: ["location.view"] },
-  { to: "/visits", label: "Sales visits", permissions: ["visit.view"] },
-  { to: "/sales-leader", label: "Sales leader", permissions: ["performance.view_team"] },
-  { to: "/retailer-approvals", label: "New retailers", permissions: ["retailer.proposal_review"] },
-  { to: "/field-team", label: "Field team", permissions: ["attendance.review"] },
-  { to: "/field-planning", label: "Routes & tasks", permissions: ["route.manage"] },
-  { to: "/field-expenses", label: "Field expenses", permissions: ["expense.review"] },
-  { to: "/service-issues", label: "Service issues", permissions: ["issue.review"] },
+type NavItem = { to: string; label: string; permissions: string[] };
+type NavGroup = { id: string; label: string; items: NavItem[] };
+
+const NAV: NavGroup[] = [
+  {
+    id: "home",
+    label: "Home",
+    items: [
+      {
+        to: "/",
+        label: "Work",
+        permissions: [
+          "staff.manage",
+          "dashboard.view",
+          "approval.second_invoice",
+          "collection.confirm",
+          "credit.rating_confirm",
+          "route.manage",
+          "attendance.review",
+          "performance.view_team",
+          "retailer.proposal_review",
+          "expense.review",
+          "issue.review",
+          "kyc.view",
+          "recovery.view",
+          "financial.correct",
+          "org.view_all",
+          "location.view",
+          "visit.view",
+        ],
+      },
+    ],
+  },
+  {
+    id: "work",
+    label: "Work",
+    items: [
+      { to: "/approvals", label: "Approvals", permissions: ["approval.second_invoice", "approval.third_invoice", "legal.decide"] },
+      { to: "/collections", label: "Collections", permissions: ["collection.confirm"] },
+      { to: "/credit-reviews", label: "Credit reviews", permissions: ["credit.rating_confirm"] },
+    ],
+  },
+  {
+    id: "sales",
+    label: "Sales",
+    items: [
+      { to: "/orders", label: "Orders", permissions: ["staff.manage"] },
+      { to: "/retailers", label: "Retailers", permissions: ["staff.manage"] },
+      { to: "/retailer-approvals", label: "New retailers", permissions: ["retailer.proposal_review"] },
+      { to: "/sales-organisation", label: "Organisation", permissions: ["org.view_all"] },
+      { to: "/sales-leader", label: "Sales leader", permissions: ["performance.view_team"] },
+      { to: "/catalog", label: "Catalog", permissions: ["staff.manage"] },
+    ],
+  },
+  {
+    id: "finance",
+    label: "Finance",
+    items: [
+      { to: "/ledger", label: "Ledger", permissions: ["staff.manage"] },
+      { to: "/corrections", label: "Corrections", permissions: ["financial.correct"] },
+      { to: "/recovery", label: "Recovery", permissions: ["recovery.view", "recovery.update"] },
+      { to: "/legal", label: "Legal", permissions: ["staff.manage", "legal.decide"] },
+      { to: "/kyc", label: "KYC", permissions: ["kyc.view", "kyc.review"] },
+    ],
+  },
+  {
+    id: "field",
+    label: "Field",
+    items: [
+      { to: "/field-team", label: "Team & leave", permissions: ["attendance.review"] },
+      { to: "/field-planning", label: "Routes & tasks", permissions: ["route.manage"] },
+      { to: "/field-expenses", label: "Expenses", permissions: ["expense.review"] },
+      { to: "/service-issues", label: "Issues", permissions: ["issue.review"] },
+      { to: "/locations", label: "Store locations", permissions: ["location.view"] },
+      { to: "/visits", label: "Visits", permissions: ["visit.view"] },
+    ],
+  },
+  {
+    id: "system",
+    label: "System",
+    items: [
+      { to: "/staff", label: "Users & roles", permissions: ["staff.manage"] },
+      { to: "/sap", label: "SAP sync", permissions: ["staff.manage"] },
+    ],
+  },
 ];
+
+const FLAT = NAV.flatMap((group) => group.items);
+
+function canSee(permissions: string[], needed: string[]) {
+  return needed.some((permission) => permissions.includes(permission));
+}
+
+function Guard({ anyOf, children }: { anyOf: string[]; children: ReactNode }) {
+  const { permissions } = useAuth();
+  const available = FLAT.filter((item) => canSee(permissions, item.permissions));
+  if (!canSee(permissions, anyOf)) {
+    return <Navigate to={available[0]?.to ?? "/no-access"} replace />;
+  }
+  return children;
+}
 
 function Shell() {
   const { admin, permissions, logout } = useAuth();
-  const availableNav = NAV.filter((item) =>
-    item.permissions.some((permission) => permissions.includes(permission))
-  );
-  const landingPath = availableNav[0]?.to ?? "/no-access";
+  const groups = NAV.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => canSee(permissions, item.permissions)),
+  })).filter((group) => group.items.length > 0);
+  const landingPath = groups[0]?.items[0]?.to ?? "/no-access";
 
   return (
     <div className="layout">
       <aside className="sidebar">
-        <div className="brand">GAGAN</div>
-        <div className="brand-sub">NUTRITION. DELIVERED.</div>
-        {availableNav.map((n) => (
-          <NavLink
-            key={n.to}
-            to={n.to}
-            className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
-          >
-            {n.label}
-          </NavLink>
-        ))}
+        <div className="brand">Gagan</div>
+        <div className="brand-sub">Business OS</div>
+        <nav className="nav-groups">
+          {groups.map((group) => (
+            <div key={group.id} className="nav-group">
+              <div className="nav-group-label">{group.label}</div>
+              {group.items.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.to === "/"}
+                  className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
+                >
+                  {item.label}
+                </NavLink>
+              ))}
+            </div>
+          ))}
+        </nav>
         <div className="sidebar-foot">
-          <div style={{ color: "#b9c9be", fontSize: 12, padding: "0 12px 8px" }}>{admin?.name}</div>
-          <button className="ghost" style={{ color: "#b9c9be" }} onClick={logout}>
+          <div className="sidebar-user">{admin?.name}</div>
+          <button className="ghost" onClick={logout}>
             Sign out
           </button>
         </div>
@@ -84,34 +171,35 @@ function Shell() {
 
       <main className="main">
         <Routes>
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/" element={<Guard anyOf={FLAT.find((item) => item.to === "/")!.permissions}><Dashboard /></Guard>} />
           <Route path="/warehouses" element={<Warehouses />} />
-          <Route path="/approvals" element={<Approvals />} />
-          <Route path="/collections" element={<Collections />} />
-          <Route path="/credit-reviews" element={<CreditReviews />} />
-          <Route path="/kyc" element={<Kyc />} />
-          <Route path="/recovery" element={<Recovery />} />
-          <Route path="/legal" element={<Legal />} />
-          <Route path="/orders" element={<Orders />} />
-          <Route path="/retailers" element={<Retailers />} />
-          <Route path="/ledger" element={<Ledger />} />
-          <Route path="/ledger/:retailerId" element={<Ledger />} />
-          <Route path="/catalog" element={<Catalog />} />
-          <Route path="/staff" element={<Staff />} />
-          <Route path="/staff/:staffId" element={<StaffDetail />} />
-          <Route path="/corrections" element={<Corrections />} />
-          <Route path="/locations" element={<Locations />} />
-          <Route path="/visits" element={<Visits />} />
-          <Route path="/sales-leader" element={<SalesLeader />} />
-          <Route path="/sales-organisation" element={<SalesOrganisation />} />
-          <Route path="/retailer-approvals" element={<RetailerApprovals />} />
-          <Route path="/field-team" element={<FieldTeam />} />
-          <Route path="/field-planning" element={<FieldPlanning />} />
-          <Route path="/field-expenses" element={<FieldExpenses />} />
-          <Route path="/service-issues" element={<ServiceIssues />} />
+          <Route path="/sap" element={<Guard anyOf={["staff.manage"]}><SapSync /></Guard>} />
+          <Route path="/approvals" element={<Guard anyOf={["approval.second_invoice", "approval.third_invoice", "legal.decide"]}><Approvals /></Guard>} />
+          <Route path="/collections" element={<Guard anyOf={["collection.confirm"]}><Collections /></Guard>} />
+          <Route path="/credit-reviews" element={<Guard anyOf={["credit.rating_confirm"]}><CreditReviews /></Guard>} />
+          <Route path="/kyc" element={<Guard anyOf={["kyc.view", "kyc.review"]}><Kyc /></Guard>} />
+          <Route path="/recovery" element={<Guard anyOf={["recovery.view", "recovery.update"]}><Recovery /></Guard>} />
+          <Route path="/legal" element={<Guard anyOf={["staff.manage", "legal.decide"]}><Legal /></Guard>} />
+          <Route path="/orders" element={<Guard anyOf={["staff.manage"]}><Orders /></Guard>} />
+          <Route path="/retailers" element={<Guard anyOf={["staff.manage"]}><Retailers /></Guard>} />
+          <Route path="/ledger" element={<Guard anyOf={["staff.manage"]}><Ledger /></Guard>} />
+          <Route path="/ledger/:retailerId" element={<Guard anyOf={["staff.manage"]}><Ledger /></Guard>} />
+          <Route path="/catalog" element={<Guard anyOf={["staff.manage"]}><Catalog /></Guard>} />
+          <Route path="/staff" element={<Guard anyOf={["staff.manage"]}><Staff /></Guard>} />
+          <Route path="/staff/:staffId" element={<Guard anyOf={["staff.manage"]}><StaffDetail /></Guard>} />
+          <Route path="/corrections" element={<Guard anyOf={["financial.correct"]}><Corrections /></Guard>} />
+          <Route path="/locations" element={<Guard anyOf={["location.view"]}><Locations /></Guard>} />
+          <Route path="/visits" element={<Guard anyOf={["visit.view"]}><Visits /></Guard>} />
+          <Route path="/sales-leader" element={<Guard anyOf={["performance.view_team"]}><SalesLeader /></Guard>} />
+          <Route path="/sales-organisation" element={<Guard anyOf={["org.view_all"]}><SalesOrganisation /></Guard>} />
+          <Route path="/retailer-approvals" element={<Guard anyOf={["retailer.proposal_review"]}><RetailerApprovals /></Guard>} />
+          <Route path="/field-team" element={<Guard anyOf={["attendance.review"]}><FieldTeam /></Guard>} />
+          <Route path="/field-planning" element={<Guard anyOf={["route.manage"]}><FieldPlanning /></Guard>} />
+          <Route path="/field-expenses" element={<Guard anyOf={["expense.review"]}><FieldExpenses /></Guard>} />
+          <Route path="/service-issues" element={<Guard anyOf={["issue.review"]}><ServiceIssues /></Guard>} />
           <Route
             path="/no-access"
-            element={<div className="card empty-state">No portal permissions are assigned.</div>}
+            element={<div className="empty-state">No portal permissions are assigned.</div>}
           />
           <Route path="*" element={<Navigate to={landingPath} replace />} />
         </Routes>
@@ -123,7 +211,7 @@ function Shell() {
 function Root() {
   const { admin, loading } = useAuth();
   if (loading) {
-    return <div style={{ padding: 40 }} className="muted">Loading…</div>;
+    return <div className="empty-state">Loading workspace…</div>;
   }
   return admin ? <Shell /> : <Login />;
 }

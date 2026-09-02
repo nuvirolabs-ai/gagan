@@ -1,39 +1,41 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { describe, expect, it, vi } from "vitest";
 import Dashboard from "../Dashboard";
 
-describe("leader dashboard", () => {
-  it("opens on the company health view with seeded metrics and top ten orders", () => {
-    render(<Dashboard />);
+vi.mock("../../useAuth", () => ({
+  useAuth: () => ({ admin: { name: "Ops Admin" } }),
+}));
 
-    expect(screen.getByText("Good morning, Ananya")).toBeInTheDocument();
-    expect(screen.getAllByText("₹ 8,42,650").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("#GG-10482").length).toBeGreaterThan(0);
-    expect(screen.getByText("#GG-10387")).toBeInTheDocument();
-    expect(screen.getByText("Top 5 people making today happen")).toBeInTheDocument();
-  });
+vi.mock("../../api", () => ({
+  api: {
+    orders: vi.fn(async (status: string) => ({
+      orders: status === "placed" ? [{ id: "o1" }, { id: "o2" }] : [],
+    })),
+    approvals: vi.fn(async () => ({ requests: [{ id: "a1" }] })),
+    collections: vi.fn(async () => ({ submissions: [] })),
+    retailerProposals: vi.fn(async () => ({ proposals: [{ id: "p1" }] })),
+    fieldExpenses: vi.fn(async () => ({ expenses: [] })),
+    serviceIssues: vi.fn(async () => ({ issues: [] })),
+    leaveRequests: vi.fn(async () => ({ requests: [] })),
+    sapStatus: vi.fn(async () => ({ outbox: { failed: 2 } })),
+  },
+}));
 
-  it("recalculates the range and order intelligence lenses", () => {
-    render(<Dashboard />);
+describe("work home", () => {
+  it("shows live queues that need an employee, not vanity metrics", async () => {
+    render(
+      <MemoryRouter>
+        <Dashboard />
+      </MemoryRouter>
+    );
 
-    fireEvent.click(screen.getByRole("button", { name: "This month" }));
-    expect(screen.getAllByText("₹ 1,68,42,110").length).toBeGreaterThan(0);
-    expect(screen.getByText("5,192")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "By line items" }));
-    expect(screen.getByText(/Haven House/)).toBeInTheDocument();
-  });
-
-  it("keeps warehouse and product data read-only while allowing inspection", () => {
-    render(<Dashboard />);
-
-    expect(screen.queryByRole("button", { name: /Add warehouse/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
-    expect(screen.getAllByText(/Bhiwandi Hub/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Delhi North/).length).toBeGreaterThan(0);
-
-    fireEvent.change(screen.getByPlaceholderText("⌕ Search products"), { target: { value: "CloudRest" } });
-    expect(screen.getByText("CloudRest Memory Pillow")).toBeInTheDocument();
+    expect(await screen.findByText(/Ops/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Orders need credit / confirmation")).toBeInTheDocument());
+    expect(screen.getAllByText("2").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Credit holds")).toBeInTheDocument();
+    expect(screen.getByText("SAP outbox failures")).toBeInTheDocument();
+    expect(screen.queryByText("CloudRest Memory Pillow")).not.toBeInTheDocument();
     expect(screen.queryByText("AeroFlex Running Shoes")).not.toBeInTheDocument();
   });
 });

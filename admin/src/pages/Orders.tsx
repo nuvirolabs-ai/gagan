@@ -70,6 +70,8 @@ export default function Orders() {
   }, [load]);
 
   const selected = orders.find((order) => order.id === selectedId) ?? null;
+  const selectedTab = TABS.find((item) => item.key === tab)?.label ?? "Orders";
+  const queueValue = orders.reduce((sum, order) => sum + Number(order.orderTotal ?? 0), 0);
 
   const act = async (id: string, fn: () => Promise<unknown>, message: string) => {
     setBusyId(id);
@@ -87,7 +89,7 @@ export default function Orders() {
   };
 
   const actions = (o: any) => (
-    <div className="row" style={{ justifyContent: "flex-end", flexWrap: "wrap" }}>
+    <div className="row inspector-action-row">
       {o.status === "placed" && (
         <>
           <button className="sm" disabled={busyId === o.id} onClick={() => act(o.id, () => api.approve(o.id), "Order approved")}>
@@ -118,12 +120,24 @@ export default function Orders() {
   );
 
   return (
-    <div>
-      <p className="eyebrow">Sales</p>
-      <h1 className="page-title">Order workspace</h1>
-      <p className="page-sub">Approve, pack, dispatch, then capture delivery. Select a row for commercial and SAP state.</p>
+    <div className="page-shell orders-page">
+      <header className="page-header">
+        <div>
+          <p className="eyebrow">Sales / Orders</p>
+          <h1 className="page-title">Orders</h1>
+          <p className="page-sub">Move each order through its next safe step. Select a row to inspect the work.</p>
+        </div>
+        <div className="header-context"><span className="live-indicator"><span className="live-dot" /> Live queue</span></div>
+      </header>
 
-      <div className="tabs">
+      <section className="orders-summary" aria-label="Current order queue summary">
+        <div className="summary-stat"><span className="metric-label">Current queue</span><strong>{selectedTab}</strong></div>
+        <div className="summary-stat"><span className="metric-label">Orders</span><strong>{loading ? "—" : orders.length}</strong></div>
+        <div className="summary-stat"><span className="metric-label">Queue value</span><strong>{loading ? "—" : inr(queueValue)}</strong></div>
+        <div className="summary-note"><span className="status-mark" /> Select an order to see the next action.</div>
+      </section>
+
+      <div className="tabs queue-tabs" aria-label="Order status">
         {TABS.map((t) => (
           <button key={t.key} className={`tab ${tab === t.key ? "active" : ""}`} onClick={() => setTab(t.key)}>
             {t.label}
@@ -135,13 +149,17 @@ export default function Orders() {
       {notice && <div className="banner success">{notice}</div>}
 
       <div className="workspace">
-        <div className="table-wrap">
+        <div className="table-wrap orders-table-wrap">
           {loading ? (
-            <div className="empty-state">Loading orders…</div>
+            <div className="table-loading" aria-label="Loading orders">
+              <div className="skeleton skeleton-row" />
+              <div className="skeleton skeleton-row" />
+              <div className="skeleton skeleton-row" />
+            </div>
           ) : orders.length === 0 ? (
             <div className="empty-state quiet">No orders in this state. That queue is clear.</div>
           ) : (
-            <table>
+            <table className="orders-table">
               <thead>
                 <tr>
                   <th>Order</th>
@@ -190,41 +208,47 @@ export default function Orders() {
           )}
         </div>
 
-        <aside className="inspector">
+        <aside className="inspector order-inspector" aria-label="Selected order">
           {!selected ? (
             <div className="empty-state quiet">Select an order to see the next action.</div>
           ) : (
             <>
-              <p className="eyebrow">Selected</p>
-              <h2>{formatOrderRef(selected)}</h2>
-              <p className="muted small" style={{ margin: "0 0 14px" }}>
+              <div className="inspector-identity">
+                <p className="eyebrow">Order</p>
+                <h2>{formatOrderRef(selected)}</h2>
+                <p className="muted small">
                 {selected.retailer.name} · {selected.retailer.phone}
-              </p>
-              <dl className="kv">
-                <dt>Value</dt>
-                <dd>{inr(Number(selected.orderTotal))}</dd>
-                <dt>Status</dt>
-                <dd>
-                  <span className={`pill ${selected.status}`}>{STATUS_LABEL[selected.status]}</span>
-                </dd>
-                <dt>SAP</dt>
-                <dd>
-                  {sapLabel(selected)}
-                  {selected.sapDocNum != null ? ` · DocNum ${selected.sapDocNum}` : ""}
-                  {selected.sapDocEntry != null ? ` · DocEntry ${selected.sapDocEntry}` : ""}
-                </dd>
-                <dt>Route</dt>
-                <dd>{selected.delivery?.routeId ?? "Not assigned"}</dd>
-              </dl>
-              <p className="inspector-next">{NEXT_ACTION[selected.status]}</p>
-              <ul className="inspector-lines">
+                </p>
+              </div>
+              <div className="inspector-status-row">
+                <span className={`pill ${selected.status}`}>{STATUS_LABEL[selected.status]}</span>
+                <strong>{inr(Number(selected.orderTotal))}</strong>
+              </div>
+              <div className="inspector-attention">
+                <span className="eyebrow">Next action</span>
+                <p>{NEXT_ACTION[selected.status]}</p>
+              </div>
+              <div className="inspector-section">
+                <h3>Order facts</h3>
+                <dl className="kv">
+                  <dt>Route</dt>
+                  <dd>{selected.delivery?.routeId ?? "Not assigned"}</dd>
+                  <dt>SAP</dt>
+                  <dd>{sapLabel(selected)}{selected.sapDocNum != null ? ` · DocNum ${selected.sapDocNum}` : ""}</dd>
+                </dl>
+              </div>
+              <div className="inspector-section">
+                <h3>Items <span>{selected.items.length}</span></h3>
+                <ul className="inspector-lines">
                 {selected.items.map((i: any) => (
                   <li key={i.id}>
-                    {i.variant.product.name} × {i.qtyOrdered} · {inr(Number(i.unitPrice))}
+                    <span>{i.variant.product.name} × {i.qtyOrdered}</span>
+                    <span className="muted">{inr(Number(i.unitPrice))}</span>
                   </li>
                 ))}
-              </ul>
-              {actions(selected)}
+                </ul>
+              </div>
+              <div className="inspector-actions">{actions(selected)}</div>
             </>
           )}
         </aside>

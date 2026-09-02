@@ -77,41 +77,116 @@ export default function Dashboard() {
 
   const attention = useMemo(() => queues.filter((row) => row.count > 0), [queues]);
   const clear = useMemo(() => queues.filter((row) => row.count === 0), [queues]);
+  const topAttention = useMemo(
+    () => attention.reduce<Queue | null>((top, row) => (!top || row.count > top.count ? row : top), null),
+    [attention]
+  );
+  const queueCount = (label: string) => queues.find((row) => row.label === label)?.count ?? 0;
+  const pulse = [
+    { label: "Awaiting approval", count: queueCount("Orders need credit / confirmation"), tone: "warning" },
+    { label: "Ready to pack", count: queueCount("Orders ready to pack"), tone: "info" },
+    { label: "Out for delivery", count: queueCount("Out for delivery"), tone: "success" },
+    { label: "SAP failures", count: queueCount("SAP outbox failures"), tone: "critical" },
+  ];
+  const pulseMax = Math.max(...pulse.map((item) => item.count), 1);
+  const today = new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "numeric", month: "short" }).format(new Date());
 
   return (
-    <div>
-      <p className="eyebrow">Work</p>
-      <h1 className="page-title">{greeting(admin?.name ?? "")}</h1>
-      <p className="page-sub">
-        What needs an employee action right now. Empty queues are healthy.
-      </p>
+    <div className="page-shell home-page">
+      <header className="page-header">
+        <div>
+          <p className="eyebrow">Work / Today</p>
+          <h1 className="page-title">{greeting(admin?.name ?? "")}</h1>
+          <p className="page-sub">The live operating picture for Gagan. Empty queues are healthy.</p>
+        </div>
+        <div className="header-context">
+          <span className="live-indicator"><span className="live-dot" /> Live</span>
+          <span>{today}</span>
+        </div>
+      </header>
       {error ? <div className="banner error">{error}</div> : null}
 
       {loading ? (
-        <div className="empty-state">Loading live queues…</div>
+        <div className="home-loading" aria-label="Loading live queues">
+          <div className="skeleton skeleton-heading" />
+          <div className="skeleton skeleton-row" />
+          <div className="skeleton skeleton-row" />
+          <div className="skeleton skeleton-row" />
+        </div>
       ) : (
         <>
-          <section className="work-board">
-            <h2 className="section-kicker">Needs action</h2>
-            {attention.length === 0 ? (
-              <div className="empty-state quiet">Nothing is waiting. That is a good morning.</div>
+          <section className="attention-brief" aria-labelledby="attention-title">
+            <div>
+              <p className="eyebrow">Attention brief</p>
+              <h2 id="attention-title">
+                {attention.length === 0 ? "Operations are clear" : `${attention.length} areas need action today`}
+              </h2>
+              <p>
+                {attention.length === 0
+                  ? "Nothing is waiting across the live work queues."
+                  : `${topAttention?.label} is the largest active queue with ${topAttention?.count} ${topAttention?.count === 1 ? "item" : "items"}.`}
+              </p>
+            </div>
+            {attention.length > 0 ? (
+              <Link className="button primary" to={topAttention?.to ?? "/"}>Open next queue <span aria-hidden="true">→</span></Link>
             ) : (
-              <ul className="work-list">
-                {attention.map((row) => (
-                  <li key={row.label}>
-                    <Link className={`work-row ${row.tone ?? ""}`} to={row.to}>
-                      <span className="work-count">{row.count}</span>
-                      <span className="work-label">{row.label}</span>
-                      <span className="work-go">Open</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+              <span className="brief-status">All clear</span>
             )}
           </section>
 
-          <section className="work-clear">
-            <h2 className="section-kicker">Clear</h2>
+          <div className="home-grid">
+            <section className="work-board home-section" aria-labelledby="needs-action-title">
+              <div className="section-heading-row">
+                <div>
+                  <p className="eyebrow">Work queue</p>
+                  <h2 id="needs-action-title">Needs action</h2>
+                </div>
+                <span className="section-count">{attention.length} active</span>
+              </div>
+              {attention.length === 0 ? (
+                <div className="empty-state quiet">Nothing is waiting. The queue is clear.</div>
+              ) : (
+                <ul className="work-list">
+                  {attention.map((row) => (
+                    <li key={row.label}>
+                      <Link className={`work-row ${row.tone ?? ""}`} to={row.to}>
+                        <span className="work-count">{row.count}</span>
+                        <span className="work-label">{row.label}</span>
+                        <span className="work-go">Open <span aria-hidden="true">→</span></span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section className="pulse-panel home-section" aria-labelledby="pulse-title">
+              <div className="section-heading-row">
+                <div>
+                  <p className="eyebrow">Live queue mix</p>
+                  <h2 id="pulse-title">Operational pulse</h2>
+                </div>
+              </div>
+              <div className="pulse-list">
+                {pulse.map((item) => (
+                  <div className="pulse-row" key={item.label}>
+                    <div className="between small"><span>{item.label}</span><strong>{item.count}</strong></div>
+                    <div className="pulse-track" aria-hidden="true"><span className={`pulse-bar ${item.tone}`} style={{ width: `${Math.max(item.count / pulseMax * 100, item.count ? 10 : 0)}%` }} /></div>
+                  </div>
+                ))}
+              </div>
+              <p className="pulse-note">Derived from the same live work queues above.</p>
+            </section>
+          </div>
+
+          <section className="work-clear home-section clear-section">
+            <div className="section-heading-row">
+              <div>
+                <p className="eyebrow">Healthy state</p>
+                <h2>Clear queues</h2>
+              </div>
+              <span className="section-count">{clear.length} clear</span>
+            </div>
             <p className="muted small">
               {sapFailed === 0
                 ? `${clear.length} queues are empty · SAP outbox has no failures.`

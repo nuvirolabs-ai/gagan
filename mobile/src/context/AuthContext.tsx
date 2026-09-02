@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { api, retailerSessionStore, setUnauthorizedHandler } from "../api/client";
 import { retailerIdentityCache } from "../auth/identityCache";
 import { isAuthenticationFailure } from "../auth/sessionFetch";
+import { isRecoverableOtpError } from "../auth/otpErrors";
 import { useLanguage } from "../i18n/LanguageContext";
 
 interface RetailerInfo {
@@ -71,16 +72,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const result = await api.requestOtp(phone);
     if (typeof result.challengeId !== "string") throw new Error("Could not start OTP challenge");
     setChallengeId(result.challengeId);
+    return result.challengeId;
   };
 
   const verifyOtp = async (phone: string, otp: string) => {
-    if (!challengeId) throw new Error("Request a new OTP first");
-    const res = await api.verifyOtp(challengeId, phone, otp);
-    setChallengeId(null);
-    const next = { id: res.retailer.id, name: res.retailer.name, phone };
-    setRetailer(next);
-    await retailerIdentityCache.save(next);
-    beginLoginSelection();
+    const complete = async (id: string) => {
+      const res = await api.verifyOtp(id, phone, otp);
+      setChallengeId(null);
+      const next = { id: res.retailer.id, name: res.retailer.name, phone };
+      setRetailer(next);
+      await retailerIdentityCache.save(next);
+      beginLoginSelection();
+    };
+    try {
+      const id = challengeId ?? (await requestOtp(phone));
+      await complete(id);
+    } catch (error) {
+      if (!isRecoverableOtpError(error)) throw error;
+      await complete(await requestOtp(phone));
+    }
   };
 
   const logout = async () => {

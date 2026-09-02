@@ -14,8 +14,33 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { useAuth } from "../context/AuthContext";
 import { ApiError } from "../api/client";
+import { otpErrorCode } from "../auth/otpErrors";
 import { colors, radius, spacing } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
+import type { TranslationKey } from "../i18n/translations";
+
+function loginAlertMessage(
+  error: unknown,
+  fallback: string,
+  t: (key: TranslationKey) => string
+) {
+  switch (otpErrorCode(error)) {
+    case "challenge_expired":
+      return t("auth.challengeExpired");
+    case "resend_cooldown":
+      return t("auth.resendCooldown");
+    case "incorrect_code":
+      return t("auth.incorrectCode");
+    case "invalid_challenge":
+    case "challenge_used":
+      return t("auth.invalidChallenge");
+    default: {
+      const code = otpErrorCode(error);
+      if (code && /^[a-z_]+$/.test(code)) return fallback;
+      return error instanceof ApiError ? error.message : fallback;
+    }
+  }
+}
 
 export default function LoginScreen() {
   const auth = useAuth();
@@ -33,7 +58,7 @@ export default function LoginScreen() {
       await auth.requestOtp(phone);
       setStage("otp");
     } catch (e) {
-      Alert.alert("Couldn't send OTP", e instanceof ApiError ? e.message : t("errors.generic"));
+      Alert.alert("Couldn't send OTP", loginAlertMessage(e, t("errors.generic"), t));
     } finally {
       setBusy(false);
     }
@@ -44,7 +69,7 @@ export default function LoginScreen() {
     try {
       await auth.verifyOtp(phone, otp);
     } catch (e) {
-      Alert.alert(t("auth.invalidOtp"), e instanceof ApiError ? e.message : t("errors.generic"));
+      Alert.alert(t("auth.invalidOtp"), loginAlertMessage(e, t("errors.generic"), t));
     } finally {
       setBusy(false);
     }

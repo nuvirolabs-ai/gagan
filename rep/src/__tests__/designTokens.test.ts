@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { colors, contrastRatio } from "../theme";
+import { colors, contrastRatio, greetingForHour, initials } from "../theme";
 
 /** WCAG AA: 4.5:1 for body text, 3:1 for large text and UI boundaries. */
 const AA_TEXT = 4.5;
@@ -69,5 +69,24 @@ describe("the core reading surfaces", () => {
 
   it("keep the primary action readable", () => {
     expect(contrastRatio(colors.onDark, colors.green)).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+
+  it("keeps semantic aliases pointing at the same palette", () => {
+    expect(colors.canvas).toBe(colors.bg);
+    expect(colors.primaryDeep).toBe(colors.greenDeep);
+    expect(colors.goldStrong).toBe(colors.accentStrong);
+  });
+});
+
+describe("companion helpers", () => {
+  it("builds two-letter initials", () => {
+    expect(initials("Ravi Kumar")).toBe("RK");
+    expect(initials("Annapurna Foods")).toBe("AF");
+  });
+
+  it("splits the day into morning, afternoon and evening", () => {
+    expect(greetingForHour(8)).toBe("morning");
+    expect(greetingForHour(14)).toBe("afternoon");
+    expect(greetingForHour(20)).toBe("evening");
   });
 });

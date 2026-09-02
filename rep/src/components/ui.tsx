@@ -2,8 +2,28 @@ import React from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { colors, radius, spacing, shadow } from "../theme";
+import { colors, control, radius, spacing } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
+export {
+  AppScreen,
+  AttentionRow,
+  CustomerRow,
+  ErrorState,
+  FilterChip,
+  FocusCard,
+  InitialsBadge,
+  MetricStrip,
+  OfflineBanner,
+  PersonalGreeting,
+  ProgressRow,
+  SectionHeader,
+  Skeleton,
+  StatusChip,
+  Surface,
+  TaskRow,
+  TextButton,
+  TimelineEvent,
+} from "./companion";
 
 /** Title bar for tab screens, which have no native header. */
 export function ScreenHeader({
@@ -509,7 +529,7 @@ const s = StyleSheet.create({
     alignItems: "flex-end",
     backgroundColor: colors.bg,
   },
-  headerTitle: { fontSize: 24, fontWeight: "700", color: colors.ink },
+  headerTitle: { fontSize: 22, fontWeight: "600", color: colors.ink, letterSpacing: -0.3 },
   headerSub: { fontSize: 13, color: colors.inkMuted, marginTop: 2 },
 
   search: {
@@ -569,7 +589,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
     marginBottom: spacing.lg,
   },
-  emptyTitle: { fontSize: 16.5, fontWeight: "700", color: colors.ink },
+  emptyTitle: { fontSize: 16, fontWeight: "600", color: colors.ink },
   emptyBody: {
     fontSize: 13.5,
     color: colors.inkMuted,
@@ -594,9 +614,8 @@ const s = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.lg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.separator,
     gap: spacing.sm,
-    ...shadow.card,
   },
   sectionTitleRow: {
     flexDirection: "row",
@@ -604,7 +623,7 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: spacing.sm,
   },
-  sectionTitle: { fontSize: 15.5, fontWeight: "700", color: colors.ink },
+  sectionTitle: { fontSize: 13, fontWeight: "600", color: colors.inkMuted, letterSpacing: 0.4, textTransform: "uppercase" },
 
   metric: {
     flex: 1,
@@ -652,13 +671,14 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 7,
-    backgroundColor: colors.green,
+    backgroundColor: colors.primaryDeep,
     borderRadius: radius.md,
+    minHeight: control.buttonHeight,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
   },
   primaryDisabled: { backgroundColor: colors.inkFaint },
-  primaryText: { color: colors.onDark, fontWeight: "700", fontSize: 13.5 },
+  primaryText: { color: colors.onDark, fontWeight: "600", fontSize: 15 },
   secondary: {
     flexDirection: "row",
     alignItems: "center",
@@ -666,12 +686,13 @@ const s = StyleSheet.create({
     gap: 6,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.separator,
     backgroundColor: colors.surface,
+    minHeight: control.buttonHeight,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
   },
-  secondaryText: { color: colors.green, fontWeight: "700", fontSize: 13 },
+  secondaryText: { color: colors.primary, fontWeight: "600", fontSize: 14 },
 
   optionGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   option: {
@@ -714,4 +735,4 @@ const s = StyleSheet.create({
   tlLabelCurrent: { color: colors.green, fontWeight: "800" },
 });
 
-export { shadow };
+export { shadow } from "../theme";

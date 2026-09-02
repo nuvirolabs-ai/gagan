@@ -21,8 +21,6 @@ export const colors = {
   danger: "#C4462F",
   dangerSoft: "#F6E2DD",
 
-  /* ---------------------------- semantic roles ---------------------------- */
-
   /**
    * The warm brand accent. It carries recognition and progress towards a goal —
    * achievements, target bars, the pack a shopper has chosen — which is what
@@ -52,13 +50,27 @@ export const colors = {
 
   border: "#E7E1D4",
   track: "#DFDACD",
+
+  /* Semantic aliases used by the companion system. Same values, clearer names. */
+  canvas: "#F7F4EC",
+  surfaceSecondary: "#F1EEE4",
+  textPrimary: "#16241B",
+  textSecondary: "#7A8780",
+  textTertiary: "#A8B2AB",
+  separator: "#E7E1D4",
+  primaryDeep: "#123122",
+  primary: "#1F5132",
+  primarySoft: "#E7F0E9",
+  goldStrong: "#8A6A12",
 };
 
 export const radius = {
-  sm: 10,
-  md: 14,
-  lg: 18,
-  xl: 24,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  focus: 22,
+  hero: 24,
   pill: 999,
 };
 
@@ -69,39 +81,67 @@ export const spacing = {
   lg: 16,
   xl: 20,
   xxl: 28,
+  section: 24,
+  block: 32,
+  hero: 40,
 };
 
 export const type = {
-  display: { fontSize: 26, fontWeight: "700" as const, color: colors.ink },
-  title: { fontSize: 19, fontWeight: "700" as const, color: colors.ink },
-  section: { fontSize: 17, fontWeight: "700" as const, color: colors.ink },
-  body: { fontSize: 14, fontWeight: "500" as const, color: colors.ink },
-  label: { fontSize: 12.5, fontWeight: "500" as const, color: colors.inkMuted },
-  micro: { fontSize: 11, fontWeight: "600" as const, color: colors.inkMuted },
+  display: { fontSize: 28, fontWeight: "600" as const, color: colors.ink, letterSpacing: -0.4 },
+  screenTitle: { fontSize: 22, fontWeight: "600" as const, color: colors.ink, letterSpacing: -0.3 },
+  sectionTitle: { fontSize: 13, fontWeight: "600" as const, color: colors.ink, letterSpacing: 0.4 },
+  cardTitle: { fontSize: 17, fontWeight: "600" as const, color: colors.ink },
+  body: { fontSize: 15, fontWeight: "400" as const, color: colors.ink, lineHeight: 21 },
+  bodyStrong: { fontSize: 15, fontWeight: "600" as const, color: colors.ink },
+  metricXL: { fontSize: 32, fontWeight: "600" as const, color: colors.ink, letterSpacing: -0.6 },
+  metricLarge: { fontSize: 22, fontWeight: "600" as const, color: colors.ink, letterSpacing: -0.3 },
+  metricMedium: { fontSize: 17, fontWeight: "600" as const, color: colors.ink },
+  caption: { fontSize: 13, fontWeight: "400" as const, color: colors.inkMuted, lineHeight: 18 },
+  label: { fontSize: 12, fontWeight: "500" as const, color: colors.inkMuted, letterSpacing: 0.2 },
+  micro: { fontSize: 11, fontWeight: "500" as const, color: colors.inkMuted },
+  /* Backward-compatible aliases used by older screens. */
+  title: { fontSize: 22, fontWeight: "600" as const, color: colors.ink },
+  section: { fontSize: 13, fontWeight: "600" as const, color: colors.ink },
 };
 
-export const shadow = {
-  card: {
-    shadowColor: "#2A2013",
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
+export const elevation = {
+  none: {},
+  card: {},
   floating: {
     shadowColor: "#2A2013",
-    shadowOpacity: 0.14,
-    shadowRadius: 18,
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
+    elevation: 6,
   },
+};
+
+/** Kept for existing imports. Most cards no longer use a drop shadow. */
+export const shadow = {
+  card: elevation.card,
+  floating: elevation.floating,
+};
+
+export const motion = {
+  fast: 160,
+  base: 220,
+  slow: 320,
+};
+
+export const control = {
+  minTap: 44,
+  buttonHeight: 48,
+  chipHeight: 36,
+  iconSm: 16,
+  iconMd: 20,
+  iconLg: 24,
 };
 
 /**
- * Vertical space the floating tab bar occupies. Screens inside the tab
- * navigator must reserve this at the bottom or content hides behind it.
+ * Vertical space the tab bar occupies. Screens inside the tab navigator must
+ * reserve this at the bottom or content hides behind it.
  */
-export const TAB_BAR_SPACE = 96;
+export const TAB_BAR_SPACE = 88;
 
 /**
  * WCAG 2.1 relative luminance, used to keep the palette honest: a token pair
@@ -129,4 +169,20 @@ export function contrastRatio(foreground: string, background: string): number {
 /** 68000 -> "₹68,000" using the Indian digit grouping the design uses. */
 export function inr(value: number): string {
   return `₹${Math.round(value).toLocaleString("en-IN")}`;
+}
+
+export function initials(name: string): string {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
+export function greetingForHour(hour: number): "morning" | "afternoon" | "evening" {
+  if (hour < 12) return "morning";
+  if (hour < 17) return "afternoon";
+  return "evening";
 }

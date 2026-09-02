@@ -106,7 +106,7 @@ describe("founder trends reconciliation", () => {
     expect(orders?.points).toHaveLength(7);
     expect(orders?.currentValue).toBeGreaterThanOrEqual(fixtureOrders);
     expect(collections?.currentValue).toBeGreaterThanOrEqual(5_000);
-    expect(fill?.currentValue).toBe(fixtureFill == null ? fill?.currentValue : fill.currentValue);
+    expect(fill?.currentValue).toEqual(expect.any(Number));
     expect(fill?.interpretation).toBeTruthy();
     expect(overdue?.comparison).toBeNull();
     expect(overdue?.interpretation).toMatch(/ledger/);

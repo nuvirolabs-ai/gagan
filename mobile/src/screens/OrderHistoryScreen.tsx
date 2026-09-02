@@ -1,20 +1,12 @@
 import React, { useCallback, useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  RefreshControl,
-} from "react-native";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "../api/client";
 import { useCart } from "../context/CartContext";
-import { colors, radius, spacing, shadow, inr, TAB_BAR_SPACE } from "../theme";
-import { ScreenHeader, ChipRow, EmptyState, StatusPill, OrderTimeline } from "../components/ui";
+import { colors, spacing, inr, TAB_BAR_SPACE } from "../theme";
+import { ScreenHeader, ChipRow, EmptyState, StatusPill, OrderTimeline, ScreenSkeleton } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 import { formatOrderRef } from "../lib/orderRef";
 
@@ -83,14 +75,12 @@ export default function OrderHistoryScreen({ navigation }: any) {
       </View>
 
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.green} />
-        </View>
+        <ScreenSkeleton chips={false} rows={4} />
       ) : (
         <FlatList
           data={visible}
           keyExtractor={(o) => o.id}
-          contentContainerStyle={{ padding: spacing.lg, paddingBottom: TAB_BAR_SPACE }}
+          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: TAB_BAR_SPACE }}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.green} />
           }
@@ -107,13 +97,17 @@ export default function OrderHistoryScreen({ navigation }: any) {
             const isActive = ACTIVE.includes(item.status);
             return (
               <TouchableOpacity
-                style={styles.card}
+                style={styles.band}
                 activeOpacity={0.85}
                 onPress={() => navigation.navigate("OrderDetail", { orderId: item.id })}
+                accessibilityRole="button"
+                accessibilityLabel={`${formatOrderRef(item)} ${inr(Number(item.orderTotal))}`}
               >
                 <View style={styles.cardTop}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.orderId}>{formatOrderRef(item)}</Text>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.orderId} numberOfLines={1}>
+                      {formatOrderRef(item)}
+                    </Text>
                     <Text style={styles.date}>
                       {new Date(item.createdAt).toLocaleDateString("en-IN", {
                         day: "numeric",
@@ -122,8 +116,15 @@ export default function OrderHistoryScreen({ navigation }: any) {
                       })}
                     </Text>
                   </View>
-                  <View style={{ alignItems: "flex-end", gap: 5 }}>
-                    <Text style={styles.total}>{inr(Number(item.orderTotal))}</Text>
+                  <View style={{ alignItems: "flex-end", gap: 5, flexShrink: 0 }}>
+                    <Text
+                      style={styles.total}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.7}
+                    >
+                      {inr(Number(item.orderTotal))}
+                    </Text>
                     <StatusPill status={item.status} />
                   </View>
                 </View>
@@ -131,7 +132,7 @@ export default function OrderHistoryScreen({ navigation }: any) {
                 <View style={styles.items}>
                   {item.items.slice(0, 2).map((i: any) => (
                     <Text key={i.id} style={styles.itemLine} numberOfLines={1}>
-                      • {i.variant?.product.name} × {i.qtyOrdered} case
+                      {i.variant?.product.name} × {i.qtyOrdered} case
                       {i.qtyOrdered > 1 ? "s" : ""}
                     </Text>
                   ))}
@@ -144,12 +145,11 @@ export default function OrderHistoryScreen({ navigation }: any) {
 
                 <View style={styles.cardFoot}>
                   <TouchableOpacity style={styles.reorder} onPress={() => reorder(item)}>
-                    <MaterialCommunityIcons name="refresh" size={13} color={colors.green} />
                     <Text style={styles.reorderText}>{t("orders.reorder")}</Text>
                   </TouchableOpacity>
                   <View style={styles.detailsLink}>
                     <Text style={styles.detailsText}>{t("orders.details")}</Text>
-                    <Ionicons name="chevron-forward" size={14} color={colors.inkMuted} />
+                    <Ionicons name="chevron-forward" size={14} color={colors.inkFaint} />
                   </View>
                 </View>
               </TouchableOpacity>
@@ -163,46 +163,30 @@ export default function OrderHistoryScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
 
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
+  band: {
+    paddingBottom: spacing.md,
     marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadow.card,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
   cardTop: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
-  orderId: { fontSize: 15.5, fontWeight: "700", color: colors.ink },
-  date: { fontSize: 11.5, color: colors.inkMuted, marginTop: 2 },
-  total: { fontSize: 15.5, fontWeight: "700", color: colors.ink },
+  orderId: { fontSize: 14.5, fontWeight: "700", color: colors.ink },
+  date: { fontSize: 12.5, color: colors.inkMuted, marginTop: 2 },
+  total: { fontSize: 15, fontWeight: "700", color: colors.ink, maxWidth: 110, textAlign: "right" },
 
   items: { marginTop: spacing.md, gap: 3 },
   itemLine: { fontSize: 12.5, color: colors.inkMuted },
-  more: { fontSize: 11.5, color: colors.greenMid, fontWeight: "600" },
+  more: { fontSize: 11.5, color: colors.green, fontWeight: "600" },
 
   cardFoot: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: spacing.lg,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    marginTop: spacing.md,
   },
-  reorder: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    borderWidth: 1,
-    borderColor: colors.green,
-    borderRadius: radius.sm,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  reorderText: { color: colors.green, fontWeight: "700", fontSize: 12.5 },
+  reorder: { minHeight: 36, justifyContent: "center" },
+  reorderText: { color: colors.green, fontWeight: "700", fontSize: 13 },
   detailsLink: { flexDirection: "row", alignItems: "center", gap: 2 },
-  detailsText: { fontSize: 12.5, color: colors.inkMuted, fontWeight: "600" },
+  detailsText: { fontSize: 13, color: colors.green, fontWeight: "600" },
 });

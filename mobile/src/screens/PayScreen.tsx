@@ -10,10 +10,11 @@ import {
   Alert,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { api, ApiError } from "../api/client";
-import { colors, radius, spacing, shadow, inr } from "../theme";
+import { colors, radius, spacing, inr } from "../theme";
+import { ScreenSkeleton, SectionTitle } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 
 const BUCKETS: { key: string; label: string; danger?: boolean }[] = [
@@ -49,7 +50,7 @@ export default function PayScreen({ navigation }: any) {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.green} />
+        <ScreenSkeleton rows={4} />
       </View>
     );
   }
@@ -97,19 +98,39 @@ export default function PayScreen({ navigation }: any) {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }}>
-      <View style={styles.hero}>
-        <Text style={styles.heroLabel}>{t("pay.totalOutstanding")}</Text>
-        <Text style={styles.heroValue}>{inr(dues.outstanding)}</Text>
-        {dues.overdue > 0 && (
-          <View style={styles.overduePill}>
-            <Ionicons name="alert-circle" size={13} color={colors.onDark} />
-            <Text style={styles.overdueText}>{inr(dues.overdue)} overdue</Text>
+      <View style={styles.strip}>
+        <View style={styles.cell}>
+          <Text style={styles.cellLabel} numberOfLines={1}>
+            {t("pay.totalOutstanding")}
+          </Text>
+          <Text
+            style={styles.cellValue}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.65}
+          >
+            {inr(dues.outstanding)}
+          </Text>
+        </View>
+        {dues.overdue > 0 ? (
+          <View style={[styles.cell, styles.cellBorder]}>
+            <Text style={styles.cellLabel} numberOfLines={1}>
+              {t("home.overdue")}
+            </Text>
+            <Text
+              style={[styles.cellValue, styles.overdueValue]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.65}
+            >
+              {inr(dues.overdue)}
+            </Text>
           </View>
-        )}
+        ) : null}
       </View>
 
-      <Text style={styles.sectionTitle}>{t("pay.howDuesAge")}</Text>
-      <View style={styles.card}>
+      <SectionTitle>{t("pay.howDuesAge")}</SectionTitle>
+      <View style={styles.band}>
         {BUCKETS.map((b, i) => {
           const amt = Number(ageing[b.key] ?? 0);
           if (amt <= 0) return null;
@@ -132,8 +153,8 @@ export default function PayScreen({ navigation }: any) {
         )}
       </View>
 
-      <Text style={styles.sectionTitle}>{t("pay.amountToPay")}</Text>
-      <View style={styles.card}>
+      <SectionTitle>{t("pay.amountToPay")}</SectionTitle>
+      <View style={styles.band}>
         <View style={styles.amountRow}>
           <Text style={styles.rupee}>₹</Text>
           <TextInput
@@ -166,12 +187,9 @@ export default function PayScreen({ navigation }: any) {
         )}
       </View>
 
-      <View style={styles.note}>
-        <MaterialCommunityIcons name="sort-clock-ascending-outline" size={16} color={colors.green} />
-        <Text style={styles.noteText}>
-          Payments clear your oldest bill first, so paying reduces overdue before anything else.
-        </Text>
-      </View>
+      <Text style={styles.noteText}>
+        Payments clear your oldest bill first, so paying reduces overdue before anything else.
+      </Text>
 
       <TouchableOpacity
         style={[styles.payBtn, (!valid || paying) && styles.payBtnDisabled]}
@@ -197,47 +215,36 @@ export default function PayScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
+  center: { flex: 1, backgroundColor: colors.bg },
   muted: { color: colors.inkMuted },
 
-  hero: { backgroundColor: colors.greenDeep, borderRadius: radius.lg, padding: spacing.xl },
-  heroLabel: { color: colors.onDarkMuted, fontSize: 12.5 },
-  heroValue: { color: colors.onDark, fontSize: 32, fontWeight: "700", marginTop: 4 },
-  overduePill: {
+  strip: {
     flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    gap: 5,
-    backgroundColor: colors.danger,
-    borderRadius: radius.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    marginTop: spacing.md,
+    paddingBottom: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+    marginBottom: spacing.md,
   },
-  overdueText: { color: colors.onDark, fontWeight: "700", fontSize: 12 },
+  cell: { flex: 1, paddingRight: spacing.sm },
+  cellBorder: {
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderLeftColor: colors.border,
+    paddingLeft: spacing.sm,
+  },
+  cellLabel: { fontSize: 10.5, fontWeight: "700", color: colors.inkMuted, letterSpacing: 0.2 },
+  cellValue: { fontSize: 22, fontWeight: "700", color: colors.ink, marginTop: 4 },
+  overdueValue: { color: colors.error },
 
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.inkMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginTop: spacing.xl,
-    marginBottom: spacing.sm,
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadow.card,
+  band: {
+    paddingBottom: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
   row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: spacing.sm },
-  rowBorder: { borderTopWidth: 1, borderTopColor: colors.border },
+  rowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   rowLabel: { fontSize: 13.5, color: colors.inkMuted },
   rowValue: { fontSize: 14, fontWeight: "700", color: colors.ink },
-  oldest: { fontSize: 11.5, color: colors.inkMuted, marginTop: spacing.sm, fontStyle: "italic" },
+  oldest: { fontSize: 11.5, color: colors.inkMuted, marginTop: spacing.sm },
 
   amountRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   rupee: { fontSize: 26, fontWeight: "700", color: colors.ink },
@@ -245,23 +252,17 @@ const styles = StyleSheet.create({
   quickRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
   quickBtn: {
     borderWidth: 1,
-    borderColor: colors.green,
-    borderRadius: radius.sm,
-    paddingVertical: 7,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    paddingVertical: 9,
     paddingHorizontal: 14,
+    minHeight: 36,
+    justifyContent: "center",
   },
   quickText: { color: colors.green, fontWeight: "700", fontSize: 12.5 },
   error: { color: colors.danger, fontSize: 12, marginTop: spacing.sm, fontWeight: "600" },
 
-  note: {
-    flexDirection: "row",
-    gap: 8,
-    backgroundColor: colors.greenSoft,
-    borderRadius: radius.md,
-    padding: spacing.lg,
-    marginTop: spacing.lg,
-  },
-  noteText: { flex: 1, fontSize: 12.5, color: colors.ink, lineHeight: 18 },
+  noteText: { fontSize: 13, color: colors.inkMuted, lineHeight: 18, marginTop: spacing.lg },
 
   payBtn: {
     flexDirection: "row",
@@ -271,6 +272,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.greenDeep,
     borderRadius: radius.md,
     paddingVertical: 16,
+    minHeight: 48,
     marginTop: spacing.xl,
   },
   payBtnDisabled: { opacity: 0.4 },

@@ -1,24 +1,25 @@
 import React, { useCallback, useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  RefreshControl,
-} from "react-native";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "../api/client";
-import { colors, radius, spacing, shadow, inr, TAB_BAR_SPACE } from "../theme";
+import { colors, radius, spacing, TAB_BAR_SPACE } from "../theme";
 import ProductGroupCard, { type ProductGroupLike, type Sku } from "../components/ProductGroupCard";
-import { ScreenHeader, SearchBar, ChipRow, EmptyState } from "../components/ui";
+import { ScreenHeader, SearchBar, ChipRow, EmptyState, ScreenSkeleton } from "../components/ui";
 import { useCart } from "../context/CartContext";
 import { useLanguage } from "../i18n/LanguageContext";
 
 const ALL = "All";
+const CATEGORY_LABELS: Record<string, string> = {
+  All: "All",
+  Pulses: "Daal",
+  Daal: "Daal",
+  Rice: "Rice",
+  Sugar: "Sugar",
+  Staples: "Staples",
+  Breakfast: "Breakfast",
+};
 
 export default function CatalogScreen({ navigation }: any) {
   const { lines, addLine, updateQty } = useCart();
@@ -118,25 +119,28 @@ export default function CatalogScreen({ navigation }: any) {
       <SearchBar value={query} onChange={setQuery} placeholder={t("catalog.search")} />
 
       <View style={{ marginTop: spacing.md, marginBottom: spacing.sm }}>
-        <ChipRow options={[ALL, ...categories]} value={category} onChange={setCategory} />
+        <ChipRow
+          options={[ALL, ...categories]}
+          value={category}
+          onChange={setCategory}
+          labels={{ ...CATEGORY_LABELS, [ALL]: t("home.allCategories") }}
+        />
       </View>
 
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.green} />
-        </View>
+        <ScreenSkeleton featured rows={3} />
       ) : (
         <FlatList
           data={rows}
           keyExtractor={(group) => group.id}
-          contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: TAB_BAR_SPACE }}
+          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: TAB_BAR_SPACE }}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.green} />
           }
           ListEmptyComponent={
             <EmptyState
               icon={loadError ? "alert-circle-outline" : "magnify"}
-              title={loadError ? t("catalog.loadError") : query || category !== ALL ? t("catalog.empty") : t("catalog.empty")}
+              title={loadError ? t("catalog.loadError") : t("catalog.empty")}
               body={loadError ? t("errors.checkConnection") : t("catalog.emptyBody")}
               actionLabel={loadError ? t("common.retry") : query || category !== ALL ? t("common.clearFilters") : undefined}
               onAction={
@@ -154,7 +158,7 @@ export default function CatalogScreen({ navigation }: any) {
               }
             />
           }
-          renderItem={({ item }) => (
+          renderItem={({ item, index }) => (
             <ProductGroupCard
               group={item}
               qtyFor={qtyFor}
@@ -162,6 +166,7 @@ export default function CatalogScreen({ navigation }: any) {
               onOpen={() =>
                 navigation.navigate("ProductDetail", { productId: item.skus[0]?.productId })
               }
+              appearance={index === 0 ? "featured" : "row"}
             />
           )}
         />
@@ -172,7 +177,6 @@ export default function CatalogScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
   cartChip: {
     flexDirection: "row",
     alignItems: "center",
@@ -180,39 +184,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.greenDeep,
     paddingHorizontal: 11,
     paddingVertical: 7,
+    minHeight: 36,
     borderRadius: radius.pill,
   },
   cartChipText: { color: colors.onDark, fontWeight: "700", fontSize: 12.5 },
-
-  card: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    gap: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadow.card,
-  },
-  cardBody: { flex: 1 },
-  name: { fontSize: 15.5, fontWeight: "700", color: colors.ink },
-  pack: { fontSize: 12, color: colors.inkMuted, marginTop: 2 },
-  priceRow: { flexDirection: "row", alignItems: "baseline", gap: spacing.sm, marginTop: 6 },
-  price: { fontSize: 15, fontWeight: "700", color: colors.ink },
-  perKg: { fontSize: 11.5, color: colors.inkMuted },
-  dealTag: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    alignSelf: "flex-start",
-    backgroundColor: colors.greenSoft,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginTop: 5,
-  },
-  dealText: { fontSize: 9.5, fontWeight: "700", color: colors.green },
-  action: { alignItems: "flex-end" },
 });

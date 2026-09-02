@@ -5,15 +5,14 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
 
 import { api } from "../api/client";
 import { useCart } from "../context/CartContext";
-import { colors, radius, spacing, shadow, inr } from "../theme";
+import { colors, radius, spacing, inr } from "../theme";
 import ProductThumb from "../components/ProductThumb";
-import { QtyStepper, EmptyState } from "../components/ui";
+import { QtyStepper, EmptyState, ScreenSkeleton, SectionTitle } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 
 export default function ProductDetailScreen({ route, navigation }: any) {
@@ -78,7 +77,7 @@ export default function ProductDetailScreen({ route, navigation }: any) {
   if (!product) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.green} />
+        <ScreenSkeleton featured rows={3} />
       </View>
     );
   }
@@ -121,7 +120,7 @@ export default function ProductDetailScreen({ route, navigation }: any) {
           <Text style={styles.name}>{product.name}</Text>
           {product.description ? <Text style={styles.description}>{product.description}</Text> : null}
 
-          <Text style={styles.sectionLabel}>{t("product.packSize")}</Text>
+          <SectionTitle>{t("product.packSize")}</SectionTitle>
           <View style={styles.variantRow}>
             {product.variants.map((v: any) => {
               const active = selected?.id === v.id;
@@ -130,6 +129,8 @@ export default function ProductDetailScreen({ route, navigation }: any) {
                   key={v.id}
                   style={[styles.variant, active && styles.variantActive]}
                   onPress={() => setSelected(v)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
                 >
                   <Text style={[styles.variantTitle, active && styles.variantTitleActive]}>
                     {v.packLabel ?? v.unitSize}
@@ -143,36 +144,37 @@ export default function ProductDetailScreen({ route, navigation }: any) {
           </View>
 
           {selected && (
-            <View style={styles.priceCard}>
-              <View style={styles.between}>
-                <View>
-                  <Text style={styles.priceLabel}>{t("product.pricePerCase")}</Text>
-                  <Text style={styles.price}>
-                    {selected.price != null ? inr(selected.price) : t("product.onRequest")}
-                  </Text>
-                </View>
-                {selected.pricePerKg != null && (
-                  <View style={styles.perKgBox}>
-                    <Text style={styles.perKgValue}>{inr(selected.pricePerKg)}</Text>
-                    <Text style={styles.perKgLabel}>{t("product.perKg")}</Text>
-                  </View>
-                )}
+            <View style={styles.priceBand}>
+              <View>
+                <Text style={styles.priceLabel}>{t("product.pricePerCase")}</Text>
+                <Text
+                  style={styles.price}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
+                  {selected.price != null ? inr(selected.price) : t("product.onRequest")}
+                </Text>
               </View>
-              {selected.isOverride && (
-                <View style={styles.override}>
-                  <Ionicons name="pricetag" size={11} color={colors.green} />
-                  <Text style={styles.overrideText}>{t("product.override")}</Text>
+              {selected.pricePerKg != null && (
+                <View style={styles.perKgBox}>
+                  <Text style={styles.perKgValue}>{inr(selected.pricePerKg)}</Text>
+                  <Text style={styles.perKgLabel}>{t("product.perKg")}</Text>
                 </View>
               )}
             </View>
           )}
+          {selected?.isOverride ? (
+            <View style={styles.override}>
+              <Ionicons name="pricetag" size={11} color={colors.green} />
+              <Text style={styles.overrideText}>{t("product.override")}</Text>
+            </View>
+          ) : null}
 
-          <View style={styles.infoCard}>
+          <View style={styles.infoList}>
             <View style={styles.infoRow}>
               <MaterialCommunityIcons name="scale-balance" size={17} color={colors.green} />
-              <Text style={styles.infoText}>
-                {t("product.billedWeight")}
-              </Text>
+              <Text style={styles.infoText}>{t("product.billedWeight")}</Text>
             </View>
             <View style={styles.infoRow}>
               <Feather name="truck" size={16} color={colors.green} />
@@ -219,34 +221,36 @@ export default function ProductDetailScreen({ route, navigation }: any) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
-  between: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  center: { flex: 1, backgroundColor: colors.bg },
 
   hero: {
     alignItems: "center",
     paddingVertical: spacing.xxl,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.cream,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    borderRadius: radius.lg,
   },
   body: { padding: spacing.lg },
-  category: { fontSize: 10.5, fontWeight: "800", color: colors.gold, letterSpacing: 1 },
-  name: { fontSize: 24, fontWeight: "700", color: colors.ink, marginTop: 4 },
-  description: { fontSize: 13.5, color: colors.inkMuted, lineHeight: 20, marginTop: spacing.sm },
-
-  sectionLabel: {
-    fontSize: 12.5,
-    fontWeight: "700",
-    color: colors.inkMuted,
-    marginTop: spacing.xl,
-    marginBottom: spacing.sm,
+  category: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: colors.accentStrong,
+    letterSpacing: 0.8,
   },
+  name: { fontSize: 26, fontWeight: "700", color: colors.ink, marginTop: 4 },
+  description: { fontSize: 14, color: colors.inkMuted, lineHeight: 20, marginTop: spacing.sm },
+
   variantRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   variant: {
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.md,
+    borderRadius: radius.sm,
     paddingVertical: 9,
     paddingHorizontal: 14,
-    backgroundColor: colors.surface,
+    minHeight: 44,
+    justifyContent: "center",
+    backgroundColor: "transparent",
   },
   variantActive: { borderColor: colors.accentPrimary, backgroundColor: colors.accentPrimary },
   variantTitle: { fontSize: 14, fontWeight: "700", color: colors.ink },
@@ -254,46 +258,32 @@ const styles = StyleSheet.create({
   variantSub: { fontSize: 11, color: colors.inkMuted, marginTop: 1 },
   variantSubActive: { color: colors.accentStrong },
 
-  priceCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
+  priceBand: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
     marginTop: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadow.card,
+    paddingBottom: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+    gap: spacing.md,
   },
-  priceLabel: { fontSize: 12, color: colors.inkMuted },
-  price: { fontSize: 26, fontWeight: "700", color: colors.ink, marginTop: 2 },
-  perKgBox: {
-    backgroundColor: colors.greenSoft,
-    borderRadius: radius.sm,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    alignItems: "center",
-  },
-  perKgValue: { fontSize: 15, fontWeight: "700", color: colors.green },
-  perKgLabel: { fontSize: 10, color: colors.greenMid, marginTop: 1 },
+  priceLabel: { fontSize: 12, color: colors.inkMuted, fontWeight: "600" },
+  price: { fontSize: 26, fontWeight: "700", color: colors.ink, marginTop: 2, maxWidth: 200 },
+  perKgBox: { alignItems: "flex-end" },
+  perKgValue: { fontSize: 15, fontWeight: "700", color: colors.ink },
+  perKgLabel: { fontSize: 10, color: colors.inkMuted, marginTop: 1 },
   override: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    marginTop: spacing.md,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    marginTop: spacing.sm,
   },
   overrideText: { fontSize: 11.5, color: colors.green, fontWeight: "600" },
 
-  infoCard: {
-    backgroundColor: colors.greenSoft,
-    borderRadius: radius.md,
-    padding: spacing.lg,
-    marginTop: spacing.lg,
-    gap: spacing.md,
-  },
+  infoList: { marginTop: spacing.lg, gap: spacing.md },
   infoRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
-  infoText: { flex: 1, fontSize: 12.5, color: colors.ink, lineHeight: 18 },
+  infoText: { flex: 1, fontSize: 12.5, color: colors.inkMuted, lineHeight: 18 },
 
   bar: {
     position: "absolute",
@@ -307,7 +297,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
     paddingBottom: spacing.xxl,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },
   barLabel: { fontSize: 11.5, color: colors.inkMuted },
@@ -318,6 +308,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingVertical: 12,
     paddingHorizontal: 16,
+    minHeight: 44,
+    justifyContent: "center",
   },
   viewCartText: { color: colors.onDark, fontWeight: "700", fontSize: 13.5 },
   addBtn: {
@@ -328,6 +320,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingVertical: 13,
     paddingHorizontal: 22,
+    minHeight: 44,
   },
   addBtnDisabled: { opacity: 0.45 },
   addBtnText: { color: colors.onDark, fontWeight: "700", fontSize: 14.5 },

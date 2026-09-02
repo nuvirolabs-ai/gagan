@@ -9,12 +9,14 @@ import {
   Alert,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { api } from "../api/client";
 import { useAuth } from "../context/AuthContext";
-import { colors, radius, spacing, shadow, inr, TAB_BAR_SPACE } from "../theme";
-import { ScreenHeader } from "../components/ui";
+import { colors, radius, spacing, inr, TAB_BAR_SPACE } from "../theme";
+import { ScreenHeader, SectionTitle } from "../components/ui";
+import AccountStrip from "../components/home/AccountStrip";
+import { accountModel } from "../lib/homePresentation";
 import { useLanguage } from "../i18n/LanguageContext";
 
 export default function ProfileScreen({ navigation }: any) {
@@ -98,77 +100,44 @@ export default function ProfileScreen({ navigation }: any) {
       contentContainerStyle={{ paddingBottom: TAB_BAR_SPACE + spacing.xl }}
       showsVerticalScrollIndicator={false}
     >
-      <ScreenHeader title={t("profile.title")} />
+      <ScreenHeader
+        title={retailer?.name ?? t("profile.title")}
+        subtitle={retailer?.phone ? `${retailer.phone}${retailer?.tier ? ` · ${retailer.tier}` : ""}` : undefined}
+      />
 
-      <View style={styles.profile}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
-            {(retailer?.name ?? "?")
-              .split(" ")
-              .map((p: string) => p[0])
-              .slice(0, 2)
-              .join("")}
-          </Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.shopName} numberOfLines={1}>
-            {retailer?.name ?? "—"}
-          </Text>
-          <Text style={styles.phone}>{retailer?.phone ?? ""}</Text>
-        </View>
-        {retailer?.tier && (
-          <View style={styles.tierBadge}>
-            <MaterialCommunityIcons name="crown" size={12} color={colors.gold} />
-            <Text style={styles.tierText}>{retailer.tier}</Text>
-          </View>
-        )}
-      </View>
+      {credit ? (
+        <AccountStrip
+          account={accountModel(credit)}
+          onPay={() => navigation.navigate("Pay")}
+          onLedger={() => navigation.navigate("Ledger")}
+        />
+      ) : null}
 
-      {credit && (
-        <TouchableOpacity style={styles.creditCard} onPress={() => navigation.navigate("Ledger")}>
-          <View style={styles.creditCol}>
-            <Text style={styles.creditLabel}>{t("profile.outstanding")}</Text>
-            <Text style={styles.creditValue}>{inr(credit.outstanding)}</Text>
-            {credit.overdue > 0 && (
-              <Text style={styles.overdue}>{inr(credit.overdue)} {t("ledger.overdue")}</Text>
-            )}
-          </View>
-          <View style={styles.creditDivider} />
-          <View style={styles.creditCol}>
-            <Text style={styles.creditLabel}>{t("profile.availableCredit")}</Text>
-            <Text style={[styles.creditValue, { color: colors.green }]}>{inr(credit.available)}</Text>
-            <Text style={styles.creditSub}>of {inr(credit.creditLimit)} limit</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} />
-        </TouchableOpacity>
-      )}
-
-      {rep && (
-        <View style={styles.repCard}>
-          <View style={styles.repAvatar}>
-            <Text style={styles.repInitials}>
-              {rep.name
-                .split(" ")
-                .map((p: string) => p[0])
-                .slice(0, 2)
-                .join("")}
+      {rep ? (
+        <View style={styles.support}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.supportLabel}>{t("profile.salesman")}</Text>
+            <Text style={styles.supportName} numberOfLines={1}>
+              {rep.name}
             </Text>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.repLabel}>{t("profile.salesman")}</Text>
-            <Text style={styles.repName}>{rep.name}</Text>
-          </View>
-          <TouchableOpacity style={styles.repBtn} onPress={() => call(rep.phone)}>
+          <TouchableOpacity
+            style={styles.supportCall}
+            accessibilityLabel={t("home.callSalesperson", { name: rep.name })}
+            onPress={() => call(rep.phone)}
+          >
             <Ionicons name="call" size={16} color={colors.onDark} />
+            <Text style={styles.supportCallText}>{t("home.call")}</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.repBtn, { backgroundColor: "#25D366" }]}
+            style={styles.supportAlt}
+            accessibilityLabel={t("profile.whatsapp")}
             onPress={() => whatsapp(rep.phone)}
           >
-            <MaterialCommunityIcons name="whatsapp" size={17} color={colors.onDark} />
+            <MaterialCommunityIcons name="whatsapp" size={16} color={colors.green} />
           </TouchableOpacity>
         </View>
-      )}
+      ) : null}
 
       <View style={styles.menu}>
         {MENU.map((m, i) => (
@@ -176,25 +145,24 @@ export default function ProfileScreen({ navigation }: any) {
             key={m.label}
             style={[styles.menuRow, i > 0 && styles.menuRowBorder]}
             onPress={m.onPress}
+            accessibilityRole="button"
           >
-            <View style={styles.menuIcon}>
-              <MaterialCommunityIcons name={m.icon as any} size={18} color={colors.green} />
-            </View>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.menuLabel}>{m.label}</Text>
-              <Text style={styles.menuHint}>{m.hint}</Text>
+              <Text style={styles.menuHint} numberOfLines={1}>
+                {m.hint}
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={17} color={colors.inkFaint} />
           </TouchableOpacity>
         ))}
       </View>
 
-      <Text style={styles.sectionTitle}>{t("profile.support")}</Text>
+      <View style={{ paddingHorizontal: spacing.lg }}>
+        <SectionTitle>{t("profile.support")}</SectionTitle>
+      </View>
       <View style={styles.menu}>
         <TouchableOpacity style={styles.menuRow} onPress={() => call(data?.config?.supportPhone)}>
-          <View style={styles.menuIcon}>
-            <Feather name="phone" size={17} color={colors.green} />
-          </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.menuLabel}>{t("profile.callSupport")}</Text>
             <Text style={styles.menuHint}>Mon–Sat, 9am to 7pm</Text>
@@ -205,9 +173,6 @@ export default function ProfileScreen({ navigation }: any) {
           style={[styles.menuRow, styles.menuRowBorder]}
           onPress={() => whatsapp(data?.config?.supportPhone)}
         >
-          <View style={styles.menuIcon}>
-            <MaterialCommunityIcons name="whatsapp" size={18} color={colors.green} />
-          </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.menuLabel}>{t("profile.whatsapp")}</Text>
             <Text style={styles.menuHint}>Usually replies within an hour</Text>
@@ -241,120 +206,47 @@ export default function ProfileScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
 
-  profile: {
+  support: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.md,
-    backgroundColor: colors.surface,
     marginHorizontal: spacing.lg,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadow.card,
-  },
-  avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: radius.pill,
-    backgroundColor: colors.greenSoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: { fontSize: 17, fontWeight: "800", color: colors.green },
-  shopName: { fontSize: 17, fontWeight: "700", color: colors.ink },
-  phone: { fontSize: 12.5, color: colors.inkMuted, marginTop: 2 },
-  tierBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    backgroundColor: colors.goldSoft,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: radius.pill,
-  },
-  tierText: { fontSize: 11, fontWeight: "800", color: "#8A6A12" },
-
-  creditCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadow.card,
-  },
-  creditCol: { flex: 1 },
-  creditDivider: { width: 1, height: 40, backgroundColor: colors.border, marginHorizontal: spacing.md },
-  creditLabel: { fontSize: 11.5, color: colors.inkMuted },
-  creditValue: { fontSize: 17, fontWeight: "700", color: colors.ink, marginTop: 3 },
-  creditSub: { fontSize: 10.5, color: colors.inkFaint, marginTop: 2 },
-  overdue: { fontSize: 10.5, color: colors.danger, fontWeight: "700", marginTop: 2 },
-
-  repCard: {
-    flexDirection: "row",
-    alignItems: "center",
+    marginBottom: spacing.lg,
     gap: spacing.sm,
-    backgroundColor: colors.greenSoft,
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
-    borderRadius: radius.lg,
-    padding: spacing.md,
   },
-  repAvatar: {
+  supportLabel: { fontSize: 11, color: colors.inkMuted, fontWeight: "600" },
+  supportName: { fontSize: 15, fontWeight: "700", color: colors.ink, marginTop: 1 },
+  supportCall: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.greenDeep,
+    borderRadius: radius.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    minHeight: 40,
+  },
+  supportCallText: { color: colors.onDark, fontWeight: "700", fontSize: 13 },
+  supportAlt: {
     width: 40,
     height: 40,
     borderRadius: radius.pill,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  repInitials: { fontSize: 13, fontWeight: "800", color: colors.green },
-  repLabel: { fontSize: 10.5, color: colors.greenMid },
-  repName: { fontSize: 14.5, fontWeight: "700", color: colors.ink },
-  repBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.pill,
-    backgroundColor: colors.greenDeep,
+    borderWidth: 1,
+    borderColor: colors.border,
     alignItems: "center",
     justifyContent: "center",
   },
 
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.inkMuted,
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.xl,
-    marginBottom: spacing.sm,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  menu: {
-    backgroundColor: colors.surface,
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.lg,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: "hidden",
-  },
-  menuRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.lg },
-  menuRowBorder: { borderTopWidth: 1, borderTopColor: colors.border },
-  menuIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.sm,
-    backgroundColor: colors.greenSoft,
+  menu: { marginHorizontal: spacing.lg },
+  menuRow: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    minHeight: 52,
   },
+  menuRowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   menuLabel: { fontSize: 14.5, fontWeight: "600", color: colors.ink },
-  menuHint: { fontSize: 11.5, color: colors.inkMuted, marginTop: 1 },
+  menuHint: { fontSize: 12, color: colors.inkMuted, marginTop: 1 },
 
   logout: {
     flexDirection: "row",
@@ -363,14 +255,33 @@ const styles = StyleSheet.create({
     gap: 7,
     marginTop: spacing.xl,
     paddingVertical: spacing.md,
+    minHeight: 44,
   },
   logoutText: { color: colors.danger, fontWeight: "700", fontSize: 14.5 },
-  languageRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: spacing.lg, marginTop: spacing.lg, padding: spacing.md, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
-  languageLabel: { color: colors.ink, fontWeight: "700" },
-  languageChoices: { flexDirection: "row", gap: spacing.xs },
-  languageChoice: { paddingHorizontal: spacing.sm, paddingVertical: 7, borderRadius: radius.sm },
-  languageChoiceActive: { backgroundColor: colors.greenSoft },
-  languageChoiceText: { color: colors.inkMuted, fontSize: 12, fontWeight: "600" },
-  languageChoiceTextActive: { color: colors.greenDeep },
+  languageRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.lg,
+    paddingVertical: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    gap: spacing.md,
+  },
+  languageLabel: { color: colors.inkMuted, fontWeight: "700", fontSize: 13, letterSpacing: 0.6, textTransform: "uppercase" },
+  languageChoices: { flexDirection: "row", gap: spacing.sm },
+  languageChoice: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    minHeight: 36,
+    justifyContent: "center",
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  languageChoiceActive: { backgroundColor: colors.greenDeep, borderColor: colors.greenDeep },
+  languageChoiceText: { color: colors.inkMuted, fontSize: 13, fontWeight: "700" },
+  languageChoiceTextActive: { color: colors.onDark },
   version: { textAlign: "center", fontSize: 11, color: colors.inkFaint, marginTop: spacing.sm },
 });

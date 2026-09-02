@@ -13,8 +13,8 @@ import { Ionicons, Feather } from "@expo/vector-icons";
 
 import { useCart } from "../context/CartContext";
 import { api, ApiError } from "../api/client";
-import { colors, radius, spacing, shadow, inr, TAB_BAR_SPACE } from "../theme";
-import { ScreenHeader, QtyStepper, EmptyState } from "../components/ui";
+import { colors, radius, spacing, inr, TAB_BAR_SPACE } from "../theme";
+import { ScreenHeader, QtyStepper, EmptyState, SectionTitle } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 
 export default function CartScreen({ navigation }: any) {
@@ -132,20 +132,31 @@ export default function CartScreen({ navigation }: any) {
 
         {lines.map((l) => (
           <View key={l.variantId} style={styles.line}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.lineName}>{l.productName}</Text>
-              <Text style={styles.linePack}>{l.packSize}</Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.lineName} numberOfLines={1}>
+                {l.productName}
+              </Text>
+              <Text style={styles.linePack} numberOfLines={1}>
+                {l.packSize}
+              </Text>
               <Text style={styles.lineRate}>{inr(l.unitPrice)} / case</Text>
             </View>
             <View style={styles.lineRight}>
-              <Text style={styles.lineTotal}>{inr(l.unitPrice * l.qty)}</Text>
+              <Text
+                style={styles.lineTotal}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+              >
+                {inr(l.unitPrice * l.qty)}
+              </Text>
               <QtyStepper qty={l.qty} onChange={(next) => updateQty(l.variantId, next)} compact />
             </View>
           </View>
         ))}
 
+        <SectionTitle>{t("cart.summary")}</SectionTitle>
         <View style={styles.summary}>
-          <Text style={styles.summaryTitle}>{t("cart.summary")}</Text>
           <View style={styles.sumRow}>
             <Text style={styles.sumLabel}>{t("cart.subtotal")}</Text>
             <Text style={styles.sumValue}>{inr(total)}</Text>
@@ -154,15 +165,21 @@ export default function CartScreen({ navigation }: any) {
             <Text style={styles.sumLabel}>{t("cart.delivery")}</Text>
             <Text style={[styles.sumValue, { color: colors.green }]}>{t("cart.deliveryIncluded")}</Text>
           </View>
-          <View style={styles.divider} />
           <View style={styles.sumRow}>
             <Text style={styles.totalLabel}>{t("cart.totalPayable")}</Text>
-            <Text style={styles.totalValue}>{inr(payable)}</Text>
+            <Text
+              style={styles.totalValue}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
+            >
+              {inr(payable)}
+            </Text>
           </View>
 
           {config.freeDeliveryThreshold > 0 && total > 0 && total < config.freeDeliveryThreshold ? (
             <View style={styles.hint}>
-              <Feather name="truck" size={13} color={colors.gold} />
+              <Feather name="truck" size={13} color={colors.accentStrong} />
               <Text style={styles.hintText}>
                 Typical free-delivery guidance is {inr(config.freeDeliveryThreshold)}. This order total is what you will be billed.
               </Text>
@@ -171,10 +188,17 @@ export default function CartScreen({ navigation }: any) {
         </View>
 
         {credit && (
-          <View style={styles.creditCard}>
+          <View style={styles.creditBand}>
             <View style={styles.between}>
               <Text style={styles.creditLabel}>{t("profile.availableCredit")}</Text>
-              <Text style={styles.creditValue}>{inr(credit.available)}</Text>
+              <Text
+                style={styles.creditValue}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+              >
+                {inr(credit.available)}
+              </Text>
             </View>
             <View style={styles.creditTrack}>
               <View
@@ -256,59 +280,46 @@ const styles = StyleSheet.create({
   line: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    marginBottom: spacing.md,
+    paddingVertical: spacing.md,
     gap: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
   lineName: { fontSize: 15, fontWeight: "700", color: colors.ink },
   linePack: { fontSize: 11.5, color: colors.inkMuted, marginTop: 2 },
   lineRate: { fontSize: 11.5, color: colors.inkMuted, marginTop: 2 },
   lineRight: { alignItems: "flex-end", gap: spacing.sm },
-  lineTotal: { fontSize: 15, fontWeight: "700", color: colors.ink },
+  lineTotal: { fontSize: 15, fontWeight: "700", color: colors.ink, maxWidth: 110, textAlign: "right" },
 
   summary: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    marginTop: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadow.card,
+    paddingBottom: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+    marginBottom: spacing.md,
   },
-  summaryTitle: { fontSize: 15, fontWeight: "700", color: colors.ink, marginBottom: spacing.md },
-  sumRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
+  sumRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: spacing.sm, gap: spacing.md },
   sumLabel: { fontSize: 13.5, color: colors.inkMuted },
   sumValue: { fontSize: 13.5, fontWeight: "600", color: colors.ink },
-  divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.sm },
   totalLabel: { fontSize: 15, fontWeight: "700", color: colors.ink },
-  totalValue: { fontSize: 18, fontWeight: "700", color: colors.green },
+  totalValue: { fontSize: 18, fontWeight: "700", color: colors.ink, maxWidth: 140, textAlign: "right" },
   hint: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: colors.goldSoft,
-    borderRadius: radius.sm,
-    padding: spacing.sm,
     marginTop: spacing.sm,
   },
-  hintText: { flex: 1, fontSize: 11.5, color: "#8A6A12", fontWeight: "600" },
+  hintText: { flex: 1, fontSize: 11.5, color: colors.accentStrong, fontWeight: "600" },
 
-  creditCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    marginTop: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+  creditBand: {
+    paddingBottom: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+    marginTop: spacing.sm,
   },
   creditLabel: { fontSize: 13, color: colors.inkMuted },
-  creditValue: { fontSize: 15, fontWeight: "700", color: colors.ink },
+  creditValue: { fontSize: 15, fontWeight: "700", color: colors.ink, maxWidth: 140, textAlign: "right" },
   creditTrack: {
-    height: 6,
+    height: 5,
     borderRadius: 3,
     backgroundColor: colors.track,
     overflow: "hidden",
@@ -340,7 +351,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
     paddingBottom: TAB_BAR_SPACE,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },
   barLabel: { fontSize: 11.5, color: colors.inkMuted },

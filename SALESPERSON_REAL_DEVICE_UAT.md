@@ -1,19 +1,44 @@
 # Salesperson app — real-device UAT
 
-**Nothing in this document has been executed on a physical handset.** It was
-written from the shipped code and verified only against the automated suites and
-a desktop browser. Every box below is unticked on purpose: this is the script a
-tester follows on a real phone, not a record of a test that happened.
+The broader device checklist below still contains unexecuted GPS, offline,
+camera, battery, and cross-platform cases. The approved SFA capability-depth
+surface has now been checked on a physical Android handset; that evidence is
+recorded immediately below rather than treating the remaining checklist as
+complete.
+
+## SFA CAPABILITY DEPTH V1 ACCEPTED
+
+Physical Android verification completed on 2 September 2026 using a Motorola
+E13 (`ZD2229Q3KB`) with the standalone release APK built from the staging branch.
+
+| Surface | Result | Evidence |
+|---|---|---|
+| Today | PASS | Hosted Today data loaded for Ravi Kumar; completed-day state rendered. |
+| Activity → Performance | PASS | 7D and 30D switched on-device; sales, visits/productivity, orders-by-day and conclusions rendered. Narrow handset date labels were corrected and rechecked. |
+| Retailers → Retailer Detail | PASS | Assigned retailers loaded; Store Intelligence, canonical baseline, last-order context and scheme progress rendered. |
+| Retailer Detail → Order taking | PASS | Product list, pack sizes, images, categories and scheme context loaded for the selected retailer. |
+| More → Sales Kit | PASS | Four read-only items loaded, grouped by category, with Open actions; no demo/fixture/staging-source wording is shown in the UI. |
+
+The device was authenticated against `https://gagan-staging-api.onrender.com`,
+the APK package is `com.gagan.sales`, and the embedded JavaScript bundle includes
+the hosted staging URL. The standalone launch was tested directly after Metro
+was stopped; no USB, LAN IP, or local backend was needed at runtime.
+
+The current Ravi staging workday was already closed before this verification,
+so the optional-note, long-note, repeat-submit, and fresh start-to-end audit
+mutation cases remain a follow-up fixture test rather than being fabricated by
+altering the existing staging history. Automated backend and mobile suites
+remain green for those paths.
 
 ## Why it has not been run, and what unblocks it
 
 | Platform | Blocker | Who can clear it |
 |---|---|---|
-| **Android** | `adb` is not installed on this machine and no device is attached. Nothing here can detect, install to, or drive a handset. | Install Android platform-tools and connect a phone with USB debugging on. |
-| **iOS Simulator** | `Xcode.app` is installed but `xcode-select -p` points at `/Library/Developer/CommandLineTools`, so `simctl` does not exist. | You — the fix needs your password, so it cannot be run from here. |
+| **Android** | Cleared for the approved SFA capability-depth surface on the connected Motorola E13. The broader GPS/offline/camera/battery checklist remains open. | Run the remaining physical-device cases below. |
+| **iOS Simulator** | Cleared at the toolchain level: `xcode-select -p` points at `/Applications/Xcode.app/Contents/Developer`. A fresh iOS SFA device pass was not run in this session. | Run the simulator checklist below. |
 | **iPhone (physical)** | Blocked behind the same Xcode setup, plus provisioning. | You. |
 
-The one command that unblocks the iOS side:
+If the iOS toolchain becomes unavailable again, restore it with:
 
 ```bash
 sudo xcode-select -s /Applications/Xcode.app/Contents/Developer

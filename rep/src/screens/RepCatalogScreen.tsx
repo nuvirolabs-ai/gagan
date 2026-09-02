@@ -12,7 +12,8 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { repApi, ApiError } from "../api/repClient";
 import { useRep } from "../context/RepContext";
-import { colors, radius, spacing, shadow, inr } from "../theme";
+import { colors, radius, spacing, inr } from "../theme";
+import { haptic } from "../feedback/haptics";
 import ProductThumb from "../components/ProductThumb";
 import { SearchBar, ChipRow, QtyStepper, EmptyState } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -84,11 +85,10 @@ export default function RepCatalogScreen({ route, navigation }: any) {
       );
       clearCart();
       checkoutKey.current = null;
+      haptic("success");
       Alert.alert(
-        t("orders.place"),
-        `GGN-${String(res.order.orderNo).padStart(5, "0")} for ${retailerName} — ${inr(
-          Number(res.order.orderTotal)
-        )}`,
+        "Order placed",
+        `GGN-${String(res.order.orderNo).padStart(5, "0")}\n${inr(Number(res.order.orderTotal))}`,
         [{ text: t("common.save"), onPress: () => navigation.goBack() }]
       );
     } catch (e) {
@@ -137,7 +137,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
             const { product, variant } = item;
             const qty = qtyFor(variant.id);
             return (
-              <View style={styles.card}>
+              <View style={[styles.card, qty > 0 && styles.cardSelected]}>
                 <ProductThumb
                   name={product.name}
                   category={product.category}
@@ -219,7 +219,11 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.sm,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.separator,
+  },
+  cardSelected: {
+    borderColor: colors.gold,
+    backgroundColor: colors.goldSoft,
   },
   name: { fontSize: 14.5, fontWeight: "700", color: colors.ink },
   pack: { fontSize: 11.5, color: colors.inkMuted, marginTop: 2 },

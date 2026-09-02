@@ -5,26 +5,33 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   RefreshControl,
+  ScrollView,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { repApi } from "../api/repClient";
 import { useRep } from "../context/RepContext";
-import { colors, radius, spacing, shadow, inr, TAB_BAR_SPACE } from "../theme";
-import { ScreenHeader, SearchBar, EmptyState } from "../components/ui";
+import { useField } from "../context/FieldContext";
+import { colors, inr, radius, spacing, TAB_BAR_SPACE } from "../theme";
+import { AppScreen, CustomerRow, EmptyState, FilterChip, SearchBar, Skeleton } from "../components/ui";
 import { staffCapabilities } from "../auth/staffCapabilities";
 import { useLanguage } from "../i18n/LanguageContext";
 
+type Filter = "all" | "route" | "overdue" | "opportunities";
+
 export default function RepRetailersScreen({ navigation }: any) {
-  const { rep, staff } = useRep();
+  const { staff } = useRep();
+  const { today } = useField();
   const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
   const capabilities = staffCapabilities(staff?.permissions ?? []);
   const [retailers, setRetailers] = useState<any[]>([]);
   const [totals, setTotals] = useState<any>({ count: 0, outstanding: 0, overdue: 0 });
   const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<Filter>("all");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -49,199 +56,146 @@ export default function RepRetailersScreen({ navigation }: any) {
     setRefreshing(false);
   };
 
+  const routeIds = useMemo(
+    () => new Set((today?.route?.stops ?? []).map((stop: any) => stop.retailer?.id ?? stop.retailerId)),
+    [today]
+  );
+  const opportunityIds = useMemo(
+    () => new Set((today?.opportunities?.actions ?? []).map((action: any) => action.retailerId)),
+    [today]
+  );
+
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return retailers;
-    return retailers.filter(
-      (r) => r.name.toLowerCase().includes(q) || r.phone.includes(q)
-    );
-  }, [retailers, query]);
+    return retailers.filter((r) => {
+      const matchesQuery = !q || r.name.toLowerCase().includes(q) || r.phone.includes(q);
+      if (!matchesQuery) return false;
+      if (filter === "route") return routeIds.has(r.id);
+      if (filter === "overdue") return Number(r.overdue) > 0;
+      if (filter === "opportunities") return opportunityIds.has(r.id);
+      return true;
+    });
+  }, [retailers, query, filter, routeIds, opportunityIds]);
+
+  const filters: Array<{ id: Filter; label: string }> = [
+    { id: "all", label: t("retailers.filterAll") },
+    { id: "route", label: t("retailers.filterRoute") },
+    { id: "overdue", label: t("retailers.filterOverdue") },
+    { id: "opportunities", label: t("retailers.filterOpportunities") },
+  ];
 
   return (
-    <View style={styles.screen}>
-      <ScreenHeader
-        title={t("retailers.title")}
-        subtitle={`Hi ${rep?.name ?? ""}`}
-        right={
-          capabilities.canProposeRetailers ? (
-            <TouchableOpacity
-              style={styles.addBtn}
-              onPress={() => navigation.navigate("AddRetailer")}
-              accessibilityLabel={t("addRetailer.title")}
-            >
-              <Ionicons name="add" size={18} color={colors.onDark} />
-            </TouchableOpacity>
-          ) : undefined
-        }
-      />
-
-      <View style={styles.metrics}>
-        <View style={styles.metric}>
-          <Text style={styles.metricLabel}>{t("retailers.title")}</Text>
-          <Text style={styles.metricValue}>{totals.count}</Text>
+    <AppScreen>
+      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>{t("retailers.title")}</Text>
+          <Text style={styles.sub}>{t("retailers.accounts", { count: totals.count })}</Text>
         </View>
-        <View style={styles.metric}>
-          <Text style={styles.metricLabel}>{t("profile.outstanding")}</Text>
-          <Text style={styles.metricValue}>{inr(totals.outstanding)}</Text>
-        </View>
-        <View style={styles.metric}>
-          <Text style={styles.metricLabel}>{t("ledger.overdue")}</Text>
-          <Text style={[styles.metricValue, totals.overdue > 0 && { color: colors.danger }]}>
-            {inr(totals.overdue)}
-          </Text>
-        </View>
+        {capabilities.canProposeRetailers ? (
+          <TouchableOpacity
+            style={styles.addBtn}
+            onPress={() => navigation.navigate("AddRetailer")}
+            accessibilityLabel={t("addRetailer.title")}
+          >
+            <Ionicons name="add" size={18} color={colors.onDark} />
+          </TouchableOpacity>
+        ) : null}
       </View>
+
+      <Text style={styles.summary} numberOfLines={2}>
+        {totals.count} · {inr(totals.outstanding)} outstanding
+        {totals.overdue > 0 ? ` · ${inr(totals.overdue)} overdue` : ""}
+      </Text>
 
       <SearchBar value={query} onChange={setQuery} placeholder={t("retailers.search")} />
 
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chips}
+      >
+        {filters.map((item) => (
+          <FilterChip
+            key={item.id}
+            label={item.label}
+            active={filter === item.id}
+            onPress={() => setFilter(item.id)}
+          />
+        ))}
+      </ScrollView>
+
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.green} />
+        <View style={styles.skel}>
+          <Skeleton height={72} />
+          <Skeleton height={72} />
+          <Skeleton height={72} />
         </View>
       ) : (
         <FlatList
           data={visible}
           keyExtractor={(r) => r.id}
-          contentContainerStyle={{ padding: spacing.lg, paddingBottom: TAB_BAR_SPACE }}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.green} />
-          }
+          contentContainerStyle={{ paddingBottom: TAB_BAR_SPACE }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+          ItemSeparatorComponent={() => <View style={styles.divider} />}
           ListEmptyComponent={
             <EmptyState
               icon="store-outline"
-              title={query ? "No match" : "No retailers assigned"}
-              body={
-                query
-                  ? "Try a different name or number."
-                  : "Ops will assign retailers to you from the admin dashboard."
-              }
+              title={query || filter !== "all" ? t("retailers.noMatch") : t("retailers.noneAssigned")}
+              body={query || filter !== "all" ? t("retailers.noMatchBody") : t("retailers.noneAssignedBody")}
             />
           }
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.card}
-              activeOpacity={0.85}
-              onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: item.id })}
-            >
-              <View style={styles.cardTop}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>
-                    {item.name
-                      .split(" ")
-                      .map((p: string) => p[0])
-                      .slice(0, 2)
-                      .join("")}
-                  </Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.name} numberOfLines={1}>
-                    {item.name}
-                  </Text>
-                  <Text style={styles.sub} numberOfLines={1}>
-                    {item.phone} · {item.tier}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} />
-              </View>
-
-              <View style={styles.creditRow}>
-                <View style={styles.creditCell}>
-                  <Text style={styles.creditLabel}>{t("profile.outstanding")}</Text>
-                  <Text style={styles.creditValue}>{inr(item.outstanding)}</Text>
-                </View>
-                <View style={styles.creditCell}>
-                  <Text style={styles.creditLabel}>{t("profile.availableCredit")}</Text>
-                  <Text style={[styles.creditValue, { color: colors.green }]}>
-                    {inr(item.available)}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.track}>
-                <View
-                  style={[
-                    styles.fill,
-                    {
-                      width: `${Math.min(100, item.utilisationPct)}%`,
-                      backgroundColor: item.utilisationPct >= 90 ? colors.danger : colors.green,
-                    },
-                  ]}
-                />
-              </View>
-
-              {item.overdue > 0 && (
-                <View style={styles.overdue}>
-                  <Ionicons name="alert-circle" size={12} color={colors.danger} />
-                  <Text style={styles.overdueText}>{inr(item.overdue)} overdue</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          )}
+          renderItem={({ item }) => {
+            const overdue = Number(item.overdue) > 0;
+            const onRoute = routeIds.has(item.id);
+            const chip = overdue
+              ? { label: t("retailers.filterOverdue"), tone: "danger" as const }
+              : onRoute
+                ? { label: t("retailers.routeToday"), tone: "green" as const }
+                : item.tier?.toLowerCase() === "gold"
+                  ? { label: t("retailers.gold"), tone: "gold" as const }
+                  : undefined;
+            return (
+              <CustomerRow
+                name={item.name}
+                chip={chip}
+                dueLabel={overdue ? t("retailers.overdueAmount", { amount: inr(item.overdue) }) : t("retailers.due", { amount: inr(item.outstanding) })}
+                dueTone={overdue ? "danger" : "ink"}
+                creditLabel={t("retailers.credit", { amount: inr(item.available) })}
+                meta={item.phone}
+                onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: item.id })}
+              />
+            );
+          }}
         />
       )}
-    </View>
+    </AppScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
-
+  header: {
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.sm,
+    flexDirection: "row",
+    alignItems: "flex-end",
+  },
+  title: { fontSize: 22, fontWeight: "600", color: colors.ink, letterSpacing: -0.3 },
+  sub: { fontSize: 13, color: colors.inkMuted, marginTop: 2 },
+  summary: {
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.md,
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
   addBtn: {
-    width: 34,
-    height: 34,
+    width: 36,
+    height: 36,
     borderRadius: radius.pill,
-    backgroundColor: colors.green,
+    backgroundColor: colors.primaryDeep,
     alignItems: "center",
     justifyContent: "center",
   },
-  metrics: { flexDirection: "row", paddingHorizontal: spacing.lg, gap: spacing.sm, marginBottom: spacing.md },
-  metric: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  metricLabel: { fontSize: 10.5, color: colors.inkMuted },
-  metricValue: { fontSize: 15, fontWeight: "700", color: colors.ink, marginTop: 3 },
-
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadow.card,
-  },
-  cardTop: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  avatar: {
-    width: 42,
-    height: 42,
-    borderRadius: radius.pill,
-    backgroundColor: colors.greenSoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: { fontSize: 14, fontWeight: "800", color: colors.green },
-  name: { fontSize: 15.5, fontWeight: "700", color: colors.ink },
-  sub: { fontSize: 12, color: colors.inkMuted, marginTop: 2 },
-
-  creditRow: { flexDirection: "row", marginTop: spacing.lg },
-  creditCell: { flex: 1 },
-  creditLabel: { fontSize: 11, color: colors.inkMuted },
-  creditValue: { fontSize: 14.5, fontWeight: "700", color: colors.ink, marginTop: 2 },
-
-  track: {
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: colors.track,
-    overflow: "hidden",
-    marginTop: spacing.md,
-  },
-  fill: { height: "100%", borderRadius: 3 },
-  overdue: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: spacing.sm },
-  overdueText: { fontSize: 11.5, color: colors.danger, fontWeight: "700" },
+  chips: { paddingHorizontal: spacing.xl, gap: spacing.sm, paddingVertical: spacing.md },
+  skel: { paddingHorizontal: spacing.xl, gap: spacing.md, paddingTop: spacing.md },
+  divider: { height: 1, backgroundColor: colors.separator, marginLeft: 76 },
 });

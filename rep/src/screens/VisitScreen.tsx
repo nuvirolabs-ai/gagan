@@ -12,16 +12,19 @@ import { useFocusEffect } from "@react-navigation/native";
 
 import ActivityComposer, { ACTIVITY_LABELS } from "../components/ActivityComposer";
 import {
+  AppScreen,
   Banner,
-  Card,
   Field,
+  FocusCard,
   ListRow,
   OptionGrid,
   PrimaryButton,
   SectionTitle,
+  Surface,
   Tag,
   inputStyle,
 } from "../components/ui";
+import { haptic } from "../feedback/haptics";
 import { repApi } from "../api/repClient";
 import { captureForegroundLocation } from "../location/deviceLocation";
 import { colors, spacing } from "../theme";
@@ -39,11 +42,11 @@ const OUTCOMES = [
 ];
 
 const VERIFICATION_COPY: Record<string, { tone: "active" | "idle" | "attention"; text: string }> = {
-  VERIFIED: { tone: "active", text: "You are at the registered store location." },
-  NEEDS_REVIEW: { tone: "attention", text: "This check-in is a little away from the store and will be reviewed." },
-  OUTSIDE_STORE_AREA: { tone: "attention", text: "You are outside the registered store area. This visit is flagged for review." },
-  STORE_LOCATION_NOT_AVAILABLE: { tone: "idle", text: "This store has no verified location yet, so the visit cannot be distance-checked." },
-  LOW_GPS_ACCURACY: { tone: "attention", text: "The GPS reading was weak, so the distance check was skipped." },
+  VERIFIED: { tone: "active", text: "You're at the registered store." },
+  NEEDS_REVIEW: { tone: "attention", text: "You're a little away from the store. This visit will be marked Needs review." },
+  OUTSIDE_STORE_AREA: { tone: "attention", text: "You're outside the registered store area. This visit will be marked Needs review." },
+  STORE_LOCATION_NOT_AVAILABLE: { tone: "idle", text: "This store has no verified location yet." },
+  LOW_GPS_ACCURACY: { tone: "attention", text: "GPS accuracy was weak, so the distance check was skipped." },
 };
 
 /**
@@ -100,6 +103,7 @@ export default function VisitScreen({ route, navigation }: any) {
         outcome,
         notes: notes.trim() || undefined,
       });
+      haptic("success");
       Alert.alert("Checked out", "This visit is closed and recorded against the customer.");
       navigation.goBack();
     } catch (error: any) {
@@ -116,9 +120,11 @@ export default function VisitScreen({ route, navigation }: any) {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.green} />
-      </View>
+      <AppScreen>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </AppScreen>
     );
   }
 
@@ -126,9 +132,9 @@ export default function VisitScreen({ route, navigation }: any) {
   const closed = Boolean(visit?.checkedOutAt);
 
   return (
-    <View style={styles.screen}>
+    <AppScreen>
       <ScrollView contentContainerStyle={styles.content}>
-        <Card>
+        <FocusCard>
           <Text style={styles.title} numberOfLines={2}>
             {retailerName}
           </Text>
@@ -153,9 +159,9 @@ export default function VisitScreen({ route, navigation }: any) {
             />
           ) : null}
           {closed ? <Tag label="Checked out" tone="green" /> : null}
-        </Card>
+        </FocusCard>
 
-        <Card>
+        <Surface>
           <SectionTitle title={t("visit.activities")} />
           {activities.length === 0 ? (
             <Text style={styles.muted}>{t("visit.noActivities")}</Text>
@@ -189,10 +195,10 @@ export default function VisitScreen({ route, navigation }: any) {
               />
             )
           ) : null}
-        </Card>
+        </Surface>
 
         {!closed ? (
-          <Card>
+          <Surface>
             <SectionTitle title={t("visit.outcome")} />
             <OptionGrid options={OUTCOMES} value={outcome} onChange={setOutcome} />
             <Field label={t("visit.notes")} hint={t("common.optional")}>
@@ -211,17 +217,16 @@ export default function VisitScreen({ route, navigation }: any) {
               disabled={saving}
               onPress={() => void checkOut()}
             />
-          </Card>
+          </Surface>
         ) : null}
       </ScrollView>
-    </View>
+    </AppScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
-  center: { flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" },
-  content: { padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxl },
-  title: { fontSize: 17, fontWeight: "700", color: colors.ink },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  content: { padding: spacing.xl, gap: spacing.section, paddingBottom: spacing.xxl },
+  title: { fontSize: 22, fontWeight: "600", color: colors.ink, letterSpacing: -0.3 },
   muted: { fontSize: 12.5, color: colors.inkMuted, lineHeight: 18 },
 });

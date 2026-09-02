@@ -11,6 +11,22 @@ const pulseService = {
     pendingDecisions: { count: 0, label: "none" },
   }),
 };
+const trendsService = {
+  getTrends: vi.fn().mockResolvedValue({ period: "30D", trends: [] }),
+};
+const issuesService = {
+  list: vi.fn().mockResolvedValue([]),
+  detail: vi.fn().mockResolvedValue(null),
+};
+const decisionsService = {
+  list: vi.fn().mockResolvedValue({ decisions: [], unavailableTypes: [] }),
+  detail: vi.fn(),
+  decide: vi.fn(),
+  askOwner: vi.fn(),
+};
+const briefService = {
+  getBrief: vi.fn().mockResolvedValue({ kind: "morning", statements: [] }),
+};
 
 function app(permissions: string[]) {
   const server = express();
@@ -27,6 +43,10 @@ function app(permissions: string[]) {
         next();
       },
       pulseService: pulseService as any,
+      trendsService: trendsService as any,
+      issuesService: issuesService as any,
+      decisionsService: decisionsService as any,
+      briefService: briefService as any,
     })
   );
   return server;
@@ -53,10 +73,23 @@ describe("founder authorization", () => {
     );
   });
 
-  it("does not expose a decision mutation on the pulse gate router", async () => {
-    const response = await request(app([Permissions.FOUNDER_VIEW, Permissions.FOUNDER_DECIDE])).post(
-      "/founder/decisions/x/approve"
+  it("returns trends, issues, decisions, and brief for founder.view", async () => {
+    const server = app([Permissions.FOUNDER_VIEW]);
+    expect((await request(server).get("/founder/trends?period=7D")).status).toBe(200);
+    expect((await request(server).get("/founder/issues")).status).toBe(200);
+    expect((await request(server).get("/founder/decisions")).status).toBe(200);
+    expect((await request(server).get("/founder/brief?kind=morning")).status).toBe(200);
+    expect(trendsService.getTrends).toHaveBeenCalledWith({ period: "7D" });
+  });
+
+  it("requires founder.decide for approve and decline", async () => {
+    const viewOnly = app([Permissions.FOUNDER_VIEW]);
+    expect((await request(viewOnly).post("/founder/decisions/x/approve")).status).toBe(403);
+    const allowed = app([Permissions.FOUNDER_VIEW, Permissions.FOUNDER_DECIDE]);
+    decisionsService.decide.mockResolvedValue({ id: "x", status: "approved" });
+    expect((await request(allowed).post("/founder/decisions/x/approve")).status).toBe(200);
+    expect(decisionsService.decide).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "x", result: "approved", actorStaffId: "staff-founder" })
     );
-    expect(response.status).toBe(404);
   });
 });

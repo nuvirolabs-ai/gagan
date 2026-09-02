@@ -199,6 +199,46 @@ async function seedCommercialFixture() {
       },
     });
   }
+
+  const prior = [
+    { key: "founder-uat-order-d2", daysAgo: 2, total: 38_000, delivered: 10, ordered: 10 },
+    { key: "founder-uat-order-d4", daysAgo: 4, total: 22_000, delivered: 8, ordered: 10 },
+    { key: "founder-uat-order-d8", daysAgo: 8, total: 18_000, delivered: 10, ordered: 10 },
+  ];
+  for (const row of prior) {
+    const exists = await prisma.order.findFirst({ where: { retailerId: retailer.id, idempotencyKey: row.key } });
+    if (exists) continue;
+    const createdAt = new Date(Date.now() - row.daysAgo * 86_400_000);
+    await prisma.order.create({
+      data: {
+        retailerId: retailer.id,
+        idempotencyKey: row.key,
+        status: "delivered",
+        orderTotal: row.total,
+        createdAt,
+        items: { create: [{ variantId: sku.id, qtyOrdered: row.ordered, qtyDelivered: row.delivered, unitPrice: row.total / row.ordered }] },
+      },
+    });
+  }
+
+  const priorCollection = await prisma.collectionSubmission.findUnique({
+    where: { idempotencyKey: "founder-uat-collection-d3" },
+  });
+  if (!priorCollection) {
+    const confirmedAt = new Date(Date.now() - 3 * 86_400_000);
+    await prisma.collectionSubmission.create({
+      data: {
+        retailerId: retailer.id,
+        collectorStaffId: "founder-uat",
+        amount: 11_400,
+        method: "upi",
+        idempotencyKey: "founder-uat-collection-d3",
+        status: "confirmed",
+        submittedAt: confirmedAt,
+        confirmedAt,
+      },
+    });
+  }
 }
 
 async function main() {

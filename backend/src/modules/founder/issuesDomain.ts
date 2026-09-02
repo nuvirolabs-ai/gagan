@@ -7,6 +7,11 @@ export function composeIssues(input: {
   oldestFailedOutboxHours: number | null;
   overdue: number | null;
   outstanding: number | null;
+  overdueInvoiceCount?: number;
+  inventoryAgeHours?: number | null;
+  creditAgeHours?: number | null;
+  dispatchAgeHours?: number | null;
+  overdueAgeHours?: number | null;
 }): FounderIssue[] {
   const issues: FounderIssue[] = [];
   const inventory = input.blocked.categories.find((category) => category.id === "INVENTORY");
@@ -20,8 +25,10 @@ export function composeIssues(input: {
       businessImpact: { amount: inventory.uniqueValue, unit: "inr" },
       affectedObjects: { orders: inventory.orderCount },
       owner: "Operations",
-      ageHours: null,
-      drilldown: { kind: "blocked" },
+      ageHours: input.inventoryAgeHours,
+      status: "open",
+      expectedNext: "Until stock is replenished or the order is cancelled.",
+      drilldown: { kind: "blocked", id: "INVENTORY" },
       asOf: input.asOf,
     });
   }
@@ -37,7 +44,9 @@ export function composeIssues(input: {
       businessImpact: { amount: credit.uniqueValue, unit: "inr" },
       affectedObjects: { orders: credit.orderCount },
       owner: "Credit",
-      ageHours: null,
+      ageHours: input.creditAgeHours,
+      status: "open",
+      expectedNext: "Until Credit or Founder decides the exception.",
       drilldown: { kind: "decisions" },
       asOf: input.asOf,
     });
@@ -54,6 +63,8 @@ export function composeIssues(input: {
       affectedObjects: { outbox: input.failedOutbox },
       owner: "Systems",
       ageHours: input.oldestFailedOutboxHours,
+      status: "open",
+      expectedNext: "Until the outbox is retried or the account is linked.",
       drilldown: { kind: "systems" },
       asOf: input.asOf,
     });
@@ -67,9 +78,11 @@ export function composeIssues(input: {
       title: "Overdue is a large share of receivables",
       explanation: "The local invoice ledger shows overdue dominating outstanding.",
       businessImpact: { amount: input.overdue, unit: "inr" },
-      affectedObjects: {},
+      affectedObjects: { invoices: input.overdueInvoiceCount ?? 0 },
       owner: "Collections",
-      ageHours: null,
+      ageHours: input.overdueAgeHours,
+      status: "open",
+      expectedNext: "Until collections reduce overdue below 40% of outstanding.",
       drilldown: { kind: "receivables" },
       asOf: input.asOf,
     });
@@ -86,8 +99,10 @@ export function composeIssues(input: {
       businessImpact: { amount: dispatch.uniqueValue, unit: "inr" },
       affectedObjects: { orders: dispatch.orderCount },
       owner: "Dispatch",
-      ageHours: null,
-      drilldown: { kind: "blocked" },
+      ageHours: input.dispatchAgeHours,
+      status: "open",
+      expectedNext: "Until packed orders leave the warehouse.",
+      drilldown: { kind: "blocked", id: "DISPATCH" },
       asOf: input.asOf,
     });
   }
@@ -95,7 +110,11 @@ export function composeIssues(input: {
   return issues.sort((left, right) => impact(right) - impact(left));
 }
 
-function impact(issue: FounderIssue): number {
+export function issueImpact(issue: FounderIssue): number {
   if (issue.businessImpact.unit === "inr") return issue.businessImpact.amount ?? 0;
   return (issue.businessImpact.amount ?? 0) * 1_000;
+}
+
+function impact(issue: FounderIssue): number {
+  return issueImpact(issue);
 }

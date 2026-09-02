@@ -5,6 +5,16 @@ import { resolveApiBaseUrl } from "./config";
 import { createSessionFetch } from "../auth/sessionFetch";
 import { createSessionStore } from "../auth/sessionStore";
 import type { FounderPulse } from "../pulse/viewState";
+import type {
+  FounderBrief,
+  FounderDecision,
+  FounderDecisions,
+  FounderIssue,
+  FounderIssueDetail,
+  FounderTeam,
+  FounderTrends,
+  TrendPeriod,
+} from "./types";
 
 const memory = new Map<string, string>();
 const webStore = {
@@ -64,5 +74,32 @@ export const founderApi = {
   },
   pulse(): Promise<FounderPulse> {
     return request("/founder/pulse");
+  },
+  trends(period: TrendPeriod): Promise<FounderTrends> {
+    return request(`/founder/trends?period=${period}`);
+  },
+  issues(status: "open" | "resolved" | "all" = "open"): Promise<{ issues: FounderIssue[]; status: string }> {
+    return request(`/founder/issues?status=${status}`);
+  },
+  issue(id: string): Promise<FounderIssueDetail> {
+    return request(`/founder/issues/${id}`);
+  },
+  decisions(segment: "open" | "history"): Promise<FounderDecisions> {
+    return request(`/founder/decisions?segment=${segment}`);
+  },
+  decision(id: string): Promise<FounderDecision> {
+    return request(`/founder/decisions/${id}`);
+  },
+  approve(id: string, reason?: string): Promise<FounderDecision> {
+    return request(`/founder/decisions/${id}/approve`, { method: "POST", body: JSON.stringify({ reason }) });
+  },
+  decline(id: string, reason: string): Promise<FounderDecision> {
+    return request(`/founder/decisions/${id}/decline`, { method: "POST", body: JSON.stringify({ reason }) });
+  },
+  brief(kind: "morning" | "evening"): Promise<FounderBrief> {
+    return request(`/founder/brief?kind=${kind}`);
+  },
+  team(): Promise<FounderTeam> {
+    return request("/founder/team");
   },
 };

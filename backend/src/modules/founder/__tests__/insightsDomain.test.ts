@@ -84,5 +84,25 @@ describe("issue ordering", () => {
     });
     expect(issues[0].id).toBe("blocked-credit");
     expect(issues.map((issue) => issue.id)).toContain("sap-outbox");
+    expect(issues.every((issue) => issue.status === "open")).toBe(true);
+  });
+
+  it("keeps one executive issue per root constraint", () => {
+    const issues = composeIssues({
+      asOf: "t",
+      blocked: {
+        totalUniqueValue: 78_000,
+        grossConstraintImpact: 156_000,
+        orderCount: 1,
+        asOf: "t",
+        categories: [{ id: "INVENTORY", uniqueValue: 78_000, orderCount: 1 }],
+      },
+      failedOutbox: 0,
+      oldestFailedOutboxHours: null,
+      overdue: 0,
+      outstanding: 10,
+    });
+    expect(issues.filter((issue) => issue.id.startsWith("blocked-"))).toHaveLength(1);
+    expect(issues[0].owner).toBe("Operations");
   });
 });

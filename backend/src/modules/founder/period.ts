@@ -53,6 +53,32 @@ export function comparableDay(period: CalendarPeriod): CalendarPeriod {
   };
 }
 
+export function rollingWindow(now: Date, days: 7 | 30 | 90, timeZone = FOUNDER_TIME_ZONE): {
+  current: CalendarPeriod;
+  previous: CalendarPeriod;
+} {
+  const today = startOfDay(now, timeZone);
+  const currentStart = addDays(today, -(days - 1));
+  const currentEnd = addDays(today, 1);
+  const previousStart = addDays(currentStart, -days);
+  return {
+    current: { start: currentStart, end: currentEnd, timeZone, label: `${days}D` },
+    previous: { start: previousStart, end: currentStart, timeZone, label: `prior ${days}D` },
+  };
+}
+
+export function eachDay(period: CalendarPeriod): Date[] {
+  const days: Date[] = [];
+  for (let cursor = period.start; cursor < period.end; cursor = addDays(cursor, 1)) {
+    days.push(cursor);
+  }
+  return days;
+}
+
+export function dayKey(date: Date, timeZone = FOUNDER_TIME_ZONE): string {
+  return calendarDateInZone(date, timeZone);
+}
+
 export function greetingFor(now: Date, name: string, timeZone = FOUNDER_TIME_ZONE): string {
   const hour = Number(
     new Intl.DateTimeFormat("en-GB", { timeZone, hour: "numeric", hour12: false }).format(now)

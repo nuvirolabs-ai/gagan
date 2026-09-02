@@ -177,6 +177,6 @@ describe("field collection workflow", () => {
     expect(first.paymentId).toBe(second.paymentId);
     expect(await prisma.payment.count({ where: { id: first.paymentId } })).toBe(1);
     expect(await prisma.financialLedgerEntry.count({ where: { paymentId: first.paymentId } })).toBe(1);
-    expect(await prisma.collectionSubmission.count({ where: { status: "confirmed" } })).toBe(1);
+    expect(await prisma.collectionSubmission.count({ where: { status: "confirmed", retailerId: ids.retailer } })).toBe(1);
   });
 });

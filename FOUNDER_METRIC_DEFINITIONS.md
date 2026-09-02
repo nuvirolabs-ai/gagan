@@ -1,6 +1,8 @@
 # Founder metric definitions
 
-Pulse V1 only. Every formula reads canonical Gagan tables. Founder never stores a second total.
+Every formula reads canonical Gagan tables. Founder never stores a second total.
+
+Trends reuse these exact formulas on rolling IST windows (7 / 30 / 90 days) versus the prior window of equal length.
 
 Period for Pulse is the **Asia/Kolkata calendar day** containing `asOf`.
 Comparable day is the **same weekday one week earlier**, same timezone.
@@ -83,6 +85,16 @@ Productive, for Pulse V1, means **a valid order**. Visits and unconfirmed collec
 Staff who hold the `salesperson` role, are `active`, and have a `WorkdaySession` with `status = open` whose `startedAt` falls on the Pulse calendar day.
 
 If `WorkingCalendar` has a row for that date with `isWorkingDay = false`, expected staff is zero and the metric is still a number (zero), not unavailable.
+
+## SALES TEAM PRODUCTIVITY (Trends)
+
+Session-days in the window / (expected salespeople × days) × 100.
+
+A session-day is a distinct `salespersonId` + `workDate`. Expected salespeople is the active `salesperson` roster count. If the roster is empty the metric is unavailable.
+
+## OVERDUE (Trends)
+
+No historical overdue snapshots exist. Trends return today’s ledger overdue as `currentValue`, null daily points, `sourceStatus: partial`, and an interpretation that says so. Do not reconstruct a second ageing series.
 
 ## OUTSTANDING / OVERDUE
 

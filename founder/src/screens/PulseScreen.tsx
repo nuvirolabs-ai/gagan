@@ -6,14 +6,15 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { founderApi } from "../api/founder";
 import { useAuth } from "../context/AuthContext";
 import { formatDelta, formatInrExecutive, formatMetricValue } from "../format/inr";
 import { friendlyError, pulseViewState, type FounderMetric, type FounderPulse } from "../pulse/viewState";
-import { tokensFor, type Tokens } from "../theme";
+import { useNavigation } from "@react-navigation/native";
+import { usePreferences } from "../context/PreferencesContext";
+import type { Tokens } from "../theme";
 
 function statusColor(status: string, colors: Tokens) {
   if (status === "AT_RISK") return colors.negative;
@@ -46,7 +47,19 @@ function MetricTile({ metric, colors }: { metric: FounderMetric; colors: Tokens 
   );
 }
 
-function PulseReady({ pulse, colors }: { pulse: FounderPulse; colors: Tokens }) {
+function PulseReady({
+  pulse,
+  colors,
+  onOpenBrief,
+  onOpenIssue,
+  onOpenTeam,
+}: {
+  pulse: FounderPulse;
+  colors: Tokens;
+  onOpenBrief: () => void;
+  onOpenIssue: (id: string) => void;
+  onOpenTeam: () => void;
+}) {
   const headlines = pulse.metrics.slice(0, 4);
   return (
     <>
@@ -55,6 +68,9 @@ function PulseReady({ pulse, colors }: { pulse: FounderPulse; colors: Tokens }) 
       <Text style={[styles.greeting, { color: colors.secondary }]}>{pulse.summary.greeting}</Text>
       <Text style={[styles.date, { color: colors.tertiary }]}>{pulse.period.label}</Text>
       <Text style={[styles.headline, { color: colors.label }]}>{pulse.summary.headline}</Text>
+      <Pressable onPress={onOpenBrief} style={{ marginTop: 10 }}>
+        <Text style={[styles.rowBody, { color: colors.info }]}>Morning / evening brief</Text>
+      </Pressable>
 
       <View style={[styles.grid, { backgroundColor: colors.surface, borderColor: colors.separator }]}>
         <View style={styles.row}>
@@ -108,8 +124,9 @@ function PulseReady({ pulse, colors }: { pulse: FounderPulse; colors: Tokens }) 
       <View style={[styles.group, { backgroundColor: colors.surface }]}>
         <Text style={[styles.rowTitle, { color: colors.label }]}>{pulse.pendingDecisions.label}</Text>
         {pulse.issues.map((issue) => (
-          <View
+          <Pressable
             key={issue.id}
+            onPress={() => onOpenIssue(issue.id)}
             style={[styles.listRow, { borderTopColor: colors.separator, borderTopWidth: StyleSheet.hairlineWidth }]}
           >
             <Text style={[styles.severity, { color: statusColor(issue.severity === "WATCH" ? "WATCH" : "AT_RISK", colors) }]}>
@@ -119,7 +136,7 @@ function PulseReady({ pulse, colors }: { pulse: FounderPulse; colors: Tokens }) 
             <Text style={[styles.rowBody, { color: colors.secondary }]}>
               {issue.explanation} · {issue.owner}
             </Text>
-          </View>
+          </Pressable>
         ))}
         {pulse.issues.length === 0 && pulse.pendingDecisions.count === 0 ? (
           <Text style={[styles.rowBody, { color: colors.secondary, marginTop: 8 }]}>
@@ -135,7 +152,7 @@ function PulseReady({ pulse, colors }: { pulse: FounderPulse; colors: Tokens }) 
             key={domain.domain}
             style={[styles.healthRow, index > 0 ? { borderTopColor: colors.separator, borderTopWidth: StyleSheet.hairlineWidth } : null]}
           >
-            <View style={{ flex: 1 }}>
+            <Pressable style={{ flex: 1 }} onPress={domain.domain === "Sales Team" ? onOpenTeam : undefined}>
               <View style={styles.healthTitleRow}>
                 <Text style={[styles.rowTitle, { color: colors.label }]}>{domain.domain}</Text>
                 <Text style={[styles.healthStatus, { color: statusColor(domain.status, colors) }]}>
@@ -143,7 +160,7 @@ function PulseReady({ pulse, colors }: { pulse: FounderPulse; colors: Tokens }) 
                 </Text>
               </View>
               <Text style={[styles.rowBody, { color: colors.secondary }]}>{domain.reason}</Text>
-            </View>
+            </Pressable>
           </View>
         ))}
       </View>
@@ -154,9 +171,10 @@ function PulseReady({ pulse, colors }: { pulse: FounderPulse; colors: Tokens }) 
 }
 
 export default function PulseScreen({ preview }: { preview?: FounderPulse }) {
-  const colors = tokensFor(useColorScheme());
+  const { colors } = usePreferences();
   const insets = useSafeAreaInsets();
-  const { identity, signOut } = useAuth();
+  const navigation = useNavigation<any>();
+  const { identity } = useAuth();
   const [pulse, setPulse] = useState<FounderPulse | null>(preview ?? null);
   const [loading, setLoading] = useState(!preview);
   const [error, setError] = useState<string | null>(null);
@@ -187,7 +205,7 @@ export default function PulseScreen({ preview }: { preview?: FounderPulse }) {
         contentContainerStyle={{ paddingTop: insets.top + 4, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}
         refreshControl={<RefreshControl refreshing={loading && !!pulse} onRefresh={() => { setLoading(true); void load(); }} />}
       >
-        <Pressable onPress={() => void signOut()} hitSlop={12} style={styles.avatarWrap}>
+        <Pressable onPress={() => navigation.navigate("Settings")} hitSlop={12} style={styles.avatarWrap}>
           <View style={[styles.avatar, { backgroundColor: colors.fill }]}>
             <Text style={[styles.avatarLetter, { color: colors.label }]}>
               {(identity?.name ?? "F").trim().charAt(0).toUpperCase()}
@@ -214,7 +232,15 @@ export default function PulseScreen({ preview }: { preview?: FounderPulse }) {
           </View>
         ) : null}
 
-        {view.status === "ready" ? <PulseReady pulse={view.pulse} colors={colors} /> : null}
+        {view.status === "ready" ? (
+          <PulseReady
+            pulse={view.pulse}
+            colors={colors}
+            onOpenBrief={() => navigation.navigate("Brief")}
+            onOpenIssue={(id) => navigation.navigate("IssueDetail", { id })}
+            onOpenTeam={() => navigation.navigate("Team")}
+          />
+        ) : null}
       </ScrollView>
     </View>
   );

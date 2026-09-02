@@ -63,11 +63,109 @@ export interface FounderIssue {
   title: string;
   explanation: string;
   businessImpact: { amount: number | null; unit: "inr" | "count" };
-  affectedObjects: { orders?: number; retailers?: number; outbox?: number };
+  affectedObjects: { orders?: number; retailers?: number; outbox?: number; invoices?: number };
   owner: string;
   ageHours: number | null;
-  drilldown?: { kind: string };
+  status: "open" | "resolved";
+  expectedNext?: string;
+  drilldown?: { kind: string; id?: string };
   asOf: string;
+}
+
+export interface FounderIssueDetail extends FounderIssue {
+  affected: {
+    orders: Array<{ id: string; ref: string; total: number; retailerName: string; status: string }>;
+    retailers: Array<{ id: string; name: string }>;
+  };
+}
+
+export type TrendPeriod = "7D" | "30D" | "90D";
+
+export interface FounderTrendPoint {
+  date: string;
+  value: number | null;
+}
+
+export interface FounderTrend {
+  metric: string;
+  label: string;
+  unit: MetricUnit;
+  period: TrendPeriod;
+  points: FounderTrendPoint[];
+  currentValue: number | null;
+  availability: MetricAvailability;
+  unavailableReason?: string;
+  comparison: {
+    previousValue: number | null;
+    changePercent: number | null;
+    direction: "up" | "down" | "flat";
+    label: string;
+  } | null;
+  interpretation: string;
+  asOf: string;
+  sourceStatus: "ok" | "partial";
+  isStale: boolean;
+}
+
+export interface FounderTrends {
+  asOf: string;
+  period: TrendPeriod;
+  timeZone: string;
+  sourceStatus: "ok" | "partial";
+  isStale: boolean;
+  trends: FounderTrend[];
+}
+
+export type FounderDecisionType = "CREDIT_EXCEPTION" | "EXECUTIVE_ESCALATION";
+export type FounderDecisionStatus = "open" | "approved" | "declined";
+
+export interface FounderDecision {
+  id: string;
+  type: FounderDecisionType;
+  title: string;
+  amount: number | null;
+  requester: string;
+  owner: string;
+  context: string[];
+  recommendation: "APPROVE" | "DECLINE" | "REVIEW";
+  recommendedBy: string;
+  recommendationReason: string;
+  availableActions: Array<"approve" | "decline">;
+  unavailableActions: Array<{ id: "askOwner"; reason: string }>;
+  createdAt: string;
+  dueAt: string | null;
+  status: FounderDecisionStatus;
+  auditRequired: boolean;
+}
+
+export interface FounderDecisions {
+  asOf: string;
+  segment: "open" | "history";
+  decisions: FounderDecision[];
+  unavailableTypes: Array<{ type: string; reason: string }>;
+}
+
+export interface FounderBrief {
+  kind: "morning" | "evening";
+  asOf: string;
+  title: string;
+  statements: string[];
+  omitted: string[];
+}
+
+export interface FounderTeamNode {
+  id: string;
+  name: string;
+  role: string;
+  orderValue: number;
+  activeRetailers: number;
+  children?: FounderTeamNode[];
+}
+
+export interface FounderTeam {
+  asOf: string;
+  period: { start: string; end: string; label: string };
+  nodes: FounderTeamNode[];
 }
 
 export interface FounderPulse {

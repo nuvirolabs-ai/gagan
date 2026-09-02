@@ -1,19 +1,17 @@
 # Founder app architecture
 
-**Pulse gate.** Trends, Decisions, Settings, and briefs are specified, not built.
-
 Founder is a **read projection** over canonical Gagan PostgreSQL. It is not a second Admin and not a second set of orders.
 
 ```
 Retailer / Salesperson / Admin
         ↓
-Existing Gagan backend + PostgreSQL
+    Existing Gagan backend + PostgreSQL
         ↓
 Founder executive read models  (backend/src/modules/founder)
         ↓
-GET /founder/pulse
+GET /founder/pulse | /trends | /issues | /decisions | /brief
         ↓
-founder/  Expo app  — Pulse tab
+founder/  Expo app  — Pulse, Trends, Issues, Decisions, Settings, Brief
 ```
 
 One source of truth. No `FounderOrders` table.
@@ -61,7 +59,7 @@ Procurement blocked value, warehouse put-away / pick queues, logistics ETA, sche
 
 ## 6. Executive read models added
 
-`backend/src/modules/founder/` — period, metrics, blocked (with precedence), health, insights, issues preview, pulse assembly. No new Prisma models.
+`backend/src/modules/founder/` — period, metrics, blocked (with precedence), health, insights, issues, trends, decisions (wraps `ApprovalService`), brief, team rollup, pulse assembly. No new Prisma models.
 
 ## 7. Caching / freshness
 
@@ -79,7 +77,14 @@ Staff OTP at `/founder/auth/*` (staff realm). UI hiding is not enough; `requireP
 
 ## 9. Drilldown rules
 
-Pulse shows company totals. Hierarchy drilldown (`StaffUser.managerId`) is deferred until after Pulse approval. Pulse insights may name a `drilldown.kind` for later wiring; V1 does not navigate it.
+Founder inspects; it does not operate routine workflows.
+
+- Pulse issue row → Issue detail (affected canonical orders/retailers)
+- Pulse sales-team health → `/founder/team` (manager → salesperson, today’s order value)
+- Pulse blocked categories stay informational; unique value is already deduped
+- Decision row → Decision detail → Approve/Decline through `ApprovalService`
+
+No operational edit controls.
 
 ## 10. Known limitations
 

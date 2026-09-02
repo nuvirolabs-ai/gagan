@@ -35,7 +35,15 @@ System font. No display serif, no brand font.
 
 Inset grouped sections. Thin separators. Occasional 2×2 metric tiles for the four Pulse headlines only — hairline grouping, not floating marketing cards.
 
-Tab bar: Pulse, Trends, Issues, Decisions. SF-style outline icons. Trends / Issues / Decisions are quiet placeholders until Pulse is approved.
+Tab bar: Pulse, Trends, Issues, Decisions. SF-style outline icons.
+
+Trends: interpretation first, large number, thin SVG line, native segmented 7D/30D/90D. No chart cards.
+
+Issues: native list, severity + impact + owner/age + chevron. Detail uses progressive disclosure.
+
+Decisions: Open / History. Empty open state is positive (“Nothing needs your decision.”).
+
+Settings: grouped list. Brief: editorial statements, no dashboard chrome.
 
 ## Motion
 

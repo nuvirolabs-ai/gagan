@@ -63,6 +63,19 @@ describe("identity role catalog", () => {
     ).toContain(Permissions.STAFF_MANAGE);
   });
 
+  it("grants founder privileges only to founder_director", () => {
+    const holders = ROLE_DEFINITIONS.filter((role) =>
+      role.permissions.includes(Permissions.FOUNDER_VIEW)
+    ).map((role) => role.name);
+    expect(holders).toEqual(["founder_director"]);
+    expect(
+      ROLE_DEFINITIONS.find((role) => role.name === "platform_admin")?.permissions
+    ).not.toContain(Permissions.FOUNDER_VIEW);
+    expect(
+      ROLE_DEFINITIONS.find((role) => role.name === "founder_director")?.permissions
+    ).toEqual(expect.arrayContaining([Permissions.FOUNDER_VIEW, Permissions.FOUNDER_DECIDE]));
+  });
+
   it("never lets a field role admit a store to the customer master", () => {
     const fieldRoles = ROLE_DEFINITIONS.filter((role) =>
       ["salesperson", "field_collector"].includes(role.name)

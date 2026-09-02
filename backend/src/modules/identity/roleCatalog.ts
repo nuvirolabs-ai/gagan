@@ -42,9 +42,21 @@ export const Permissions = {
   // domain permissions, so holding it alone still grants no domain.
   ORG_VIEW_ALL: "org.view_all",
   ORG_MANAGE: "org.manage",
+  // Founder app. Deliberately not implied by platform_admin: operating the
+  // company OS is not the same privilege as reading the executive layer.
+  FOUNDER_VIEW: "founder.view",
+  FOUNDER_DECIDE: "founder.decide",
 } as const;
 
 export type PermissionName = (typeof Permissions)[keyof typeof Permissions];
+
+const FOUNDER_ONLY: PermissionName[] = [Permissions.FOUNDER_VIEW, Permissions.FOUNDER_DECIDE];
+
+function operationalPermissions(): PermissionName[] {
+  return Object.values(Permissions).filter(
+    (permission) => !FOUNDER_ONLY.includes(permission as PermissionName)
+  ) as PermissionName[];
+}
 
 export interface RoleDefinition {
   name: string;
@@ -129,13 +141,15 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
   },
   {
     name: "founder_director",
-    description: "Decides legal, settlement and exceptional escalation outcomes.",
+    description: "Decides legal, settlement and exceptional escalation outcomes, and reads the executive layer.",
     permissions: [
       Permissions.LEGAL_DECIDE,
       Permissions.RECOVERY_VIEW,
       Permissions.RECOVERY_UPDATE,
       // A director's remit is the whole company, not one reporting line.
       Permissions.ORG_VIEW_ALL,
+      Permissions.FOUNDER_VIEW,
+      Permissions.FOUNDER_DECIDE,
     ],
   },
   {
@@ -156,6 +170,6 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
   {
     name: "platform_admin",
     description: "Manages staff identity, roles and delegations.",
-    permissions: Object.values(Permissions),
+    permissions: operationalPermissions(),
   },
 ];

@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Founder",
+    "slug": "founder",
+    "scheme": "founder",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.founder.executive"
+    },
+    "android": {
+      "package": "com.founder.executive",
+      "adaptiveIcon": {
+        "backgroundColor": "#F5F4F1",
+        "foregroundImage": "./assets/icon.png"
+      }
+    },
+    "plugins": ["expo-secure-store"]
+  }
+}

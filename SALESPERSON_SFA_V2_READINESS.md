@@ -47,3 +47,19 @@ These labels should be finalized only after hosted staging E2E and physical Andr
 4. Physical Android install from the standalone APK, including session restore, route, location permission, visit, order, performance, More modules, offline/reconnect and EOD.
 
 The local standalone release build is verified with the hosted HTTPS API embedded at `/Users/tanutejas/Desktop/gagan-salesperson-sfa-v2-1ab737c.apk` (SHA-256 `8e12a65308e240baf1046f7084fc838b4ff7af9b603238d054163f0fe9ccaca7`). EAS build `cebd813d-6392-4c74-8fc0-5cbb68e3245e` is queued for the shareable internal-distribution URL; it is not treated as complete until EAS and physical-device verification finish.
+
+## Physical Android smoke evidence
+
+The standalone APK was installed successfully on the connected Android device (`com.gagan.sales`) and launched explicitly without Metro. The app loaded hosted staging data and remained on the foreground activity without a native or React Native crash.
+
+Verified on-device paths:
+
+- Salesperson session restored and Home loaded.
+- Outlets loaded with the seeded multi-store dataset.
+- Retailer detail loaded for Annapurna Foods, including credit, outstanding, intelligence, and schemes.
+- New order loaded with category filters, product images, prices, and available stock.
+- One staging order was placed successfully: `GGN-00000048` for `₹3,120`.
+- The placed order appeared in My activity as `Annapurna Foods · placed`.
+- Performance and More surfaces loaded after the order flow.
+
+The remaining release evidence is the clean-identity login sequence and the EAS-hosted install URL. No production data or SAP B1 credentials were used.

@@ -405,8 +405,10 @@ export async function listImports(db: Db) {
 }
 
 export async function errorCsv(db: Db, jobId: string) {
-  const job = await db.importJob.findUnique({ where: { id: jobId }, select: { id: true, fileName: true, result: true } });
+  const job = await db.importJob.findUnique({ where: { id: jobId }, select: { id: true, fileName: true, result: true, preview: true } });
   if (!job) throw new ImportServiceError("import_not_found", 404);
-  const rows = ((job.result as JsonObject | null)?.rows ?? []) as JsonObject[];
+  const resultRows = (job.result as JsonObject | null)?.rows;
+  const previewRows = (job.preview as JsonObject | null)?.rows;
+  const rows = (resultRows ?? previewRows ?? []) as JsonObject[];
   return { fileName: `${job.fileName.replace(/\.[^.]+$/, "")}-errors.csv`, csv: rows.filter((row) => row.status === "failed").map((row) => ({ row_number: row.rowNumber, reason: Array.isArray(row.errors) ? row.errors.join("; ") : "Import failed", ...((row.values as JsonObject) ?? {}) })) };
 }

@@ -1,0 +1,16 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+node_modules/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+.kotlin/
+*.orig.*
+.metro-health-check*
+npm-debug.*
+.DS_Store
+.env*.local
+*.tsbuildinfo
+/ios
+/android

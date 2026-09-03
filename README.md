@@ -5,6 +5,7 @@ Implementation of [gagan-retailer-app-spec.md](gagan-retailer-app-spec.md).
 - `backend/` — Node + Express + TypeScript, Prisma, PostgreSQL
 - `mobile/` — Expo — **Gagan Retailer** app (`com.gagan.retailer`)
 - `rep/` — Expo — **Gagan Sales** app (`com.gagan.sales`)
+- `founder/` — Expo — **Gagan Founders** (`com.founder.executive`) — Quiet Instrument restyle of Pulse/Trends on the founder-staging-38342e6 lineage
 - `admin/` — Vite + React — ops dashboard (web)
 
 ## App boundaries
@@ -85,7 +86,7 @@ Install dependencies in each package, then run the same repository gate used by 
 bash scripts/verify.sh
 ```
 
-The gate type-checks, tests, and builds the backend; validates Prisma; type-checks both Expo apps; and lints/builds the admin web app. CI additionally applies every Prisma migration to an empty PostgreSQL 16 database before running the gate.
+The gate type-checks, tests, and builds the backend; validates Prisma; type-checks the Expo apps; and lints/builds the admin web app. CI additionally applies every Prisma migration to an empty PostgreSQL 16 database before running the gate.
 
 ## Retailer app
 
@@ -101,6 +102,16 @@ cd rep && npm install && npx expo start --ios --port 8092
 
 The iOS simulator reaches the backend at `localhost`; the Android emulator uses `10.0.2.2`. For a
 physical device, change `BASE_URL` in [client.ts](mobile/src/api/client.ts) to the host machine's LAN IP.
+
+## Founders pulse
+
+Redesign-only Quiet Instrument skin of Founder V1 from the `founder-staging-38342e6` lineage. **Functions unchanged:** `/founder/pulse`, `/founder/trends`, issues, decisions, brief, team, and staff OTP stay on the existing contracts.
+
+Tabs: **Today** (Pulse), **Series** (Trends 7D/30D/90D), **Queue** (hub to Issues + Decisions), **You** (Settings). Queue UI is pending chairman lock.
+
+```bash
+cd founder && npm install && npx expo start --ios --port 8093
+```
 
 ## Admin dashboard
 

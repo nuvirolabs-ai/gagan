@@ -24,10 +24,10 @@ const phones = {
   duplicate: `96${stamp}`.slice(0, 10),
 };
 const ids = {
-  tier: `form-tier-${run}`,
-  rep: `form-rep-${run}`,
-  staff: `form-staff-${run}`,
-  retailer: `form-retailer-${run}`,
+  tier: randomUUID(),
+  rep: randomUUID(),
+  staff: randomUUID(),
+  retailer: randomUUID(),
 };
 let service: RetailerFormService;
 const assetIds: string[] = [];
@@ -44,7 +44,7 @@ async function uploadPhoto() {
 }
 
 beforeAll(async () => {
-  await prisma.tier.create({ data: { id: ids.tier, name: ids.tier, paymentTermDays: 15 } });
+  await prisma.tier.create({ data: { id: ids.tier, name: `form-tier-${run}`, paymentTermDays: 15 } });
   await prisma.salesRep.create({ data: { id: ids.rep, name: "Form Rep", phone: `91${run}01` } });
   await prisma.staffUser.create({ data: { id: ids.staff, name: "Form Staff", phone: `91${run}02`, email: `${run}@form.test`, salesRepId: ids.rep } });
   const group = await prisma.retailerGroup.create({ data: { name: `Group ${run}` } });

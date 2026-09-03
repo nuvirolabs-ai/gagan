@@ -50,7 +50,7 @@ composition until a future approved propagation pass.
 The Admin suite was run in the isolated worktree:
 
 ```text
-npm test          PASS — 18 files, 48 tests
+npm test          PASS — 19 files, 49 tests
 npm run typecheck PASS
 npm run lint      PASS
 npm run build     PASS — Vite production build

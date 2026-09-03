@@ -49,6 +49,13 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
     createRecoveryPromise: (caseId: string, body: unknown) => post(`/rep/recovery/${caseId}/promises`, body),
     setRecoveryPromiseStatus: (promiseId: string, status: "kept" | "missed") => post(`/rep/recovery/promises/${promiseId}/status`, { status }),
     catalogFor: (id: string) => request(`/rep/retailers/${id}/catalog`),
+    retailerMasters: () => request("/rep/retailer-masters"),
+    uploadAadhaar: (body: { contentType: string; bodyBase64: string; checksum?: string }) =>
+      post("/rep/retailer-evidence/aadhaar", body),
+    proposeRetailer: (body: unknown) => post("/rep/retailer-proposals", body),
+    retailerProposals: () => request("/rep/retailer-proposals"),
+    updateRetailerProfile: (id: string, body: unknown) =>
+      request(`/rep/retailers/${id}/profile`, { method: "PATCH", body: JSON.stringify(body) }, true),
     createOrder: (retailerId: string, items: { variantId: string; qty: number }[], idempotencyKey: string) =>
       request(
         "/rep/orders",

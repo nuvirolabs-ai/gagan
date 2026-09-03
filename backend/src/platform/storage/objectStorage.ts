@@ -8,7 +8,7 @@ export const ALLOWED_EVIDENCE_CONTENT_TYPES = new Set([
   "image/webp",
 ]);
 
-export type EvidencePurpose = "kyc_document" | "collection_receipt" | "pod" | "recovery_letter";
+export type EvidencePurpose = "kyc_document" | "collection_receipt" | "pod" | "recovery_letter" | "aadhaar_card";
 
 export interface PutObjectInput {
   purpose: EvidencePurpose;

@@ -52,6 +52,21 @@ enum EvidencePurpose {
   kyc_document
   collection_receipt
   pod
+  aadhaar_card
+}
+
+enum RetailerProposalStatus {
+  pending
+  approved
+  rejected
+}
+
+/// Commercial buyer grade captured by sales (distinct from CreditRating).
+enum RetailerGrade {
+  A
+  B
+  C
+  D
 }
 
 enum RetailerSapAccountStatus {
@@ -324,6 +339,59 @@ model Tier {
   createdAt       DateTime    @default(now())
 }
 
+/// Sales grouping master (not pricing Tier).
+model RetailerGroup {
+  id        String             @id @default(uuid())
+  name      String             @unique
+  active    Boolean            @default(true)
+  retailers Retailer[]
+  proposals RetailerProposal[]
+  createdAt DateTime           @default(now())
+}
+
+model Transporter {
+  id        String             @id @default(uuid())
+  name      String             @unique
+  active    Boolean            @default(true)
+  retailers Retailer[]
+  proposals RetailerProposal[]
+  createdAt DateTime           @default(now())
+}
+
+model Beat {
+  id        String             @id @default(uuid())
+  name      String             @unique
+  city      String?
+  active    Boolean            @default(true)
+  retailers Retailer[]
+  proposals RetailerProposal[]
+  createdAt DateTime           @default(now())
+}
+
+model BuyerCategory {
+  id            String             @id @default(uuid())
+  name          String             @unique
+  active        Boolean            @default(true)
+  subCategories BuyerSubCategory[]
+  retailers     Retailer[]
+  proposals     RetailerProposal[]
+  createdAt     DateTime           @default(now())
+}
+
+model BuyerSubCategory {
+  id         String             @id @default(uuid())
+  categoryId String
+  category   BuyerCategory      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name       String
+  active     Boolean            @default(true)
+  retailers  Retailer[]
+  proposals  RetailerProposal[]
+  createdAt  DateTime           @default(now())
+
+  @@unique([categoryId, name])
+  @@index([categoryId, active])
+}
+
 model Retailer {
   id                        String                     @id @default(uuid())
   name                      String
@@ -342,6 +410,30 @@ model Retailer {
   salesRepId                String?
   salesRep                  SalesRep?                  @relation(fields: [salesRepId], references: [id])
   sapCustomerId             String?
+  groupId                   String?
+  group                     RetailerGroup?             @relation(fields: [groupId], references: [id])
+  contactPerson             String?
+  telephone                 String?
+  transporterId             String?
+  transporter               Transporter?               @relation(fields: [transporterId], references: [id])
+  pin                       String?
+  tehsil                    String?
+  district                  String?
+  state                     String?
+  deliveryCity              String?
+  beatId                    String?
+  beat                      Beat?                      @relation(fields: [beatId], references: [id])
+  shopTenureYears           Int?
+  gstin                     String?
+  aadhaarNumber             String?
+  aadhaarPhotoAssetId       String?                    @unique
+  aadhaarPhoto              EvidenceAsset?             @relation("RetailerAadhaarPhoto", fields: [aadhaarPhotoAssetId], references: [id])
+  grade                     RetailerGrade?
+  buyerCategoryId           String?
+  buyerCategory             BuyerCategory?             @relation(fields: [buyerCategoryId], references: [id])
+  buyerSubCategoryId        String?
+  buyerSubCategory          BuyerSubCategory?          @relation(fields: [buyerSubCategoryId], references: [id])
+  upiId                     String?
   orders                    Order[]
   ledgerEntries             LedgerEntry[]
   priceOverrides            PriceOverride[]
@@ -364,7 +456,64 @@ model Retailer {
   visits                    SalesVisit[]
   contacts                  RetailerContact[]
   sapAccounts               RetailerSapAccount[]
+  proposals                 RetailerProposal[]
   createdAt                 DateTime                   @default(now())
+
+  @@index([groupId])
+  @@index([transporterId])
+  @@index([beatId])
+  @@index([buyerCategoryId, buyerSubCategoryId])
+}
+
+/// Sales-submitted onboarding for a new retailer. Approval materialises a Retailer.
+model RetailerProposal {
+  id                  String                 @id @default(uuid())
+  status              RetailerProposalStatus @default(pending)
+  proposedByStaffId   String
+  proposedByRepId     String
+  partyName           String
+  groupId             String
+  group               RetailerGroup          @relation(fields: [groupId], references: [id])
+  contactPerson       String
+  mobile              String
+  telephone           String?
+  transporterId       String
+  transporter         Transporter            @relation(fields: [transporterId], references: [id])
+  address1            String
+  pin                 String?
+  tehsil              String?
+  district            String?
+  state               String?
+  deliveryCity        String
+  salesmanRepId       String
+  salesman            SalesRep               @relation(fields: [salesmanRepId], references: [id])
+  beatId              String?
+  beat                Beat?                  @relation(fields: [beatId], references: [id])
+  shopTenureYears     Int
+  gstin               String?
+  aadhaarNumber       String
+  aadhaarPhotoAssetId String                 @unique
+  aadhaarPhoto        EvidenceAsset          @relation("ProposalAadhaarPhoto", fields: [aadhaarPhotoAssetId], references: [id])
+  paymentTermDays     Int
+  creditLimit         Decimal                @default(0) @db.Decimal(12, 2)
+  grade               RetailerGrade
+  buyerCategoryId     String
+  buyerCategory       BuyerCategory          @relation(fields: [buyerCategoryId], references: [id])
+  buyerSubCategoryId  String?
+  buyerSubCategory    BuyerSubCategory?      @relation(fields: [buyerSubCategoryId], references: [id])
+  upiId               String?
+  payload             Json?
+  retailerId          String?
+  retailer            Retailer?              @relation(fields: [retailerId], references: [id])
+  reviewedByStaffId   String?
+  reviewedAt          DateTime?
+  rejectionReason     String?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  @@index([status, createdAt])
+  @@index([proposedByStaffId, createdAt])
+  @@index([mobile, status])
 }
 
 model KycCase {
@@ -423,6 +572,8 @@ model EvidenceAsset {
   createdAt        DateTime        @default(now())
   deletedAt        DateTime?
   kycDocument      KycDocument?
+  retailerAadhaar  Retailer?          @relation("RetailerAadhaarPhoto")
+  proposalAadhaar  RetailerProposal?  @relation("ProposalAadhaarPhoto")
 
   @@index([purpose, createdAt])
 }
@@ -465,12 +616,13 @@ model AdminUser {
 }
 
 model SalesRep {
-  id        String     @id @default(uuid())
+  id        String             @id @default(uuid())
   name      String
   phone     String
   photoUrl  String?
   territory String?
   retailers Retailer[]
+  proposals RetailerProposal[]
   staffUser StaffUser?
 }
 

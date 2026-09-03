@@ -176,6 +176,12 @@ export const api = {
 
   retailers: () => request("/admin/retailers"),
   retailer: (id: string) => request(`/admin/retailers/${id}`),
+  retailerProposals: () => request("/admin/retailer-proposals"),
+  retailerProposal: (id: string) => request(`/admin/retailer-proposals/${id}`),
+  approveRetailerProposal: (id: string, reason?: string) =>
+    post(`/admin/retailer-proposals/${id}/approve`, { reason }),
+  rejectRetailerProposal: (id: string, reason: string) =>
+    post(`/admin/retailer-proposals/${id}/reject`, { reason }),
   createRetailer: (data: unknown) => post("/admin/retailers", data),
   setTier: (id: string, tierId: string) => post(`/admin/retailers/${id}/tier`, { tierId }),
   setCreditLimit: (id: string, creditLimit: number) =>

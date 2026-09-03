@@ -18,6 +18,7 @@ import { createRecoveryRouter } from "./modules/recovery/recoveryRoutes";
 import { createLocationRouter } from "./modules/location/locationRoutes";
 import { createRatingRouter } from "./modules/credit/ratingRoutes";
 import { createCreditRolloutRouter } from "./modules/credit/rolloutRoutes";
+import { createRetailerFormRouter } from "./modules/retailers/retailerProposalRoutes";
 import { createRequireSession } from "./modules/identity/sessionAuth";
 import { lazyIdentitySessionService } from "./modules/identity/sessionRuntime";
 import authRoutes from "./routes/auth";
@@ -52,6 +53,8 @@ export function createApp(options: CreateAppOptions = {}) {
   // before the default parser runs.
   app.use("/rep/kyc", express.json({ limit: "15mb" }));
   app.use("/admin/kyc", express.json({ limit: "15mb" }));
+  app.use("/rep/retailer-evidence", express.json({ limit: "15mb" }));
+  app.use("/admin/retailer-evidence", express.json({ limit: "15mb" }));
   app.use(express.json({ limit: "100kb" }));
 
   app.get("/health", (_req, res) => res.json({ ok: true }));
@@ -95,6 +98,12 @@ export function createApp(options: CreateAppOptions = {}) {
   );
   app.use(
     "/rep",
+    createRetailerFormRouter({
+      authenticate: createRequireSession("staff", lazyIdentitySessionService),
+    })
+  );
+  app.use(
+    "/rep",
     createRecoveryRouter({
       authenticate: createRequireSession("staff", lazyIdentitySessionService),
     })
@@ -122,6 +131,10 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(
     "/admin",
     createKycRouter({ authenticate: requireAdminIdentity })
+  );
+  app.use(
+    "/admin",
+    createRetailerFormRouter({ authenticate: requireAdminIdentity })
   );
   app.use(
     "/admin",

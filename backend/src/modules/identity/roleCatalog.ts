@@ -19,6 +19,8 @@ export const Permissions = {
   LOCATION_CAPTURE: "location.capture",
   LOCATION_VERIFY: "location.verify",
   VISIT_VIEW: "visit.view",
+  RETAILER_PROPOSE: "retailer.propose",
+  RETAILER_REVIEW: "retailer.review",
 } as const;
 
 export type PermissionName = (typeof Permissions)[keyof typeof Permissions];
@@ -33,7 +35,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
   {
     name: "salesperson",
     description: "Manages assigned retailers, KYC capture and retailer orders.",
-    permissions: [Permissions.ORDER_CREATE_FOR_RETAILER, Permissions.KYC_SUBMIT, Permissions.RECOVERY_VIEW, Permissions.RECOVERY_UPDATE, Permissions.LOCATION_VIEW, Permissions.LOCATION_CAPTURE, Permissions.LOCATION_VERIFY, Permissions.VISIT_VIEW],
+    permissions: [Permissions.ORDER_CREATE_FOR_RETAILER, Permissions.KYC_SUBMIT, Permissions.RETAILER_PROPOSE, Permissions.RECOVERY_VIEW, Permissions.RECOVERY_UPDATE, Permissions.LOCATION_VIEW, Permissions.LOCATION_CAPTURE, Permissions.LOCATION_VERIFY, Permissions.VISIT_VIEW],
   },
   {
     name: "field_collector",
@@ -43,7 +45,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
   {
     name: "credit_team",
     description: "Operates credit recovery and approved block instructions.",
-    permissions: [Permissions.CREDIT_BLOCK, Permissions.KYC_VIEW, Permissions.KYC_REVIEW, Permissions.RECOVERY_VIEW, Permissions.RECOVERY_UPDATE],
+    permissions: [Permissions.CREDIT_BLOCK, Permissions.KYC_VIEW, Permissions.KYC_REVIEW, Permissions.RETAILER_REVIEW, Permissions.RECOVERY_VIEW, Permissions.RECOVERY_UPDATE],
   },
   {
     name: "sales_coordinator",
@@ -59,6 +61,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       Permissions.CREDIT_BLOCK,
       Permissions.KYC_VIEW,
       Permissions.KYC_REVIEW,
+      Permissions.RETAILER_REVIEW,
       Permissions.RECOVERY_VIEW,
       Permissions.RECOVERY_UPDATE,
     ],

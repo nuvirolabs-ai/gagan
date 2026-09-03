@@ -57,7 +57,16 @@ export default function RepRetailersScreen({ navigation }: any) {
 
   return (
     <View style={styles.screen}>
-      <ScreenHeader title={t("retailers.title")} subtitle={`Hi ${rep?.name ?? ""}`} />
+      <ScreenHeader
+        title={t("retailers.title")}
+        subtitle={`Hi ${rep?.name ?? ""}`}
+        right={
+          <TouchableOpacity style={styles.addBtn} onPress={() => navigation.navigate("AddRetailer")}>
+            <Ionicons name="add" size={18} color={colors.onDark} />
+            <Text style={styles.addBtnText}>{t("retailerForm.addShort")}</Text>
+          </TouchableOpacity>
+        }
+      />
 
       <View style={styles.metrics}>
         <View style={styles.metric}>
@@ -220,4 +229,6 @@ const styles = StyleSheet.create({
   fill: { height: "100%", borderRadius: 3 },
   overdue: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: spacing.sm },
   overdueText: { fontSize: 11.5, color: colors.danger, fontWeight: "700" },
+  addBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.greenDeep, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 8 },
+  addBtnText: { color: colors.onDark, fontWeight: "700", fontSize: 12 },
 });

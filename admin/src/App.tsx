@@ -26,7 +26,7 @@ const NAV = [
   { to: "/recovery", label: "Recovery", permissions: ["recovery.view", "recovery.update"] },
   { to: "/legal", label: "Legal", permissions: ["staff.manage", "legal.decide"] },
   { to: "/orders", label: "Order queue", permissions: ["staff.manage"] },
-  { to: "/retailers", label: "Retailers", permissions: ["staff.manage"] },
+  { to: "/retailers", label: "Retailers", permissions: ["staff.manage", "retailer.review"] },
   { to: "/ledger", label: "Ledger", permissions: ["staff.manage"] },
   { to: "/catalog", label: "Catalog", permissions: ["staff.manage"] },
   { to: "/corrections", label: "Corrections", permissions: ["financial.correct"] },

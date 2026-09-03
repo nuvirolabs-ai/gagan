@@ -27,7 +27,7 @@ export const IMPORT_DEFINITIONS: Record<ImportType, {
       name: "Import QA Kirana",
       phone: "9899999901",
       shop_address: "18 Market Road, Indore",
-      tier: "Standard",
+      tier: "Gold",
       credit_limit: "50000",
       salesperson_employee_ref: "SALES-001",
       sap_customer_id: "CUST-IMPORT-001",
@@ -92,7 +92,7 @@ export const IMPORT_DEFINITIONS: Record<ImportType, {
     description: "Tier price rows for an existing sellable variant.",
     required: ["tier", "product_name", "unit_size", "price"],
     optional: [],
-    example: { tier: "Standard", product_name: "Gagan Toor Dal", unit_size: "1 kg", price: "3150" },
+    example: { tier: "Gold", product_name: "Gagan Toor Dal", unit_size: "1 kg", price: "3150" },
   },
   sap_mappings: {
     label: "SAP mappings",
@@ -106,4 +106,3 @@ export const IMPORT_DEFINITIONS: Record<ImportType, {
 export function allHeaders(type: ImportType) {
   return [...IMPORT_DEFINITIONS[type].required, ...IMPORT_DEFINITIONS[type].optional];
 }
-

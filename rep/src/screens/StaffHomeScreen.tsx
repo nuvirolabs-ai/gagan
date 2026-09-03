@@ -14,7 +14,7 @@ type CollectionRetailer = { id: string; name: string; phone: string; shopAddress
 type CollectionSubmission = { id: string; amount: number | string; method: string; status: string; retailer: { id: string; name: string; phone: string } };
 const methods = ["cash", "cheque", "neft", "upi"] as const;
 
-export default function StaffHomeScreen() {
+export default function StaffHomeScreen({ navigation }: any) {
   const { staff } = useRep();
   const { t } = useLanguage();
   const capabilities = staffCapabilities(staff?.permissions ?? []);
@@ -103,7 +103,7 @@ export default function StaffHomeScreen() {
 
   return (
     <View style={styles.screen}>
-      <ScreenHeader title={t("tabs.work")} subtitle={`Hi ${staff?.name ?? ""}`} />
+      <ScreenHeader title={t("tabs.work")} subtitle={`Hi ${staff?.name ?? ""}`} onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined} />
       <ScrollView contentContainerStyle={styles.content}>
         {capabilities.canCollect ? <View style={styles.card}>
           <View style={styles.cardTitleRow}><View style={styles.icon}><Ionicons name="cash-outline" size={22} color={colors.green} /></View><View><Text style={styles.title}>{t("work.submitCollection")}</Text><Text style={styles.muted}>{t("work.accountsVerify")}</Text></View></View>

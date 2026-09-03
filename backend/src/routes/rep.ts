@@ -16,6 +16,7 @@ import {
   createRequireSession,
   type IdentityAuthedRequest,
 } from "../modules/identity/sessionAuth";
+import { buildSalesHome, startOfUtcDay, startOfUtcWeek } from "../modules/sales/salesHome";
 
 const router = Router();
 
@@ -103,6 +104,126 @@ router.get("/me", requireStaffSession, async (req: IdentityAuthedRequest, res) =
   res.json({
     staff: { ...identity, permissions: req.staffAuth!.permissions },
     rep: salesRep,
+  });
+});
+
+router.get("/home", requireStaffSession, async (req: IdentityAuthedRequest, res) => {
+  const staff = await prisma.staffUser.findUnique({
+    where: { id: req.identityAuth!.subjectId },
+    select: {
+      id: true,
+      name: true,
+      salesRepId: true,
+      salesRep: { select: { id: true, name: true, territory: true } },
+    },
+  });
+  if (!staff) return res.status(401).json({ error: "Session no longer valid" });
+
+  const now = new Date();
+  const dayStart = startOfUtcDay(now);
+  const weekStart = startOfUtcWeek(now);
+  let retailers: Array<{ id: string; name: string; shopAddress: string; beatName: string | null; district: string | null }> = [];
+  let visitsToday: Array<{ id: string; retailerId: string; checkedOutAt: Date | null; retailerName: string | null }> = [];
+  let todaySales = 0;
+  let weekSales = 0;
+  let pendingApprovals = 0;
+
+  if (staff.salesRepId) {
+    const [assigned, visits, todayAgg, weekAgg, approvalCount] = await Promise.all([
+      prisma.retailer.findMany({
+        where: { salesRepId: staff.salesRepId },
+        select: { id: true, name: true, shopAddress: true, district: true, beat: { select: { name: true } } },
+        orderBy: { name: "asc" },
+      }),
+      prisma.salesVisit.findMany({
+        where: { salespersonId: staff.id, checkedInAt: { gte: dayStart } },
+        select: { id: true, retailerId: true, checkedOutAt: true, retailer: { select: { name: true } } },
+      }),
+      prisma.order.aggregate({
+        where: {
+          retailer: { salesRepId: staff.salesRepId },
+          createdAt: { gte: dayStart },
+          status: { not: "rejected" },
+        },
+        _sum: { orderTotal: true },
+      }),
+      prisma.order.aggregate({
+        where: {
+          retailer: { salesRepId: staff.salesRepId },
+          createdAt: { gte: weekStart },
+          status: { not: "rejected" },
+        },
+        _sum: { orderTotal: true },
+      }),
+      prisma.approvalRequest.count({
+        where: { status: "open", retailer: { salesRepId: staff.salesRepId } },
+      }),
+    ]);
+    retailers = assigned.map((retailer) => ({
+      id: retailer.id,
+      name: retailer.name,
+      shopAddress: retailer.shopAddress,
+      beatName: retailer.beat?.name ?? null,
+      district: retailer.district ?? null,
+    }));
+    visitsToday = visits.map((visit) => ({
+      id: visit.id,
+      retailerId: visit.retailerId,
+      checkedOutAt: visit.checkedOutAt,
+      retailerName: visit.retailer?.name ?? null,
+    }));
+    todaySales = Number(todayAgg._sum.orderTotal ?? 0);
+    weekSales = Number(weekAgg._sum.orderTotal ?? 0);
+    pendingApprovals = approvalCount;
+  }
+
+  res.json(
+    buildSalesHome({
+      staff: { id: staff.id, name: staff.name },
+      territory: staff.salesRep?.territory ?? null,
+      retailers,
+      visitsToday,
+      todaySales,
+      weekSales,
+      pendingApprovals,
+      now,
+    })
+  );
+});
+
+router.get("/stock", requireStaffSession, async (_req, res) => {
+  const [products, snapshots] = await Promise.all([
+    prisma.product.findMany({ include: { variants: true }, orderBy: { name: "asc" } }),
+    prisma.inventorySnapshot.findMany({ where: { warehouseCode: DEFAULT_WAREHOUSE_CODE } }),
+  ]);
+  const byMaterial = new Map(snapshots.map((snapshot) => [snapshot.sapMaterialId, snapshot]));
+  const items = products.map((product) => {
+    const snapshot = product.sapMaterialId ? byMaterial.get(product.sapMaterialId) : undefined;
+    const stale = snapshot ? Date.now() - snapshot.syncedAt.getTime() > INVENTORY_STALE_AFTER_MS : false;
+    return {
+      productId: product.id,
+      name: product.name,
+      category: product.category,
+      sapMaterialId: product.sapMaterialId,
+      variants: product.variants.map((variant) => ({
+        id: variant.id,
+        unitSize: variant.unitSize,
+        unitsPerCase: variant.unitsPerCase,
+      })),
+      availability: snapshot
+        ? {
+            available: Number(snapshot.available),
+            warehouseCode: snapshot.warehouseCode,
+            status: stale ? "stale" : snapshot.status,
+            syncedAt: snapshot.syncedAt,
+          }
+        : { available: null, warehouseCode: DEFAULT_WAREHOUSE_CODE, status: "unknown", syncedAt: null },
+    };
+  });
+  res.json({
+    warehouseCode: DEFAULT_WAREHOUSE_CODE,
+    stockTakeAvailable: false,
+    items,
   });
 });
 

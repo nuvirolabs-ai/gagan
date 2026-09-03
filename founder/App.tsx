@@ -6,44 +6,53 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
-import { PreferencesProvider, usePreferences } from "./src/context/PreferencesContext";
-import TabBar from "./src/components/TabBar";
+import { PreferencesProvider } from "./src/context/PreferencesContext";
+import { FounderProvider } from "./src/context/FounderContext";
+import FounderTabBar from "./src/components/FounderTabBar";
 import LoginScreen from "./src/screens/LoginScreen";
-import PulseScreen from "./src/screens/PulseScreen";
-import TrendsScreen from "./src/screens/TrendsScreen";
+import TodayScreen from "./src/screens/TodayScreen";
+import SeriesScreen from "./src/screens/SeriesScreen";
+import QueueScreen from "./src/screens/QueueScreen";
+import YouScreen from "./src/screens/YouScreen";
 import IssuesScreen from "./src/screens/IssuesScreen";
 import DecisionsScreen from "./src/screens/DecisionsScreen";
-import SettingsScreen from "./src/screens/SettingsScreen";
 import IssueDetailScreen from "./src/screens/IssueDetailScreen";
 import DecisionDetailScreen from "./src/screens/DecisionDetailScreen";
 import BriefScreen from "./src/screens/BriefScreen";
 import TeamScreen from "./src/screens/TeamScreen";
-import QueueScreen from "./src/screens/QueueScreen";
-import { PULSE_VISUAL_FIXTURE } from "./src/fixtures/pulseVisual";
+import { colors } from "./src/theme";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
+const PREVIEW = process.env.EXPO_PUBLIC_PULSE_PREVIEW === "1";
 
-function PreviewPulse() {
-  return <PulseScreen preview={PULSE_VISUAL_FIXTURE} />;
-}
+const navTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: colors.bg,
+    card: colors.bg,
+    primary: colors.up,
+    text: colors.ink,
+    border: colors.line,
+  },
+};
 
-function AppTabs({ preview }: { preview?: boolean }) {
+function AppTabs() {
   return (
-    <Tab.Navigator tabBar={(props) => <TabBar {...props} />} screenOptions={{ headerShown: false }}>
-      <Tab.Screen name="Today" component={preview ? PreviewPulse : PulseScreen} />
-      <Tab.Screen name="Series" component={TrendsScreen} />
+    <Tab.Navigator tabBar={(props) => <FounderTabBar {...props} />} screenOptions={{ headerShown: false }}>
+      <Tab.Screen name="Today" component={TodayScreen} />
+      <Tab.Screen name="Series" component={SeriesScreen} />
       <Tab.Screen name="Queue" component={QueueScreen} />
-      <Tab.Screen name="You" component={SettingsScreen} />
+      <Tab.Screen name="You" component={YouScreen} />
     </Tab.Navigator>
   );
 }
 
-function AppStack({ preview }: { preview?: boolean }) {
+function AppStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false, animation: "slide_from_right" }}>
-      <Stack.Screen name="Main">{() => <AppTabs preview={preview} />}</Stack.Screen>
-      <Stack.Screen name="Settings" component={SettingsScreen} options={{ presentation: "modal", animation: "slide_from_bottom" }} />
+    <Stack.Navigator screenOptions={{ headerShown: false, animation: "slide_from_right", contentStyle: { backgroundColor: colors.bg } }}>
+      <Stack.Screen name="Main" component={AppTabs} />
       <Stack.Screen name="Issues" component={IssuesScreen} />
       <Stack.Screen name="Decisions" component={DecisionsScreen} />
       <Stack.Screen name="IssueDetail" component={IssueDetailScreen} />
@@ -56,37 +65,25 @@ function AppStack({ preview }: { preview?: boolean }) {
 
 function Root() {
   const { ready, identity } = useAuth();
-  const { colors } = usePreferences();
-  if (!ready && process.env.EXPO_PUBLIC_PULSE_PREVIEW !== "1") {
+  if (!ready && !PREVIEW) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.canvas }}>
-        <ActivityIndicator />
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg }}>
+        <ActivityIndicator color={colors.up} />
       </View>
     );
   }
-  if (process.env.EXPO_PUBLIC_PULSE_PREVIEW === "1") return <AppStack preview />;
+  if (PREVIEW) {
+    return (
+      <FounderProvider enabled>
+        <AppStack />
+      </FounderProvider>
+    );
+  }
   if (!identity) return <LoginScreen />;
-  return <AppStack />;
-}
-
-function ThemedApp() {
-  const { colors } = usePreferences();
-  const theme = {
-    ...DarkTheme,
-    colors: {
-      ...DarkTheme.colors,
-      background: colors.canvas,
-      card: colors.surface,
-      text: colors.label,
-      border: colors.separator,
-      primary: colors.positive,
-    },
-  };
   return (
-    <NavigationContainer theme={theme}>
-      <Root />
-      <StatusBar style="light" />
-    </NavigationContainer>
+    <FounderProvider enabled>
+      <AppStack />
+    </FounderProvider>
   );
 }
 
@@ -95,7 +92,10 @@ export default function App() {
     <SafeAreaProvider>
       <PreferencesProvider>
         <AuthProvider>
-          <ThemedApp />
+          <NavigationContainer theme={navTheme}>
+            <Root />
+            <StatusBar style="light" />
+          </NavigationContainer>
         </AuthProvider>
       </PreferencesProvider>
     </SafeAreaProvider>

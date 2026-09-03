@@ -24,3 +24,7 @@ export function resolveApiBaseUrl(
   if (!development) throw new Error("EXPO_PUBLIC_API_URL is required outside development");
   return developmentFallback(platform);
 }
+
+export function useFixturePulse(flag: string | undefined) {
+  return flag === "1" || flag === "true";
+}

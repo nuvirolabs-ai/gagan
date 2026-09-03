@@ -5,7 +5,7 @@ Implementation of [gagan-retailer-app-spec.md](gagan-retailer-app-spec.md).
 - `backend/` — Node + Express + TypeScript, Prisma, PostgreSQL
 - `mobile/` — Expo — **Gagan Retailer** app (`com.gagan.retailer`)
 - `rep/` — Expo — **Gagan Sales** app (`com.gagan.sales`)
-- `founder/` — Expo — **Gagan Founders** (`com.founder.executive`) — Quiet Instrument restyle of Pulse/Trends on the founder-staging-38342e6 lineage
+- `founder/` — Expo — **Gagan Founders** (`com.founder.executive`) — Quiet Instrument CEO board (Today + Series)
 - `admin/` — Vite + React — ops dashboard (web)
 
 ## App boundaries
@@ -105,13 +105,27 @@ physical device, change `BASE_URL` in [client.ts](mobile/src/api/client.ts) to t
 
 ## Founders pulse
 
-Redesign-only Quiet Instrument skin of Founder V1 from the `founder-staging-38342e6` lineage. **Functions unchanged:** `/founder/pulse`, `/founder/trends`, issues, decisions, brief, team, and staff OTP stay on the existing contracts.
+Locked **Quiet Instrument** CEO board on Today and Series. Tabs: **Today · Series · Queue · You**.
 
-Tabs: **Today** (Pulse), **Series** (Trends 7D/30D/90D), **Queue** (hub to Issues + Decisions), **You** (Settings). Queue UI is pending chairman lock.
+Today and Series **must** match the chairman mocks (Present · Sales · Delivery OTIF · Payments In · Inventory — not Orders/Collections/Fill/Blocked).
+
+| Board KPI | Live API | Staging fixture if missing |
+|---|---|---|
+| Sales | `/founder/pulse` `metrics.orders` + `/founder/trends` `orders` | 14d / intraday series |
+| Payments | `metrics.collections` + trends `collections` | 14d / intraday series |
+| Delivery | `metrics.fillRate` + trends `fillRate` | pending count |
+| Present | attendance is not on pulse/team | on-floor 38/42 heat |
+| Inventory | `pulse.blocked` is constraint capital, not stock | ₹1.84Cr / SKU units |
+| Needs you | `/founder/decisions` + `/founder/issues` | mock rows |
+| Hub / region | not on API | Indore · West + Central |
+
+Staff OTP stays on `/founder/auth`. Queue is a stub hub to existing Issues/Decisions.
 
 ```bash
 cd founder && npm install && npx expo start --ios --port 8093
 ```
+
+Preview the locked mocks without login: `EXPO_PUBLIC_PULSE_PREVIEW=1`.
 
 ## Admin dashboard
 

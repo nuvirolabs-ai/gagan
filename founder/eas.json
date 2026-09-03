@@ -1,0 +1,11 @@
+{
+  "build": {
+    "staging": {
+      "distribution": "internal",
+      "android": { "buildType": "apk" },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://gagan-staging-api.onrender.com"
+      }
+    }
+  }
+}

@@ -1,144 +1,123 @@
 import React, { useState } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useFounder } from "../context/FounderContext";
-import { ApiError, DEMO_OTP, DEMO_PHONE } from "../api/founder";
-import { colors, radius, spacing, type as typeScale } from "../theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAuth } from "../context/AuthContext";
+import { tokensFor } from "../theme";
+import { useColorScheme } from "react-native";
+import { SessionFetchError } from "../auth/sessionFetch";
 
 export default function LoginScreen() {
-  const { requestOtp, login } = useFounder();
-  const [phone, setPhone] = useState(__DEV__ ? DEMO_PHONE : "");
+  const scheme = useColorScheme();
+  const colors = tokensFor(scheme);
+  const insets = useSafeAreaInsets();
+  const { requestOtp, verifyOtp, denied } = useAuth();
+  const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
-  const [stage, setStage] = useState<"phone" | "otp">("phone");
+  const [challengeId, setChallengeId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleRequestOtp = async () => {
-    if (phone.replace(/\D/g, "").length < 10) {
-      return Alert.alert("Enter a valid 10-digit phone number");
-    }
+  async function sendCode() {
     setBusy(true);
+    setError(null);
     try {
-      await requestOtp(phone);
-      setStage("otp");
-    } catch (e) {
-      Alert.alert("Couldn't send OTP", e instanceof ApiError ? e.message : "Try again, or use the fixture demo phone.");
+      const result = await requestOtp(phone.trim());
+      setChallengeId(result.challengeId ?? "challenge-1");
+    } catch {
+      setError("We could not send a code. Try again.");
     } finally {
       setBusy(false);
     }
-  };
+  }
 
-  const handleVerify = async () => {
+  async function confirm() {
+    if (!challengeId) return;
     setBusy(true);
+    setError(null);
     try {
-      await login(phone, otp);
-    } catch (e) {
-      Alert.alert("Couldn't sign in", e instanceof ApiError ? e.message : "Check the code and try again.");
+      await verifyOtp({ challengeId, phone: phone.trim(), otp: otp.trim() });
+    } catch (caught) {
+      if (caught instanceof SessionFetchError && caught.status === 403) {
+        setError("This account is not authorised for Founder.");
+      } else {
+        setError("That code did not match. Try again.");
+      }
     } finally {
       setBusy(false);
     }
-  };
+  }
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <View style={styles.inner}>
-        <Text style={styles.brand}>GAGAN · FOUNDERS</Text>
-        <Text style={styles.logo}>Pulse</Text>
-        <Text style={styles.tag}>Quiet instrument · CEO board</Text>
+    <KeyboardAvoidingView
+      style={[styles.root, { backgroundColor: colors.canvas, paddingTop: insets.top + 12 }]}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
+      <Text style={[styles.kicker, { color: colors.secondary }]}>GAGAN · FOUNDERS</Text>
+      <Text style={[styles.title, { color: colors.label }]}>Sign In</Text>
+      <Text style={[styles.lede, { color: colors.secondary }]}>
+        Executive access is limited to founder accounts.
+      </Text>
 
-        {stage === "phone" ? (
-          <>
-            <Text style={styles.label}>Sign in with your staff phone</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Phone"
-              placeholderTextColor={colors.muted}
-              keyboardType="phone-pad"
-              value={phone}
-              onChangeText={setPhone}
-              maxLength={10}
-              autoFocus
-            />
-            <TouchableOpacity style={styles.button} onPress={handleRequestOtp} disabled={busy}>
-              {busy ? (
-                <ActivityIndicator color={colors.ink} />
-              ) : (
-                <>
-                  <Text style={styles.buttonText}>Send OTP</Text>
-                  <Ionicons name="arrow-forward" size={17} color={colors.ink} />
-                </>
-              )}
-            </TouchableOpacity>
-            <Text style={styles.hint}>
-              Demo fixture: {DEMO_PHONE} / {DEMO_OTP}. Live staff OTP uses the existing identity API; CEO KPI
-              aggregates still map from the pulse fixture until GET /founder/pulse exists.
-            </Text>
-          </>
-        ) : (
-          <>
-            <Text style={styles.label}>Enter the code sent to {phone}</Text>
-            <TextInput
-              style={[styles.input, styles.otpInput]}
-              placeholder="000000"
-              placeholderTextColor={colors.muted}
-              keyboardType="number-pad"
-              value={otp}
-              onChangeText={setOtp}
-              maxLength={6}
-            />
-            <TouchableOpacity style={styles.button} onPress={handleVerify} disabled={busy}>
-              {busy ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.buttonText}>Verify</Text>}
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setStage("phone")}>
-              <Text style={styles.link}>Change phone</Text>
-            </TouchableOpacity>
-          </>
-        )}
+      <View style={[styles.group, { backgroundColor: colors.surface }]}>
+        <TextInput
+          value={phone}
+          onChangeText={setPhone}
+          placeholder="Mobile number"
+          placeholderTextColor={colors.tertiary}
+          keyboardType="phone-pad"
+          autoCorrect={false}
+          style={[styles.input, { color: colors.label, borderBottomColor: colors.separator }]}
+        />
+        {challengeId ? (
+          <TextInput
+            value={otp}
+            onChangeText={setOtp}
+            placeholder="One-time code"
+            placeholderTextColor={colors.tertiary}
+            keyboardType="number-pad"
+            style={[styles.input, { color: colors.label, borderBottomColor: "transparent" }]}
+          />
+        ) : null}
       </View>
+
+      {denied || error ? (
+        <Text style={[styles.error, { color: colors.negative }]}>{error ?? "This account is not authorised for Founder."}</Text>
+      ) : null}
+
+      <Pressable
+        onPress={challengeId ? confirm : sendCode}
+        disabled={busy || phone.trim().length < 10}
+        style={[styles.button, { backgroundColor: colors.label, opacity: busy ? 0.6 : 1 }]}
+      >
+        {busy ? (
+          <ActivityIndicator color={colors.canvas} />
+        ) : (
+          <Text style={[styles.buttonLabel, { color: colors.canvas }]}>
+            {challengeId ? "Continue" : "Send code"}
+          </Text>
+        )}
+      </Pressable>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
-  inner: { flex: 1, justifyContent: "center", padding: spacing.xxl },
-  brand: { ...typeScale.brand, textAlign: "center" },
-  logo: { ...typeScale.display, textAlign: "center", marginTop: 8 },
-  tag: { ...typeScale.meta, textAlign: "center", marginTop: 6, marginBottom: spacing.xxl },
-  label: { ...typeScale.meta, marginBottom: spacing.md },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.panel,
-    borderRadius: radius.md,
-    paddingVertical: 14,
-    paddingHorizontal: spacing.lg,
-    fontSize: 16,
-    color: colors.ink,
-    marginBottom: spacing.lg,
-  },
-  otpInput: { fontSize: 22, letterSpacing: 8, textAlign: "center", fontWeight: "700" },
-  button: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: colors.panelAlt,
-    borderRadius: radius.md,
-    paddingVertical: 15,
-    borderWidth: 1,
-    borderColor: colors.line,
-  },
-  buttonText: { color: colors.ink, fontWeight: "700", fontSize: 15.5 },
-  link: { textAlign: "center", color: colors.accent, marginTop: spacing.lg, fontWeight: "600" },
-  hint: { ...typeScale.micro, marginTop: spacing.xl, lineHeight: 16, textAlign: "center" },
+  root: { flex: 1, paddingHorizontal: 20 },
+  kicker: { fontSize: 13, fontWeight: "600", letterSpacing: 1.4, marginTop: 24 },
+  title: { fontSize: 34, fontWeight: "700", marginTop: 6, letterSpacing: 0.3 },
+  lede: { fontSize: 17, marginTop: 8, lineHeight: 24 },
+  group: { marginTop: 32, borderRadius: 12, overflow: "hidden" },
+  input: { fontSize: 17, paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },
+  error: { marginTop: 16, fontSize: 15 },
+  button: { marginTop: 24, borderRadius: 12, minHeight: 50, alignItems: "center", justifyContent: "center" },
+  buttonLabel: { fontSize: 17, fontWeight: "600" },
 });

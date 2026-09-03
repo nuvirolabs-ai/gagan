@@ -16,7 +16,7 @@ router.use(requireAdmin);
 
 router.get("/retailers", async (_req, res) => {
   const retailers = await prisma.retailer.findMany({
-    include: { tier: true, salesRep: true },
+    include: { tier: true, salesRep: true, group: true, transporter: true, beat: true, buyerCategory: true, buyerSubCategory: true },
     orderBy: { name: "asc" },
   });
   const summary = await Promise.all(retailers.map(async (r) => {
@@ -26,6 +26,17 @@ router.get("/retailers", async (_req, res) => {
       name: r.name,
       phone: r.phone,
       shopAddress: r.shopAddress,
+      contactPerson: r.contactPerson,
+      deliveryCity: r.deliveryCity,
+      grade: r.grade,
+      paymentTermDays: r.paymentTermDays,
+      gstin: r.gstin,
+      upiId: r.upiId,
+      group: r.group ? { id: r.group.id, name: r.group.name } : null,
+      transporter: r.transporter ? { id: r.transporter.id, name: r.transporter.name } : null,
+      beat: r.beat ? { id: r.beat.id, name: r.beat.name } : null,
+      buyerCategory: r.buyerCategory ? { id: r.buyerCategory.id, name: r.buyerCategory.name } : null,
+      buyerSubCategory: r.buyerSubCategory ? { id: r.buyerSubCategory.id, name: r.buyerSubCategory.name } : null,
       tier: { id: r.tier.id, name: r.tier.name },
       salesRep: r.salesRep ? { id: r.salesRep.id, name: r.salesRep.name } : null,
       creditLimit: financial.creditLimit,
@@ -44,6 +55,11 @@ router.get("/retailers/:id", async (req, res) => {
     include: {
       tier: true,
       salesRep: true,
+      group: true,
+      transporter: true,
+      beat: true,
+      buyerCategory: true,
+      buyerSubCategory: true,
       priceOverrides: { include: { variant: { include: { product: true } } } },
     },
   });

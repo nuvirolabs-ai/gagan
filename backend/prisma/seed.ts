@@ -4,6 +4,7 @@ import { recomputeOverdue } from "../src/lib/ageing";
 import { SOP_V4_POLICY, serializePolicy } from "../src/modules/credit/policy";
 import { REASON_CATALOG } from "../src/modules/credit/reasonCodes";
 import { ROLE_DEFINITIONS } from "../src/modules/identity/roleCatalog";
+import { ensureRetailerMasters } from "../src/modules/retailers/retailerMasters";
 
 const prisma = new PrismaClient();
 
@@ -19,6 +20,7 @@ function inputJson(value: unknown): Prisma.InputJsonValue {
 
 async function main() {
   // Wipe transactional data so the seed is repeatable.
+  await prisma.retailerProposal.deleteMany();
   await prisma.dispatchAuthorization.deleteMany();
   await prisma.salesVisit.deleteMany();
   await prisma.retailerLocationHistory.deleteMany();
@@ -73,6 +75,11 @@ async function main() {
   await prisma.product.deleteMany();
   await prisma.scheme.deleteMany();
   await prisma.retailer.deleteMany();
+  await prisma.buyerSubCategory.deleteMany();
+  await prisma.buyerCategory.deleteMany();
+  await prisma.beat.deleteMany();
+  await prisma.transporter.deleteMany();
+  await prisma.retailerGroup.deleteMany();
   await prisma.salesRep.deleteMany();
   await prisma.tier.deleteMany();
 
@@ -107,7 +114,16 @@ async function main() {
   await prisma.workingCalendar.createMany({ data: workingDays });
 
   const rep = await prisma.salesRep.create({
-    data: { name: "Ravi Kumar", phone: "9812345670", territory: "Pune North" },
+    data: { name: "Ravi Kumar", phone: "9812345670", territory: "Indore North" },
+  });
+
+  await ensureRetailerMasters(prisma);
+  const group = await prisma.retailerGroup.findFirstOrThrow({ where: { name: "Kirana Independent" } });
+  const transporter = await prisma.transporter.findFirstOrThrow({ where: { name: "Local Tempo Palasia" } });
+  const beat = await prisma.beat.findFirstOrThrow({ where: { name: "Palasia / New Palasia" } });
+  const buyerCategory = await prisma.buyerCategory.findFirstOrThrow({ where: { name: "Retailer" } });
+  const buyerSubCategory = await prisma.buyerSubCategory.findFirstOrThrow({
+    where: { name: "Kirana", categoryId: buyerCategory.id },
   });
 
   const admin = await prisma.adminUser.upsert({
@@ -211,16 +227,32 @@ async function main() {
   const retailer = await prisma.retailer.create({
     data: {
       name: "Mahesh Store",
-      shopAddress: "12 Market Road, Pune",
+      shopAddress: "12 Palasia Square, Indore",
       phone: "9999999999",
       status: "active",
       tierId: tierA.id,
       salesRepId: rep.id,
       creditLimit: 100000,
-      // Balance and overdue are derived below from the seeded invoices, so the
-      // demo data reconciles instead of being asserted.
+      paymentTermDays: 21,
       currentBalance: 0,
       overdueAmount: 0,
+      groupId: group.id,
+      contactPerson: "Mahesh Sharma",
+      telephone: "07314001234",
+      transporterId: transporter.id,
+      pin: "452001",
+      tehsil: "Indore",
+      district: "Indore",
+      state: "Madhya Pradesh",
+      deliveryCity: "Indore",
+      beatId: beat.id,
+      shopTenureYears: 12,
+      gstin: "23AABCU9603R1ZX",
+      aadhaarNumber: "234567890123",
+      grade: "A",
+      buyerCategoryId: buyerCategory.id,
+      buyerSubCategoryId: buyerSubCategory.id,
+      upiId: "maheshstore@okaxis",
     },
   });
   await prisma.retailerLocation.create({
@@ -376,6 +408,10 @@ async function main() {
   await prisma.retailer.update({
     where: { id: retailer.id },
     data: { currentBalance: runningBalance },
+  });
+
+  await prisma.retailerContact.create({
+    data: { retailerId: retailer.id, name: "Mahesh Sharma", phone: "9999999999", role: "owner", isPrimary: true },
   });
 
   await prisma.notification.createMany({

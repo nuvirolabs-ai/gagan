@@ -133,6 +133,12 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
           >
             <Ionicons name="call" size={17} color={colors.onDark} />
           </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.editBtn}
+            onPress={() => navigation.navigate("EditRetailer", { retailerId: retailer.id })}
+          >
+            <Ionicons name="create-outline" size={17} color={colors.green} />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.kycCard}>
@@ -314,6 +320,14 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: radius.pill,
     backgroundColor: colors.greenDeep,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  editBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.pill,
+    backgroundColor: colors.greenSoft,
     alignItems: "center",
     justifyContent: "center",
   },

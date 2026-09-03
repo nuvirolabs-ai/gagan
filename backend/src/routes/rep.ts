@@ -162,6 +162,18 @@ router.get("/retailers/:id", requireRep, async (req: RepRequest, res) => {
     financialSummaryFor(prisma, retailer.id),
   ]);
 
+  const profile = await prisma.retailer.findUnique({
+    where: { id: retailer.id },
+    include: {
+      group: { select: { id: true, name: true } },
+      transporter: { select: { id: true, name: true } },
+      beat: { select: { id: true, name: true } },
+      buyerCategory: { select: { id: true, name: true } },
+      buyerSubCategory: { select: { id: true, name: true } },
+      salesRep: { select: { id: true, name: true } },
+    },
+  });
+
   const limit = financialSummary?.creditLimit ?? Number(retailer.creditLimit);
   const balance = financialSummary?.creditUsed ?? Number(retailer.currentBalance);
 
@@ -173,6 +185,33 @@ router.get("/retailers/:id", requireRep, async (req: RepRequest, res) => {
       shopAddress: retailer.shopAddress,
       tier: tier?.name ?? "—",
       lifecycle: retailer.status,
+      contactPerson: profile?.contactPerson ?? null,
+      telephone: profile?.telephone ?? null,
+      pin: profile?.pin ?? null,
+      tehsil: profile?.tehsil ?? null,
+      district: profile?.district ?? null,
+      state: profile?.state ?? null,
+      deliveryCity: profile?.deliveryCity ?? null,
+      shopTenureYears: profile?.shopTenureYears ?? null,
+      gstin: profile?.gstin ?? null,
+      aadhaarNumber: profile?.aadhaarNumber ?? null,
+      aadhaarPhotoAssetId: profile?.aadhaarPhotoAssetId ?? null,
+      paymentTermDays: profile?.paymentTermDays ?? null,
+      creditLimit: limit,
+      grade: profile?.grade ?? null,
+      upiId: profile?.upiId ?? null,
+      group: profile?.group ?? null,
+      groupId: profile?.groupId ?? null,
+      transporter: profile?.transporter ?? null,
+      transporterId: profile?.transporterId ?? null,
+      beat: profile?.beat ?? null,
+      beatId: profile?.beatId ?? null,
+      buyerCategory: profile?.buyerCategory ?? null,
+      buyerCategoryId: profile?.buyerCategoryId ?? null,
+      buyerSubCategory: profile?.buyerSubCategory ?? null,
+      buyerSubCategoryId: profile?.buyerSubCategoryId ?? null,
+      salesmanRepId: profile?.salesRepId ?? null,
+      salesman: profile?.salesRep ?? null,
     },
     kyc: { ...kycCase, legacyVerified: creditProfile?.kycVerifiedAt != null },
     credit: {

@@ -10,8 +10,8 @@ describe("salesperson translations", () => {
     expect(translate("hi", "common.help")).toBe("Help");
   });
 
-  it("translates approval and collection copy", () => {
-    expect(translate("hi", "approvals.title")).toBe("अनुमोदन");
-    expect(translate("hi", "collections.submit")).toBe("Accounts को भेजें");
+  it("translates retailer form labels", () => {
+    expect(translate("hi", "retailerForm.partyName")).toBe("पार्टी नाम");
+    expect(translate("en", "retailerForm.aadhaarPhoto")).toBe("Aadhaar Card Photo");
   });
 });

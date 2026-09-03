@@ -77,6 +77,16 @@ describe("staff auth API", () => {
     expect(request).toHaveBeenNthCalledWith(2, "/rep/kyc/case-1/submit", expect.objectContaining({ method: "POST" }), true);
   });
 
+  it("proposes a retailer and updates assigned commercial fields", async () => {
+    const request = vi.fn().mockResolvedValue({ proposal: { id: "proposal-1" } });
+    const store = { load: vi.fn(), save: vi.fn(), clear: vi.fn() };
+    const api = createStaffApi(request, store);
+    await api.proposeRetailer({ partyName: "Sharma Kirana", creditLimit: 40000, grade: "A", paymentTermDays: 21 });
+    await api.updateRetailerProfile("retailer-1", { creditLimit: 50000, grade: "B", paymentTermDays: 30 });
+    expect(request).toHaveBeenNthCalledWith(1, "/rep/retailer-proposals", expect.objectContaining({ method: "POST" }), true);
+    expect(request).toHaveBeenNthCalledWith(2, "/rep/retailers/retailer-1/profile", expect.objectContaining({ method: "PATCH" }), true);
+  });
+
   it("sends receipt bytes without exposing a storage key", async () => {
     const request = vi.fn().mockResolvedValue({ submission: { id: "submission-1" } });
     const store = { load: vi.fn(), save: vi.fn(), clear: vi.fn() };

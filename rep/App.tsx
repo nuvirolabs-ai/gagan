@@ -21,8 +21,11 @@ import ApprovalsScreen from "./src/screens/ApprovalsScreen";
 import ApprovalDetailScreen from "./src/screens/ApprovalDetailScreen";
 import RatingReviewsScreen from "./src/screens/RatingReviewsScreen";
 import KycCaptureScreen from "./src/screens/KycCaptureScreen";
+import AddRetailerScreen from "./src/screens/AddRetailerScreen";
+import EditRetailerScreen from "./src/screens/EditRetailerScreen";
 import { staffCapabilities } from "./src/auth/staffCapabilities";
 import LanguageSelectionScreen from "./src/screens/LanguageSelectionScreen";
+import { ocean } from "./src/screens/retailerForm/ocean";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -119,6 +122,30 @@ function RootNavigator() {
                 options={{ title: t("orders.new"), headerBackTitle: t("common.back") }}
               />
               <Stack.Screen name="KycCapture" component={KycCaptureScreen} options={{ title: t("kyc.title"), headerBackTitle: t("retailer.title") }} />
+              <Stack.Screen
+                name="AddRetailer"
+                component={AddRetailerScreen}
+                options={{
+                  title: t("retailerForm.addTitle"),
+                  headerBackTitle: t("tabs.retailers"),
+                  headerStyle: { backgroundColor: ocean.navy },
+                  headerTintColor: ocean.sky,
+                  headerTitleStyle: { color: ocean.ink, fontWeight: "700" },
+                  contentStyle: { backgroundColor: ocean.navy },
+                }}
+              />
+              <Stack.Screen
+                name="EditRetailer"
+                component={EditRetailerScreen}
+                options={{
+                  title: t("retailerForm.editTitle"),
+                  headerBackTitle: t("retailer.title"),
+                  headerStyle: { backgroundColor: ocean.navy },
+                  headerTintColor: ocean.sky,
+                  headerTitleStyle: { color: ocean.ink, fontWeight: "700" },
+                  contentStyle: { backgroundColor: ocean.navy },
+                }}
+              />
             </>
           )}
           {capabilities.canApprove && (

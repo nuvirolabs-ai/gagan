@@ -5,18 +5,29 @@ import { api, inr } from "../api";
 export default function Retailers() {
   const [retailers, setRetailers] = useState<any[]>([]);
   const [tiers, setTiers] = useState<any[]>([]);
+  const [proposals, setProposals] = useState<any[]>([]);
+  const [selectedProposal, setSelectedProposal] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ name: "", phone: "", shopAddress: "", tierId: "", creditLimit: "" });
+  const [reason, setReason] = useState("");
+  const [challengeId, setChallengeId] = useState("");
+  const [otp, setOtp] = useState("");
+  const [pendingDecision, setPendingDecision] = useState<"approved" | "rejected" | null>(null);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [r, t] = await Promise.all([api.retailers(), api.tiers()]);
+      const [r, t, p] = await Promise.all([
+        api.retailers().catch(() => ({ retailers: [] })),
+        api.tiers().catch(() => ({ tiers: [] })),
+        api.retailerProposals().catch(() => ({ proposals: [] })),
+      ]);
       setRetailers(r.retailers);
       setTiers(t.tiers);
+      setProposals(p.proposals ?? []);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load retailers");
@@ -75,6 +86,42 @@ export default function Retailers() {
     }
   };
 
+  const beginProposal = async (next: "approved" | "rejected") => {
+    if (next === "rejected" && reason.trim().length < 5) {
+      setError("Add a review reason (at least 5 characters).");
+      return;
+    }
+    try {
+      const challenge = await api.requestAdminStepUp();
+      setChallengeId(challenge.challengeId);
+      setOtp("");
+      setPendingDecision(next);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not start verification");
+    }
+  };
+
+  const verifyProposal = async () => {
+    if (!selectedProposal || !pendingDecision || otp.length !== 6) return;
+    try {
+      await api.completeAdminStepUp(challengeId, otp);
+      if (pendingDecision === "approved") {
+        await api.approveRetailerProposal(selectedProposal.id, reason.trim() || "Approved");
+        setNotice(`${selectedProposal.partyName} is now a retailer.`);
+      } else {
+        await api.rejectRetailerProposal(selectedProposal.id, reason.trim());
+        setNotice(`${selectedProposal.partyName} was rejected.`);
+      }
+      setSelectedProposal(null);
+      setPendingDecision(null);
+      setReason("");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not decide proposal");
+    }
+  };
+
   return (
     <div>
       <div className="between" style={{ marginBottom: 18 }}>
@@ -91,6 +138,73 @@ export default function Retailers() {
 
       {error && <div className="banner error">{error}</div>}
       {notice && <div className="banner success">{notice}</div>}
+
+      {proposals.length > 0 && (
+        <section className="card" style={{ marginBottom: 18 }}>
+          <h3 style={{ marginTop: 0 }}>Pending retailer proposals</h3>
+          <div className="approval-layout">
+            <div className="approval-list">
+              {proposals.map((proposal) => (
+                <button
+                  key={proposal.id}
+                  className={`approval-row ${selectedProposal?.id === proposal.id ? "selected" : ""}`}
+                  onClick={() => { setSelectedProposal(proposal); setPendingDecision(null); setReason(""); }}
+                >
+                  <span>
+                    <strong>{proposal.partyName}</strong>
+                    <small>{proposal.mobile} · {proposal.deliveryCity} · Grade {proposal.grade}</small>
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="approval-detail">
+              {!selectedProposal ? <div className="empty-state">Select a proposal to review the 24 fields.</div> : (
+                <>
+                  <h2>{selectedProposal.partyName}</h2>
+                  <dl className="muted small" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <div>Group: {selectedProposal.group?.name}</div>
+                    <div>Contact: {selectedProposal.contactPerson}</div>
+                    <div>Mobile: {selectedProposal.mobile}</div>
+                    <div>Telephone: {selectedProposal.telephone || "—"}</div>
+                    <div>Transporter: {selectedProposal.transporter?.name}</div>
+                    <div>Address: {selectedProposal.address1}</div>
+                    <div>PIN: {selectedProposal.pin || "—"}</div>
+                    <div>Tehsil: {selectedProposal.tehsil || "—"}</div>
+                    <div>District: {selectedProposal.district || "—"}</div>
+                    <div>State: {selectedProposal.state || "—"}</div>
+                    <div>Delivery city: {selectedProposal.deliveryCity}</div>
+                    <div>Salesman: {selectedProposal.salesman?.name}</div>
+                    <div>Beat: {selectedProposal.beat?.name || "—"}</div>
+                    <div>Tenure: {selectedProposal.shopTenureYears} years</div>
+                    <div>GSTIN: {selectedProposal.gstin || "—"}</div>
+                    <div>Aadhaar: {selectedProposal.aadhaarNumber}</div>
+                    <div>Aadhaar photo: {selectedProposal.aadhaarPhoto ? "Attached" : "Missing"}</div>
+                    <div>Payment terms: {selectedProposal.paymentTermDays} days</div>
+                    <div>Credit limit: {inr(Number(selectedProposal.creditLimit))}</div>
+                    <div>Grade: {selectedProposal.grade}</div>
+                    <div>Category: {selectedProposal.buyerCategory?.name}</div>
+                    <div>Sub category: {selectedProposal.buyerSubCategory?.name || "—"}</div>
+                    <div>UPI: {selectedProposal.upiId || "—"}</div>
+                  </dl>
+                  <label className="field"><span>Review reason</span><textarea aria-label="Review reason" rows={3} value={reason} onChange={(event) => setReason(event.target.value)} /></label>
+                  {!pendingDecision ? (
+                    <div className="approval-actions">
+                      <button className="danger-outline" onClick={() => void beginProposal("rejected")}>Reject</button>
+                      <button onClick={() => void beginProposal("approved")}>Approve retailer</button>
+                    </div>
+                  ) : (
+                    <div className="step-up-box">
+                      <strong>Verify this sensitive action</strong>
+                      <label className="field"><span>Six-digit code</span><input aria-label="Six-digit code" inputMode="numeric" maxLength={6} value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))} /></label>
+                      <button disabled={otp.length !== 6} onClick={() => void verifyProposal()}>Verify and {pendingDecision === "approved" ? "approve" : "reject"}</button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       {creating && (
         <form className="card" onSubmit={create}>
@@ -171,7 +285,7 @@ export default function Retailers() {
                 <tr key={r.id}>
                   <td>
                     <div style={{ fontWeight: 600 }}>{r.name}</div>
-                    <div className="muted small">{r.phone}</div>
+                    <div className="muted small">{r.phone}{r.deliveryCity ? ` · ${r.deliveryCity}` : ""}{r.grade ? ` · Grade ${r.grade}` : ""}{r.group?.name ? ` · ${r.group.name}` : ""}</div>
                   </td>
                   <td>
                     <select

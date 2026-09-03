@@ -5,6 +5,7 @@ Implementation of [gagan-retailer-app-spec.md](gagan-retailer-app-spec.md).
 - `backend/` — Node + Express + TypeScript, Prisma, PostgreSQL
 - `mobile/` — Expo — **Gagan Retailer** app (`com.gagan.retailer`)
 - `rep/` — Expo — **Gagan Sales** app (`com.gagan.sales`)
+- `founder/` — Expo — **Gagan Founders** pulse (`com.gagan.founders`) — Quiet Instrument Today + Series
 - `admin/` — Vite + React — ops dashboard (web)
 
 ## App boundaries
@@ -85,7 +86,7 @@ Install dependencies in each package, then run the same repository gate used by 
 bash scripts/verify.sh
 ```
 
-The gate type-checks, tests, and builds the backend; validates Prisma; type-checks both Expo apps; and lints/builds the admin web app. CI additionally applies every Prisma migration to an empty PostgreSQL 16 database before running the gate.
+The gate type-checks, tests, and builds the backend; validates Prisma; type-checks the Expo apps; and lints/builds the admin web app. CI additionally applies every Prisma migration to an empty PostgreSQL 16 database before running the gate.
 
 ## Retailer app
 
@@ -102,6 +103,16 @@ cd rep && npm install && npx expo start --ios --port 8092
 The iOS simulator reaches the backend at `localhost`; the Android emulator uses `10.0.2.2`. For a
 physical device, change `BASE_URL` in [client.ts](mobile/src/api/client.ts) to the host machine's LAN IP.
 
+## Founders pulse
+
+Quiet Instrument dark board — **Today** (CEO ops) and **Series** (A+C hybrid charts). Queue is a stub pending chairman lock. You maps to Settings.
+
+```bash
+cd founder && npm install && npx expo start --ios --port 8093
+```
+
+CEO KPI aggregates are not on the API yet. The app maps `founder/src/fixtures/pulse.ts` into a typed view model (`FounderPulsePayload` / GET `/founder/pulse` when that route lands). Staff OTP still uses `/rep/auth`.
+
 ## Admin dashboard
 
 ```bash
@@ -114,6 +125,7 @@ cd admin && npm install && npm run dev
 |---|---|
 | Retailer (`mobile/`) | phone `9999999999`, OTP `123456` |
 | Sales (`rep/`) | phone `9812345670`, OTP `123456` |
+| Founders (`founder/`) | phone `9000000001`, OTP `123456` (local pulse fixture) |
 | Admin (web) | `admin@gagan.test` / `admin123` |
 
 OTP is mocked — a real SMS provider slots into [auth.ts](backend/src/routes/auth.ts).

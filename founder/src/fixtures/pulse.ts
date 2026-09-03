@@ -1,0 +1,125 @@
+import type { FounderPulsePayload } from "../pulse/types";
+import { lakhs, crores } from "../pulse/format";
+
+/** Chairman-lock mock numbers (Today dense + Series A+C). As-of Thu 3 Sep 2026. */
+export const PULSE_FIXTURE: FounderPulsePayload = {
+  asOf: "2026-09-03T09:30:00+05:30",
+  viewerName: "Ananya",
+  hub: "Indore hub",
+  regionLabel: "West + Central",
+  health: {
+    tone: "amber",
+    label: "Amber",
+    detail: "38/42 on floor · sales ahead · 1 critical",
+  },
+  present: {
+    onFloor: 38,
+    headcount: 42,
+    dayAbs: 2,
+    weekAbs: 5,
+    monthAbs: null,
+    weekAvg: 36,
+    series14: [32, 33, 34, 33, 35, 36, 36, 35, 36, 37, 36, 37, 38, 38],
+    heatWeek: [0.42, 0.5, 0.55, 0.62, 0.72, 0.82, 0.92],
+    heatMonth: [
+      0.38, 0.4, 0.42, 0.36, 0.44, 0.48, 0.5, 0.46, 0.52, 0.55, 0.58, 0.5, 0.6, 0.64, 0.68, 0.62, 0.7, 0.74, 0.78,
+      0.72, 0.8, 0.82, 0.86, 0.8, 0.88, 0.9, 0.84, 0.92, 0.94, 0.9,
+    ],
+  },
+  sales: {
+    total14: lakhs(42.6),
+    prior14: lakhs(39.4),
+    day: lakhs(3.4),
+    week: lakhs(18.4),
+    priorWeek: lakhs(17.0),
+    month: lakhs(78.2),
+    priorMonth: lakhs(74.7),
+    dayPct: 6.1,
+    weekPct: 8.2,
+    monthPct: 4.7,
+    series14: [
+      lakhs(2.18),
+      lakhs(2.32),
+      lakhs(2.48),
+      lakhs(2.41),
+      lakhs(2.72),
+      lakhs(2.95),
+      lakhs(3.12),
+      lakhs(2.62),
+      lakhs(2.95),
+      lakhs(3.18),
+      lakhs(3.08),
+      lakhs(3.22),
+      lakhs(3.32),
+      lakhs(3.4),
+    ],
+    weekCurrent: [lakhs(2.2), lakhs(2.32), lakhs(2.48), lakhs(2.65), lakhs(2.82), lakhs(2.95), lakhs(2.98)],
+    weekPrior: [lakhs(2.18), lakhs(2.25), lakhs(2.32), lakhs(2.45), lakhs(2.52), lakhs(2.58), lakhs(2.7)],
+    monthCurrent: [
+      2.15, 2.22, 2.18, 2.3, 2.42, 2.38, 2.55, 2.48, 2.62, 2.7, 2.58, 2.72, 2.8, 2.68, 2.85, 2.92, 2.78, 2.95, 3.02,
+      2.88, 3.08, 3.12, 3.0, 3.18, 3.22, 3.1, 3.28, 3.32, 3.38, 3.4,
+    ].map(lakhs),
+    monthPrior: [
+      2.08, 2.12, 2.1, 2.2, 2.28, 2.25, 2.38, 2.32, 2.45, 2.5, 2.4, 2.55, 2.62, 2.52, 2.68, 2.72, 2.6, 2.78, 2.82, 2.7,
+      2.88, 2.92, 2.8, 2.98, 3.02, 2.9, 3.08, 3.12, 3.18, 3.22,
+    ].map(lakhs),
+    dayCurrent: [0.18, 0.22, 0.28, 0.32, 0.38, 0.42, 0.31, 0.28, 0.25, 0.22, 0.26, 0.28].map(lakhs),
+    dayPrior: [0.16, 0.2, 0.25, 0.3, 0.35, 0.38, 0.29, 0.26, 0.24, 0.2, 0.24, 0.26].map(lakhs),
+  },
+  otif: {
+    todayPct: 87,
+    weekPct: 86,
+    monthPct: 84,
+    priorDayPct: 86,
+    priorWeekPct: 86,
+    priorMonthPct: 86,
+    dayPp: 1,
+    weekPp: null,
+    monthPp: -2,
+    pending: 14,
+    series14: [84, 85, 84, 86, 85, 87, 86, 85, 86, 87, 86, 86, 87, 87],
+  },
+  payments: {
+    total14: lakhs(31.2),
+    day: lakhs(2.4),
+    week: lakhs(14.1),
+    month: lakhs(58.6),
+    dayPct: 3,
+    weekPct: 3,
+    monthPct: 5,
+    series14: [1.8, 1.9, 2.0, 2.05, 2.15, 2.2, 2.25, 2.15, 2.25, 2.3, 2.28, 2.32, 2.35, 2.4].map(lakhs),
+    weekSeries: [1.7, 1.82, 1.9, 2.0, 2.12, 2.22, 2.34].map(lakhs),
+    monthSeries: [
+      1.55, 1.58, 1.6, 1.64, 1.68, 1.7, 1.74, 1.72, 1.78, 1.82, 1.8, 1.86, 1.9, 1.88, 1.94, 1.98, 1.96, 2.02, 2.06,
+      2.04, 2.1, 2.14, 2.12, 2.18, 2.22, 2.2, 2.26, 2.3, 2.32, 2.4,
+    ].map(lakhs),
+    daySeries: [0.12, 0.14, 0.16, 0.18, 0.22, 0.24, 0.2, 0.18, 0.16, 0.15, 0.17, 0.19].map(lakhs),
+  },
+  inventory: {
+    value: crores(1.84),
+    priorWeek: crores(1.88),
+    skuUnits: 12400,
+    dayPct: null,
+    weekPct: -2,
+    monthPct: 1,
+    series14: [1.9, 1.89, 1.88, 1.88, 1.87, 1.86, 1.86, 1.85, 1.85, 1.84, 1.84, 1.84, 1.84, 1.84].map(crores),
+  },
+  needsYou: [
+    { kind: "decide", title: "Credit exception", value: "₹78k", meta: "Executive Store · 16h" },
+    { kind: "crit", title: "SAP outbox", value: "8", meta: "8 failures · 3d" },
+  ],
+  readoutToday: "Floor nearly full; sales +8% week; payments holding; inventory easing — watch OTIF month drift.",
+  readoutSeries: {
+    day: "Today sales hold the climb; present 38/42; payments in; OTIF 87% — inventory still easing.",
+    week: "Week sales climb holds; present recovering; payments steady; inventory easing — OTIF soft vs prior, watch month drift.",
+    month: "Month sales +4.7%; payments +5%; inventory +1% — OTIF 84% is the drift to watch.",
+  },
+};
+
+export const SERIES_AXIS: Record<"day" | "week" | "month", [string, string, string]> = {
+  day: ["6a", "2p", "8p"],
+  week: ["28 Aug", "31 Aug", "3 Sep"],
+  month: ["5 Aug", "20 Aug", "3 Sep"],
+};
+
+export const SALES_14D_AXIS: [string, string, string] = ["21 Aug", "28 Aug", "3 Sep"];

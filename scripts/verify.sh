@@ -12,6 +12,8 @@ npm --prefix "$repo_root/mobile" run typecheck
 npm --prefix "$repo_root/mobile" test
 npm --prefix "$repo_root/rep" run typecheck
 npm --prefix "$repo_root/rep" test
+npm --prefix "$repo_root/founder" run typecheck
+npm --prefix "$repo_root/founder" test
 npm --prefix "$repo_root/admin" run lint
 npm --prefix "$repo_root/admin" test
 npm --prefix "$repo_root/admin" run build

@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Gagan Founders",
+    "slug": "gagan-founders",
+    "scheme": "gaganfounders",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.gagan.founders"
+    },
+    "android": {
+      "package": "com.gagan.founders",
+      "adaptiveIcon": {
+        "backgroundColor": "#0C0E12",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "backgroundColor": "#0C0E12"
+    },
+    "plugins": ["expo-secure-store"]
+  }
+}

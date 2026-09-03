@@ -1,5 +1,9 @@
 # Gagan Admin visual audit
 
+> Historical baseline audit. The first-pass observations below are retained as
+> the before-state record; the binding current system is documented in
+> `ADMIN_VISUAL_SYSTEM.md` and `ADMIN_OPERATIONAL_INSTRUMENT_LOCK.md`.
+
 ## Scope
 
 This audit covers the existing Admin frontend in `admin/` and the first visual

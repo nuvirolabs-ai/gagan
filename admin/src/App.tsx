@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, NavLink, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
 import { AuthProvider } from "./AuthContext";
 import { useAuth } from "./useAuth";
@@ -118,6 +118,15 @@ const NAV: NavGroup[] = [
 
 const FLAT = NAV.flatMap((group) => group.items);
 
+const NAV_GLYPHS: Record<string, string> = {
+  home: "⌂",
+  work: "◷",
+  sales: "↗",
+  finance: "₹",
+  field: "⌖",
+  system: "·",
+};
+
 function canSee(permissions: string[], needed: string[]) {
   return needed.some((permission) => permissions.includes(permission));
 }
@@ -129,6 +138,22 @@ function Guard({ anyOf, children }: { anyOf: string[]; children: ReactNode }) {
     return <Navigate to={available[0]?.to ?? "/no-access"} replace />;
   }
   return children;
+}
+
+function pageLabel(pathname: string) {
+  const route = FLAT.find((item) => item.to === pathname) ?? FLAT.find((item) => item.to !== "/" && pathname.startsWith(`${item.to}/`));
+  return route?.label ?? "Admin";
+}
+
+function TopBar() {
+  const { admin } = useAuth();
+  const location = useLocation();
+  const initials = (admin?.name ?? "Ops Admin").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+  return <header className="app-topbar"><div className="app-crumb"><strong>Gagan</strong><span>/</span><span>{pageLabel(location.pathname)}</span></div><div className="app-top-actions"><span className="environment-tag"><i /> staging · read-only</span><span className="app-avatar" aria-label={admin?.name ?? "Admin"}>{initials}</span></div></header>;
+}
+
+function LoadingWorkspace() {
+  return <div className="layout"><aside className="sidebar"><div className="brand">Gagan</div><div className="brand-sub">Operations console</div><div className="sidebar-loading-lines"><span /><span /><span /><span /><span /></div><div className="sidebar-foot"><div className="sidebar-user">Preparing workspace</div></div></aside><main className="main"><div className="app-topbar"><div className="app-crumb"><strong>Gagan</strong><span>/</span><span>Admin</span></div><span className="environment-tag"><i /> staging</span></div><div className="route-stage instrument-loading"><div className="skeleton skeleton-label" /><div className="skeleton skeleton-title" /><div className="skeleton skeleton-copy" /><div className="skeleton skeleton-flow" /><div className="instrument-grid-skeleton"><div className="skeleton skeleton-panel" /><div className="skeleton skeleton-panel" /><div className="skeleton skeleton-panel" /></div></div></main></div>;
 }
 
 function Shell() {
@@ -143,11 +168,11 @@ function Shell() {
     <div className="layout">
       <aside className="sidebar">
         <div className="brand">Gagan</div>
-        <div className="brand-sub">Business OS</div>
+        <div className="brand-sub">Operations console</div>
         <nav className="nav-groups">
           {groups.map((group) => (
             <div key={group.id} className="nav-group">
-              <div className="nav-group-label">{group.label}</div>
+              <div className="nav-group-label"><span className="nav-group-glyph" aria-hidden="true">{NAV_GLYPHS[group.id] ?? "·"}</span>{group.label}</div>
               {group.items.map((item) => (
                 <NavLink
                   key={item.to}
@@ -155,7 +180,7 @@ function Shell() {
                   end={item.to === "/"}
                   className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
                 >
-                  {item.label}
+                  <span>{item.label}</span>
                 </NavLink>
               ))}
             </div>
@@ -170,7 +195,8 @@ function Shell() {
       </aside>
 
       <main className="main">
-        <Routes>
+        <TopBar />
+        <div className="route-stage"><Routes>
           <Route path="/" element={<Guard anyOf={FLAT.find((item) => item.to === "/")!.permissions}><Dashboard /></Guard>} />
           <Route path="/warehouses" element={<Warehouses />} />
           <Route path="/sap" element={<Guard anyOf={["staff.manage"]}><SapSync /></Guard>} />
@@ -202,7 +228,7 @@ function Shell() {
             element={<div className="empty-state">No portal permissions are assigned.</div>}
           />
           <Route path="*" element={<Navigate to={landingPath} replace />} />
-        </Routes>
+        </Routes></div>
       </main>
     </div>
   );
@@ -211,7 +237,7 @@ function Shell() {
 function Root() {
   const { admin, loading } = useAuth();
   if (loading) {
-    return <div className="empty-state">Loading workspace…</div>;
+    return <LoadingWorkspace />;
   }
   return admin ? <Shell /> : <Login />;
 }

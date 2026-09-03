@@ -8,6 +8,7 @@ export interface DeliveryResolutionInput {
 
 export interface CreateInvoiceForDeliveryInput {
   orderId: string;
+  actorStaffId?: string;
   lines: DeliveryResolutionInput[];
   occurredAt: Date;
   idempotencyKey: string;

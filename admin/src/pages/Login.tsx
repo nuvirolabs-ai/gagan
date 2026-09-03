@@ -25,7 +25,7 @@ export default function Login() {
     <div className="login-wrap">
       <form className="login-card" onSubmit={submit}>
         <div className="brand-mark">Gagan</div>
-        <div className="brand-kicker">Business OS</div>
+        <div className="brand-kicker">Operations console</div>
         <h2 style={{ margin: "0 0 18px", fontSize: 17, fontWeight: 650 }}>Employee sign in</h2>
 
         {error && <div className="banner error">{error}</div>}

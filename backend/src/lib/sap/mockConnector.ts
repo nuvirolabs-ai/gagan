@@ -41,6 +41,17 @@ export class MockSapConnector implements SapConnector {
         priceGroup: "Gold",
         creditLimit: 100000,
       },
+      // Staging-only golden-path customer. This lets the normal customer sync
+      // link the disposable UAT identity before the outbox is drained; it is
+      // never returned by the real Service Layer connector.
+      {
+        sapCustomerId: "SAP-CUST-UAT-1001",
+        name: "[UAT GOLDEN PATH] Sunrise Stores",
+        phone: "9812345698",
+        shopAddress: "101 Demo Market Road, Pune",
+        priceGroup: "Gold",
+        creditLimit: 100000,
+      },
     ];
   }
 

@@ -194,3 +194,30 @@ metric.
 The system should remain compatible with a future `⌘K` command/search surface
 for orders, retailers, products, and employees. This pass documents the
 architecture only; it does not build a command palette.
+
+## Binding status: Operational Instrument
+
+Effective 2026-09-03, **OPERATIONAL INSTRUMENT is the binding Gagan Admin
+visual system**. Future Admin surfaces must use its spatial, typographic,
+data-visualization, interaction, and component grammar. New visual directions
+require explicit founder approval.
+
+The approved reference is the local visual source at
+`http://127.0.0.1:5184/`, captured in
+`docs/admin-operational-instrument-reference/`. Its static scenario is a
+visual reference only; canonical values in the functional Admin continue to
+come from the existing Admin API.
+
+The propagated system has two layers:
+
+1. A shared shell layer: warm mineral canvas, white work surfaces, precise
+   navigation, top bar, system-first typography, tabular numbers, semantic
+   states, restrained borders, stable loading geometry, human empty/error
+   states, and visible focus treatment.
+2. A reference-surface layer: command strips, lifecycle flow maps, impact
+   views, age distributions, operational tables, health matrices, journeys,
+   timelines, and action docks on Work/Home and Orders.
+
+This contract does not authorize new business logic, new data truth, changes to
+permissions, or propagation into the Retailer, Salesperson, Founder, backend,
+or SAP integration surfaces without a separate approved scope.

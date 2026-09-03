@@ -25,6 +25,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await prisma.auditEvent.deleteMany({ where: { subjectId: { in: orderIds } } });
   await prisma.sapOutbox.deleteMany({ where: { referenceId: { in: orderIds } } });
   await prisma.orderItem.deleteMany({ where: { orderId: { in: orderIds } } });
   await prisma.order.deleteMany({ where: { id: { in: orderIds } } });

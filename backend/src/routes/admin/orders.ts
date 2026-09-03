@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { OrderStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
-import { requireAdmin } from "../../lib/adminAuth";
+import { AdminRequest, requireAdmin } from "../../lib/adminAuth";
 import {
   createInvoiceForDelivery,
   InvoiceCreationError,
@@ -35,6 +35,16 @@ const orderInclude = {
   delivery: true,
 } as const;
 
+// Prisma's financial ledger sequence is a BigInt. Keep the API response
+// JSON-safe without changing the stored value or the financial calculation.
+function jsonSafe<T>(value: T): T {
+  return JSON.parse(
+    JSON.stringify(value, (_key, nested) =>
+      typeof nested === "bigint" ? nested.toString() : nested
+    )
+  ) as T;
+}
+
 router.get("/orders", async (req, res) => {
   const status = typeof req.query.status === "string" ? req.query.status : undefined;
   const valid = status && (Object.keys(ALLOWED_NEXT) as string[]).includes(status);
@@ -55,7 +65,7 @@ router.get("/orders/:id", async (req, res) => {
 });
 
 /** Generic forward transition used by approve / reject / pack. */
-async function transition(orderId: string, to: OrderStatus, res: any) {
+async function transition(orderId: string, to: OrderStatus, res: any, actorStaffId: string | null) {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) return res.status(404).json({ error: "Order not found" });
 
@@ -70,24 +80,36 @@ async function transition(orderId: string, to: OrderStatus, res: any) {
     if (!authorization) return res.status(409).json({ error: "dispatch_authorization_required" });
   }
 
-  const updated = await prisma.order.update({
-    where: { id: orderId },
-    data: { status: to },
-    include: orderInclude,
+  const updated = await prisma.$transaction(async (tx) => {
+    const next = await tx.order.update({
+      where: { id: orderId },
+      data: { status: to },
+      include: orderInclude,
+    });
+    await tx.auditEvent.create({
+      data: {
+        actorStaffId,
+        action: `order.${to}`,
+        subjectType: "order",
+        subjectId: orderId,
+        metadata: { from: order.status, to },
+      },
+    });
+    return next;
   });
   res.json({ order: updated });
 }
 
-router.post("/orders/:id/approve", (req, res) => transition(req.params.id, "confirmed", res));
-router.post("/orders/:id/reject", (req, res) => transition(req.params.id, "rejected", res));
-router.post("/orders/:id/pack", (req, res) => transition(req.params.id, "packed", res));
+router.post("/orders/:id/approve", (req: AdminRequest, res) => transition(req.params.id, "confirmed", res, req.staffAuth?.staffId ?? null));
+router.post("/orders/:id/reject", (req: AdminRequest, res) => transition(req.params.id, "rejected", res, req.staffAuth?.staffId ?? null));
+router.post("/orders/:id/pack", (req: AdminRequest, res) => transition(req.params.id, "packed", res, req.staffAuth?.staffId ?? null));
 
 const assignSchema = z.object({
   routeId: z.string().min(1),
   deliverySlot: z.string().datetime().optional(),
 });
 
-router.post("/dispatch/:orderId/assign", async (req, res) => {
+router.post("/dispatch/:orderId/assign", async (req: AdminRequest, res) => {
   const parsed = assignSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
 
@@ -121,11 +143,21 @@ router.post("/dispatch/:orderId/assign", async (req, res) => {
       update: { routeId: parsed.data.routeId, deliverySlot: slot },
       create: { orderId: order.id, routeId: parsed.data.routeId, deliverySlot: slot },
     });
-    return tx.order.update({
+    const next = await tx.order.update({
       where: { id: order.id },
       data: { status: "out_for_delivery", expectedDeliveryAt: slot ?? order.expectedDeliveryAt },
       include: orderInclude,
     });
+    await tx.auditEvent.create({
+      data: {
+        actorStaffId: req.staffAuth?.staffId ?? null,
+        action: "dispatch.assigned",
+        subjectType: "order",
+        subjectId: order.id,
+        metadata: { routeId: parsed.data.routeId, authorizationId: authorization.id },
+      },
+    });
+    return next;
   });
 
   if (!updated) return res.status(409).json({ error: "dispatch_authorization_expired" });
@@ -152,7 +184,7 @@ const podSchema = z.object({
  * entry and moves the retailer's balance. All of it in one transaction so a
  * failure can't leave an invoice without a balance change, or vice versa.
  */
-router.post("/dispatch/:orderId/pod", async (req, res) => {
+router.post("/dispatch/:orderId/pod", async (req: AdminRequest, res) => {
   const parsed = podSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
@@ -200,6 +232,7 @@ router.post("/dispatch/:orderId/pod", async (req, res) => {
         deliveredWeightKg: item.weightDeliveredKg,
       })),
       proof: { podType: parsed.data.podType, capturedAt: occurredAt },
+      ...(req.staffAuth?.staffId ? { actorStaffId: req.staffAuth.staffId } : {}),
     });
     const updated = await prisma.order.findUniqueOrThrow({
       where: { id: order.id },
@@ -207,8 +240,8 @@ router.post("/dispatch/:orderId/pod", async (req, res) => {
     });
     res.json({
       order: updated,
-      invoice,
-      ledgerEntry: invoice.legacyLedgerEntry,
+      invoice: jsonSafe(invoice),
+      ledgerEntry: jsonSafe(invoice.legacyLedgerEntry),
       balanceAfter: Number(invoice.ledgerEntry?.balanceAfter ?? 0),
     });
   } catch (error) {

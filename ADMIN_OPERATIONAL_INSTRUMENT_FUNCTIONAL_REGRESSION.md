@@ -7,16 +7,11 @@ Environment: local Admin at `http://127.0.0.1:5188/`, local backend at `http://1
 
 ## Release conclusion
 
-The approved Admin Operational Instrument visual work is isolated to the Admin frontend and its documentation. No backend source, Prisma schema, worker, mobile app, or canonical business-logic file changed in this branch.
+The approved Admin Operational Instrument visual work is isolated to the Admin frontend and its documentation. The golden-path follow-up added two narrow API/SAP integration fixes, normal-path audit events, and one staging-only mock customer mapping; no Prisma schema, worker, mobile app, or canonical business-policy file changed.
 
-The release gate is **BLOCKED for final staging replacement** because the current local/staging fixture cannot complete a positive order mutation sequence. This is an existing business/data guard, not a regression introduced by the visual work:
+The previously blocked positive path is now **PASS locally** using the clean `[UAT GOLDEN PATH] Sunrise Stores` fixture documented in `GAGAN_GOLDEN_PATH_UAT_REQUIREMENTS.md`. The fixture satisfies the existing credit, KYC, pricing, stock, dispatch, and SAP mapping rules through normal APIs.
 
-- `DispatchAuthorization` has zero active records in the current database.
-- The only open approval is for `[FOUNDER UAT] Executive Store` / `GGN-00000493`.
-- The approval step-up flow reaches the canonical decision endpoint, which returns `credit_reassessment_blocked` for that fixture.
-- The redesigned Orders action reaches the canonical order endpoint, which returns `dispatch_authorization_required` when no active authorization exists.
-
-The read-only order queue, selected-order workspace, API contract, route loading, authentication behavior, and automated regression suites remain healthy. A clean UAT identity with an eligible approval and active dispatch authorization is required before claiming the full approval → confirmed → packed → dispatch → delivery → SAP flow.
+The run exposed and fixed two narrow integration defects: a JSON-unsafe Prisma `BigInt` in the Admin POD response and stale invoice outbox mappings on retry. Neither changed business policy, financial calculations, or state-transition guards.
 
 ## Change-scope audit
 
@@ -54,7 +49,7 @@ The branch also contains the Admin visual audit/system/lock/migration/readiness/
 
 ### Explicitly unchanged
 
-The diff against the staging base contains no changes under `backend/`, `rep/`, `founder/`, Prisma schema/migrations, SAP connector code, worker code, or shared business services. The original checkout at `/Users/tanutejas/Documents/Gagan` was not reset, stashed, cleaned, or modified by this worktree.
+No Prisma schema/migrations, `rep/`, or `founder/` files changed. Backend changes are limited to `backend/src/routes/admin/orders.ts` (JSON-safe POD response and normal order/dispatch audit events), `backend/src/modules/invoicing/invoiceService.ts` and `backend/src/modules/invoicing/types.ts` (delivery audit event actor propagation), `backend/src/lib/sap/outbox.ts` (current-mapping invoice retry and SAP audit events), `backend/src/lib/sap/mockConnector.ts` (staging-only UAT customer), and the delivery route regression test. The original checkout at `/Users/tanutejas/Documents/Gagan` was not reset, stashed, cleaned, or modified by this worktree.
 
 ## Order Pace data boundary
 
@@ -82,14 +77,15 @@ The Home queue ageing treatment continues to derive from canonical `createdAt` t
 | Work / Home | Existing queue endpoints, SAP status, canonical order population | **PASS** | Home loaded with flow, Order Pace, system state, ageing, command strip, and current queues; no console errors. |
 | Orders queue | Existing `api.orders(status)` reads and stage counts/value | **PASS** | Stage rail and table matched current canonical statuses/values; `GGN-00000493` selected successfully. |
 | Order Inspector / workspace | Existing `api.order(id)` read and existing action endpoints | **PASS for read path** | Selected order showed identity, health matrix, journey, blockers, related context, and activity. |
-| Positive order transition | Approve → confirm → pack → assign dispatch → POD/delivery | **BLOCKED** | Existing fixture returned `credit_reassessment_blocked` in approval and `dispatch_authorization_required` in order action; zero active dispatch authorizations exist. No business workaround or direct database insertion was used. |
-| Credit | Approval list, detail, step-up, decision contract | **PASS with fixture guard** | `/approvals` loaded and step-up UI completed; canonical service correctly rejected the current fixture at credit reassessment. |
+| Positive order transition | Create → confirm → pack → assign dispatch → POD/delivery | **PASS** | Refreshed `GGN-00000889` completed through the normal Admin APIs with active authorization issued at allowed order creation. |
+| Credit | Credit snapshot, decision, KYC/limit prerequisites | **PASS** | UAT fixture returned `allowed` with zero outstanding and sufficient credit; existing approval guard remains unchanged and was not bypassed. |
 | Finance / collections | Collections, ledger, correction route reads and backend finance tests | **PASS** | Routes loaded; backend finance/ledger/correction regression coverage passed. No visual branch changed financial calculations. |
-| Inventory / fulfilment | Order state reads, pack/dispatch contracts, inventory backend coverage | **PASS for reads; transition blocked** | Queue and workspace loaded; positive movement is gated by the existing authorization prerequisite. |
+| Inventory / fulfilment | Order state reads, stock validation, pack/dispatch contracts | **PASS** | Fresh WH-001 stock and normal Admin transitions carried the UAT order through packing and dispatch. |
 | Retailers | Retailer list/detail route and API contract | **PASS** | Route sweep loaded `/retailers` without redirect, alert, overflow, or console error. |
 | Field operations | Field team/planning/expenses/issues/locations/visits routes and backend coverage | **PASS for route/read coverage** | All implemented field routes loaded; no visual changes were made to field workflows. |
 | Users / roles | Staff/roles route and backend permission coverage | **PASS for route/read coverage** | Users & Roles route loaded; backend authorization tests passed. |
-| SAP mock / outbox | SAP status route and backend SAP/outbox suite | **PASS for read/contract coverage; E2E blocked** | SAP status loaded and backend SAP/outbox tests passed; a complete order-to-SAP positive mutation could not run without the existing authorization fixture. |
+| SAP mock / outbox | Customer mapping, sales-order/invoice drain, retry | **PASS** | Mock customer sync linked `SAP-CUST-UAT-1001`; refreshed golden-path sales order recorded `MOCK-SO-000889`, DocEntry `900889`, DocNum `910889`; invoice outbox sent; second drain was empty. |
+| Audit / activity | Normal order, dispatch, delivery, and SAP audit events | **PASS** | The refreshed golden-path fixture records six order-level events; the allowed credit path correctly has no approval-request decision event, while KYC approval is recorded on its KYC case. |
 | Import | Existing route/module audit | **NOT APPLICABLE** | No implemented Admin import route was found in the audited route set; no import behavior was changed or claimed. |
 | API/UI consistency | Queue counts, order status/value, flow and Inspector values | **PASS for observed reads** | Browser values matched the canonical API/DB snapshot for the selected order and status rail; no calculation logic was added. |
 
@@ -108,7 +104,7 @@ The Home queue ageing treatment continues to derive from canonical `createdAt` t
 - Tests: **PASS** — 117 test files, 811 tests.
 - Typecheck: **PASS** — `tsc --noEmit`.
 - Production compilation: **PASS** — `tsc`.
-- No backend source was changed by this Admin branch.
+- Backend changes are limited to the response/outbox fixes, normal-path audit events, and staging-only mock mapping documented above.
 
 ## Browser verification
 
@@ -125,18 +121,33 @@ The local preview should remain available at:
 - Admin: `http://127.0.0.1:5188/`
 - Backend health: `http://127.0.0.1:4000/health`
 
+## Golden-path follow-up
+
+The full local golden-path proof is recorded in `GAGAN_GOLDEN_PATH_UAT_REQUIREMENTS.md`:
+
+- Order created through `POST /rep/orders` with normal salesperson authentication and idempotency key.
+- Admin confirmed, packed, assigned dispatch, and captured POD through the existing Admin APIs.
+- POD retry returned the same invoice, proving exactly-once invoice behavior.
+- Customer sync linked the UAT retailer before SAP drain.
+- Sales-order and invoice outbox items were sent through `SAP_MODE=mock`.
+- Final API and PostgreSQL state agree: delivered, invoice total ₹3,150, authorization used, sales order sent, DocEntry `900889`, DocNum `910889`.
+- Second outbox drain returned zero attempts.
+- Audit query returned `order.confirmed`, `order.packed`, `dispatch.assigned`, `delivery.completed`, `sap.sales_order_synced`, and `sap.invoice_synced` for the refreshed fixture.
+
+The first POD call exposed an HTTP serialization defect after the transaction committed; the retry after the narrow fix returned HTTP 200 and the same invoice ID. The invoice retry path also initially exposed the stale mapping issue documented in the requirements file; the refreshed mapping was then sent once successfully.
+
 ## Release decision
 
 | Gate | Status |
 |---|---|
 | Visual redesign isolated to Admin | **PASS** |
-| Business logic changed | **NO** |
-| Backend business files changed | **NONE** |
+| Business policy/schema changed | **NO** |
+| Normal-path audit instrumentation | **PASS** |
 | Admin automated suite | **PASS** |
 | Backend regression suite | **PASS** |
 | Browser navigation/read smoke | **PASS** |
-| Positive order transition E2E | **BLOCKED by existing staging fixture** |
+| Positive order transition E2E | **PASS locally with golden-path fixture** |
 | Staging deployment replacement | **NOT PERFORMED** |
 | Production/main touched | **NO** |
 
-Do not replace the existing staging deployment or claim final client/UAT readiness until the staging team supplies or creates a clean, eligible UAT identity with the normal approval and dispatch-authorization prerequisites. No direct database mutation was performed to manufacture that prerequisite.
+The local golden-path blocker is resolved. Staging deployment replacement still requires the branch to be pushed, safely integrated into `codex/gagan-staging`, and verified against the hosted environment. No direct database mutation was performed to manufacture business prerequisites.

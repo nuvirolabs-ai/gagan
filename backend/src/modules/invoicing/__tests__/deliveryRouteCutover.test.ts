@@ -10,12 +10,14 @@ const mocks = vi.hoisted(() => ({
   findAuthorization: vi.fn(),
   updateOrder: vi.fn(),
   findRetailer: vi.fn(),
+  auditCreate: vi.fn(),
 }));
 
 vi.mock("../../../lib/prisma", () => ({
   prisma: {
     order: { findUnique: mocks.findOrder, findUniqueOrThrow: mocks.findOrderOrThrow, update: mocks.updateOrder },
     retailer: { findUnique: mocks.findRetailer },
+    auditEvent: { create: mocks.auditCreate },
     dispatchAuthorization: { findFirst: mocks.findAuthorization },
     $transaction: mocks.transaction,
   },
@@ -61,6 +63,30 @@ describe("delivery API cutover", () => {
     expect(response.body).toEqual({ error: "dispatch_authorization_expired" });
   });
 
+  it("records a normal order transition in the audit trail", async () => {
+    mocks.findOrder.mockResolvedValue({ id: "order-confirm", status: "placed" });
+    mocks.findAuthorization.mockResolvedValue({ id: "authorization-confirm" });
+    mocks.transaction.mockImplementationOnce(async (work) => work({
+      order: { update: vi.fn().mockResolvedValue({ id: "order-confirm", status: "confirmed" }) },
+      auditEvent: { create: mocks.auditCreate },
+    }));
+    const app = express();
+    app.use(express.json(), adminOrderRoutes);
+
+    const response = await request(app).post("/orders/order-confirm/approve");
+
+    expect(response.status).toBe(200);
+    expect(mocks.auditCreate).toHaveBeenCalledWith({
+      data: {
+        actorStaffId: null,
+        action: "order.confirmed",
+        subjectType: "order",
+        subjectId: "order-confirm",
+        metadata: { from: "placed", to: "confirmed" },
+      },
+    });
+  });
+
   it("completes POD through exactly-once invoice creation", async () => {
     mocks.findAuthorization.mockResolvedValue({ id: "authorization-1" });
     mocks.findOrder.mockResolvedValue({
@@ -78,7 +104,7 @@ describe("delivery API cutover", () => {
     mocks.createInvoice.mockResolvedValue({
       id: "invoice-1",
       total: 300,
-      ledgerEntry: { balanceAfter: 300 },
+      ledgerEntry: { balanceAfter: 300, sequence: 42n },
       legacyLedgerEntry: { id: "legacy-1" },
     });
     const app = express();
@@ -107,6 +133,8 @@ describe("delivery API cutover", () => {
     });
     expect(mocks.transaction).not.toHaveBeenCalled();
     expect(response.body).toMatchObject({ invoice: { id: "invoice-1" }, balanceAfter: 300 });
+    expect(response.body.invoice.ledgerEntry.sequence).toBe("42");
+    expect(() => JSON.stringify(response.body)).not.toThrow();
   });
 
   it("returns the existing invoice when the POD request is retried", async () => {

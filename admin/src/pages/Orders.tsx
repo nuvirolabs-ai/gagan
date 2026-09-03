@@ -21,7 +21,11 @@ const NEXT_ACTION: Record<string, string> = { placed: "Approve or reject this or
 
 function sapLabel(order: any) {
   const status = order.sapSyncStatus ?? "pending";
-  return status === "synced" ? "Synced" : status === "failed" ? "Failed" : "Pending";
+  return status === "synced" || status === "sent" ? "Synced" : status === "failed" ? "Failed" : "Pending";
+}
+
+function isSapSynced(order: any) {
+  return order.sapSyncStatus === "synced" || order.sapSyncStatus === "sent";
 }
 
 function toneFor(order: any): VisualTone {
@@ -46,7 +50,7 @@ function ageCounts(orders: any[]) {
 function HealthMatrix({ order }: { order: any }) {
   const commercial = order.status === "placed" ? ["Needs action", "bottleneck"] : ["Ready", "complete"];
   const fulfilment = order.status === "confirmed" ? ["Ready to pack", "moving"] : order.status === "packed" ? ["Packed", "moving"] : order.status === "out_for_delivery" ? ["Out for delivery", "moving"] : order.status === "delivered" ? ["Delivered", "complete"] : ["Waiting", "neutral"];
-  const sap = order.sapSyncStatus === "failed" ? ["Sync failed", "critical"] : order.sapSyncStatus === "synced" ? ["Synced", "complete"] : ["Pending", "neutral"];
+  const sap = order.sapSyncStatus === "failed" ? ["Sync failed", "critical"] : isSapSynced(order) ? ["Synced", "complete"] : ["Pending", "neutral"];
   const cells: Array<{ label: string; value: string; tone: string; icon: "finance" | "stock" | "order" | "sap" }> = [
     { label: "Commercial", value: commercial[0], tone: commercial[1], icon: "finance" },
     { label: "Credit", value: order.status === "placed" ? "Review required" : "Clear", tone: order.status === "placed" ? "warning" : "complete", icon: "finance" },
@@ -66,7 +70,7 @@ function Journey({ order }: { order: any }) {
     ["Pack", state === "confirmed" ? "active" : ["packed", "out_for_delivery", "delivered"].includes(state) ? "done" : "future"],
     ["Dispatch", state === "packed" ? "active" : ["out_for_delivery", "delivered"].includes(state) ? "done" : "future"],
     ["Delivery", state === "out_for_delivery" ? "active" : state === "delivered" ? "done" : "future"],
-    ["SAP", order.sapSyncStatus === "failed" ? "blocked" : order.sapSyncStatus === "synced" ? "done" : "future"],
+    ["SAP", order.sapSyncStatus === "failed" ? "blocked" : isSapSynced(order) ? "done" : "future"],
   ];
   return <div className="journey" aria-label="Order journey">{steps.map(([label, status], index) => <div className={`journey-step ${status}`} key={label}><span>{status === "done" ? <Icon name="check" size={13} /> : status === "blocked" ? <Icon name="alert" size={13} /> : index + 1}</span><b>{label}</b>{index < steps.length - 1 ? <i /> : null}</div>)}</div>;
 }

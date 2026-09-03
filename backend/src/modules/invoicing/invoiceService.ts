@@ -216,6 +216,15 @@ async function createOnce(input: CreateInvoiceForDeliveryInput): Promise<Invoice
         where: { id: order.id },
         data: { status: "delivered" },
       });
+      await tx.auditEvent.create({
+        data: {
+          actorStaffId: input.actorStaffId ?? null,
+          action: "delivery.completed",
+          subjectType: "order",
+          subjectId: order.id,
+          metadata: { invoiceId: invoice.id, ledgerEntryId: legacyEntry.id },
+        },
+      });
 
       return tx.invoice.findUniqueOrThrow({
         where: { id: invoice.id },

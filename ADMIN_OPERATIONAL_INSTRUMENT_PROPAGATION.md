@@ -25,6 +25,7 @@ worktree through:
 
 ```text
 admin/src/App.tsx
+admin/index.html
 admin/src/index.css
 admin/src/pages/Dashboard.tsx
 admin/src/pages/Orders.tsx

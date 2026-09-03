@@ -77,6 +77,18 @@ describe("staff auth API", () => {
     expect(request).toHaveBeenNthCalledWith(2, "/rep/kyc/case-1/submit", expect.objectContaining({ method: "POST" }), true);
   });
 
+  it("reads the Ocean Home and stock hubs through the staff session", async () => {
+    const request = vi.fn()
+      .mockResolvedValueOnce({ sales: { today: 0 }, route: { stops: [] } })
+      .mockResolvedValueOnce({ stockTakeAvailable: false, items: [] });
+    const store = { load: vi.fn(), save: vi.fn(), clear: vi.fn() };
+    const api = createStaffApi(request, store);
+    await api.home();
+    await api.stock();
+    expect(request).toHaveBeenNthCalledWith(1, "/rep/home");
+    expect(request).toHaveBeenNthCalledWith(2, "/rep/stock");
+  });
+
   it("proposes a retailer and updates assigned commercial fields", async () => {
     const request = vi.fn().mockResolvedValue({ proposal: { id: "proposal-1" } });
     const store = { load: vi.fn(), save: vi.fn(), clear: vi.fn() };

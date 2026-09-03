@@ -25,6 +25,8 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
       return result;
     },
     me: () => request("/rep/me"),
+    home: () => request("/rep/home"),
+    stock: () => request("/rep/stock"),
     approvals: () => request("/rep/approvals"),
     approval: (id: string) => request(`/rep/approvals/${id}`),
     decideApproval: (id: string, result: "approved" | "rejected", reason?: string) =>

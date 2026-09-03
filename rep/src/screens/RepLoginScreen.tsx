@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRep } from "../context/RepContext";
 import { ApiError } from "../api/repClient";
 import { colors, radius, spacing } from "../theme";
+import { StatusBar } from "expo-status-bar";
 import { useLanguage } from "../i18n/LanguageContext";
 
 export default function RepLoginScreen() {
@@ -54,11 +55,12 @@ export default function RepLoginScreen() {
       style={styles.screen}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
+      <StatusBar style="light" />
       <View style={styles.inner}>
         <Text style={styles.logo}>GAGAN</Text>
         <Text style={styles.tagline}>NUTRITION. DELIVERED.</Text>
         <View style={styles.roleChip}>
-          <Ionicons name="briefcase-outline" size={13} color={colors.green} />
+          <Ionicons name="briefcase-outline" size={13} color={colors.sky} />
           <Text style={styles.roleText}>SALES APP</Text>
         </View>
 
@@ -68,7 +70,7 @@ export default function RepLoginScreen() {
             <TextInput
               style={styles.input}
               placeholder={t("auth.phone")}
-              placeholderTextColor={colors.inkFaint}
+              placeholderTextColor={colors.onDarkMuted}
               keyboardType="phone-pad"
               value={phone}
               onChangeText={setPhone}
@@ -93,7 +95,7 @@ export default function RepLoginScreen() {
             <TextInput
               style={[styles.input, styles.otpInput]}
               placeholder="000000"
-              placeholderTextColor={colors.inkFaint}
+              placeholderTextColor={colors.onDarkMuted}
               keyboardType="number-pad"
               value={otp}
               onChangeText={setOtp}
@@ -117,19 +119,19 @@ export default function RepLoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
+  screen: { flex: 1, backgroundColor: colors.navy },
   inner: { flex: 1, justifyContent: "center", padding: spacing.xl },
   logo: {
     fontSize: 34,
     fontWeight: "700",
-    color: colors.green,
+    color: colors.onDark,
     textAlign: "center",
     letterSpacing: 2,
   },
   tagline: {
     fontSize: 9.5,
     fontWeight: "700",
-    color: colors.gold,
+    color: colors.sky,
     letterSpacing: 2,
     textAlign: "center",
     marginTop: 3,
@@ -139,25 +141,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     alignSelf: "center",
     gap: 5,
-    backgroundColor: colors.greenSoft,
+    backgroundColor: "rgba(91,159,212,0.16)",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: radius.pill,
     marginTop: spacing.lg,
     marginBottom: spacing.xxl,
   },
-  roleText: { fontSize: 10.5, fontWeight: "800", color: colors.green, letterSpacing: 1 },
+  roleText: { fontSize: 10.5, fontWeight: "800", color: colors.sky, letterSpacing: 1 },
 
-  label: { fontSize: 13.5, color: colors.inkMuted, marginBottom: spacing.md, lineHeight: 19 },
+  label: { fontSize: 13.5, color: colors.onDarkMuted, marginBottom: spacing.md, lineHeight: 19 },
   input: {
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: "#1E2C42",
+    backgroundColor: "#121A2A",
     borderRadius: radius.md,
     paddingVertical: 14,
     paddingHorizontal: spacing.lg,
     fontSize: 16,
-    color: colors.ink,
+    color: colors.onDark,
     marginBottom: spacing.lg,
   },
   otpInput: { fontSize: 22, letterSpacing: 8, textAlign: "center", fontWeight: "700" },
@@ -166,10 +168,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: colors.greenDeep,
+    backgroundColor: colors.sky,
     borderRadius: radius.md,
     paddingVertical: 15,
   },
   buttonText: { color: colors.onDark, fontWeight: "700", fontSize: 15.5 },
-  link: { textAlign: "center", color: colors.green, marginTop: spacing.lg, fontWeight: "600" },
+  link: { textAlign: "center", color: colors.sky, marginTop: spacing.lg, fontWeight: "600" },
 });

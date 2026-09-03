@@ -61,4 +61,15 @@ describe("tenant isolation", () => {
     await request(app).post("/rep/orders").set("Authorization", `Bearer ${repAToken}`).set("Idempotency-Key", `tenant-${run}`).send({ retailerId: ids.retailerB, items: [{ variantId: randomUUID(), qty: 1 }] }).expect(404);
     await request(app).get(`/orders/${ids.orderB}`).set("Authorization", `Bearer ${retailerBToken}`).expect(200);
   });
+
+  it("aggregates Ocean Home for the signed-in salesperson without leaking other beats", async () => {
+    await request(app).get("/rep/home").expect(401);
+    const response = await request(app).get("/rep/home").set("Authorization", `Bearer ${repAToken}`).expect(200);
+    expect(response.body.staff.name).toBe("Staff A");
+    expect(response.body.route.stops.map((stop: { id: string }) => stop.id)).toEqual([ids.retailerA]);
+    expect(response.body.sales.dailyTarget).toBe(64000);
+    const stock = await request(app).get("/rep/stock").set("Authorization", `Bearer ${repAToken}`).expect(200);
+    expect(stock.body.stockTakeAvailable).toBe(false);
+    expect(Array.isArray(stock.body.items)).toBe(true);
+  });
 });

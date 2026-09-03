@@ -14,4 +14,13 @@ describe("salesperson translations", () => {
     expect(translate("hi", "retailerForm.partyName")).toBe("पार्टी नाम");
     expect(translate("en", "retailerForm.aadhaarPhoto")).toBe("Aadhaar Card Photo");
   });
+
+  it("exposes Ocean Home IA labels", () => {
+    expect(translate("en", "tabs.attendance")).toBe("Attendance");
+    expect(translate("en", "tabs.order")).toBe("Order");
+    expect(translate("en", "tabs.stock")).toBe("Stock");
+    expect(translate("en", "tabs.more")).toBe("More");
+    expect(translate("en", "home.startVisit")).toBe("Start visit");
+    expect(translate("hi", "tabs.attendance")).toBe("हाजिरी");
+  });
 });

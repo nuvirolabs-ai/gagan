@@ -1,35 +1,40 @@
 export const colors = {
-  bg: "#F7F4EC",
+  bg: "#F3F6FA",
   surface: "#FFFFFF",
-  surfaceAlt: "#F1EEE4",
+  surfaceAlt: "#E8F1F8",
 
-  ink: "#16241B",
-  inkMuted: "#7A8780",
-  inkFaint: "#A8B2AB",
+  ink: "#0B1220",
+  inkMuted: "#6B7C90",
+  inkFaint: "#9AABBD",
   onDark: "#FFFFFF",
-  onDarkMuted: "#B9C9BE",
+  onDarkMuted: "#8AA0B8",
 
-  green: "#1F5132",
-  greenDeep: "#123122",
-  greenMid: "#2E6B47",
-  greenSoft: "#E7F0E9",
+  navy: "#0B1220",
+  sky: "#5B9FD4",
+  skySoft: "#D7E8F5",
+  skyMid: "#8BB8DE",
 
-  gold: "#C9992B",
-  goldSoft: "#F5E7C9",
-  cream: "#F4E6CE",
+  green: "#0B1220",
+  greenDeep: "#0B1220",
+  greenMid: "#5B9FD4",
+  greenSoft: "#E4F0F9",
+
+  gold: "#5B9FD4",
+  goldSoft: "#E4F0F9",
+  cream: "#EAF1F8",
 
   danger: "#C4462F",
   dangerSoft: "#F6E2DD",
 
-  border: "#E7E1D4",
-  track: "#DFDACD",
+  border: "#D7E2EE",
+  track: "#D5E0EC",
 };
 
 export const radius = {
   sm: 10,
   md: 14,
-  lg: 18,
-  xl: 24,
+  lg: 20,
+  xl: 26,
   pill: 999,
 };
 
@@ -53,14 +58,14 @@ export const type = {
 
 export const shadow = {
   card: {
-    shadowColor: "#2A2013",
+    shadowColor: "#0B1220",
     shadowOpacity: 0.06,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
   },
   floating: {
-    shadowColor: "#2A2013",
+    shadowColor: "#0B1220",
     shadowOpacity: 0.14,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 6 },
@@ -69,12 +74,26 @@ export const shadow = {
 };
 
 /**
- * Vertical space the floating tab bar occupies. Screens inside the tab
+ * Vertical space the bottom tab bar occupies. Screens inside the tab
  * navigator must reserve this at the bottom or content hides behind it.
  */
-export const TAB_BAR_SPACE = 96;
+export const TAB_BAR_SPACE = 88;
 
 /** 68000 -> "₹68,000" using the Indian digit grouping the design uses. */
 export function inr(value: number): string {
   return `₹${Math.round(value).toLocaleString("en-IN")}`;
+}
+
+/** Compact field figures: 48750 -> "₹48.8k", 221000 -> "₹2.21L". */
+export function inrCompact(value: number): string {
+  const abs = Math.abs(value);
+  if (abs >= 100000) {
+    const lakh = value / 100000;
+    const digits = Math.abs(lakh) >= 10 ? 0 : 2;
+    return `₹${lakh.toFixed(digits).replace(/\.00$/, "")}L`;
+  }
+  if (abs >= 1000) {
+    return `₹${(value / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+  }
+  return inr(value);
 }

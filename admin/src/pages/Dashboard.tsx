@@ -67,6 +67,35 @@ function buildHourlySeries(orders: OrderRecord[]) {
   return buckets.map((item) => item.count);
 }
 
+function buildIntradaySeries(orders: OrderRecord[]) {
+  const dated = orders.filter((order) => order.createdAt && Number.isFinite(new Date(order.createdAt).getTime()));
+  if (dated.length === 0) return null;
+  const now = new Date();
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  const buckets = Array.from({ length: 6 }, (_, index) => {
+    const bucketStart = new Date(start);
+    bucketStart.setHours(index * 4, 0, 0, 0);
+    return { start: bucketStart.getTime(), end: bucketStart.getTime() + 4 * 60 * 60 * 1000, count: 0 };
+  });
+  dated.forEach((order) => {
+    const timestamp = new Date(order.createdAt!).getTime();
+    const bucket = buckets.find((item) => timestamp >= item.start && timestamp < item.end);
+    if (bucket) bucket.count += 1;
+  });
+  return {
+    values: buckets.map((item) => item.count),
+    labels: buckets.map((item) => new Date(item.start).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false })),
+  };
+}
+
+function isToday(value?: string) {
+  if (!value) return false;
+  const date = new Date(value);
+  const now = new Date();
+  return Number.isFinite(date.getTime()) && date.toDateString() === now.toDateString();
+}
+
 function LoadingHome() {
   return <div className="page-shell home-page instrument-loading" aria-label="Loading live operating picture"><div className="page-header"><div><div className="skeleton skeleton-label" /><div className="skeleton skeleton-title" /><div className="skeleton skeleton-copy" /></div><div className="skeleton skeleton-status" /></div><div className="skeleton skeleton-flow" /><div className="instrument-grid-skeleton"><div className="skeleton skeleton-panel" /><div className="skeleton skeleton-panel" /><div className="skeleton skeleton-panel" /></div><div className="skeleton skeleton-queue" /></div>;
 }
@@ -77,6 +106,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [queues, setQueues] = useState<Queue[]>([]);
   const [ordersByStatus, setOrdersByStatus] = useState<Record<string, OrderRecord[]>>({});
+  const [sapState, setSapState] = useState<{ failed: number; pending: number } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -107,6 +137,7 @@ export default function Dashboard() {
       ].filter((row) => Number.isFinite(row.count)) as Queue[];
       setQueues(next);
       setOrdersByStatus(byStatus);
+      setSapState(sap ? { failed: Number(sap.outbox?.failed ?? 0), pending: Number(sap.outbox?.pending ?? 0) } : null);
       setError(stateResults.every((item) => item === null) && next.every((item) => item.count === 0) ? "The live operating queues could not be reached." : null);
       setLoading(false);
     })().catch((caught) => {
@@ -121,12 +152,15 @@ export default function Dashboard() {
   const clear = useMemo(() => queues.filter((row) => row.count === 0), [queues]);
   const ageCounts = useMemo(() => buildAgeCounts(openOrders), [openOrders]);
   const trend = useMemo(() => buildHourlySeries(allOrders), [allOrders]);
-  const oldest = useMemo(() => openOrders.reduce<OrderRecord | null>((oldestOrder, order) => {
+  const datedOpenOrders = useMemo(() => openOrders.filter((order) => ageHours(order.createdAt) !== null), [openOrders]);
+  const oldest = useMemo(() => datedOpenOrders.reduce<OrderRecord | null>((oldestOrder, order) => {
     if (!oldestOrder) return order;
     const current = ageHours(order.createdAt) ?? -1;
     const previous = ageHours(oldestOrder.createdAt) ?? -1;
     return current > previous ? order : oldestOrder;
-  }, null), [openOrders]);
+  }, null), [datedOpenOrders]);
+  const todayOrders = useMemo(() => allOrders.filter((order) => isToday(order.createdAt)), [allOrders]);
+  const intraday = useMemo(() => buildIntradaySeries(todayOrders), [todayOrders]);
   const totalValue = allOrders.reduce((sum, order) => sum + orderValue(order), 0);
   const deliveredValue = (ordersByStatus.delivered ?? []).reduce((sum, order) => sum + orderValue(order), 0);
   const throughFlow = totalValue > 0 ? Math.round((deliveredValue / totalValue) * 100) : null;
@@ -144,6 +178,10 @@ export default function Dashboard() {
   const priority = openOrders.slice().sort((a, b) => (ageHours(b.createdAt) ?? -1) - (ageHours(a.createdAt) ?? -1)).slice(0, 4);
   const today = new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "numeric", month: "short", year: "numeric" }).format(new Date());
   const sapFailures = queues.find((row) => row.label === "SAP outbox failures")?.count ?? 0;
+  const sapPending = sapState?.pending ?? 0;
+  const systemTone = sapState === null ? "unavailable" : sapState.failed > 0 ? "critical" : sapState.pending > 0 ? "warning" : "stable";
+  const systemLabel = sapState === null ? "UNAVAILABLE" : systemTone === "critical" ? "ATTENTION" : systemTone === "warning" ? "DEGRADED" : "STABLE";
+  const ageingPrimary = ageCounts[3] > 0 ? `${ageCounts[3]} 12h+` : ageLabel(oldest?.createdAt);
   const openValue = openOrders.reduce((sum, order) => sum + orderValue(order), 0);
 
   if (loading) return <LoadingHome />;
@@ -155,6 +193,15 @@ export default function Dashboard() {
         <div className="header-context operating-state"><span><i className="pulse" /> staging · read-only</span><b>{throughFlow === null ? "flow unavailable" : `${throughFlow}% current through-flow`}</b></div>
       </header>
       {error ? <div className="banner error" role="alert">{error}</div> : null}
+
+      <section className="visual-read" aria-label="Visual read">
+        <div className="visual-read-heading"><SectionLabel>Visual read</SectionLabel><span>See the shape of work before the detail</span></div>
+        <div className="visual-read-grid">
+          <section className="visual-read-panel visual-read-pace"><div className="section-head"><div><SectionLabel>Order pace</SectionLabel><h2>{todayOrders.length.toLocaleString("en-IN")} <small>orders today</small></h2></div><span className="visual-read-note">comparison unavailable</span></div><div className="visual-read-chart">{intraday ? <><Sparkline values={intraday.values} label="Order pace by four-hour interval from today's canonical order timestamps" large /><div className="visual-chart-axis">{intraday.labels.map((label) => <span key={label}>{label}</span>)}</div></> : <div className="chart-unavailable" role="img" aria-label="Order pace unavailable because canonical order timestamps are not available for today">Today’s order timestamps are unavailable.</div>}</div><p className="panel-note">Current-day movement from canonical order timestamps. No historical comparison is exposed.</p></section>
+          <section className="visual-read-panel visual-read-system"><div className="section-head"><div><SectionLabel>System state</SectionLabel><h2>{systemLabel}</h2></div><span className={`state-chip ${systemTone}`}><i />{systemTone}</span></div><div className="system-read-body"><div className={`health-ring ${systemTone}`} role="img" aria-label={`System state: ${systemLabel.toLowerCase()}`}><svg viewBox="0 0 100 100" aria-hidden="true"><circle className="health-ring-track" cx="50" cy="50" r="42" /><circle className="health-ring-value" cx="50" cy="50" r="42" /></svg><strong>{systemLabel}</strong></div><div className="system-read-copy"><strong>{sapState === null ? "System state unavailable" : sapState.failed > 0 ? `${sapState.failed} SAP failures` : sapState.pending > 0 ? `${sapState.pending} SAP items pending` : "Healthy signal"}</strong><span>{sapState === null ? "SAP outbox state could not be read." : `${sapState.failed} failures · ${sapPending} pending`}</span></div></div><p className="panel-note">Qualitative state from the canonical SAP outbox signal; no invented health percentage.</p></section>
+          <section className="visual-read-panel visual-read-age"><div className="section-head"><div><SectionLabel>Queue ageing</SectionLabel><h2>{ageingPrimary}</h2></div><span className="visual-read-note">open work</span></div><AgeDistribution counts={ageCounts} /><p className="panel-note">{ageCounts[3] > 0 ? `${ageCounts[3]} items are in the 12h+ queue.` : datedOpenOrders.length > 0 ? `Oldest open work is ${ageLabel(oldest?.createdAt)}.` : "Canonical order timestamps are unavailable."}</p></section>
+        </div>
+      </section>
 
       <section className="command-strip" aria-label="Operational command strip">
         <Link to="/orders" className="command-cell"><span>needs action</span><strong>{attention.length}</strong><small>{attention.reduce((sum, row) => sum + row.count, 0)} queue items <Icon name="arrow" size={13} /></small></Link>

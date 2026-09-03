@@ -118,6 +118,32 @@ Measured content rails:
 
 Credit Reviews after the fix measured exactly against these rails at all three sizes.
 
+## Home Visual Read correction
+
+The approved three-instrument Visual Read was restored directly below the Home header without removing the existing command strip, business-flow map, constraint/impact view, priority work, or recent movement sections.
+
+The restored composition contains:
+
+- Order Pace: current-day order count and a canonical intraday chart when today’s timestamps exist; otherwise the approved unavailable state
+- System State: a qualitative ring instrument with `STABLE`, `DEGRADED`, `ATTENTION`, or `UNAVAILABLE` state derived from the SAP outbox signal and actual failure/pending counts
+- Queue Ageing: real open-work counts in `<2h`, `2–6h`, `6–12h`, and `12h+` buckets with blue, violet, gold, and red escalation
+
+No 97.4% health value, comparison percentage, arbitrary bar height, or fabricated order trend was added. The current live local data has no dated order in today’s local calendar day, so Order Pace intentionally shows its unavailable chart state while the primary value remains `0 orders today`.
+
+Visual Read geometry after restoration:
+
+| Viewport | Composition | Panel heights | Result |
+|---|---|---:|---|
+| 1440×900 | three columns at approximately 42% / 27% / 31% | 292px each | PASS |
+| 1280×800 | three columns at approximately 42% / 27% / 31% | 292px each | PASS |
+| 1024×768 | Order Pace spans the first row; System State and Queue Ageing share the second row | 292px each | PASS |
+
+Evidence:
+
+- [Home Visual Read — 1440×900](docs/admin-alignment-qa/home-visual-read-1440x900.png)
+- [Home Visual Read — 1280×800](docs/admin-alignment-qa/home-visual-read-1280x800.png)
+- [Home Visual Read — 1024×768](docs/admin-alignment-qa/home-visual-read-1024x768.png)
+
 ### Vertical rhythm
 
 The audit checked the following relationships across the route set:

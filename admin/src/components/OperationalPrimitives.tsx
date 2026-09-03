@@ -82,6 +82,6 @@ export function AgeDistribution({ counts, labels = ["<2h", "2–6h", "6–12h", 
   const max = Math.max(...counts, 1);
   return <div className="age-distribution" role="img" aria-label={`Queue age distribution: ${counts.map((count, index) => `${count} ${labels[index]}`).join(", ")}`}>
     <div className="age-title"><SectionLabel>Queue health</SectionLabel><strong>Age distribution</strong><small>Based on createdAt in the current queue.</small></div>
-    <div className="age-bars">{counts.map((count, index) => <div className={index === counts.length - 1 && count > 0 ? "age-risk" : ""} key={labels[index]}><i style={{ height: `${Math.max((count / max) * 100, count ? 10 : 0)}%` }} /><b>{count}</b><span>{labels[index]}</span></div>)}</div>
+    <div className="age-bars">{counts.map((count, index) => { const tone = index === counts.length - 1 && count > 0 ? "age-risk" : index === 2 ? "age-warn" : index === 1 ? "age-watch" : "age-calm"; return <div className={tone} key={labels[index]}><i style={{ height: `${Math.max((count / max) * 100, count ? 10 : 0)}%` }} /><b>{count}</b><span>{labels[index]}</span></div>; })}</div>
   </div>;
 }

@@ -8,7 +8,7 @@ import { colors, radius, spacing, shadow } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
 import { initials } from "../home/format";
 
-export default function RepAccountScreen() {
+export default function RepAccountScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const { staff, rep, logout } = useRep();
   const { language, t, setLanguage } = useLanguage();
@@ -22,6 +22,11 @@ export default function RepAccountScreen() {
   return (
     <View style={styles.screen}>
       <View style={[styles.hero, { paddingTop: insets.top + spacing.lg }]}>
+        {navigation?.canGoBack?.() ? (
+          <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: spacing.sm }} accessibilityLabel={t("common.back")}>
+            <Ionicons name="chevron-back" size={22} color={colors.onDark} />
+          </TouchableOpacity>
+        ) : null}
         <Text style={styles.kicker}>{t("account.title")}</Text>
         <View style={styles.identity}>
           <View style={styles.avatar}>

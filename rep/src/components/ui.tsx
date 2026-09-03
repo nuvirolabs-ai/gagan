@@ -10,14 +10,21 @@ export function ScreenHeader({
   title,
   subtitle,
   right,
+  onBack,
 }: {
   title: string;
   subtitle?: string;
   right?: React.ReactNode;
+  onBack?: () => void;
 }) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[s.header, { paddingTop: insets.top + spacing.sm }]}>
+      {onBack ? (
+        <TouchableOpacity onPress={onBack} style={s.backBtn} accessibilityLabel="Back">
+          <Ionicons name="chevron-back" size={22} color={colors.navy} />
+        </TouchableOpacity>
+      ) : null}
       <View style={{ flex: 1 }}>
         <Text style={s.headerTitle}>{title}</Text>
         {subtitle ? <Text style={s.headerSub}>{subtitle}</Text> : null}
@@ -215,7 +222,9 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     backgroundColor: colors.bg,
+    gap: 8,
   },
+  backBtn: { width: 32, height: 36, justifyContent: "center" },
   headerTitle: { fontSize: 24, fontWeight: "700", color: colors.ink },
   headerSub: { fontSize: 13, color: colors.inkMuted, marginTop: 2 },
 

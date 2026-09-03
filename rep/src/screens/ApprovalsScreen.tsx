@@ -51,7 +51,7 @@ export default function ApprovalsScreen({ navigation }: any) {
 
   return (
     <View style={styles.screen}>
-      <ScreenHeader title={t("approvals.title")} subtitle={t("approvals.subtitle")} right={capabilities.canReviewRatings ? <TouchableOpacity onPress={() => navigation.navigate("RatingReviews")}><Text style={styles.reviewLink}>{t("approvals.ratingReviews")}</Text></TouchableOpacity> : undefined} />
+      <ScreenHeader title={t("approvals.title")} subtitle={t("approvals.subtitle")} onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined} right={capabilities.canReviewRatings ? <TouchableOpacity onPress={() => navigation.navigate("RatingReviews")}><Text style={styles.reviewLink}>{t("approvals.ratingReviews")}</Text></TouchableOpacity> : undefined} />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {loading ? <ActivityIndicator style={styles.loader} color={colors.green} /> : items.length === 0 ? (
         <EmptyState icon="check-decagram-outline" title={t("approvals.title")} body={t("approvals.subtitle")} />

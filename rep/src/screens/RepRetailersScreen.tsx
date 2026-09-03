@@ -60,6 +60,7 @@ export default function RepRetailersScreen({ navigation }: any) {
       <ScreenHeader
         title={t("retailers.title")}
         subtitle={`Hi ${rep?.name ?? ""}`}
+        onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
         right={
           <TouchableOpacity style={styles.addBtn} onPress={() => navigation.navigate("AddRetailer")}>
             <Ionicons name="add" size={18} color={colors.onDark} />

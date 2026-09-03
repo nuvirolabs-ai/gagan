@@ -2,7 +2,7 @@
 
 ## Scope
 
-This branch is a staging/device-UAT candidate for the Gagan Salesperson App. It is based on `origin/codex/gagan-staging` at `47a918dd2dc2237d42e0e845a60b1dde658e4a13` and lives in the isolated worktree `/Users/tanutejas/Documents/Gagan-salesperson-sfa-v2`.
+This branch is a staging/device-UAT candidate for the Gagan Salesperson App. It is based on `origin/codex/gagan-staging` at `47a918dd2dc2237d42e0e845a60b1dde658e4a13`, with the integrated implementation committed at `1ab737cf3f50b1cd382456f4e56a0b0b5782cbdf`, and lives in the isolated worktree `/Users/tanutejas/Documents/Gagan-salesperson-sfa-v2`.
 
 The release preserves the existing Gagan backend, retailer ordering contract, inventory/credit authority, attendance and visit rules, field outbox, permissions, hierarchy, mock SAP boundary, and other product surfaces. It does not merge `main`, deploy production, connect SAP B1, or modify the canonical dirty checkout.
 
@@ -46,4 +46,4 @@ These labels should be finalized only after hosted staging E2E and physical Andr
 3. Hosted staging login and canonical order flow with mock SAP.
 4. Physical Android install from the standalone APK, including session restore, route, location permission, visit, order, performance, More modules, offline/reconnect and EOD.
 
-No APK is considered ready until it is a standalone staging build with the hosted HTTPS API embedded and the above verification status reported honestly.
+The local standalone release build is verified with the hosted HTTPS API embedded at `/Users/tanutejas/Desktop/gagan-salesperson-sfa-v2-1ab737c.apk` (SHA-256 `8e12a65308e240baf1046f7084fc838b4ff7af9b603238d054163f0fe9ccaca7`). EAS build `cebd813d-6392-4c74-8fc0-5cbb68e3245e` is queued for the shareable internal-distribution URL; it is not treated as complete until EAS and physical-device verification finish.

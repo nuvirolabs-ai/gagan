@@ -38,10 +38,12 @@ This matrix is the release-facing companion to `SALESPERSON_SFA_V2_CAPABILITY_AU
 
 ## Verification record
 
-- Source commit: `47a918dd2dc2237d42e0e845a60b1dde658e4a13`
+- Source commit: `1ab737cf3f50b1cd382456f4e56a0b0b5782cbdf`
 - Branch: `codex/gagan-salesperson-sfa-v2`
 - Worktree: `/Users/tanutejas/Documents/Gagan-salesperson-sfa-v2`
 - Production and `main`: untouched
 - SAP B1: not connected; existing mock/staging boundary preserved
 - Admin, Retailer, and Founder surfaces: not redesigned in this pass
 - Mobile dependency baseline after install: 16 test files / 87 tests passing; typecheck passing before visual implementation
+- Local Android release: `/Users/tanutejas/Desktop/gagan-salesperson-sfa-v2-1ab737c.apk`, package `com.gagan.sales`, version `1.0.0` build `1`, SHA-256 `8e12a65308e240baf1046f7084fc838b4ff7af9b603238d054163f0fe9ccaca7`
+- EAS Android staging retry: `cebd813d-6392-4c74-8fc0-5cbb68e3245e`, queued at the time of this record; previous cloud attempt failed on Maven Central HTTP 429 while resolving Expo Android modules.

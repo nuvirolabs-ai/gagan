@@ -29,6 +29,7 @@ rep/package-lock.json
 rep/package.json
 rep/src/auth/secureSession.ts
 rep/src/components/companion.tsx
+rep/src/components/ui.tsx
 rep/src/context/RepContext.tsx
 rep/src/screens/RepLoginScreen.tsx
 rep/src/screens/TodayScreen.tsx

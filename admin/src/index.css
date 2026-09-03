@@ -545,7 +545,8 @@ button:active { transform: scale(.99); }
 .environment-tag i { width: 6px; height: 6px; border-radius: 50%; background: var(--oi-blue); box-shadow: 0 0 0 3px rgba(10, 132, 255, .12); }
 .app-avatar { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; color: var(--oi-blue); background: var(--oi-blue-soft); font-size: 10px; font-weight: 700; }
 .route-stage { min-width: 0; }
-.route-stage > div:not(.page-shell):not(.empty-state):not(.detail-narrow) { width: 100%; margin: 0 auto; padding: 40px 48px 72px; }
+.route-stage > div:not(.empty-state) { width: 100%; margin: 0 auto; padding: 40px 48px 72px; }
+.route-stage > .detail-narrow { max-width: 1500px; }
 .page-shell { width: 100%; max-width: 1500px; margin: 0 auto; padding: 40px 48px 72px; }
 .page-header, .operating-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
 .eyebrow, .section-label { display: block; margin: 0; color: var(--oi-subtle); font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .12em; text-transform: uppercase; }
@@ -898,7 +899,7 @@ tr:last-child td { border-bottom: 0; }
 
 @media (max-width: 1180px) {
   .page-shell { padding-inline: 34px; }
-  .route-stage > div:not(.page-shell):not(.empty-state):not(.detail-narrow) { padding-inline: 34px; }
+  .route-stage > div:not(.empty-state) { padding-inline: 34px; }
   .instrument-triad { grid-template-columns: 1fr 1fr; }
   .age-panel { grid-column: span 2; }
   .orders-layout { grid-template-columns: minmax(0, 1fr) 210px; }
@@ -907,7 +908,7 @@ tr:last-child td { border-bottom: 0; }
   .sidebar { width: 204px; flex-basis: 204px; }
   .app-topbar { padding-inline: 28px; }
   .page-shell { padding-inline: 28px; }
-  .route-stage > div:not(.page-shell):not(.empty-state):not(.detail-narrow) { padding-inline: 28px; }
+  .route-stage > div:not(.empty-state) { padding-inline: 28px; }
   .command-strip { grid-template-columns: repeat(2, 1fr); }
   .flow-track { min-width: 780px; }
   .flow-map { overflow-x: auto; }
@@ -921,7 +922,7 @@ tr:last-child td { border-bottom: 0; }
   .main { min-width: 0; }
   .app-topbar { padding-inline: 18px; }
   .page-shell { padding: 28px 18px 52px; }
-  .route-stage > div:not(.page-shell):not(.empty-state):not(.detail-narrow) { padding: 28px 18px 52px; }
+  .route-stage > div:not(.empty-state) { padding: 28px 18px 52px; }
   .page-header, .operating-header, .workspace-heading { display: block; }
   .header-context { padding-top: 15px; }
   .stage-rail { overflow-x: auto; grid-template-columns: repeat(6, minmax(125px, 1fr)); }

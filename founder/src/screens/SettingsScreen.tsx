@@ -1,6 +1,7 @@
 import React from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRoute } from "@react-navigation/native";
 import Segmented from "../components/Segmented";
 import { useAuth } from "../context/AuthContext";
 import { usePreferences } from "../context/PreferencesContext";
@@ -11,18 +12,20 @@ export default function SettingsScreen({ navigation }: { navigation: { goBack: (
   const { colors, preferences, setDefaultPeriod, setAppearance } = usePreferences();
   const { identity, signOut } = useAuth();
   const insets = useSafeAreaInsets();
+  const route = useRoute();
+  const asYouTab = route.name === "You";
 
   return (
     <View style={[styles.root, { backgroundColor: colors.canvas }]}>
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + 8, paddingHorizontal: 20, paddingBottom: insets.bottom + 32 }}>
-        {navigation.canGoBack?.() ? (
+        {asYouTab ? (
+          <Text style={[styles.brand, { color: colors.secondary }]}>GAGAN · FOUNDERS</Text>
+        ) : (
           <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
             <Text style={[styles.back, { color: colors.info }]}>Close</Text>
           </Pressable>
-        ) : (
-          <Text style={[styles.brand, { color: colors.secondary }]}>GAGAN · FOUNDERS</Text>
         )}
-        <Text style={[styles.title, { color: colors.label }]}>{navigation.canGoBack?.() ? "Settings" : "You"}</Text>
+        <Text style={[styles.title, { color: colors.label }]}>{asYouTab ? "You" : "Settings"}</Text>
 
         <Text style={[styles.section, { color: colors.secondary }]}>PROFILE</Text>
         <View style={[styles.group, { backgroundColor: colors.surface }]}>

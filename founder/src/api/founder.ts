@@ -1,9 +1,13 @@
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { resolveApiBaseUrl } from "./config";
+import { resolveApiBaseUrl, useFixturePulse } from "./config";
 import { createSessionFetch } from "../auth/sessionFetch";
 import { createSessionStore } from "../auth/sessionStore";
+import { PULSE_FIXTURE } from "../fixtures/pulse";
+import { composeCeoPayload, isCeoPulsePayload } from "../pulse/composeCeo";
+import { mapSeriesBoard, mapTodayBoard } from "../pulse/mapPulse";
+import type { SeriesPeriod } from "../pulse/types";
 import type { FounderPulse } from "../pulse/viewState";
 import type {
   FounderBrief,
@@ -103,3 +107,60 @@ export const founderApi = {
     return request("/founder/team");
   },
 };
+
+const FORCE_FIXTURE =
+  useFixturePulse(process.env.EXPO_PUBLIC_FOUNDER_USE_FIXTURE) ||
+  process.env.EXPO_PUBLIC_PULSE_PREVIEW === "1";
+
+async function loadCeoPayload() {
+  if (FORCE_FIXTURE) {
+    return {
+      payload: { ...PULSE_FIXTURE, stagingGaps: ["preview-fixture"] },
+      source: "fixture" as const,
+    };
+  }
+
+  try {
+    const pulse = await founderApi.pulse();
+    if (isCeoPulsePayload(pulse)) {
+      return { payload: pulse, source: "live" as const };
+    }
+    const candidate = (pulse as { pulse?: unknown }).pulse;
+    if (isCeoPulsePayload(candidate)) {
+      return { payload: candidate, source: "live" as const };
+    }
+
+    const [trends7, trends30, team, issuesWrap, decisionsWrap] = await Promise.all([
+      founderApi.trends("7D").catch(() => null),
+      founderApi.trends("30D").catch(() => null),
+      founderApi.team().catch(() => null),
+      founderApi.issues("open").catch(() => ({ issues: [] as FounderIssue[] })),
+      founderApi.decisions("open").catch(() => ({ decisions: [] as FounderDecision[] })),
+    ]);
+
+    return composeCeoPayload({
+      pulse,
+      trends7,
+      trends30,
+      team,
+      issues: issuesWrap.issues ?? [],
+      decisions: decisionsWrap.decisions ?? [],
+    });
+  } catch {
+    return {
+      payload: { ...PULSE_FIXTURE, stagingGaps: ["all"] },
+      source: "fixture" as const,
+    };
+  }
+}
+
+export async function loadTodayBoard() {
+  const { payload, source } = await loadCeoPayload();
+  const board = mapTodayBoard(payload, source);
+  return { ...board, stagingGaps: payload.stagingGaps ?? [] };
+}
+
+export async function loadSeriesBoard(period: SeriesPeriod) {
+  const { payload, source } = await loadCeoPayload();
+  return mapSeriesBoard(payload, period, source);
+}

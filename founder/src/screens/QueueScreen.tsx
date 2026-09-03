@@ -3,62 +3,54 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { usePreferences } from "../context/PreferencesContext";
+import { colors, spacing, type as typeScale } from "../theme";
+import { PulseHeader } from "../components/PulseHeader";
+import { Panel } from "../components/ui";
 
-/**
- * Queue hub — Issues and Decisions stay wired; chairman Queue UI is not locked yet.
- */
+/** Queue chrome is not chairman-locked. Issues and Decisions keep their existing contracts. */
 export default function QueueScreen() {
-  const { colors } = usePreferences();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.canvas, paddingTop: insets.top + 8, paddingHorizontal: 16 }]}>
-      <Text style={[styles.brand, { color: colors.secondary }]}>GAGAN · FOUNDERS</Text>
-      <Text style={[styles.title, { color: colors.label }]}>Queue</Text>
-      <Text style={[styles.note, { color: colors.secondary }]}>
-        Queue presentation is pending chairman lock. Issues and Decisions keep their existing contracts.
-      </Text>
-
-      <Pressable
-        onPress={() => navigation.navigate("Issues")}
-        style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.separator }]}
-      >
+    <View style={[styles.screen, { paddingTop: insets.top + 8 }]}>
+      <PulseHeader brand="Gagan · Founders" title="Queue" />
+      <Panel>
+        <Text style={typeScale.title}>Coming soon</Text>
+        <Text style={styles.body}>
+          Queue presentation is pending chairman lock. Issues and Decisions keep their existing contracts.
+        </Text>
+      </Panel>
+      <Pressable onPress={() => navigation.navigate("Issues")} style={styles.row}>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.kicker, { color: colors.negative }]}>ISSUES</Text>
-          <Text style={[styles.rowTitle, { color: colors.label }]}>Open constraints</Text>
+          <Text style={[styles.kicker, { color: colors.bad }]}>ISSUES</Text>
+          <Text style={styles.rowTitle}>Open constraints</Text>
         </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.secondary} />
+        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
       </Pressable>
-
-      <Pressable
-        onPress={() => navigation.navigate("Decisions")}
-        style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.separator }]}
-      >
+      <Pressable onPress={() => navigation.navigate("Decisions")} style={styles.row}>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.kicker, { color: colors.info }]}>DECISIONS</Text>
-          <Text style={[styles.rowTitle, { color: colors.label }]}>Approve or decline</Text>
+          <Text style={[styles.kicker, { color: colors.accent }]}>DECISIONS</Text>
+          <Text style={styles.rowTitle}>Approve or decline</Text>
         </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.secondary} />
+        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  brand: { fontSize: 10, fontWeight: "700", letterSpacing: 1.4 },
-  title: { fontSize: 34, fontWeight: "800", letterSpacing: -0.6, marginTop: 4 },
-  note: { fontSize: 13, lineHeight: 18, marginTop: 10, marginBottom: 18 },
+  screen: { flex: 1, backgroundColor: colors.bg, paddingHorizontal: spacing.lg, gap: spacing.md },
+  body: { ...typeScale.meta, marginTop: spacing.md, lineHeight: 18 },
   row: {
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: colors.panel,
     borderRadius: 16,
     padding: 14,
-    marginBottom: 10,
     borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
   },
   kicker: { fontSize: 10, fontWeight: "800", letterSpacing: 1.1 },
-  rowTitle: { fontSize: 16, fontWeight: "700", marginTop: 4 },
+  rowTitle: { fontSize: 16, fontWeight: "700", marginTop: 4, color: colors.ink },
 });

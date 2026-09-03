@@ -14,14 +14,15 @@ vi.mock("../../api", () => ({ api: {
 describe("Import Center", () => {
   it("keeps the explicit preview then apply gate visible", async () => {
     render(<ImportCenter />);
-    expect(await screen.findByText("Data Import Center")).toBeInTheDocument();
+    expect(await screen.findByText("Data Import")).toBeInTheDocument();
     const file = new File(["name,phone\nQA,9899999901\n"], "retailers.csv", { type: "text/csv" });
     fireEvent.change(screen.getByLabelText("Choose file"), { target: { files: [file] } });
     fireEvent.click(screen.getByRole("button", { name: "Preview import →" }));
     expect(await screen.findByText("Ready for review")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Apply import →" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Apply import →" }));
-    await waitFor(() => expect(screen.getByText("Applied result")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Apply 1 records →" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Apply 1 records →" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Apply import" }));
+    await waitFor(() => expect(screen.getByText("Import complete")).toBeInTheDocument());
   });
 });
-

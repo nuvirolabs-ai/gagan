@@ -164,7 +164,10 @@ function Shell() {
     ...group,
     items: group.items.filter((item) => canSee(permissions, item.permissions)),
   })).filter((group) => group.items.length > 0);
-  const landingPath = groups[0]?.items[0]?.to ?? "/no-access";
+  // The base Admin URL is a deliberate product entry point: return operators
+  // to Work/Home whenever they can see it, regardless of nav group ordering.
+  const home = FLAT.find((item) => item.to === "/");
+  const landingPath = home && canSee(permissions, home.permissions) ? "/" : groups[0]?.items[0]?.to ?? "/no-access";
 
   return (
     <div className="layout">

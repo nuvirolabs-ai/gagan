@@ -15,6 +15,7 @@ export const Permissions = {
   DISPATCH_EXECUTE: "dispatch.execute",
   LEGAL_DECIDE: "legal.decide",
   STAFF_MANAGE: "staff.manage",
+  DATA_IMPORT: "data.import",
   LOCATION_VIEW: "location.view",
   LOCATION_CAPTURE: "location.capture",
   LOCATION_VERIFY: "location.verify",

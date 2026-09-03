@@ -363,6 +363,44 @@ export const api = {
     request(`/admin/sap/outbox${status ? `?status=${status}` : ""}`),
   sapDrain: () => post("/admin/sap/outbox/drain"),
   sapRetry: (id: string) => post(`/admin/sap/outbox/${id}/retry`),
+
+  importTypes: () => request("/admin/imports/types"),
+  imports: () => request("/admin/imports"),
+  importJob: (id: string) => request(`/admin/imports/${id}`),
+  importPreview: async (type: string, mode: string, file: File) => {
+    const res = await fetch(`${BASE_URL}/admin/imports/preview`, {
+      method: "POST",
+      body: file,
+      headers: {
+        Authorization: accessToken ? `Bearer ${accessToken}` : "",
+        "Content-Type": "application/octet-stream",
+        "X-File-Name": file.name,
+        "X-Import-Type": type,
+        "X-Import-Mode": mode,
+      },
+      credentials: "include",
+    });
+    const body = await parseResponse(res);
+    if (!res.ok) throw new ApiError(res.status, body);
+    return body;
+  },
+  applyImport: (id: string) => post(`/admin/imports/${id}/apply`, { confirm: true }),
+  importTemplate: async (type: string, format: "csv" | "xlsx") => {
+    const res = await fetch(`${BASE_URL}/admin/imports/templates/${type}.${format}`, {
+      headers: { Authorization: accessToken ? `Bearer ${accessToken}` : "" },
+      credentials: "include",
+    });
+    if (!res.ok) throw new ApiError(res.status, await parseResponse(res));
+    return res.blob();
+  },
+  importErrors: async (id: string) => {
+    const res = await fetch(`${BASE_URL}/admin/imports/${id}/errors.csv`, {
+      headers: { Authorization: accessToken ? `Bearer ${accessToken}` : "" },
+      credentials: "include",
+    });
+    if (!res.ok) throw new ApiError(res.status, await parseResponse(res));
+    return res.blob();
+  },
 };
 
 export const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;

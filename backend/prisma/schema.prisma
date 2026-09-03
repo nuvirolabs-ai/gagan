@@ -733,6 +733,35 @@ model AuditEvent {
   @@index([subjectType, subjectId, createdAt])
 }
 
+/// Durable, preview-first record for Admin data imports. The normalized rows
+/// and result envelope are bounded by the import service's row/size limits so
+/// an apply can be explicitly confirmed after the upload request has ended.
+model ImportJob {
+  id            String   @id @default(uuid())
+  importType    String
+  fileName      String
+  status        String   @default("preview")
+  mode          String?
+  actorStaffId  String
+  source        String   @default("import")
+  totalRows     Int      @default(0)
+  validRows     Int      @default(0)
+  warningRows   Int      @default(0)
+  failedRows    Int      @default(0)
+  createdRows   Int      @default(0)
+  updatedRows   Int      @default(0)
+  skippedRows   Int      @default(0)
+  preview       Json?
+  result        Json?
+  createdAt     DateTime @default(now())
+  startedAt     DateTime?
+  completedAt   DateTime?
+
+  @@index([createdAt])
+  @@index([actorStaffId, createdAt])
+  @@index([status, createdAt])
+}
+
 model Notification {
   id         String   @id @default(uuid())
   retailerId String

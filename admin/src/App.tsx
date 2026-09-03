@@ -28,6 +28,7 @@ import ServiceIssues from "./pages/ServiceIssues";
 import SalesLeader from "./pages/SalesLeader";
 import SalesOrganisation from "./pages/SalesOrganisation";
 import RetailerApprovals from "./pages/RetailerApprovals";
+import ImportCenter from "./pages/ImportCenter";
 
 type NavItem = { to: string; label: string; permissions: string[] };
 type NavGroup = { id: string; label: string; items: NavItem[] };
@@ -112,6 +113,7 @@ const NAV: NavGroup[] = [
     items: [
       { to: "/staff", label: "Users & roles", permissions: ["staff.manage"] },
       { to: "/sap", label: "SAP sync", permissions: ["staff.manage"] },
+      { to: "/imports", label: "Data import", permissions: ["data.import", "staff.manage"] },
     ],
   },
 ];
@@ -200,6 +202,7 @@ function Shell() {
           <Route path="/" element={<Guard anyOf={FLAT.find((item) => item.to === "/")!.permissions}><Dashboard /></Guard>} />
           <Route path="/warehouses" element={<Warehouses />} />
           <Route path="/sap" element={<Guard anyOf={["staff.manage"]}><SapSync /></Guard>} />
+          <Route path="/imports" element={<Guard anyOf={["data.import", "staff.manage"]}><ImportCenter /></Guard>} />
           <Route path="/approvals" element={<Guard anyOf={["approval.second_invoice", "approval.third_invoice", "legal.decide"]}><Approvals /></Guard>} />
           <Route path="/collections" element={<Guard anyOf={["collection.confirm"]}><Collections /></Guard>} />
           <Route path="/credit-reviews" element={<Guard anyOf={["credit.rating_confirm"]}><CreditReviews /></Guard>} />

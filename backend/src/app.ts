@@ -8,6 +8,7 @@ import adminCatalogRoutes from "./routes/admin/catalog";
 import adminOrderRoutes from "./routes/admin/orders";
 import adminRetailerRoutes from "./routes/admin/retailers";
 import adminSapRoutes from "./routes/admin/sap";
+import adminImportRoutes from "./routes/admin/imports";
 import { createAdminStaffRouter } from "./modules/identity/adminStaffRoutes";
 import { StaffManagementService } from "./modules/identity/staffManagementService";
 import { requireAdmin, requireAdminIdentity } from "./lib/adminAuth";
@@ -205,6 +206,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/admin", adminRetailerRoutes);
   app.use("/admin", adminCatalogRoutes);
   app.use("/admin", adminSapRoutes);
+  app.use("/admin", adminImportRoutes);
   app.use(
     "/admin",
     createAdminStaffRouter({

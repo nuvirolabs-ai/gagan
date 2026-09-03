@@ -81,7 +81,7 @@ export default function ImportCenter() {
     <div className="import-heading"><div><p className="eyebrow">System / controlled data</p><h1 className="page-title">Data Import</h1><p className="page-sub">Bring approved master data into Gagan safely.</p></div><div className="import-environment"><span className="status-dot" /> staging · mock SAP</div></div>
     {error ? <div className="banner error" role="alert">{error}</div> : null}
     {notice ? <div className="banner success" role="status">{notice}</div> : null}
-    <section className="import-safety" aria-label="Safe import guidance"><div><span className="import-kicker">SAFE IMPORT</span><strong>Preview first. Nothing changes until Apply.</strong></div><span>Up to 10,000 rows · CSV/XLSX · uses existing Gagan master records</span></section>
+    <section className="import-safety" aria-label="Safe import guidance"><div><span className="import-info-mark" aria-hidden="true">i</span><span className="import-kicker">SAFE IMPORT</span><strong>Preview first. Nothing changes until Apply.</strong></div><span>Up to 10,000 rows · CSV/XLSX · uses existing Gagan master records</span></section>
 
     <div className="import-layout">
       <aside className="import-types" aria-label="Import types">

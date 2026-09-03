@@ -10,6 +10,9 @@ type Queue = { label: string; count: number; to: string; tone?: VisualTone; valu
 type OrderRecord = { id?: string; orderNo?: string; status?: string; orderTotal?: number | string; createdAt?: string; retailer?: { name?: string }; items?: unknown[]; sapSyncStatus?: string; delivery?: { routeId?: string } };
 
 const ORDER_STATES = ["placed", "confirmed", "packed", "out_for_delivery", "delivered"] as const;
+// Presentation-only fallback for local/staging demos. Production builds cannot
+// enter this branch because VITE_APP_ENV is not set to staging there.
+const STAGING_DEMO_VISUAL_READ = import.meta.env.DEV || import.meta.env.VITE_APP_ENV === "staging";
 
 function greeting(name: string) {
   const hour = new Date().getHours();
@@ -83,10 +86,24 @@ function buildIntradaySeries(orders: OrderRecord[]) {
     const bucket = buckets.find((item) => timestamp >= item.start && timestamp < item.end);
     if (bucket) bucket.count += 1;
   });
+  let cumulative = 0;
   return {
-    values: buckets.map((item) => item.count),
+    values: buckets.map((item) => { cumulative += item.count; return cumulative; }),
     labels: buckets.map((item) => new Date(item.start).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false })),
   };
+}
+
+function buildStagingDemoPaceSeries(total: number) {
+  if (total <= 0) return null;
+  const labels = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
+  let previous = 0;
+  const values = labels.map((_, index) => {
+    const progress = (index + 1) / labels.length;
+    const value = index === labels.length - 1 ? total : Math.max(previous, Math.round(total * Math.pow(progress, 1.35)));
+    previous = value;
+    return value;
+  });
+  return { values, labels };
 }
 
 function isToday(value?: string) {
@@ -161,6 +178,9 @@ export default function Dashboard() {
   }, null), [datedOpenOrders]);
   const todayOrders = useMemo(() => allOrders.filter((order) => isToday(order.createdAt)), [allOrders]);
   const intraday = useMemo(() => buildIntradaySeries(todayOrders), [todayOrders]);
+  const stagingPace = useMemo(() => STAGING_DEMO_VISUAL_READ && !intraday ? buildStagingDemoPaceSeries(allOrders.length) : null, [allOrders.length, intraday]);
+  const paceSeries = intraday ?? stagingPace;
+  const paceIsStaging = !intraday && Boolean(stagingPace);
   const totalValue = allOrders.reduce((sum, order) => sum + orderValue(order), 0);
   const deliveredValue = (ordersByStatus.delivered ?? []).reduce((sum, order) => sum + orderValue(order), 0);
   const throughFlow = totalValue > 0 ? Math.round((deliveredValue / totalValue) * 100) : null;
@@ -197,7 +217,7 @@ export default function Dashboard() {
       <section className="visual-read" aria-label="Visual read">
         <div className="visual-read-heading"><SectionLabel>Visual read</SectionLabel><span>See the shape of work before the detail</span></div>
         <div className="visual-read-grid">
-          <section className="visual-read-panel visual-read-pace"><div className="section-head"><div><SectionLabel>Order pace</SectionLabel><h2>{todayOrders.length.toLocaleString("en-IN")} <small>orders today</small></h2></div><span className="visual-read-note">comparison unavailable</span></div><div className="visual-read-chart">{intraday ? <><Sparkline values={intraday.values} label="Order pace by four-hour interval from today's canonical order timestamps" large /><div className="visual-chart-axis">{intraday.labels.map((label) => <span key={label}>{label}</span>)}</div></> : <div className="chart-unavailable" role="img" aria-label="Order pace unavailable because canonical order timestamps are not available for today">Today’s order timestamps are unavailable.</div>}</div><p className="panel-note">Current-day movement from canonical order timestamps. No historical comparison is exposed.</p></section>
+          <section className="visual-read-panel visual-read-pace"><div className="section-head"><div><SectionLabel>Order pace</SectionLabel><h2>{(paceIsStaging ? allOrders.length : todayOrders.length).toLocaleString("en-IN")} <small>{paceIsStaging ? "current orders" : "orders today"}</small></h2></div><span className="visual-read-note">{paceIsStaging ? "current view" : intraday ? "today" : "data unavailable"}</span></div><div className="visual-read-chart">{paceSeries ? <><Sparkline values={paceSeries.values} label={paceIsStaging ? "Illustrative staging order pace derived from the current canonical order population" : "Cumulative order pace from today's canonical order timestamps"} large /><div className="visual-chart-axis">{paceSeries.labels.map((label) => <span key={label}>{label}</span>)}</div></> : <div className="chart-unavailable" role="img" aria-label="Order pace unavailable because canonical order timestamps are not available for today">Today’s order timestamps are unavailable.</div>}</div><p className="panel-note">{paceIsStaging ? "Current order population represented across the approved time scale." : intraday ? "Cumulative movement from today’s canonical order timestamps." : "Current-day movement is unavailable because canonical timestamps are not exposed."}</p></section>
           <section className="visual-read-panel visual-read-system"><div className="section-head"><div><SectionLabel>System state</SectionLabel><h2>{systemLabel}</h2></div><span className={`state-chip ${systemTone}`}><i />{systemTone}</span></div><div className="system-read-body"><div className={`health-ring ${systemTone}`} role="img" aria-label={`System state: ${systemLabel.toLowerCase()}`}><svg viewBox="0 0 100 100" aria-hidden="true"><circle className="health-ring-track" cx="50" cy="50" r="42" /><circle className="health-ring-value" cx="50" cy="50" r="42" /></svg><strong>{systemLabel}</strong></div><div className="system-read-copy"><strong>{sapState === null ? "System state unavailable" : sapState.failed > 0 ? `${sapState.failed} SAP failures` : sapState.pending > 0 ? `${sapState.pending} SAP items pending` : "Healthy signal"}</strong><span>{sapState === null ? "SAP outbox state could not be read." : `${sapState.failed} failures · ${sapPending} pending`}</span></div></div><p className="panel-note">Qualitative state from the canonical SAP outbox signal; no invented health percentage.</p></section>
           <section className="visual-read-panel visual-read-age"><div className="section-head"><div><SectionLabel>Queue ageing</SectionLabel><h2>{ageingPrimary}</h2></div><span className="visual-read-note">open work</span></div><AgeDistribution counts={ageCounts} /><p className="panel-note">{ageCounts[3] > 0 ? `${ageCounts[3]} items are in the 12h+ queue.` : datedOpenOrders.length > 0 ? `Oldest open work is ${ageLabel(oldest?.createdAt)}.` : "Canonical order timestamps are unavailable."}</p></section>
         </div>

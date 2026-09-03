@@ -641,7 +641,8 @@ tr:last-child td { border-bottom: 0; }
 .visual-read-note { color: var(--oi-blue); font: 9px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; }
 .visual-read-chart { margin: 24px 0 0; padding: 13px 0 0; border-radius: 10px; background: repeating-linear-gradient(to bottom, transparent 0, transparent 34px, rgba(60,60,67,.09) 35px, rgba(60,60,67,.09) 36px); }
 .visual-read-chart .sparkline-large { height: 126px; }
-.visual-chart-axis { display: grid; grid-template-columns: repeat(6, 1fr); margin-top: 3px; color: var(--oi-subtle); font: 9px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.visual-chart-axis { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 3px; color: var(--oi-subtle); font: 9px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.visual-chart-axis span { min-width: 0; white-space: nowrap; }
 .visual-chart-axis span:last-child { text-align: right; }
 .visual-read-chart .chart-unavailable { min-height: 126px; }
 .visual-read-system .section-head h2 { color: var(--oi-blue); font-size: 21px; letter-spacing: -.04em; }

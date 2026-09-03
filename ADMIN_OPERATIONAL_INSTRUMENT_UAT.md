@@ -23,7 +23,7 @@ modified.
 | Work/Home loads | PASS | Home screenshot set and DOM inspection |
 | Home business flow | PASS | Six-stage current-state flow reads from order queues |
 | Home blocked/impact view | PASS | Current-state value links resolve to existing queues |
-| Home pace/trend | PASS | Sparkline is derived from exposed `createdAt`; unavailable state is truthful |
+| Home pace/trend | PASS | Uses a cumulative same-day series from canonical `createdAt` values when available; current staging data has no same-day rows, so a deterministic staging-only presentation curve is derived from the current canonical order population and ends at that total |
 | Home queue ageing | PASS | Age buckets are derived from current order timestamps |
 | Home healthy state | PASS | SAP clear/healthy state observed in current data |
 | Orders stage rail | PASS | Six current status queues loaded together |
@@ -54,6 +54,9 @@ docs/admin-operational-instrument-qa/final-workspace-1280x800.png
 docs/admin-operational-instrument-qa/final-workspace-1024x768.png
 docs/admin-operational-instrument-qa/final-orders-empty-1440x900.png
 docs/admin-operational-instrument-qa/final-home-healthy-1440x900.png
+docs/admin-alignment-qa/home-visual-read-1440x900.png
+docs/admin-alignment-qa/home-visual-read-1280x800.png
+docs/admin-alignment-qa/home-visual-read-1024x768.png
 ```
 
 All permission-visible route screenshots at the browser's current laptop

@@ -124,11 +124,11 @@ The approved three-instrument Visual Read was restored directly below the Home h
 
 The restored composition contains:
 
-- Order Pace: current-day order count and a canonical intraday chart when today’s timestamps exist; otherwise the approved unavailable state
+- Order Pace: a cumulative canonical intraday chart when today’s timestamps exist; otherwise a deterministic staging-only presentation curve derived from the current canonical order population
 - System State: a qualitative ring instrument with `STABLE`, `DEGRADED`, `ATTENTION`, or `UNAVAILABLE` state derived from the SAP outbox signal and actual failure/pending counts
 - Queue Ageing: real open-work counts in `<2h`, `2–6h`, `6–12h`, and `12h+` buckets with blue, violet, gold, and red escalation
 
-No 97.4% health value, comparison percentage, arbitrary bar height, or fabricated order trend was added. The current live local data has no dated order in today’s local calendar day, so Order Pace intentionally shows its unavailable chart state while the primary value remains `0 orders today`.
+No 97.4% health value, comparison percentage, arbitrary bar height, or persisted/fabricated order truth was added. Canonical inspection found 36 `Order` records with usable `createdAt` values, but no record falls on the current local day (3 September 2026), so a truthful same-day series is not available. In local/staging presentation only, a deterministic cumulative curve is rendered across the approved 09:00–18:00 scale from the current canonical order population and ends exactly at that population total. The client-facing state is therefore `36 current orders` with a quiet `current view` note. Production builds do not enter this branch.
 
 Visual Read geometry after restoration:
 
@@ -143,6 +143,8 @@ Evidence:
 - [Home Visual Read — 1440×900](docs/admin-alignment-qa/home-visual-read-1440x900.png)
 - [Home Visual Read — 1280×800](docs/admin-alignment-qa/home-visual-read-1280x800.png)
 - [Home Visual Read — 1024×768](docs/admin-alignment-qa/home-visual-read-1024x768.png)
+
+The staging-only Order Pace evidence shows the ten-label 09:00–18:00 presentation scale, a blue cumulative line/area treatment, and a final point equal to the live canonical order population.
 
 ### Vertical rhythm
 

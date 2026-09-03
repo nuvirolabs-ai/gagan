@@ -216,7 +216,7 @@ export default function MyActivityScreen({ route }: any) {
                       : `${targets[0].actual} / ${targets[0].target}`}{" "}
                     · {targets[0].completionPct}%
                   </Text>
-                  <ProgressRow pct={targets[0].completionPct} tone="gold" />
+                  <ProgressRow pct={targets[0].completionPct} tone="green" />
                   <Text style={styles.conclusion}>Actual progress is {targets[0].completionPct}% of the current target.</Text>
                 </Surface>
               ) : null}
@@ -302,7 +302,7 @@ export default function MyActivityScreen({ route }: any) {
                             : `${target.actual} / ${target.target}`}
                         </Text>
                       </View>
-                      <ProgressRow pct={target.completionPct} tone="gold" />
+                      <ProgressRow pct={target.completionPct} tone="green" />
                       <Text style={styles.targetSource}>{target.source}</Text>
                     </View>
                   ))

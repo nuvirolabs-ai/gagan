@@ -50,8 +50,8 @@ export function AchievementCard({
         <Ionicons
           name={(ICONS[achievement.type] ?? "sparkles-outline") as any}
           size={major ? 22 : 17}
-          // On the filled accent surface the icon must be dark ink, not white:
-          // the accent is a fill colour, never a background for light content.
+          // The milestone surface is the one place where the bright lime
+          // treatment is intentional; the icon remains dark for contrast.
           color={major ? colors.onAccent : colors.accentStrong}
         />
       </View>
@@ -101,10 +101,10 @@ const s = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.lg,
   },
-  cardMajor: { backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentPrimary },
+  cardMajor: { backgroundColor: colors.limeSoft, borderWidth: 1, borderColor: colors.lime },
   cardMinor: { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border },
   icon: { width: 42, height: 42, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
-  iconMajor: { backgroundColor: colors.accentPrimary },
+  iconMajor: { backgroundColor: colors.lime },
   iconMinor: { backgroundColor: colors.accentSoft },
   title: { fontSize: 14.5, fontWeight: "700", color: colors.ink },
   titleMajor: { fontSize: 16 },

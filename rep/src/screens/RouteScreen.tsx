@@ -141,7 +141,7 @@ export default function RouteScreen({ navigation }: any) {
               await load();
               setRefreshing(false);
             }}
-            tintColor={colors.green}
+            tintColor={colors.blue}
           />
         }
       >
@@ -157,7 +157,7 @@ export default function RouteScreen({ navigation }: any) {
         </Card>
 
         {route.stops.map((stop: any) => (
-          <Card key={stop.id}>
+          <View key={stop.id} style={styles.stopBlock}>
             <View style={styles.stopHead}>
               <View style={styles.sequence}>
                 <Text style={styles.sequenceText}>{stop.sequence}</Text>
@@ -251,7 +251,7 @@ export default function RouteScreen({ navigation }: any) {
                 />
               )
             ) : null}
-          </Card>
+          </View>
         ))}
       </ScrollView>
     </AppScreen>
@@ -261,7 +261,7 @@ export default function RouteScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" },
-  content: { padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxl },
+  content: { paddingHorizontal: spacing.xl, paddingTop: spacing.md, paddingBottom: spacing.xxl },
 
   title: { fontSize: 17, fontWeight: "700", color: colors.ink },
   muted: { fontSize: 12.5, color: colors.inkMuted, lineHeight: 18 },
@@ -271,11 +271,11 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: radius.pill,
-    backgroundColor: colors.greenSoft,
+    backgroundColor: colors.blueSoft,
     alignItems: "center",
     justifyContent: "center",
   },
-  sequenceText: { fontSize: 13, fontWeight: "800", color: colors.green },
+  sequenceText: { fontSize: 13, fontWeight: "800", color: colors.blueInk },
   stopName: { fontSize: 15, fontWeight: "700", color: colors.ink },
 
   metaRow: { flexDirection: "row", gap: spacing.sm, alignItems: "center", flexWrap: "wrap" },
@@ -284,4 +284,10 @@ const styles = StyleSheet.create({
   note: { fontSize: 12.5, color: colors.inkMuted, lineHeight: 18 },
 
   actions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
+  stopBlock: {
+    gap: spacing.sm,
+    paddingVertical: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.separator,
+  },
 });

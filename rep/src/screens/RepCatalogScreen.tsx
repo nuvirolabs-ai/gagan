@@ -113,7 +113,9 @@ export default function RepCatalogScreen({ route, navigation }: any) {
   return (
     <View style={styles.screen}>
       <View style={styles.banner}>
-        <Ionicons name="storefront-outline" size={15} color={colors.onDark} />
+        <View style={styles.bannerIcon}>
+          <Ionicons name="storefront-outline" size={16} color={colors.blue} />
+        </View>
         <Text style={styles.bannerText} numberOfLines={1}>
           Ordering for {retailerName}
         </Text>
@@ -143,22 +145,22 @@ export default function RepCatalogScreen({ route, navigation }: any) {
                   name={product.name}
                   category={product.category}
                   imageUrl={product.imageUrl}
-                  size={62}
+                  size={72}
                 />
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={styles.name} numberOfLines={1}>
                     {product.name}
                   </Text>
                   <Text style={styles.pack}>
                     {variant.unitSize} × {variant.unitsPerCase}
                   </Text>
-                  <View style={styles.priceRow}>
-                    <Text style={styles.price}>
-                      {variant.price != null ? `${inr(variant.price)}/case` : "—"}
-                    </Text>
-                    {variant.pricePerKg != null && (
-                      <Text style={styles.perKg}>{inr(variant.pricePerKg)}/kg</Text>
-                    )}
+                  <View style={styles.priceStack}>
+                    <View style={styles.priceRow}>
+                      <Text style={styles.price}>
+                        {variant.price != null ? `${inr(variant.price)}/case` : "—"}
+                      </Text>
+                    </View>
+                    {variant.pricePerKg != null ? <Text style={styles.perKg}>{inr(variant.pricePerKg)}/kg</Text> : null}
                   </View>
                   {variant.isOverride && <Text style={styles.override}>{t("catalog.specialRate")}</Text>}
                 </View>
@@ -202,21 +204,29 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
-    backgroundColor: colors.navy,
-    marginHorizontal: spacing.lg,
+    backgroundColor: colors.blueSoft,
+    marginHorizontal: spacing.xl,
     marginBottom: spacing.md,
-    borderRadius: radius.sm,
-    paddingVertical: 9,
+    borderRadius: radius.lg,
+    paddingVertical: 10,
     paddingHorizontal: spacing.md,
   },
-  bannerText: { color: colors.onDark, fontWeight: "700", fontSize: 13 },
+  bannerIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bannerText: { color: colors.blueInk, fontWeight: "700", fontSize: 13.5 },
 
   card: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     padding: spacing.md,
     marginBottom: spacing.sm,
     borderWidth: 1,
@@ -226,11 +236,15 @@ const styles = StyleSheet.create({
     borderColor: colors.blue,
     backgroundColor: colors.blueSoft,
   },
-  name: { fontSize: 14.5, fontWeight: "700", color: colors.ink },
-  pack: { fontSize: 11.5, color: colors.inkMuted, marginTop: 2 },
-  priceRow: { flexDirection: "row", alignItems: "baseline", gap: spacing.sm, marginTop: 4 },
-  price: { fontSize: 14, fontWeight: "700", color: colors.ink },
-  perKg: { fontSize: 11, color: colors.inkMuted },
+  name: { fontSize: 15, fontWeight: "700", color: colors.ink },
+  pack: { fontSize: 12, color: colors.inkMuted, marginTop: 3 },
+  priceStack: { marginTop: 4 },
+  priceRow: { flexDirection: "row", alignItems: "baseline" },
+  // Keep both price contexts legible. If a very narrow device cannot fit the
+  // pair, the wrapping row gives the per-kg value its own line instead of
+  // truncating it with an ellipsis.
+  price: { fontSize: 14.5, fontWeight: "700", color: colors.ink, flexShrink: 0 },
+  perKg: { fontSize: 11, color: colors.inkMuted, marginTop: 1 },
   override: { fontSize: 10, color: colors.blue, fontWeight: "700", marginTop: 3 },
 
   bar: {
@@ -254,8 +268,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
-    backgroundColor: colors.navy,
-    borderRadius: radius.sm,
+    backgroundColor: colors.blue,
+    borderRadius: radius.lg,
+    minHeight: 48,
     paddingVertical: 14,
     paddingHorizontal: 20,
   },

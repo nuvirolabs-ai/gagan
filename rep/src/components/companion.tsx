@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import {
   AccessibilityInfo,
   Animated,
@@ -13,6 +13,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { BottomTabBarHeightContext } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   colors,
@@ -43,18 +44,24 @@ export function AppScreen({
   children: React.ReactNode;
   style?: ViewStyle;
 }) {
-  return <View style={[styles.screen, style]}>{children}</View>;
+  // Bottom-tab scenes are rendered edge-to-edge by React Navigation. Consume
+  // its measured bar height at the shared shell so content never sits behind
+  // the fixed navigation surface; stack screens simply receive no inset.
+  const tabBarHeight = useContext(BottomTabBarHeightContext);
+  return <View style={[styles.screen, tabBarHeight ? { paddingBottom: tabBarHeight } : null, style]}>{children}</View>;
 }
 
 export function PersonalGreeting({
   name,
   salutation,
   dateLabel,
+  statusLabel,
   right,
 }: {
   name: string;
   salutation: string;
   dateLabel: string;
+  statusLabel?: string;
   right?: React.ReactNode;
 }) {
   const paddingTop = useHeaderPaddingTop();
@@ -67,6 +74,7 @@ export function PersonalGreeting({
         <Text style={styles.greetingHello} numberOfLines={1}>
           {composeGreeting(salutation, name)}
         </Text>
+        {statusLabel ? <Text style={styles.greetingStatus} numberOfLines={1}>{statusLabel}</Text> : null}
         <Text style={styles.greetingDate}>{dateLabel}</Text>
       </View>
       {right}
@@ -309,7 +317,7 @@ export function StatusChip({
 }) {
   const palette =
     tone === "green"
-      ? { bg: colors.primarySoft, fg: colors.primary }
+      ? { bg: colors.successSoft, fg: colors.success }
       : tone === "gold"
         ? { bg: colors.goldSoft, fg: colors.goldStrong }
         : tone === "danger"
@@ -608,16 +616,17 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
   },
   greetingAvatar: {
-    width: 40,
-    height: 40,
+    width: 52,
+    height: 52,
     borderRadius: radius.pill,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center",
   },
-  greetingInitials: { color: colors.primary, fontWeight: "700", fontSize: 13 },
-  greetingHello: { ...typeRoles.screenTitle, fontSize: 22 },
-  greetingDate: { ...typeRoles.caption, marginTop: 2 },
+  greetingInitials: { color: colors.blueInk, fontWeight: "700", fontSize: 16 },
+  greetingHello: { ...typeRoles.screenTitle, fontSize: 21, letterSpacing: -0.45 },
+  greetingStatus: { color: colors.inkMuted, fontSize: 13.5, lineHeight: 18, marginTop: 1 },
+  greetingDate: { color: colors.inkFaint, fontSize: 11.5, lineHeight: 15, marginTop: 1 },
 
   sectionHeader: {
     flexDirection: "row",
@@ -639,21 +648,23 @@ const styles = StyleSheet.create({
   },
   surface1: {
     backgroundColor: colors.surfaceSecondary,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
   },
   surface2: {
     backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
     ...elevation.card,
   },
 
   metricStrip: {
     flexDirection: "row",
     backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    paddingVertical: spacing.md,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: spacing.lg,
   },
   metricStripBare: {
     backgroundColor: "transparent",
@@ -733,7 +744,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: spacing.md,
-    paddingVertical: 14,
+    paddingVertical: 16,
     paddingHorizontal: spacing.xl,
     minHeight: control.minTap,
   },
@@ -761,7 +772,7 @@ const styles = StyleSheet.create({
   attentionTitle: { ...typeRoles.bodyStrong, fontSize: 14 },
   attentionSub: { ...typeRoles.caption, marginTop: 2 },
 
-  taskRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingVertical: 10 },
+  taskRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingVertical: 12 },
   taskCheck: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   taskTitle: { ...typeRoles.body, fontSize: 15 },
   taskDone: { color: colors.textSecondary, textDecorationLine: "line-through" },

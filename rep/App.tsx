@@ -81,27 +81,33 @@ function RepTabs() {
         // Every tab screen renders its own <ScreenHeader>.
         headerShown: false,
         tabBarLabel: tabLabel(route.name),
-        tabBarActiveTintColor: colors.primaryDeep,
-        tabBarInactiveTintColor: colors.inkFaint,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
+        tabBarActiveTintColor: colors.navy,
+        tabBarInactiveTintColor: colors.inkMuted,
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "700", marginBottom: 2 },
+        tabBarItemStyle: { paddingTop: 3 },
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.separator,
-          paddingTop: 6,
+          borderTopWidth: 1,
+          height: 78,
+          paddingTop: 7,
+          paddingBottom: 7,
         },
         tabBarIcon: ({ color, focused }) => (
           <View
             style={{
-              backgroundColor: focused ? colors.primarySoft : "transparent",
-              borderRadius: 12,
-              paddingHorizontal: 10,
-              paddingVertical: 4,
+              backgroundColor: focused ? colors.navy : "transparent",
+              borderRadius: 17,
+              width: 44,
+              height: 34,
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
             <Ionicons
               name={(TAB_ICONS[route.name] ?? "ellipse-outline") as any}
               size={20}
-              color={color}
+              color={focused ? colors.onDark : color}
             />
           </View>
         ),

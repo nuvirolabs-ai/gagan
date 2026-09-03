@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
   },
-  title: { fontSize: 22, fontWeight: "600", color: colors.ink, letterSpacing: -0.3 },
+  title: { fontSize: 26, fontWeight: "700", color: colors.ink, letterSpacing: -0.6 },
   sub: { fontSize: 13, color: colors.inkMuted, marginTop: 2 },
   summary: {
     paddingHorizontal: spacing.xl,
@@ -194,10 +194,10 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   addBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primaryDeep,
+    width: 44,
+    height: 44,
+    borderRadius: radius.lg,
+    backgroundColor: colors.blue,
     alignItems: "center",
     justifyContent: "center",
   },

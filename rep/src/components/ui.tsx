@@ -170,7 +170,7 @@ export function EmptyState({
   return (
     <View style={s.empty}>
       <View style={s.emptyIcon}>
-        <MaterialCommunityIcons name={icon as any} size={28} color={colors.green} />
+        <MaterialCommunityIcons name={icon as any} size={28} color={colors.blueInk} />
       </View>
       <Text style={s.emptyTitle}>{title}</Text>
       {body ? <Text style={s.emptyBody}>{body}</Text> : null}
@@ -297,10 +297,10 @@ export function ProgressTrack({
   pct: number;
   tone?: "green" | "danger" | "accent";
 }) {
-  // Progress toward a goal is the warm accent's job; green stays for actions
-  // and danger stays for money that is genuinely late.
+  // The route/progress track uses the same blue action language as the Home;
+  // danger remains reserved for work that is genuinely late or blocked.
   const fill =
-    tone === "danger" ? colors.danger : tone === "accent" ? colors.accentPrimary : colors.green;
+    tone === "danger" ? colors.danger : tone === "accent" ? colors.accentPrimary : colors.blue;
   return (
     <View style={s.track}>
       <View
@@ -371,7 +371,7 @@ export function ListRow({
     <View style={[s.listRow, !first && s.listRowDivided]}>
       {icon ? (
         <View style={s.listIcon}>
-          <Ionicons name={icon as any} size={17} color={danger ? colors.danger : colors.green} />
+          <Ionicons name={icon as any} size={17} color={danger ? colors.danger : colors.blueInk} />
         </View>
       ) : null}
       <View style={{ flex: 1 }}>
@@ -400,18 +400,20 @@ export function PrimaryButton({
   onPress,
   disabled,
   icon,
-  tone = "green",
+  tone = "blue",
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
   icon?: string;
-  tone?: "green" | "danger";
+  tone?: "blue" | "navy" | "green" | "danger";
 }) {
   return (
     <TouchableOpacity
       style={[
         s.primary,
+        tone === "navy" && { backgroundColor: colors.navy },
+        tone === "green" && { backgroundColor: colors.green },
         tone === "danger" && { backgroundColor: colors.danger },
         disabled && s.primaryDisabled,
       ]}
@@ -430,20 +432,22 @@ export function SecondaryButton({
   onPress,
   icon,
   disabled,
+  variant = "outline",
 }: {
   label: string;
   onPress: () => void;
   icon?: string;
   disabled?: boolean;
+  variant?: "outline" | "text";
 }) {
   return (
     <TouchableOpacity
-      style={[s.secondary, disabled && { opacity: 0.5 }]}
+      style={[variant === "text" ? s.secondaryTextButton : s.secondary, disabled && { opacity: 0.5 }]}
       onPress={onPress}
       disabled={disabled}
       activeOpacity={0.75}
     >
-      {icon ? <Ionicons name={icon as any} size={15} color={colors.green} /> : null}
+      {icon ? <Ionicons name={icon as any} size={15} color={colors.blueInk} /> : null}
       <Text style={s.secondaryText}>{label}</Text>
     </TouchableOpacity>
   );
@@ -532,13 +536,13 @@ export const inputStyle = {
 
 const s = StyleSheet.create({
   header: {
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.xl,
     paddingBottom: spacing.md,
     flexDirection: "row",
     alignItems: "flex-end",
     backgroundColor: colors.bg,
   },
-  headerTitle: { fontSize: 22, fontWeight: "600", color: colors.ink, letterSpacing: -0.3 },
+  headerTitle: { fontSize: 26, fontWeight: "700", color: colors.ink, letterSpacing: -0.6 },
   headerSub: { fontSize: 13, color: colors.inkMuted, marginTop: 2 },
 
   search: {
@@ -548,7 +552,7 @@ const s = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
-    marginHorizontal: spacing.lg,
+    marginHorizontal: spacing.xl,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -562,7 +566,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  chipActive: { backgroundColor: colors.green, borderColor: colors.green },
+  chipActive: { backgroundColor: colors.blue, borderColor: colors.blue },
   chipText: { fontSize: 13, fontWeight: "600", color: colors.inkMuted },
   chipTextActive: { color: colors.onDark },
 
@@ -570,7 +574,7 @@ const s = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: radius.sm,
-    backgroundColor: colors.greenDeep,
+    backgroundColor: colors.blue,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -593,7 +597,7 @@ const s = StyleSheet.create({
     width: 62,
     height: 62,
     borderRadius: radius.pill,
-    backgroundColor: colors.greenSoft,
+    backgroundColor: colors.blueSoft,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.lg,
@@ -608,7 +612,7 @@ const s = StyleSheet.create({
   },
   emptyBtn: {
     marginTop: spacing.lg,
-    backgroundColor: colors.green,
+    backgroundColor: colors.blue,
     borderRadius: radius.sm,
     paddingVertical: 11,
     paddingHorizontal: 22,
@@ -620,8 +624,8 @@ const s = StyleSheet.create({
 
   card: {
     backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
     borderWidth: 1,
     borderColor: colors.separator,
     gap: spacing.sm,
@@ -680,8 +684,8 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 7,
-    backgroundColor: colors.navy,
-    borderRadius: radius.md,
+    backgroundColor: colors.blue,
+    borderRadius: radius.lg,
     minHeight: control.buttonHeight,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
@@ -693,7 +697,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.separator,
     backgroundColor: colors.surface,
@@ -701,7 +705,15 @@ const s = StyleSheet.create({
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
   },
-  secondaryText: { color: colors.primary, fontWeight: "600", fontSize: 14 },
+  secondaryText: { color: colors.blueInk, fontWeight: "600", fontSize: 14 },
+  secondaryTextButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    minHeight: control.buttonHeight,
+    paddingHorizontal: spacing.sm,
+  },
 
   optionGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   option: {
@@ -712,9 +724,9 @@ const s = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  optionActive: { borderColor: colors.green, backgroundColor: colors.greenSoft },
+  optionActive: { borderColor: colors.blue, backgroundColor: colors.blueSoft },
   optionText: { fontSize: 12.5, fontWeight: "600", color: colors.inkMuted },
-  optionTextActive: { color: colors.green },
+  optionTextActive: { color: colors.blueInk },
 
   fieldLabel: { fontSize: 12, fontWeight: "700", color: colors.inkMuted },
   fieldHint: { fontSize: 11.5, color: colors.inkFaint, lineHeight: 16 },

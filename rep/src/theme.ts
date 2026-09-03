@@ -1,7 +1,7 @@
 export const colors = {
-  bg: "#F5F6F8",
+  bg: "#F4F6F9",
   surface: "#FFFFFF",
-  surfaceAlt: "#F0F2F5",
+  surfaceAlt: "#F1F3F6",
 
   ink: "#0E1729",
   inkMuted: "#697386",
@@ -13,6 +13,11 @@ export const colors = {
   blue: "#2D7FF9",
   blueSoft: "#E8F1FF",
   blueMid: "#5EA0FF",
+  blueInk: "#1769D2",
+
+  /* Achievement only. Lime is intentionally not a general brand colour. */
+  lime: "#C7F42B",
+  limeSoft: "#F0FFC2",
 
   green: "#1F5132",
   greenDeep: "#123122",
@@ -57,8 +62,8 @@ export const colors = {
   track: "#DDE3EB",
 
   /* Semantic aliases used by the companion system. Same values, clearer names. */
-  canvas: "#F5F6F8",
-  surfaceSecondary: "#F0F2F5",
+  canvas: "#F4F6F9",
+  surfaceSecondary: "#F1F3F6",
   textPrimary: "#0E1729",
   textSecondary: "#697386",
   textTertiary: "#9AA4B2",
@@ -71,11 +76,11 @@ export const colors = {
 
 export const radius = {
   sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
-  focus: 22,
-  hero: 24,
+  md: 14,
+  lg: 20,
+  xl: 24,
+  focus: 26,
+  hero: 28,
   pill: 999,
 };
 
@@ -92,13 +97,13 @@ export const spacing = {
 };
 
 export const type = {
-  display: { fontSize: 28, fontWeight: "600" as const, color: colors.ink, letterSpacing: -0.4 },
-  screenTitle: { fontSize: 22, fontWeight: "600" as const, color: colors.ink, letterSpacing: -0.3 },
+  display: { fontSize: 30, fontWeight: "700" as const, color: colors.ink, letterSpacing: -0.7, fontVariant: ["tabular-nums"] as const },
+  screenTitle: { fontSize: 26, fontWeight: "700" as const, color: colors.ink, letterSpacing: -0.6 },
   sectionTitle: { fontSize: 13, fontWeight: "600" as const, color: colors.ink, letterSpacing: 0.4 },
   cardTitle: { fontSize: 17, fontWeight: "600" as const, color: colors.ink },
   body: { fontSize: 15, fontWeight: "400" as const, color: colors.ink, lineHeight: 21 },
   bodyStrong: { fontSize: 15, fontWeight: "600" as const, color: colors.ink },
-  metricXL: { fontSize: 32, fontWeight: "600" as const, color: colors.ink, letterSpacing: -0.6 },
+  metricXL: { fontSize: 36, fontWeight: "700" as const, color: colors.ink, letterSpacing: -0.9, fontVariant: ["tabular-nums"] as const },
   metricLarge: { fontSize: 22, fontWeight: "600" as const, color: colors.ink, letterSpacing: -0.3 },
   metricMedium: { fontSize: 17, fontWeight: "600" as const, color: colors.ink },
   caption: { fontSize: 13, fontWeight: "400" as const, color: colors.inkMuted, lineHeight: 18 },

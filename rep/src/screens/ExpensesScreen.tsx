@@ -130,7 +130,7 @@ export default function ExpensesScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.green} />
+        <ActivityIndicator size="large" color={colors.blue} />
       </View>
     );
   }
@@ -147,7 +147,7 @@ export default function ExpensesScreen() {
               await load();
               setRefreshing(false);
             }}
-            tintColor={colors.green}
+            tintColor={colors.blue}
           />
         }
       >
@@ -240,7 +240,7 @@ export default function ExpensesScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" },
-  content: { padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxl },
+  content: { padding: spacing.xl, gap: spacing.section, paddingBottom: spacing.xxl },
   muted: { fontSize: 12.5, color: colors.inkMuted, lineHeight: 18 },
   actions: { flexDirection: "row", gap: spacing.sm },
 });

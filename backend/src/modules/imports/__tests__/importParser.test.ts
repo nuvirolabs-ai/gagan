@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 import { describe, expect, it } from "vitest";
 import { parseImportFile } from "../importParser";
+import { errorCsv } from "../importService";
 
 describe("data import parser", () => {
   it("reads the published CSV headers and trims values", () => {
@@ -25,5 +26,10 @@ describe("data import parser", () => {
   it("rejects unsupported headers instead of silently dropping columns", () => {
     expect(() => parseImportFile(Buffer.from("name,phone,shop_address,tier,secret\nA,9812345678,Road,Standard,nope\n"), "retailers.csv", "retailers")).toThrow("invalid_headers");
   });
-});
 
+  it("exports blocked preview rows before apply", async () => {
+    const db = { importJob: { findUnique: async () => ({ id: "job-1", fileName: "retailers.csv", result: { phase: "preview" }, preview: { rows: [{ rowNumber: 2, action: "blocked", errors: ["phone invalid"], values: { name: "QA" } }] } }) } } as any;
+    const result = await errorCsv(db, "job-1");
+    expect(result.csv).toContainEqual(expect.objectContaining({ row_number: 2, reason: "phone invalid", name: "QA" }));
+  });
+});

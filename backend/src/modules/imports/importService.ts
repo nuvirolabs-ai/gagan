@@ -410,5 +410,5 @@ export async function errorCsv(db: Db, jobId: string) {
   const resultRows = (job.result as JsonObject | null)?.rows;
   const previewRows = (job.preview as JsonObject | null)?.rows;
   const rows = (resultRows ?? previewRows ?? []) as JsonObject[];
-  return { fileName: `${job.fileName.replace(/\.[^.]+$/, "")}-errors.csv`, csv: rows.filter((row) => row.status === "failed").map((row) => ({ row_number: row.rowNumber, reason: Array.isArray(row.errors) ? row.errors.join("; ") : "Import failed", ...((row.values as JsonObject) ?? {}) })) };
+  return { fileName: `${job.fileName.replace(/\.[^.]+$/, "")}-errors.csv`, csv: rows.filter((row) => row.status === "failed" || (Array.isArray(row.errors) && row.errors.length > 0)).map((row) => ({ row_number: row.rowNumber, reason: Array.isArray(row.errors) ? row.errors.join("; ") : "Import failed", ...((row.values as JsonObject) ?? {}) })) };
 }

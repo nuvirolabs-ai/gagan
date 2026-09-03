@@ -27,7 +27,7 @@ services:
       - key: PORT
         value: "10000"
       - key: CORS_ORIGINS
-        value: https://gagan-staging-admin.vercel.app
+        value: https://gagan-staging-admin.vercel.app,http://localhost:5186,http://127.0.0.1:5186
       - key: SMS_PROVIDER
         value: mock
       - key: PAYMENT_PROVIDER

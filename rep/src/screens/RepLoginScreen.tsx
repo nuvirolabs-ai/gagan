@@ -58,7 +58,7 @@ export default function RepLoginScreen() {
         <Text style={styles.logo}>GAGAN</Text>
         <Text style={styles.tagline}>NUTRITION. DELIVERED.</Text>
         <View style={styles.roleChip}>
-          <Ionicons name="briefcase-outline" size={13} color={colors.green} />
+          <Ionicons name="briefcase-outline" size={13} color={colors.blue} />
           <Text style={styles.roleText}>SALES APP</Text>
         </View>
 
@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
   logo: {
     fontSize: 34,
     fontWeight: "700",
-    color: colors.green,
+    color: colors.navy,
     textAlign: "center",
     letterSpacing: 2,
   },
@@ -139,14 +139,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     alignSelf: "center",
     gap: 5,
-    backgroundColor: colors.greenSoft,
+    backgroundColor: colors.blueSoft,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: radius.pill,
     marginTop: spacing.lg,
     marginBottom: spacing.xxl,
   },
-  roleText: { fontSize: 10.5, fontWeight: "800", color: colors.green, letterSpacing: 1 },
+  roleText: { fontSize: 10.5, fontWeight: "800", color: colors.blue, letterSpacing: 1 },
 
   label: { fontSize: 13.5, color: colors.inkMuted, marginBottom: spacing.md, lineHeight: 19 },
   input: {
@@ -166,10 +166,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: colors.greenDeep,
+    backgroundColor: colors.navy,
     borderRadius: radius.md,
     paddingVertical: 15,
   },
   buttonText: { color: colors.onDark, fontWeight: "700", fontSize: 15.5 },
-  link: { textAlign: "center", color: colors.green, marginTop: spacing.lg, fontWeight: "600" },
+  link: { textAlign: "center", color: colors.blue, marginTop: spacing.lg, fontWeight: "600" },
 });

@@ -411,6 +411,6 @@ const styles = StyleSheet.create({
   barRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   barLabel: { width: 46, fontSize: 11, color: colors.textSecondary },
   barTrack: { flex: 1, height: 8, borderRadius: 99, backgroundColor: colors.track, overflow: "hidden" },
-  barFill: { height: "100%", borderRadius: 99, backgroundColor: colors.green },
+  barFill: { height: "100%", borderRadius: 99, backgroundColor: colors.blue },
   barValue: { width: 60, fontSize: 11, color: colors.ink, textAlign: "right" },
 });

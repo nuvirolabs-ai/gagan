@@ -45,14 +45,14 @@ const navTheme = {
     ...DefaultTheme.colors,
     background: colors.bg,
     card: colors.surface,
-    primary: colors.green,
+    primary: colors.blue,
   },
 };
 
 const stackScreenOptions = {
   headerStyle: { backgroundColor: colors.bg },
   headerShadowVisible: false,
-  headerTintColor: colors.green,
+  headerTintColor: colors.blue,
   headerTitleStyle: { color: colors.ink, fontWeight: "700" as const },
   contentStyle: { backgroundColor: colors.bg },
 };
@@ -62,10 +62,10 @@ const stackScreenOptions = {
  * with permissions without the icon mapping drifting.
  */
 const TAB_ICONS: Record<string, string> = {
-  Today: "today-outline",
+  Today: "home-outline",
   Retailers: "storefront-outline",
   Work: "briefcase-outline",
-  Activity: "pulse-outline",
+  Activity: "bar-chart-outline",
   Approvals: "shield-checkmark-outline",
   More: "ellipsis-horizontal-outline",
 };
@@ -74,12 +74,13 @@ function RepTabs() {
   const { staff } = useRep();
   const { t } = useLanguage();
   const capabilities = staffCapabilities(staff?.permissions ?? []);
+  const tabLabel = (name: string) => ({ Today: "Home", Retailers: "Outlets", Activity: "Reports", Work: "Work", Approvals: "Approvals", More: "More" }[name] ?? t(`tabs.${name.toLowerCase()}`));
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         // Every tab screen renders its own <ScreenHeader>.
         headerShown: false,
-        tabBarLabel: t(`tabs.${route.name.toLowerCase()}`),
+        tabBarLabel: tabLabel(route.name),
         tabBarActiveTintColor: colors.primaryDeep,
         tabBarInactiveTintColor: colors.inkFaint,
         tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
@@ -130,7 +131,7 @@ function RootNavigator() {
       <View
         style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.bg }}
       >
-        <ActivityIndicator size="large" color={colors.green} />
+        <ActivityIndicator size="large" color={colors.blue} />
       </View>
     );
   }

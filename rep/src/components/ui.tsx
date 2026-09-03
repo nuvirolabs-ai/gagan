@@ -680,7 +680,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 7,
-    backgroundColor: colors.primaryDeep,
+    backgroundColor: colors.navy,
     borderRadius: radius.md,
     minHeight: control.buttonHeight,
     paddingVertical: spacing.md,

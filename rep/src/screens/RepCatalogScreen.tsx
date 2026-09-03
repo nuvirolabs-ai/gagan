@@ -126,7 +126,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.green} />
+          <ActivityIndicator size="large" color={colors.blue} />
         </View>
       ) : (
         <FlatList
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
-    backgroundColor: colors.greenDeep,
+    backgroundColor: colors.navy,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.md,
     borderRadius: radius.sm,
@@ -223,15 +223,15 @@ const styles = StyleSheet.create({
     borderColor: colors.separator,
   },
   cardSelected: {
-    borderColor: colors.gold,
-    backgroundColor: colors.goldSoft,
+    borderColor: colors.blue,
+    backgroundColor: colors.blueSoft,
   },
   name: { fontSize: 14.5, fontWeight: "700", color: colors.ink },
   pack: { fontSize: 11.5, color: colors.inkMuted, marginTop: 2 },
   priceRow: { flexDirection: "row", alignItems: "baseline", gap: spacing.sm, marginTop: 4 },
   price: { fontSize: 14, fontWeight: "700", color: colors.ink },
   perKg: { fontSize: 11, color: colors.inkMuted },
-  override: { fontSize: 10, color: colors.green, fontWeight: "700", marginTop: 3 },
+  override: { fontSize: 10, color: colors.blue, fontWeight: "700", marginTop: 3 },
 
   bar: {
     position: "absolute",
@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
-    backgroundColor: colors.greenDeep,
+    backgroundColor: colors.navy,
     borderRadius: radius.sm,
     paddingVertical: 14,
     paddingHorizontal: 20,

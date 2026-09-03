@@ -1,13 +1,18 @@
 export const colors = {
-  bg: "#F7F4EC",
+  bg: "#F5F6F8",
   surface: "#FFFFFF",
-  surfaceAlt: "#F1EEE4",
+  surfaceAlt: "#F0F2F5",
 
-  ink: "#16241B",
-  inkMuted: "#7A8780",
-  inkFaint: "#A8B2AB",
+  ink: "#0E1729",
+  inkMuted: "#697386",
+  inkFaint: "#9AA4B2",
   onDark: "#FFFFFF",
-  onDarkMuted: "#B9C9BE",
+  onDarkMuted: "#C9D2DF",
+
+  navy: "#0B1324",
+  blue: "#2D7FF9",
+  blueSoft: "#E8F1FF",
+  blueMid: "#5EA0FF",
 
   green: "#1F5132",
   greenDeep: "#123122",
@@ -48,19 +53,19 @@ export const colors = {
   info: "#2F5B8F",
   infoSoft: "#DFEAF6",
 
-  border: "#E7E1D4",
-  track: "#DFDACD",
+  border: "#E2E6EC",
+  track: "#DDE3EB",
 
   /* Semantic aliases used by the companion system. Same values, clearer names. */
-  canvas: "#F7F4EC",
-  surfaceSecondary: "#F1EEE4",
-  textPrimary: "#16241B",
-  textSecondary: "#7A8780",
-  textTertiary: "#A8B2AB",
-  separator: "#E7E1D4",
+  canvas: "#F5F6F8",
+  surfaceSecondary: "#F0F2F5",
+  textPrimary: "#0E1729",
+  textSecondary: "#697386",
+  textTertiary: "#9AA4B2",
+  separator: "#E2E6EC",
   primaryDeep: "#123122",
-  primary: "#1F5132",
-  primarySoft: "#E7F0E9",
+  primary: "#2D7FF9",
+  primarySoft: "#E8F1FF",
   goldStrong: "#8A6A12",
 };
 

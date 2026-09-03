@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -56,6 +56,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   const [schemes, setSchemes] = useState<any[]>([]);
   const [composing, setComposing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const autoStartAttempted = useRef(false);
 
   const load = useCallback(async () => {
     const [retailerData, locationData, visitData, activityData, baselineData, opportunityData, todayData, schemeData] = await Promise.all([
@@ -93,6 +94,34 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
         .finally(() => setLoading(false));
     }, [load])
   );
+
+  // Home's next-visit action can take the salesperson straight into the
+  // existing, location-verified check-in flow. If the store still needs a
+  // location, the normal detail screen remains the honest recovery path.
+  useEffect(() => {
+    if (
+      !route.params?.startVisit ||
+      !data ||
+      location?.status !== "VERIFIED" ||
+      activeVisit ||
+      autoStartAttempted.current
+    ) return;
+    autoStartAttempted.current = true;
+    void captureForegroundLocation().then(async (reading) => {
+      if (reading.kind !== "captured") {
+        Alert.alert("Location needed", reading.kind === "permission_denied" ? "Allow location while using the app to start this visit." : reading.message);
+        return;
+      }
+      try {
+        const result = await repApi.checkIn(retailerId, reading);
+        haptic("medium");
+        setActiveVisit(result.visit);
+        navigation.navigate("Visit", { visitId: result.visit.id, retailerId, retailerName: data.retailer.name });
+      } catch {
+        Alert.alert("Couldn't start visit", "Try again when you're online.");
+      }
+    });
+  }, [activeVisit, data, location?.status, navigation, retailerId, route.params?.startVisit]);
 
   if (loading) {
     return (

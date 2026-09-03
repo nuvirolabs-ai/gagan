@@ -50,10 +50,12 @@ export function PersonalGreeting({
   name,
   salutation,
   dateLabel,
+  right,
 }: {
   name: string;
   salutation: string;
   dateLabel: string;
+  right?: React.ReactNode;
 }) {
   const paddingTop = useHeaderPaddingTop();
   return (
@@ -67,6 +69,7 @@ export function PersonalGreeting({
         </Text>
         <Text style={styles.greetingDate}>{dateLabel}</Text>
       </View>
+      {right}
     </View>
   );
 }
@@ -713,7 +716,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: colors.surfaceSecondary,
   },
-  filterChipActive: { backgroundColor: colors.primaryDeep, borderColor: colors.primaryDeep },
+  filterChipActive: { backgroundColor: colors.blue, borderColor: colors.blue },
   filterChipText: { fontSize: 13, fontWeight: "600", color: colors.textSecondary },
   filterChipTextActive: { color: colors.onDark },
 

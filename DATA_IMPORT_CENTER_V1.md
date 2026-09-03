@@ -41,3 +41,11 @@ The endpoint accepts `data.import`. Current staging platform administrators reta
 - Full backend database-backed integration tests require a configured isolated `DATABASE_URL`; they were not run against an unknown database from this worktree.
 - No existing Gagan business data was changed by this implementation; no import apply was run during unit/build checks.
 
+## Freeze status
+
+**DATA IMPORT CENTER V1 — FROZEN**
+
+The Import Center preview-first workflow and its final Operational Instrument
+color alignment are frozen for the existing staging/client-demo release. Future
+changes are limited to genuine defects or explicitly approved functionality.
+This is not production approval.

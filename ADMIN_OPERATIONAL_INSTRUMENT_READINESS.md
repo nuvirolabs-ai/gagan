@@ -2,11 +2,12 @@
 
 ## Status
 
-**IMPLEMENTED — READY FOR FOUNDER REVIEW**
+**GAGAN ADMIN OPERATIONAL INSTRUMENT V1 — CLIENT DEMO READY**
 
-The locked Operational Instrument visual system is implemented in the isolated
-Admin worktree and has been verified against local canonical data. This is not
-production approval and does not merge `main`.
+The locked Operational Instrument visual system, including the final Data
+Import Center color alignment, is released to the existing staging Admin and
+has been verified against local and hosted staging data. This is not production
+approval and does not merge `main`.
 
 ## Readiness matrix
 
@@ -22,6 +23,7 @@ production approval and does not merge `main`.
 | Selected order workspace/Inspector | PASS | Browser screenshots and live DOM |
 | Stable loading geometry | PASS | `LoadingWorkspace` and skeleton CSS |
 | Truthful empty/healthy states | PASS | Rejected Orders and SAP-clear Home QA |
+| Data Import Center V1 color alignment and staging release | PASS | `DATA_IMPORT_CENTER_V1.md`, hosted staging QA |
 | Route sweep | PASS | 23 nav routes + 2 detail routes + warehouse redirect |
 | API/business logic freeze | PASS | No backend or API source changes |
 | Mobile/Founder scope untouched | PASS | Isolated Admin-only worktree changes |
@@ -68,3 +70,11 @@ Reference captures are in
 The next gate is founder visual review. Further redesign propagation requires
 explicit approval and must continue from this branch/lock; it should not be
 performed implicitly as part of unrelated feature work.
+
+## Freeze status
+
+**GAGAN ADMIN OPERATIONAL INSTRUMENT V1 — CLIENT DEMO READY**
+
+The Admin visual system and the Data Import Center V1 are frozen for the
+staging/client-demo environment. This status does not approve production
+deployment or change the existing production infrastructure.

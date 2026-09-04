@@ -38,6 +38,8 @@ services:
         value: "123456"
       - key: MOCK_PAYMENT_SECRET
         generateValue: true
+      - key: PII_ENCRYPTION_KEY
+        generateValue: true
       - key: STORAGE_PROVIDER
         value: local
       - key: OBJECT_STORAGE_ROOT

@@ -37,7 +37,7 @@ import { useRep } from "../context/RepContext";
 import { repApi } from "../api/repClient";
 import { captureForegroundLocation } from "../location/deviceLocation";
 import { trackingBanner } from "../tracking/fieldTracker";
-import { colors, greetingForHour, inr, radius, spacing, TAB_BAR_SPACE } from "../theme";
+import { colors, greetingForHour, inr, radius, spacing } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
 
 const OPPORTUNITY_ICONS: Record<string, string> = {
@@ -463,14 +463,16 @@ export default function TodayScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   pad: { paddingHorizontal: spacing.xl, paddingTop: spacing.md },
-  content: { paddingHorizontal: spacing.xl, gap: spacing.section, paddingBottom: TAB_BAR_SPACE + spacing.xl },
+  // AppScreen reserves the measured tab-bar height. Adding TAB_BAR_SPACE here
+  // as well created the large blank/dead region below the final section.
+  content: { paddingHorizontal: spacing.xl, gap: spacing.section, paddingBottom: spacing.xl },
   bellButton: { width: 44, height: 52, alignItems: "center", justifyContent: "center", position: "relative" },
   notificationDot: { position: "absolute", top: 12, right: 9, width: 7, height: 7, borderRadius: 99, backgroundColor: colors.danger, borderWidth: 1.5, borderColor: colors.canvas },
 
   hero: { backgroundColor: colors.navy, borderRadius: radius.hero, padding: spacing.xl, gap: spacing.sm },
   heroTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  heroBadge: { backgroundColor: colors.lime, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 8, alignSelf: "flex-start" },
-  heroBadgeText: { color: colors.ink, fontSize: 12, fontWeight: "800", letterSpacing: 0.25 },
+  heroBadge: { backgroundColor: colors.surface, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 8, alignSelf: "flex-start" },
+  heroBadgeText: { color: colors.navy, fontSize: 12, fontWeight: "800", letterSpacing: 0.25 },
   heroMetaTop: { color: colors.onDarkMuted, fontSize: 11, fontWeight: "700", letterSpacing: 1, textTransform: "uppercase", marginTop: spacing.md },
   heroName: { color: colors.onDark, fontSize: 27, lineHeight: 32, fontWeight: "800", letterSpacing: -0.6, marginTop: 2 },
   heroAddress: { color: colors.onDarkMuted, fontSize: 15, lineHeight: 21 },
@@ -503,10 +505,10 @@ const styles = StyleSheet.create({
   milestoneRail: { flexDirection: "row", justifyContent: "space-between", gap: 6, paddingTop: spacing.xs },
   milestoneItem: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 34, borderRadius: radius.pill, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border },
   milestoneItemPast: { backgroundColor: colors.limeSoft, borderColor: colors.limeSoft },
-  milestoneItemCurrent: { backgroundColor: colors.lime, borderColor: colors.lime },
+  milestoneItemCurrent: { backgroundColor: colors.primary, borderColor: colors.primary },
   milestoneText: { color: colors.inkMuted, fontSize: 11, fontWeight: "800", fontVariant: ["tabular-nums"] },
   milestoneTextPast: { color: colors.green },
-  milestoneTextCurrent: { color: colors.ink },
+  milestoneTextCurrent: { color: colors.onDark },
 
   metricStrip: { flexDirection: "row", backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, paddingVertical: spacing.md },
   metricCell: { flex: 1, alignItems: "center", gap: 4, paddingHorizontal: spacing.xs },
@@ -543,8 +545,8 @@ const styles = StyleSheet.create({
 
   sheetOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(8, 15, 28, 0.54)" },
   sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 34, borderTopRightRadius: 34, paddingHorizontal: spacing.xl, paddingTop: 34, paddingBottom: 30, alignItems: "center", gap: spacing.md },
-  sheetBadge: { width: 102, height: 102, borderRadius: 32, backgroundColor: colors.lime, alignItems: "center", justifyContent: "center" },
-  sheetBadgeText: { color: colors.ink, fontSize: 34, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  sheetBadge: { width: 102, height: 102, borderRadius: 32, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  sheetBadgeText: { color: colors.onDark, fontSize: 34, fontWeight: "800", fontVariant: ["tabular-nums"] },
   sheetTitle: { color: colors.ink, fontSize: 26, lineHeight: 31, fontWeight: "800", textAlign: "center", letterSpacing: -0.55 },
   sheetMessage: { color: colors.inkMuted, fontSize: 15.5, lineHeight: 22, textAlign: "center", maxWidth: 350 },
   sheetAmount: { color: colors.ink, fontSize: 16, fontWeight: "800", fontVariant: ["tabular-nums"] },

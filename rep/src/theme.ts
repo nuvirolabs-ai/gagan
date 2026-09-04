@@ -1,77 +1,77 @@
 export const colors = {
-  bg: "#F4F6F9",
+  // V2.1 field system: a quiet neutral canvas, one dark structural colour,
+  // and one reserved alert colour. Keep aliases below so older screens inherit
+  // the same system without page-by-page palette drift.
+  bg: "#F5F6F8",
   surface: "#FFFFFF",
-  surfaceAlt: "#F1F3F6",
+  surfaceAlt: "#F0F2F5",
 
-  ink: "#0E1729",
-  inkMuted: "#697386",
-  inkFaint: "#9AA4B2",
+  ink: "#0B1220",
+  inkMuted: "#667085",
+  inkFaint: "#98A2B3",
   onDark: "#FFFFFF",
-  onDarkMuted: "#C9D2DF",
+  onDarkMuted: "#D0D5DD",
 
-  navy: "#0B1324",
-  blue: "#2D7FF9",
-  blueSoft: "#E8F1FF",
-  blueMid: "#5EA0FF",
-  blueInk: "#1769D2",
+  navy: "#0B1220",
+  blue: "#0B1220",
+  blueSoft: "#F0F2F5",
+  blueMid: "#667085",
+  blueInk: "#0B1220",
 
-  /* Achievement only. Lime is intentionally not a general brand colour. */
-  lime: "#C7F42B",
-  limeSoft: "#F0FFC2",
+  // Kept as compatibility names. The new field UI intentionally has no neon
+  // achievement colour; milestones use the same dark instrument colour.
+  lime: "#0B1220",
+  limeSoft: "#F0F2F5",
 
-  green: "#1F5132",
-  greenDeep: "#123122",
-  greenMid: "#2E6B47",
-  greenSoft: "#E7F0E9",
+  green: "#0B1220",
+  greenDeep: "#0B1220",
+  greenMid: "#667085",
+  greenSoft: "#F0F2F5",
 
-  gold: "#C9992B",
-  goldSoft: "#F5E7C9",
-  cream: "#F4E6CE",
+  gold: "#0B1220",
+  goldSoft: "#F0F2F5",
+  cream: "#F5F6F8",
 
-  danger: "#C4462F",
-  dangerSoft: "#F6E2DD",
+  danger: "#B9382E",
+  dangerSoft: "#FBE9E7",
 
   /**
-   * The warm brand accent. It carries recognition and progress towards a goal —
-   * achievements, target bars, the pack a shopper has chosen — which is what
-   * keeps green for actions instead of colouring the whole product green.
-   *
-   * `accentPrimary` is a surface colour only: at 2.6:1 on white it is not a
-   * legible text colour. Text on top of it uses `onAccent`; accent-coloured
-   * text on a light background uses `accentStrong`.
+   * Compatibility aliases for older feature surfaces. V2.1 uses the dark
+   * structural colour for actions and achievement emphasis; the only separate
+   * chromatic family reserved for UI state is the muted alert red.
    */
-  accentPrimary: "#C9992B",
-  accentStrong: "#8A6A12",
-  accentSoft: "#F5E7C9",
-  onAccent: "#16241B",
+  accentPrimary: "#0B1220",
+  accentStrong: "#0B1220",
+  accentSoft: "#F0F2F5",
+  onAccent: "#FFFFFF",
 
   /**
    * Status stays status. These never borrow the accent, so "warning" cannot be
    * confused with "you are doing well".
    */
-  success: "#1F5132",
-  successSoft: "#E7F0E9",
-  warning: "#9A6510",
-  warningSoft: "#FBEFD8",
-  error: "#C4462F",
-  errorSoft: "#F6E2DD",
-  info: "#2F5B8F",
-  infoSoft: "#DFEAF6",
+  success: "#344054",
+  successSoft: "#F0F2F5",
+  warning: "#B9382E",
+  warningSoft: "#FBE9E7",
+  error: "#B9382E",
+  errorSoft: "#FBE9E7",
+  info: "#667085",
+  infoSoft: "#F0F2F5",
 
-  border: "#E2E6EC",
-  track: "#DDE3EB",
+  border: "#E4E7EC",
+  track: "#E4E7EC",
 
   /* Semantic aliases used by the companion system. Same values, clearer names. */
-  canvas: "#F4F6F9",
-  surfaceSecondary: "#F1F3F6",
-  textPrimary: "#0E1729",
-  textSecondary: "#697386",
-  textTertiary: "#9AA4B2",
-  separator: "#E2E6EC",
-  primaryDeep: "#123122",
-  primary: "#2D7FF9",
-  primarySoft: "#E8F1FF",
-  goldStrong: "#8A6A12",
+  canvas: "#F5F6F8",
+  surfaceSecondary: "#F0F2F5",
+  textPrimary: "#0B1220",
+  textSecondary: "#667085",
+  textTertiary: "#98A2B3",
+  separator: "#E4E7EC",
+  primaryDeep: "#0B1220",
+  primary: "#0B1220",
+  primarySoft: "#F0F2F5",
+  goldStrong: "#0B1220",
 };
 
 export const radius = {
@@ -118,7 +118,7 @@ export const elevation = {
   none: {},
   card: {},
   floating: {
-    shadowColor: "#2A2013",
+    shadowColor: colors.navy,
     shadowOpacity: 0.12,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },

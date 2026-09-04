@@ -332,9 +332,19 @@ describe("adding a store to the customer master", () => {
       .set("Authorization", `Bearer ${tokenA}`)
       .send({
         businessName: "New Bharat Kirana",
+        groupName: "Bharat Retail Group",
         ownerName: "Suresh",
         phone: `79${digits}`,
+        transporter: "Pune Local Transport",
         shopAddress: "44 Market Road, Pune",
+        deliveryCity: "Pune",
+        shopDurationYears: 8,
+        paymentTerms: "15 days",
+        aadhaarNumber: "123456789012",
+        aadhaarPhoto: {
+          contentType: "image/png",
+          bodyBase64: Buffer.from("test-aadhaar-photo").toString("base64"),
+        },
         latitude: 18.5167,
         longitude: 73.8562,
         accuracyMeters: 12,
@@ -376,8 +386,19 @@ describe("adding a store to the customer master", () => {
       .set("Authorization", `Bearer ${tokenA}`)
       .send({
         businessName: "Sharma Stores Again",
+        groupName: "Sharma Retail Group",
+        ownerName: "Ramesh",
         phone: `73${digits}`,
+        transporter: "Pune Local Transport",
         shopAddress: "12 Market Road, Pune",
+        deliveryCity: "Pune",
+        shopDurationYears: 6,
+        paymentTerms: "15 days",
+        aadhaarNumber: "123456789012",
+        aadhaarPhoto: {
+          contentType: "image/png",
+          bodyBase64: Buffer.from("duplicate-aadhaar-photo").toString("base64"),
+        },
       });
     expect(response.status).toBe(409);
     expect(response.body.error).toBe("retailer_already_exists");

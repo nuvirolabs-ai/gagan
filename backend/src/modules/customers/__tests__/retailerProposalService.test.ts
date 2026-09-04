@@ -1,6 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import { ProposalError, RetailerProposalService } from "../retailerProposalService";
 
+process.env.PII_ENCRYPTION_KEY = "unit-test-pii-key-that-is-long-enough-32";
+
+const testStorage = {
+  put: vi.fn().mockResolvedValue({ objectKey: "retailer_proposal_aadhaar/test/photo", checksum: "checksum", contentType: "image/jpeg", sizeBytes: 4 }),
+  read: vi.fn(),
+  signedReadUrl: vi.fn().mockResolvedValue("signed://photo"),
+  delete: vi.fn().mockResolvedValue(undefined),
+};
+
 function fakePrisma(overrides: Record<string, any> = {}) {
   const db: Record<string, any> = {
     staffUser: {
@@ -15,6 +24,9 @@ function fakePrisma(overrides: Record<string, any> = {}) {
       create: vi.fn().mockImplementation(async ({ data }: any) => ({ id: "proposal-1", ...data })),
       update: vi.fn().mockImplementation(async ({ data }: any) => ({ id: "proposal-1", ...data })),
     },
+    evidenceAsset: {
+      create: vi.fn().mockImplementation(async ({ data }: any) => ({ id: "asset-1", ...data })),
+    },
     tier: { findUnique: vi.fn().mockResolvedValue({ id: "tier-1" }) },
     auditEvent: { create: vi.fn() },
     ...overrides,
@@ -26,18 +38,32 @@ function fakePrisma(overrides: Record<string, any> = {}) {
 const submission = {
   submittedByStaffId: "staff-1",
   businessName: "  Sharma Stores  ",
+  groupName: "Sharma Retail Group",
   ownerName: "Ramesh Sharma",
   phone: "9812345699",
+  transporter: "Gagan Logistics",
   shopAddress: "18 Market Road, Pune",
+  pinCode: "411001",
+  gstin: "27ABCDE1234F1Z5",
+  upiId: "sharma.stores@upi",
+  deliveryCity: "Pune",
+  shopDurationYears: 5,
+  paymentTerms: "30 days credit",
+  aadhaarNumber: "123456789012",
+  aadhaarPhoto: { contentType: "image/jpeg", bodyBase64: "YWJjZA==" },
   latitude: 18.5167,
   longitude: 73.8562,
   accuracyMeters: 14,
 };
 
+function serviceFor(prisma: any) {
+  return new RetailerProposalService(prisma, testStorage as any);
+}
+
 describe("submitting a proposal", () => {
   it("records the store with the salesperson who put it forward", async () => {
     const prisma = fakePrisma();
-    const proposal = await new RetailerProposalService(prisma).submit(submission);
+    const proposal = await serviceFor(prisma).submit(submission);
     expect(proposal).toMatchObject({
       businessName: "Sharma Stores",
       submittedByStaffId: "staff-1",
@@ -47,15 +73,45 @@ describe("submitting a proposal", () => {
     expect(prisma.retailerProposal.create.mock.calls[0][0].data.status).toBeUndefined();
   });
 
+  it("encrypts Aadhaar, stores only its last four digits, and persists a private photo asset", async () => {
+    const prisma = fakePrisma();
+    await serviceFor(prisma).submit(submission);
+    const data = prisma.retailerProposal.create.mock.calls[0][0].data;
+    expect(data.aadhaarEncrypted).toMatch(/^v1:/);
+    expect(data.aadhaarLast4).toBe("9012");
+    expect(data).not.toHaveProperty("aadhaarNumber");
+    expect(prisma.evidenceAsset.create.mock.calls[0][0].data).toMatchObject({
+      purpose: "retailer_proposal_aadhaar",
+      contentType: "image/jpeg",
+    });
+  });
+
   it("stores the phone in the shape the customer master uses", async () => {
     const prisma = fakePrisma();
-    await new RetailerProposalService(prisma).submit({ ...submission, phone: "+91 98123 45699" });
+    await serviceFor(prisma).submit({ ...submission, phone: "+91 98123 45699" });
     expect(prisma.retailerProposal.create.mock.calls[0][0].data.phone).toBe("9812345699");
+  });
+
+  it("normalizes the optional commercial identity fields", async () => {
+    const prisma = fakePrisma();
+    await serviceFor(prisma).submit({ ...submission, gstin: "27abcde1234f1z5", upiId: "sharma.stores@upi" });
+    expect(prisma.retailerProposal.create.mock.calls[0][0].data).toMatchObject({
+      pinCode: "411001",
+      gstin: "27ABCDE1234F1Z5",
+      upiId: "sharma.stores@upi",
+    });
+  });
+
+  it("rejects malformed optional identity and payment handles", async () => {
+    const service = serviceFor(fakePrisma());
+    await expect(service.submit({ ...submission, pinCode: "4110" })).rejects.toMatchObject({ code: "pin_code_invalid" });
+    await expect(service.submit({ ...submission, gstin: "27BAD" })).rejects.toMatchObject({ code: "gstin_invalid" });
+    await expect(service.submit({ ...submission, upiId: "not-an-upi" })).rejects.toMatchObject({ code: "upi_id_invalid" });
   });
 
   it("looks for an existing store under every form of the number", async () => {
     const prisma = fakePrisma();
-    await new RetailerProposalService(prisma).submit(submission);
+    await serviceFor(prisma).submit(submission);
     expect(prisma.retailer.findFirst.mock.calls[0][0].where.phone.in).toEqual([
       "9812345699",
       "+919812345699",
@@ -67,7 +123,7 @@ describe("submitting a proposal", () => {
     const prisma = fakePrisma({
       retailer: { findFirst: vi.fn().mockResolvedValue({ id: "r1", name: "Sharma Stores" }) },
     });
-    await expect(new RetailerProposalService(prisma).submit(submission)).rejects.toMatchObject({
+    await expect(serviceFor(prisma).submit(submission)).rejects.toMatchObject({
       code: "retailer_already_exists",
     });
   });
@@ -79,13 +135,13 @@ describe("submitting a proposal", () => {
         findFirst: vi.fn().mockResolvedValue({ id: "proposal-0" }),
       },
     });
-    await expect(new RetailerProposalService(prisma).submit(submission)).rejects.toMatchObject({
+    await expect(serviceFor(prisma).submit(submission)).rejects.toMatchObject({
       code: "proposal_already_pending",
     });
   });
 
   it("requires a usable name, address and phone", async () => {
-    const service = new RetailerProposalService(fakePrisma());
+    const service = serviceFor(fakePrisma());
     await expect(service.submit({ ...submission, businessName: "S" })).rejects.toMatchObject({
       code: "business_name_required",
     });
@@ -101,7 +157,7 @@ describe("submitting a proposal", () => {
     const prisma = fakePrisma({
       staffUser: { findUnique: vi.fn().mockResolvedValue({ status: "active", salesRepId: null }) },
     });
-    await expect(new RetailerProposalService(prisma).submit(submission)).rejects.toMatchObject({
+    await expect(serviceFor(prisma).submit(submission)).rejects.toMatchObject({
       code: "salesperson_not_available",
       status: 403,
     });
@@ -109,7 +165,7 @@ describe("submitting a proposal", () => {
 
   it("accepts a proposal with no coordinates", async () => {
     const prisma = fakePrisma();
-    const proposal = await new RetailerProposalService(prisma).submit({
+    const proposal = await serviceFor(prisma).submit({
       ...submission,
       latitude: undefined,
       longitude: undefined,
@@ -306,6 +362,14 @@ describe("what a salesperson can see", () => {
     expect(prisma.retailerProposal.findMany.mock.calls[0][0].where).toEqual({
       submittedByStaffId: "staff-1",
     });
+  });
+
+  it("never returns encrypted Aadhaar ciphertext to the app", async () => {
+    const prisma = fakePrisma();
+    prisma.retailerProposal.findMany.mockResolvedValue([{ id: "p1", aadhaarEncrypted: "v1:secret", aadhaarLast4: "9012" }]);
+    const result = await serviceFor(prisma).listForSalesperson("staff-1");
+    expect(result[0]).toMatchObject({ aadhaarNumberMasked: "XXXX-XXXX-9012" });
+    expect(result[0]).not.toHaveProperty("aadhaarEncrypted");
   });
 
   it("lets them withdraw one that is still waiting", async () => {

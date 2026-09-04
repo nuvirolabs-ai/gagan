@@ -28,12 +28,14 @@ export default function RetailerApprovals() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedProposal, setSelectedProposal] = useState<any | null>(null);
 
   const load = async () => {
     setLoading(true);
     try {
       const [list, tierList] = await Promise.all([api.retailerProposals(status), api.tiers()]);
       setProposals(list.proposals ?? []);
+      setSelectedProposal(null);
       setTiers(tierList.tiers ?? tierList ?? []);
       setError(null);
     } catch (err) {
@@ -145,7 +147,7 @@ export default function RetailerApprovals() {
             </thead>
             <tbody>
               {proposals.map((proposal: any) => (
-                <tr key={proposal.id}>
+                <tr key={proposal.id} className={selectedProposal?.id === proposal.id ? "selected" : ""} onClick={() => setSelectedProposal(proposal)}>
                   <td>
                     <strong>{proposal.businessName}</strong>
                     {proposal.notes ? <div className="small muted">{proposal.notes}</div> : null}
@@ -193,6 +195,49 @@ export default function RetailerApprovals() {
           </table>
         )}
       </div>
+      {selectedProposal ? (
+        <div className="card" style={{ marginTop: 14 }}>
+          <div className="between">
+            <div>
+              <div className="eyebrow">Proposal review</div>
+              <h2 style={{ margin: "0 0 4px" }}>{selectedProposal.businessName}</h2>
+              <div className="small muted">Submitted by {selectedProposal.submittedBy?.name ?? selectedProposal.submittedByStaffId}</div>
+            </div>
+            <span className={`pill ${STATUS_PILL[selectedProposal.status] ?? ""}`}>{selectedProposal.status}</span>
+          </div>
+          <div className="form-grid" style={{ marginTop: 18 }}>
+            <div>
+              <div className="section-kicker">Business</div>
+              <div><strong>Group:</strong> {selectedProposal.groupName ?? "—"}</div>
+              <div><strong>Contact:</strong> {selectedProposal.ownerName ?? "—"}</div>
+              <div><strong>Mobile:</strong> {selectedProposal.phone}</div>
+              <div><strong>Telephone:</strong> {selectedProposal.telephone ?? "—"}</div>
+              <div><strong>Transporter:</strong> {selectedProposal.transporter ?? "—"}</div>
+            </div>
+            <div>
+              <div className="section-kicker">Address & delivery</div>
+              <div>{selectedProposal.shopAddress}</div>
+              <div>{[selectedProposal.pinCode, selectedProposal.tehsil, selectedProposal.district, selectedProposal.state].filter(Boolean).join(" · ") || "Location details not supplied"}</div>
+              <div><strong>Delivery city:</strong> {selectedProposal.deliveryCity ?? "—"}</div>
+              <div><strong>Shop duration:</strong> {selectedProposal.shopDurationYears == null ? "—" : `${selectedProposal.shopDurationYears} years`}</div>
+            </div>
+            <div>
+              <div className="section-kicker">Commercial</div>
+              <div><strong>GSTIN:</strong> {selectedProposal.gstin ?? "—"}</div>
+              <div><strong>Payment terms:</strong> {selectedProposal.paymentTerms ?? "—"}</div>
+              <div><strong>UPI ID:</strong> {selectedProposal.upiId ?? "—"}</div>
+              <div><strong>Salesman:</strong> {selectedProposal.submittedBy?.name ?? "Authenticated salesperson"}</div>
+            </div>
+            <div>
+              <div className="section-kicker">Identity</div>
+              <div><strong>Aadhaar:</strong> {selectedProposal.aadhaarNumberMasked ?? "Not supplied"}</div>
+              <div className="small muted">Full Aadhaar is encrypted and is never returned to this page.</div>
+              {selectedProposal.aadhaarPhoto?.signedUrl ? <img src={selectedProposal.aadhaarPhoto.signedUrl} alt="Authorised Aadhaar document preview" style={{ display: "block", marginTop: 10, maxWidth: 240, maxHeight: 150, objectFit: "contain", border: "1px solid var(--border)", borderRadius: 6 }} /> : <div className="small muted" style={{ marginTop: 10 }}>Photo preview unavailable until private storage is configured.</div>}
+            </div>
+          </div>
+          {selectedProposal.notes ? <div style={{ marginTop: 18 }}><div className="section-kicker">Notes</div><div>{selectedProposal.notes}</div></div> : null}
+        </div>
+      ) : null}
     </div>
   );
 }

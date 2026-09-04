@@ -17,7 +17,8 @@ export type EvidencePurpose =
   // they are referenced directly from their owning row rather than through an
   // EvidenceAsset record.
   | "attendance_photo"
-  | "expense_receipt";
+  | "expense_receipt"
+  | "retailer_proposal_aadhaar";
 
 export interface PutObjectInput {
   purpose: EvidencePurpose;

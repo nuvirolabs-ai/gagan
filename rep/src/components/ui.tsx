@@ -184,10 +184,10 @@ export function EmptyState({
 }
 
 export const ORDER_STATUS_META: Record<string, { label: string; tint: string; bg: string }> = {
-  placed: { label: "Placed", tint: "#8A6A12", bg: colors.goldSoft },
+  placed: { label: "Placed", tint: colors.primary, bg: colors.surfaceSecondary },
   confirmed: { label: "Confirmed", tint: colors.green, bg: colors.greenSoft },
   packed: { label: "Packed", tint: colors.green, bg: colors.greenSoft },
-  out_for_delivery: { label: "Out for delivery", tint: "#2F5B8F", bg: "#DFEAF6" },
+  out_for_delivery: { label: "Out for delivery", tint: colors.textSecondary, bg: colors.surfaceSecondary },
   delivered: { label: "Delivered", tint: colors.onDark, bg: colors.green },
   rejected: { label: "Rejected", tint: colors.danger, bg: colors.dangerSoft },
 };
@@ -331,7 +331,7 @@ export function Banner({
     tone === "active"
       ? { bg: colors.greenSoft, fg: colors.green }
       : tone === "attention"
-        ? { bg: colors.goldSoft, fg: "#8A6A12" }
+        ? { bg: colors.surfaceSecondary, fg: colors.primary }
         : { bg: colors.surfaceAlt, fg: colors.inkMuted };
   return (
     <View style={[s.banner, { backgroundColor: palette.bg }]}>
@@ -465,7 +465,7 @@ export function Tag({
     tone === "green"
       ? { bg: colors.greenSoft, fg: colors.green }
       : tone === "gold"
-        ? { bg: colors.goldSoft, fg: "#8A6A12" }
+        ? { bg: colors.surfaceSecondary, fg: colors.primary }
         : tone === "danger"
           ? { bg: colors.dangerSoft, fg: colors.danger }
           : { bg: colors.surfaceAlt, fg: colors.inkMuted };

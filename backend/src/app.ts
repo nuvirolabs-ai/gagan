@@ -73,6 +73,9 @@ export function createApp(options: CreateAppOptions = {}) {
   // same shape as KYC evidence.
   app.use("/rep/field/attendance", express.json({ limit: "8mb" }));
   app.use("/rep/field/expenses", express.json({ limit: "15mb" }));
+  // New-retailer Aadhaar evidence is a bounded image payload. It remains
+  // behind the staff session and is never accepted by the default parser.
+  app.use("/rep/retailer-proposals", express.json({ limit: "15mb" }));
   app.use("/admin/kyc", express.json({ limit: "15mb" }));
   app.use(express.json({ limit: "100kb" }));
 

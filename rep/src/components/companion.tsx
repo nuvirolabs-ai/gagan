@@ -108,12 +108,12 @@ export function FocusCard({
 }) {
   const palette =
     tone === "gold"
-      ? { bg: colors.goldSoft, border: "#E8D3A0" }
+      ? { bg: colors.surfaceSecondary, border: colors.separator }
       : tone === "danger"
-        ? { bg: colors.dangerSoft, border: "#E8C4BA" }
+        ? { bg: colors.dangerSoft, border: colors.dangerSoft }
         : tone === "neutral"
           ? { bg: colors.surface, border: colors.separator }
-          : { bg: colors.primarySoft, border: "#C9D9CE" };
+          : { bg: colors.primarySoft, border: colors.separator };
   return (
     <View style={[styles.focusCard, { backgroundColor: palette.bg, borderColor: palette.border }, style]}>
       {children}

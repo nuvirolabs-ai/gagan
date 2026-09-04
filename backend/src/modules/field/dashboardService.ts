@@ -102,6 +102,7 @@ export class FieldDashboardService {
       productiveVisits,
       customersCovered: new Set(visits.map((visit: any) => visit.retailerId)).size,
       orders: orders.length,
+      customersWithOrders: new Set(orders.map((order: any) => order.retailerId)).size,
       orderValue: orders.reduce((sum: number, order: any) => sum + money(order.orderTotal), 0),
       rejectedOrders: orders.filter((order: any) => order.status === "rejected").length,
       collectionsSubmitted: collections.length,
@@ -332,6 +333,8 @@ export class FieldDashboardService {
       routeCompletionTrend: (routeCompletionTrend as any[]).map((plan) => ({
         date: plan.planDate,
         completionPct: plan.progress.completionPct,
+        planned: plan.progress.total,
+        visited: plan.progress.visited,
       })),
     });
   }

@@ -52,6 +52,7 @@ enum EvidencePurpose {
   kyc_document
   collection_receipt
   pod
+  retailer_proposal_aadhaar
 }
 
 enum RetailerSapAccountStatus {
@@ -419,16 +420,17 @@ model KycReview {
 }
 
 model EvidenceAsset {
-  id               String          @id @default(uuid())
-  objectKey        String          @unique
-  checksum         String
-  contentType      String
-  sizeBytes        Int
-  purpose          EvidencePurpose
-  createdByStaffId String?
-  createdAt        DateTime        @default(now())
-  deletedAt        DateTime?
-  kycDocument      KycDocument?
+  id                      String            @id @default(uuid())
+  objectKey               String            @unique
+  checksum                String
+  contentType             String
+  sizeBytes               Int
+  purpose                 EvidencePurpose
+  createdByStaffId        String?
+  createdAt               DateTime          @default(now())
+  deletedAt               DateTime?
+  kycDocument             KycDocument?
+  retailerProposalAadhaar RetailerProposal? @relation("RetailerProposalAadhaar")
 
   @@index([purpose, createdAt])
 }
@@ -737,25 +739,25 @@ model AuditEvent {
 /// and result envelope are bounded by the import service's row/size limits so
 /// an apply can be explicitly confirmed after the upload request has ended.
 model ImportJob {
-  id            String   @id @default(uuid())
-  importType    String
-  fileName      String
-  status        String   @default("preview")
-  mode          String?
-  actorStaffId  String
-  source        String   @default("import")
-  totalRows     Int      @default(0)
-  validRows     Int      @default(0)
-  warningRows   Int      @default(0)
-  failedRows    Int      @default(0)
-  createdRows   Int      @default(0)
-  updatedRows   Int      @default(0)
-  skippedRows   Int      @default(0)
-  preview       Json?
-  result        Json?
-  createdAt     DateTime @default(now())
-  startedAt     DateTime?
-  completedAt   DateTime?
+  id           String    @id @default(uuid())
+  importType   String
+  fileName     String
+  status       String    @default("preview")
+  mode         String?
+  actorStaffId String
+  source       String    @default("import")
+  totalRows    Int       @default(0)
+  validRows    Int       @default(0)
+  warningRows  Int       @default(0)
+  failedRows   Int       @default(0)
+  createdRows  Int       @default(0)
+  updatedRows  Int       @default(0)
+  skippedRows  Int       @default(0)
+  preview      Json?
+  result       Json?
+  createdAt    DateTime  @default(now())
+  startedAt    DateTime?
+  completedAt  DateTime?
 
   @@index([createdAt])
   @@index([actorStaffId, createdAt])
@@ -2098,32 +2100,49 @@ enum RetailerProposalStatus {
 /// creates one canonical `Retailer` and links back to it. Nothing reads a
 /// proposal as if it were a customer.
 model RetailerProposal {
-  id                 String                 @id @default(uuid())
-  status             RetailerProposalStatus @default(pending)
-  businessName       String
-  ownerName          String?
-  phone              String
-  shopAddress        String
+  id                  String                 @id @default(uuid())
+  status              RetailerProposalStatus @default(pending)
+  businessName        String
+  groupName           String?
+  ownerName           String?
+  phone               String
+  telephone           String?
+  transporter         String?
+  shopAddress         String
+  pinCode             String?
+  tehsil              String?
+  district            String?
+  state               String?
+  deliveryCity        String?
+  shopDurationYears   Int?
+  gstin               String?
+  paymentTerms        String?
+  upiId               String?
+  /// Encrypted with the application PII key. Never expose this field in an API response.
+  aadhaarEncrypted    String?
+  aadhaarLast4        String?
+  aadhaarPhotoAssetId String?                @unique
+  aadhaarPhotoAsset   EvidenceAsset?         @relation("RetailerProposalAadhaar", fields: [aadhaarPhotoAssetId], references: [id], onDelete: SetNull)
   /// Captured at the storefront where the device could provide it.
-  latitude           Decimal?               @db.Decimal(10, 7)
-  longitude          Decimal?               @db.Decimal(10, 7)
-  accuracyMeters     Decimal?               @db.Decimal(8, 2)
+  latitude            Decimal?               @db.Decimal(10, 7)
+  longitude           Decimal?               @db.Decimal(10, 7)
+  accuracyMeters      Decimal?               @db.Decimal(8, 2)
   /// Proposed classification. The reviewer decides the tier that is applied.
-  proposedTierId     String?
-  proposedTier       Tier?                  @relation(fields: [proposedTierId], references: [id], onDelete: SetNull)
-  notes              String?
-  submittedByStaffId String
-  submittedBy        StaffUser              @relation("RetailerProposalsSubmitted", fields: [submittedByStaffId], references: [id], onDelete: Restrict)
-  submittedAt        DateTime               @default(now())
-  reviewedByStaffId  String?
-  reviewedBy         StaffUser?             @relation("RetailerProposalsReviewed", fields: [reviewedByStaffId], references: [id], onDelete: Restrict)
-  reviewedAt         DateTime?
-  rejectionReason    String?
+  proposedTierId      String?
+  proposedTier        Tier?                  @relation(fields: [proposedTierId], references: [id], onDelete: SetNull)
+  notes               String?
+  submittedByStaffId  String
+  submittedBy         StaffUser              @relation("RetailerProposalsSubmitted", fields: [submittedByStaffId], references: [id], onDelete: Restrict)
+  submittedAt         DateTime               @default(now())
+  reviewedByStaffId   String?
+  reviewedBy          StaffUser?             @relation("RetailerProposalsReviewed", fields: [reviewedByStaffId], references: [id], onDelete: Restrict)
+  reviewedAt          DateTime?
+  rejectionReason     String?
   /// Set when approval created the customer.
-  retailerId         String?                @unique
-  retailer           Retailer?              @relation(fields: [retailerId], references: [id], onDelete: SetNull)
-  createdAt          DateTime               @default(now())
-  updatedAt          DateTime               @updatedAt
+  retailerId          String?                @unique
+  retailer            Retailer?              @relation(fields: [retailerId], references: [id], onDelete: SetNull)
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
 
   @@index([status, submittedAt])
   @@index([submittedByStaffId, submittedAt])

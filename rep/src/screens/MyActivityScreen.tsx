@@ -1,5 +1,6 @@
-import React, { useCallback, useState } from "react";
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useMemo, useState } from "react";
+import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Circle, Line, Path, Svg } from "react-native-svg";
 import { useFocusEffect } from "@react-navigation/native";
 
 import {
@@ -18,8 +19,17 @@ import {
 import { ACTIVITY_LABELS } from "../components/ActivityComposer";
 import { AchievementLine } from "../components/Achievement";
 import { repApi } from "../api/repClient";
-import { colors, inr, spacing, TAB_BAR_SPACE } from "../theme";
+import { colors, inr, spacing } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
+import {
+  chartDateLabel,
+  chartRows,
+  compactInr,
+  metricDisplay,
+  metricRows,
+  type MetricRow,
+  type PerformanceMetric,
+} from "./performancePresentation";
 
 const KIND_META: Record<string, { icon: string; label: string }> = {
   workday_started: { icon: "play-circle-outline", label: "Day started" },
@@ -190,6 +200,18 @@ export default function MyActivityScreen({ route }: any) {
             )
           ) : performance ? (
             <>
+              <PerformanceCockpit
+                performance={performance}
+                targets={targets}
+                ranking={ranking}
+                achievements={achievements}
+                windowDays={windowDays}
+                setWindowDays={setWindowDays}
+                monthLabel={monthLabel}
+                t={t}
+              />
+              {false && (
+            <>
               <View>
                 <View style={styles.between}>
                 <Text style={styles.month}>{monthLabel}</Text>
@@ -353,6 +375,7 @@ export default function MyActivityScreen({ route }: any) {
                   ))
                 )}
               </Surface>
+            </>)}
             </>
           ) : (
             <EmptyState
@@ -367,6 +390,9 @@ export default function MyActivityScreen({ route }: any) {
   );
 }
 
+// Retained only for the unreachable legacy branch below while the next
+// performance surface remains isolated. The rendered cockpit uses the single
+// dynamic TrendChart instead.
 function VisualBars({ rows }: { rows: Array<{ label: string; value: number; display: string }> }) {
   const visible = rows.slice(-7);
   const max = Math.max(...visible.map((row) => row.value), 1);
@@ -383,10 +409,179 @@ function VisualBars({ rows }: { rows: Array<{ label: string; value: number; disp
   );
 }
 
+function TrendChart({ rows, metric }: { rows: MetricRow[]; metric: PerformanceMetric }) {
+  const { width } = useWindowDimensions();
+  const chartWidth = Math.max(260, Math.min(width - spacing.xl * 2 - spacing.lg * 2, 520));
+  const chartHeight = 156;
+  const inset = { top: 12, right: 8, bottom: 18, left: 8 };
+  const plotWidth = chartWidth - inset.left - inset.right;
+  const plotHeight = chartHeight - inset.top - inset.bottom;
+  const max = Math.max(...rows.map((row) => row.value), 1);
+  const points = rows.map((row, index) => {
+    const x = inset.left + (rows.length === 1 ? plotWidth / 2 : (index / (rows.length - 1)) * plotWidth);
+    const y = inset.top + plotHeight - (row.value / max) * plotHeight;
+    return { ...row, x, y };
+  });
+  const line = points.map((point, index) => `${index === 0 ? "M" : "L"}${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
+  const area = `${line} L${points[points.length - 1].x.toFixed(1)},${(inset.top + plotHeight).toFixed(1)} L${points[0].x.toFixed(1)},${(inset.top + plotHeight).toFixed(1)} Z`;
+  const labels = [rows[0], rows[Math.floor(rows.length / 2)], rows[rows.length - 1]].filter(Boolean);
+  return (
+    <View accessible accessibilityLabel={`${metric} trend for the selected period`}>
+      <Svg width={chartWidth} height={chartHeight}>
+        <Line x1={inset.left} x2={chartWidth - inset.right} y1={inset.top} y2={inset.top} stroke={colors.track} strokeWidth="1" />
+        <Line x1={inset.left} x2={chartWidth - inset.right} y1={inset.top + plotHeight / 2} y2={inset.top + plotHeight / 2} stroke={colors.track} strokeWidth="1" />
+        <Line x1={inset.left} x2={chartWidth - inset.right} y1={inset.top + plotHeight} y2={inset.top + plotHeight} stroke={colors.track} strokeWidth="1" />
+        <Path d={area} fill={colors.surfaceSecondary} opacity={0.95} />
+        <Path d={line} fill="none" stroke={colors.primary} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        <Circle cx={points[points.length - 1].x} cy={points[points.length - 1].y} r="5" fill={colors.primary} />
+      </Svg>
+      <View style={styles.chartLabels}>
+        {labels.map((row, index) => <Text key={`${row!.date}-${index}`} style={styles.chartLabel}>{chartDateLabel(row!.date)}</Text>)}
+      </View>
+      <Text style={styles.chartScale}>Scale: {metricDisplay(metric, max)} peak in selected window</Text>
+    </View>
+  );
+}
+
+function PerformanceCockpit({
+  performance,
+  targets,
+  ranking,
+  achievements,
+  windowDays,
+  setWindowDays,
+  monthLabel,
+  t,
+}: any) {
+  const [metric, setMetric] = useState<PerformanceMetric>("sales");
+  const [dailyDetailOpen, setDailyDetailOpen] = useState(false);
+  const period = performance.period;
+  const visuals = performance.visuals;
+  const rows = chartRows(visuals, metric, windowDays);
+  const rawRows = metricRows(visuals, metric);
+  const target = (performance.targets ?? []).find((item: any) => item.metric === "order_value") ?? targets.find((item: any) => item.metric === "order_value") ?? targets[0];
+  const completion = target?.achievementPct ?? target?.completionPct ?? 0;
+  const routeRows = visuals?.routeCompletionTrend ?? [];
+  const planned = routeRows.reduce((sum: number, row: any) => sum + (Number(row.planned) || 0), 0);
+  const visited = routeRows.reduce((sum: number, row: any) => sum + (Number(row.visited) || 0), 0);
+  const funnel = [
+    { label: "Planned", value: planned || null },
+    { label: "Visited", value: period.visits },
+    { label: "Productive", value: period.productiveVisits },
+    { label: "Ordering retailers", value: period.customersWithOrders ?? null },
+  ];
+  const metricValue =
+    metric === "sales" ? period.orderValue : metric === "orders" ? period.orders : metric === "visits" ? period.visits : period.collectionValueConfirmed;
+  const insights = [
+    period.orders > 0 ? `${period.orders} orders contributed ${compactInr(period.orderValue)} in this window.` : "No orders were recorded in this window.",
+    period.visits > 0 && period.productiveVisits >= 0 ? `${period.productiveVisits} of ${period.visits} visits were productive.` : "No visit activity is recorded in this window.",
+    period.collectionValueConfirmed > 0 ? `${compactInr(period.collectionValueConfirmed)} was confirmed in collections.` : "No confirmed collections are recorded in this window.",
+  ];
+  return (
+    <>
+      <View style={styles.performanceIntro}>
+        <View style={styles.between}>
+          <View>
+            <Text style={styles.periodKicker}>PERFORMANCE · {monthLabel.toUpperCase()}</Text>
+            <Text style={styles.performanceTitle}>Your operating pulse</Text>
+          </View>
+          <View style={styles.windowChips}>
+            <FilterChip label="7D" active={windowDays === 7} onPress={() => setWindowDays(7)} />
+            <FilterChip label="30D" active={windowDays === 30} onPress={() => setWindowDays(30)} />
+          </View>
+        </View>
+        <Text style={styles.performanceNumber} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+          {metricDisplay(metric, metricValue)}
+        </Text>
+        <Text style={styles.salesSub}>{metric === "sales" ? "Sales value" : metric[0].toUpperCase() + metric.slice(1)} · {period.attendance.present} working days</Text>
+      </View>
+
+      <Surface level={1} style={styles.cockpitSurface}>
+        <View style={styles.metricBand}>
+          {[
+            ["Sales", compactInr(period.orderValue)],
+            ["Orders", String(period.orders)],
+            ["Visits", String(period.visits)],
+            ["Collections", compactInr(period.collectionValueConfirmed)],
+          ].map(([label, value], index) => (
+            <View key={label} style={[styles.bandCell, index > 0 && styles.bandCellDivided]}>
+              <Text style={styles.bandValue} numberOfLines={1}>{value}</Text>
+              <Text style={styles.bandLabel}>{label}</Text>
+            </View>
+          ))}
+        </View>
+        <View style={styles.instrumentDivider} />
+        <View style={styles.targetInstrument}>
+          <View style={styles.between}>
+            <View>
+              <Text style={styles.instrumentLabel}>TARGET INSTRUMENT</Text>
+              <Text style={styles.targetTitle}>Order value</Text>
+            </View>
+            {target ? <Text style={styles.targetPct}>{completion}%</Text> : <Text style={styles.muted}>No target</Text>}
+          </View>
+          {target ? <ProgressRow pct={completion} tone="green" /> : null}
+          <Text style={styles.instrumentMeta}>{target ? `${compactInr(target.achieved ?? target.actual ?? period.orderValue)} of ${compactInr(target.target)}` : "A target will appear once your manager configures one."}</Text>
+        </View>
+      </Surface>
+
+      <Surface level={1} style={styles.chartSurface}>
+        <View style={styles.between}>
+          <View>
+            <Text style={styles.instrumentLabel}>TREND</Text>
+            <Text style={styles.sectionTitle}>{metric[0].toUpperCase() + metric.slice(1)} over time</Text>
+          </View>
+          <Pressable accessibilityRole="button" onPress={() => setDailyDetailOpen(true)} style={({ pressed }) => [styles.detailLink, pressed && { opacity: 0.65 }]}>
+            <Text style={styles.detailLinkText}>Daily detail</Text>
+          </Pressable>
+        </View>
+        <View style={styles.metricPicker}>
+          {(["sales", "orders", "visits", "collections"] as PerformanceMetric[]).map((key) => (
+            <FilterChip key={key} label={key[0].toUpperCase() + key.slice(1)} active={metric === key} onPress={() => setMetric(key)} />
+          ))}
+        </View>
+        {rows.length === 0 || rows.every((row) => row.value === 0) ? (
+          <View style={styles.zeroState}>
+            <Text style={styles.zeroTitle}>{metric === "collections" ? "No confirmed collections in this period." : `No ${metric} recorded in this period.`}</Text>
+            <Text style={styles.muted}>The chart will appear when canonical activity is recorded.</Text>
+          </View>
+        ) : <TrendChart rows={rows} metric={metric} />}
+      </Surface>
+
+      <Surface level={1} style={styles.funnelSurface}>
+        <View style={styles.between}><View><Text style={styles.instrumentLabel}>PRODUCTIVITY FUNNEL</Text><Text style={styles.sectionTitle}>From plan to ordering</Text></View><Text style={styles.muted}>{planned ? `${visited}/${planned} visited` : "Plan baseline unavailable"}</Text></View>
+        <View style={styles.funnelList}>
+          {funnel.map((item, index) => {
+            const denominator = planned || Math.max(...funnel.map((entry) => entry.value ?? 0), 1);
+            const pct = item.value == null ? 0 : Math.min(100, (item.value / denominator) * 100);
+            return <View key={item.label} style={styles.funnelRow}><View style={styles.between}><Text style={styles.funnelLabel}>{item.label}</Text><Text style={styles.funnelValue}>{item.value == null ? "—" : item.value}</Text></View><View style={styles.funnelTrack}><View style={[styles.funnelFill, { width: `${pct}%`, opacity: index === 0 ? 0.45 : 1 }]} /></View></View>;
+          })}
+        </View>
+      </Surface>
+
+      <Surface level={1} style={styles.insightsSurface}>
+        <Text style={styles.instrumentLabel}>READOUT</Text>
+        {insights.map((insight, index) => <View key={insight} style={styles.insightRow}><Text style={styles.insightIndex}>0{index + 1}</Text><Text style={styles.insightText}>{insight}</Text></View>)}
+      </Surface>
+
+      {(targets.length > 0 || ranking?.rank || achievements.length > 0) ? (
+        <View style={styles.secondaryBlock}>
+          {targets.length > 0 ? <Surface level={1}><SectionHeader title={t("performance.targets")} />{targets.slice(0, 3).map((item: any) => <View key={item.metric} style={styles.secondaryRow}><Text style={styles.targetLabel}>{item.label}</Text><Text style={styles.muted}>{item.achievementPct ?? item.completionPct}% · {item.source}</Text></View>)}</Surface> : null}
+          {ranking?.rank ? <Surface level={1}><SectionHeader title={t("activity.teamPosition")} /><Text style={styles.rank}>#{ranking.rank}</Text><Text style={styles.muted}>{ranking.metricLabel} · {ranking.scopeLabel}</Text></Surface> : null}
+          {achievements.length > 0 ? <Surface level={1}><SectionHeader title={t("performance.achievements")} />{achievements.slice(0, 3).map((achievement: any) => <AchievementLine key={achievement.id} achievement={achievement} />)}</Surface> : null}
+        </View>
+      ) : null}
+
+      <Modal visible={dailyDetailOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setDailyDetailOpen(false)}>
+        <View style={styles.detailSheet}><View style={styles.between}><View><Text style={styles.periodKicker}>DAILY LEDGER</Text><Text style={styles.detailTitle}>{metric[0].toUpperCase() + metric.slice(1)} · {monthLabel}</Text></View><Pressable accessibilityRole="button" onPress={() => setDailyDetailOpen(false)}><Text style={styles.detailClose}>Done</Text></Pressable></View><ScrollView contentContainerStyle={styles.detailList}>{rawRows.length === 0 ? <Text style={styles.muted}>No canonical daily activity is available.</Text> : rawRows.slice().reverse().map((row) => <View key={row.date} style={styles.detailRow}><Text style={styles.detailDate}>{chartDateLabel(row.date)}</Text><Text style={styles.detailValue}>{metricDisplay(metric, row.value)}</Text></View>)}</ScrollView></View>
+      </Modal>
+    </>
+  );
+}
+
 const styles = StyleSheet.create({
   tabs: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.xl, paddingBottom: spacing.md },
   skel: { paddingHorizontal: spacing.xl, gap: spacing.md },
-  content: { paddingHorizontal: spacing.xl, gap: spacing.section, paddingBottom: TAB_BAR_SPACE + spacing.xl },
+  content: { paddingHorizontal: spacing.xl, gap: spacing.section, paddingBottom: spacing.xl },
   dayHeading: {
     fontSize: 12,
     fontWeight: "600",
@@ -413,4 +608,50 @@ const styles = StyleSheet.create({
   barTrack: { flex: 1, height: 8, borderRadius: 99, backgroundColor: colors.track, overflow: "hidden" },
   barFill: { height: "100%", borderRadius: 99, backgroundColor: colors.blue },
   barValue: { width: 60, fontSize: 11, color: colors.ink, textAlign: "right" },
+  performanceIntro: { gap: spacing.xs },
+  periodKicker: { fontSize: 11, color: colors.textSecondary, letterSpacing: 1.2, fontWeight: "700" },
+  performanceTitle: { fontSize: 20, fontWeight: "700", color: colors.ink, marginTop: 3 },
+  performanceNumber: { fontSize: 34, lineHeight: 40, fontWeight: "700", color: colors.ink, letterSpacing: -0.8, marginTop: spacing.md, fontVariant: ["tabular-nums"] },
+  cockpitSurface: { padding: spacing.lg, gap: spacing.lg },
+  metricBand: { flexDirection: "row", alignItems: "stretch" },
+  bandCell: { flex: 1, gap: 3 },
+  bandCellDivided: { borderLeftWidth: 1, borderLeftColor: colors.separator, paddingLeft: spacing.md, marginLeft: spacing.md },
+  bandValue: { fontSize: 16, fontWeight: "700", color: colors.ink, fontVariant: ["tabular-nums"] },
+  bandLabel: { fontSize: 11, color: colors.textSecondary },
+  instrumentDivider: { height: 1, backgroundColor: colors.separator },
+  targetInstrument: { gap: spacing.sm },
+  instrumentLabel: { fontSize: 10, letterSpacing: 1.1, fontWeight: "700", color: colors.textSecondary },
+  targetTitle: { fontSize: 16, fontWeight: "600", color: colors.ink, marginTop: 3 },
+  targetPct: { fontSize: 24, fontWeight: "700", color: colors.ink, fontVariant: ["tabular-nums"] },
+  instrumentMeta: { fontSize: 12, color: colors.textSecondary },
+  chartSurface: { padding: spacing.lg, gap: spacing.md },
+  sectionTitle: { fontSize: 17, fontWeight: "700", color: colors.ink, marginTop: 3 },
+  metricPicker: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  detailLink: { paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
+  detailLinkText: { color: colors.ink, fontSize: 12, fontWeight: "700" },
+  chartLabels: { flexDirection: "row", justifyContent: "space-between", marginTop: -spacing.sm },
+  chartLabel: { fontSize: 10, color: colors.textSecondary },
+  chartScale: { fontSize: 10, color: colors.textTertiary, marginTop: spacing.xs },
+  zeroState: { paddingVertical: spacing.xl, gap: spacing.xs },
+  zeroTitle: { fontSize: 14, fontWeight: "600", color: colors.ink },
+  funnelSurface: { padding: spacing.lg, gap: spacing.lg },
+  funnelList: { gap: spacing.md },
+  funnelRow: { gap: spacing.xs },
+  funnelLabel: { fontSize: 13, color: colors.textSecondary },
+  funnelValue: { fontSize: 14, color: colors.ink, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  funnelTrack: { height: 7, backgroundColor: colors.track, borderRadius: 99, overflow: "hidden" },
+  funnelFill: { height: "100%", backgroundColor: colors.primary, borderRadius: 99 },
+  insightsSurface: { padding: spacing.lg, gap: spacing.sm },
+  insightRow: { flexDirection: "row", gap: spacing.md, alignItems: "flex-start", paddingVertical: spacing.xs },
+  insightIndex: { fontSize: 10, fontWeight: "700", color: colors.textTertiary, letterSpacing: 0.5 },
+  insightText: { flex: 1, fontSize: 13, color: colors.ink, lineHeight: 18 },
+  secondaryBlock: { gap: spacing.section },
+  secondaryRow: { flexDirection: "row", justifyContent: "space-between", gap: spacing.md, marginTop: spacing.md },
+  detailSheet: { flex: 1, padding: spacing.xl, paddingTop: spacing.block, backgroundColor: colors.bg },
+  detailTitle: { fontSize: 22, fontWeight: "700", color: colors.ink, marginTop: spacing.xs },
+  detailClose: { fontSize: 15, color: colors.ink, fontWeight: "700" },
+  detailList: { paddingTop: spacing.block, paddingBottom: spacing.xxl, gap: 0 },
+  detailRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.separator },
+  detailDate: { fontSize: 13, color: colors.textSecondary },
+  detailValue: { fontSize: 14, color: colors.ink, fontWeight: "700", fontVariant: ["tabular-nums"] },
 });

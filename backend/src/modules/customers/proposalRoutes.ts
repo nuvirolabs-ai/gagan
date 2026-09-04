@@ -17,11 +17,37 @@ function sendProposalError(error: unknown, res: any, next: any) {
   return next(error);
 }
 
+const INDIAN_PIN_RE = /^\d{6}$/;
+const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+const UPI_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{1,255}@[A-Za-z][A-Za-z0-9.-]{1,63}$/;
+
+function optionalPattern(pattern: RegExp, message: string) {
+  return z.string().trim().refine((value) => !value || pattern.test(value), { message }).optional();
+}
+
 const submitSchema = z.object({
   businessName: z.string().trim().min(2).max(160),
-  ownerName: z.string().trim().max(120).optional(),
+  groupName: z.string().trim().min(2).max(160),
+  ownerName: z.string().trim().min(2).max(120),
   phone: z.string().trim().min(10).max(20),
+  telephone: z.string().trim().max(20).optional(),
+  transporter: z.string().trim().min(2).max(160),
   shopAddress: z.string().trim().min(4).max(400),
+  pinCode: optionalPattern(INDIAN_PIN_RE, "pin_code_invalid"),
+  tehsil: z.string().trim().max(120).optional(),
+  district: z.string().trim().max(120).optional(),
+  state: z.string().trim().max(120).optional(),
+  deliveryCity: z.string().trim().min(2).max(120),
+  shopDurationYears: z.number().int().min(0).max(200),
+  gstin: z.string().trim().toUpperCase().refine((value) => !value || GSTIN_RE.test(value), { message: "gstin_invalid" }).optional(),
+  aadhaarNumber: z.string().trim().min(12).max(16),
+  aadhaarPhoto: z.object({
+    contentType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+    bodyBase64: z.string().min(4).max(14_000_000),
+    checksum: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  }),
+  paymentTerms: z.string().trim().min(2).max(120),
+  upiId: optionalPattern(UPI_ID_RE, "upi_id_invalid"),
   latitude: z.number().finite().min(-90).max(90).optional(),
   longitude: z.number().finite().min(-180).max(180).optional(),
   accuracyMeters: z.number().finite().positive().optional(),

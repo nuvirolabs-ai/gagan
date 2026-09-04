@@ -37,7 +37,7 @@ export function buildPerformanceVisuals(input: {
   orders: readonly VisualOrder[];
   visits: readonly VisualVisit[];
   collections: readonly VisualCollection[];
-  routeCompletionTrend?: readonly { date: Date; completionPct: number }[];
+  routeCompletionTrend?: readonly { date: Date; completionPct: number; planned?: number; visited?: number }[];
 }) {
   const days = eachDay(input.from, input.to);
   const sales = new Map<string, { value: number; orders: number }>();
@@ -107,7 +107,13 @@ export function buildPerformanceVisuals(input: {
     collectionsTrend,
     categoryContribution,
     productivityPct: totalVisits ? rounded((productiveVisits / totalVisits) * 100) : null,
-    routeCompletionTrend: input.routeCompletionTrend?.map((row) => ({ date: dayKey(row.date), completionPct: row.completionPct })) ?? [],
+    routeCompletionTrend:
+      input.routeCompletionTrend?.map((row) => ({
+        date: dayKey(row.date),
+        completionPct: row.completionPct,
+        planned: row.planned ?? null,
+        visited: row.visited ?? null,
+      })) ?? [],
     hasEnoughHistory: input.orders.length > 0 || input.visits.length > 0 || input.collections.length > 0,
   };
 }

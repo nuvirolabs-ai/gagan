@@ -23,19 +23,15 @@ describe("contrast maths", () => {
   });
 });
 
-describe("the warm accent is legible wherever it is used", () => {
+describe("the V2.1 structural palette is legible wherever it is used", () => {
   it("reads as text on the app's own surfaces", () => {
     expect(contrastRatio(colors.accentStrong, colors.surface)).toBeGreaterThanOrEqual(AA_TEXT);
     expect(contrastRatio(colors.accentStrong, colors.bg)).toBeGreaterThanOrEqual(AA_TEXT);
   });
 
-  it("carries dark text when it is used as a fill", () => {
+  it("keeps the structural primary readable as a text and action colour", () => {
+    expect(contrastRatio(colors.accentPrimary, colors.surface)).toBeGreaterThanOrEqual(AA_TEXT);
     expect(contrastRatio(colors.onAccent, colors.accentPrimary)).toBeGreaterThanOrEqual(AA_TEXT);
-  });
-
-  it("is never used as text on white, which it is not light-safe for", () => {
-    // Guards the rule the tokens document: accentPrimary fills, never letters.
-    expect(contrastRatio(colors.accentPrimary, colors.surface)).toBeLessThan(AA_TEXT);
   });
 
   it("reads on its own soft surface", () => {
@@ -64,7 +60,7 @@ describe("status colours stay legible and stay distinct", () => {
   });
 
   it("does not let the accent stand in for a status", () => {
-    // Warning must be visibly its own colour, not the celebration gold.
+    // Alert is visibly its own colour, not the structural dark.
     expect(colors.warning).not.toBe(colors.accentPrimary);
     expect(colors.error).not.toBe(colors.accentPrimary);
     expect(colors.success).not.toBe(colors.accentPrimary);

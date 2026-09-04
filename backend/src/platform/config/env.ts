@@ -28,6 +28,10 @@ const envSchema = z.object({
   OBJECT_STORAGE_ENDPOINT: z.string().url().optional(),
   OBJECT_STORAGE_ACCESS_KEY: z.string().min(1).optional(),
   OBJECT_STORAGE_SECRET_KEY: z.string().min(1).optional(),
+  // Required at the point a sensitive identity value is submitted. Keeping it
+  // optional here lets non-identity local flows boot while still failing closed
+  // instead of persisting Aadhaar plaintext when it is absent.
+  PII_ENCRYPTION_KEY: z.string().min(32).optional(),
   STORE_LOCATION_MAX_ACCURACY_METERS: z.coerce.number().positive().default(50),
   VISIT_VERIFIED_RADIUS_METERS: z.coerce.number().positive().default(150),
   VISIT_REVIEW_RADIUS_METERS: z.coerce.number().positive().default(500),

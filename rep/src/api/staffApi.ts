@@ -192,9 +192,23 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
     retailerProposals: () => request("/rep/retailer-proposals"),
     proposeRetailer: (body: {
       businessName: string;
-      ownerName?: string;
+      groupName: string;
+      ownerName: string;
       phone: string;
+      telephone?: string;
+      transporter: string;
       shopAddress: string;
+      pinCode?: string;
+      tehsil?: string;
+      district?: string;
+      state?: string;
+      deliveryCity: string;
+      shopDurationYears: number;
+      gstin?: string;
+      aadhaarNumber: string;
+      aadhaarPhoto: { contentType: string; bodyBase64: string; checksum?: string };
+      paymentTerms: string;
+      upiId?: string;
       latitude?: number;
       longitude?: number;
       accuracyMeters?: number;

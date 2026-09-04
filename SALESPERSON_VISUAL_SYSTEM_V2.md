@@ -1,5 +1,14 @@
 # Gagan Salesperson App — Visual System V2
 
+## Freeze status
+
+`GAGAN SALESPERSON VISUAL V2 — FROZEN`
+
+This visual system is approved for the staging release. Future changes require
+a launch defect, real salesperson feedback, an SAP integration requirement, or
+an explicit founder request. Do not use this document as a reason to start
+additional visual or SFA work during the freeze.
+
 ## Position
 
 The Salesperson App is a personal field companion: warm enough for a long day outside, precise enough to move a store visit forward, and visually calm enough to use one-handed between conversations. The binding reference is a white/blue mobile application with one dark action surface, one chartreuse achievement signal, and a compact itinerary—not a green consumer storefront and not an ERP dashboard.

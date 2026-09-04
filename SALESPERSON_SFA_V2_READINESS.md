@@ -2,7 +2,12 @@
 
 ## Scope
 
-This branch is a staging/device-UAT candidate for the Gagan Salesperson App. It is based on `origin/codex/gagan-staging` at `47a918dd2dc2237d42e0e845a60b1dde658e4a13`, with the integrated implementation committed at `1ab737cf3f50b1cd382456f4e56a0b0b5782cbdf`, and lives in the isolated worktree `/Users/tanutejas/Documents/Gagan-salesperson-sfa-v2`.
+This branch is the staging/device-UAT release line for the Gagan Salesperson
+App. The approved Salesperson V2 history was fast-forward integrated from
+`origin/codex/gagan-salesperson-sfa-v2` into `codex/gagan-staging` without
+conflict. The isolated integration worktree is
+`/Users/tanutejas/Documents/Gagan-staging-integration`; the canonical dirty
+checkout remains untouched.
 
 The release preserves the existing Gagan backend, retailer ordering contract, inventory/credit authority, attendance and visit rules, field outbox, permissions, hierarchy, mock SAP boundary, and other product surfaces. It does not merge `main`, deploy production, connect SAP B1, or modify the canonical dirty checkout.
 
@@ -29,7 +34,7 @@ The full benchmark mapping is in:
 
 The current Gagan field-sales contract passes the core capabilities: attendance, leave, performance, PJP, retailer proposals, retailer intelligence, order history, schemes, secondary ordering, deterministic reorder opportunities, order review/submission, Sales Kit, EOD, expenses, retailer fulfilment visibility, profile, and permissions. Retailer stock audit, competitor capture, surveys, digital signatures, authorized returns, true KM read model, notifications, and stockist/DMS capabilities are explicitly partial or not applicable because no safe canonical contract exists today.
 
-## Freeze candidates
+## Freeze status
 
 `GAGAN SALESPERSON FUNCTIONAL V2 — FROZEN`
 
@@ -37,7 +42,16 @@ The current Gagan field-sales contract passes the core capabilities: attendance,
 
 `GAGAN SFA CAPABILITY V2 — FROZEN`
 
-These labels should be finalized only after hosted staging E2E and physical Android UAT are green. Future work after freeze is limited to a launch-critical defect, real field-user feedback, or an SAP requirement.
+These states are approved and frozen after hosted staging and physical Android
+UAT. Future changes require exactly one of:
+
+- a launch-critical defect;
+- real salesperson feedback;
+- an SAP integration requirement; or
+- an explicit founder request.
+
+No additional SFA capability or visual redesign should be started under this
+freeze.
 
 ## Required release verification
 
@@ -46,7 +60,13 @@ These labels should be finalized only after hosted staging E2E and physical Andr
 3. Hosted staging login and canonical order flow with mock SAP.
 4. Physical Android install from the standalone APK, including session restore, route, location permission, visit, order, performance, More modules, offline/reconnect and EOD.
 
-The local standalone release build is verified with the hosted HTTPS API embedded at `/Users/tanutejas/Desktop/gagan-salesperson-sfa-v2-1ab737c.apk` (SHA-256 `8e12a65308e240baf1046f7084fc838b4ff7af9b603238d054163f0fe9ccaca7`). EAS build `cebd813d-6392-4c74-8fc0-5cbb68e3245e` is queued for the shareable internal-distribution URL; it is not treated as complete until EAS and physical-device verification finish.
+The approved standalone release artifact is
+`/Users/tanutejas/Desktop/gagan-salesperson-founder-final-5a5656a.apk`
+(SHA-256
+`dce1fb7fdd8af7ec695c6314842253a7edf6479c5014d365dbefcc6c5f008025`). It
+uses package `com.gagan.sales` and the hosted staging API
+`https://gagan-staging-api.onrender.com`. It is a standalone release build and
+does not require Metro, USB, or the Mac at runtime.
 
 ## Physical Android smoke evidence
 
@@ -62,4 +82,6 @@ Verified on-device paths:
 - The placed order appeared in My activity as `Annapurna Foods · placed`.
 - Performance and More surfaces loaded after the order flow.
 
-The remaining release evidence is the clean-identity login sequence and the EAS-hosted install URL. No production data or SAP B1 credentials were used.
+No production data or SAP B1 credentials were used. The staging visual-UAT
+fixture and final physical screenshots are recorded in
+`SALESPERSON_FOUNDER_VISUAL_ACCEPTANCE.md`.

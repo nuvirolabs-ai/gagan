@@ -1,5 +1,13 @@
 # Gagan Salesperson App — SFA V2 Capability Audit
 
+`GAGAN SALESPERSON FUNCTIONAL V2 — FROZEN`
+
+`GAGAN SFA CAPABILITY V2 — FROZEN`
+
+The functional and capability boundaries in this audit are approved for the
+staging release. Future changes require a launch defect, real salesperson
+feedback, an SAP integration requirement, or an explicit founder request.
+
 Status: implementation audit for `codex/gagan-salesperson-sfa-v2`
 
 Reference source: `origin/codex/gagan-staging` at `47a918dd2dc2237d42e0e845a60b1dde658e4a13`

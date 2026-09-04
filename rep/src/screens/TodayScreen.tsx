@@ -3,7 +3,6 @@ import {
   Alert,
   Linking,
   Modal,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -27,6 +26,7 @@ import {
   SectionHeader,
   Skeleton,
   Surface,
+  TactilePressable,
   TaskRow,
   TextButton,
 } from "../components/ui";
@@ -37,7 +37,7 @@ import { useRep } from "../context/RepContext";
 import { repApi } from "../api/repClient";
 import { captureForegroundLocation } from "../location/deviceLocation";
 import { trackingBanner } from "../tracking/fieldTracker";
-import { colors, greetingForHour, inr, radius, spacing } from "../theme";
+import { colors, elevation, greetingForHour, inr, radius, spacing } from "../theme";
 import { SCREEN_CONTENT_BOTTOM_GAP } from "../layout/viewportPolicy";
 import { useLanguage } from "../i18n/LanguageContext";
 
@@ -85,16 +85,16 @@ function stopTime(stop: any): string {
 
 function ActionTile({ icon, label, onPress }: { icon: string; label: string; onPress: () => void }) {
   return (
-    <Pressable
+    <TactilePressable
       accessibilityRole="button"
       onPress={onPress}
-      style={({ pressed }) => [styles.actionTile, pressed && styles.pressed]}
+      style={styles.actionTile}
     >
       <View style={styles.actionIcon}>
         <Ionicons name={icon as any} size={21} color={colors.blueInk} />
       </View>
       <Text style={styles.actionLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>{label}</Text>
-    </Pressable>
+    </TactilePressable>
   );
 }
 
@@ -169,6 +169,7 @@ function AchievementSheet({
     <Modal visible transparent animationType="slide" onRequestClose={onDismiss}>
       <View style={styles.sheetOverlay}>
         <View style={styles.sheet}>
+          <View style={styles.sheetHandle} />
           <View style={styles.sheetBadge}>
             <Text style={styles.sheetBadgeText}>{milestone ? `${milestone}%` : "✓"}</Text>
           </View>
@@ -189,11 +190,11 @@ function AchievementSheet({
 
 function CompactDayStatus({ minutes, onPress }: { minutes: number | null | undefined; onPress: () => void }) {
   return (
-    <Pressable
+    <TactilePressable
       accessibilityRole="button"
       accessibilityLabel="Day complete. View activity."
       onPress={onPress}
-      style={({ pressed }) => [styles.dayCompleteRow, pressed && styles.pressed]}
+      style={styles.dayCompleteRow}
     >
       <View style={styles.dayCompleteMark}>
         <Ionicons name="checkmark" size={18} color={colors.green} />
@@ -203,7 +204,7 @@ function CompactDayStatus({ minutes, onPress }: { minutes: number | null | undef
         <Text style={styles.dayCompleteMeta}>{duration(minutes)} in field · View activity</Text>
       </View>
       <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
-    </Pressable>
+    </TactilePressable>
   );
 }
 
@@ -315,15 +316,15 @@ export default function TodayScreen({ navigation }: any) {
         statusLabel={statusLabel}
         dateLabel={formatLongDate()}
         right={
-          <Pressable
+          <TactilePressable
             accessibilityRole="button"
             accessibilityLabel="Notifications"
-            style={styles.bellButton}
             onPress={() => Alert.alert("Notifications", today.notifications?.length ? `${today.notifications.length} notification${today.notifications.length === 1 ? "" : "s"} available.` : "You’re all caught up for now.")}
+            style={styles.bellButton}
           >
             <Ionicons name="notifications-outline" size={23} color={colors.ink} />
             {(today.notifications?.length ?? 0) > 0 ? <View style={styles.notificationDot} /> : null}
-          </Pressable>
+          </TactilePressable>
         }
       />
 
@@ -332,6 +333,7 @@ export default function TodayScreen({ navigation }: any) {
 
         {!dayClosed && nextStop ? (
           <View style={styles.hero}>
+            <View pointerEvents="none" style={styles.heroTone} />
             <View style={styles.heroTop}>
               <View style={styles.heroBadge}>
                 <Text style={styles.heroBadgeText}>{stopTime(nextStop) ? `NEXT · ${stopTime(nextStop)}` : "NEXT STOP"}</Text>
@@ -410,11 +412,11 @@ export default function TodayScreen({ navigation }: any) {
                 const visitedStop = stop.status === "visited";
                 const skipped = stop.status === "skipped";
                 return (
-                  <Pressable key={stop.id} onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: stop.retailer.id })} style={({ pressed }) => [styles.stopRow, pressed && styles.pressed]}>
+                  <TactilePressable key={stop.id} onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: stop.retailer.id })} style={[styles.stopRow, stop.id === nextStop?.id && styles.stopRowNext]}>
                     <View style={styles.stopTimeCol}><Text style={styles.stopTime}>{stopTime(stop) || `#${stop.sequence}`}</Text></View>
                     <View style={{ flex: 1, minWidth: 0 }}><Text style={styles.stopName} numberOfLines={1}>{stop.retailer.name}</Text><Text style={styles.stopAddress} numberOfLines={1}>{stop.retailer.shopAddress}</Text></View>
                     <Text style={[styles.stopStatus, visitedStop && styles.stopStatusDone, skipped && styles.stopStatusSkipped]}>{visitedStop ? "DONE" : skipped ? "SKIPPED" : stop.id === nextStop?.id ? "NEXT" : "PLANNED"}</Text>
-                  </Pressable>
+                  </TactilePressable>
                 );
               })}
             </Surface>
@@ -470,7 +472,8 @@ const styles = StyleSheet.create({
   bellButton: { width: 44, height: 52, alignItems: "center", justifyContent: "center", position: "relative" },
   notificationDot: { position: "absolute", top: 12, right: 9, width: 7, height: 7, borderRadius: 99, backgroundColor: colors.danger, borderWidth: 1.5, borderColor: colors.canvas },
 
-  hero: { backgroundColor: colors.navy, borderRadius: radius.hero, padding: spacing.xl, gap: spacing.sm },
+  hero: { backgroundColor: colors.navy, borderRadius: radius.hero, padding: spacing.xl, gap: spacing.sm, overflow: "hidden", ...elevation.card },
+  heroTone: { position: "absolute", top: -70, right: -40, width: 230, height: 190, borderRadius: 120, backgroundColor: "rgba(47,105,245,0.18)" },
   heroTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   heroBadge: { backgroundColor: colors.surface, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 8, alignSelf: "flex-start" },
   heroBadgeText: { color: colors.navy, fontSize: 12, fontWeight: "800", letterSpacing: 0.25 },
@@ -520,6 +523,7 @@ const styles = StyleSheet.create({
   routeProgressLine: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   routePct: { color: colors.blueInk, fontSize: 13, fontWeight: "800", fontVariant: ["tabular-nums"] },
   stopRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.md, borderTopWidth: 1, borderTopColor: colors.border, minHeight: 58 },
+  stopRowNext: { borderLeftWidth: 3, borderLeftColor: colors.blue, paddingLeft: spacing.sm },
   // Keep the full HH:MM token on one line on narrow Android devices. The
   // route is an itinerary, so a wrapped time is materially harder to scan.
   stopTimeCol: { width: 52 },
@@ -532,10 +536,10 @@ const styles = StyleSheet.create({
 
   actionSurface: { flexDirection: "row", gap: spacing.xs, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, borderRadius: radius.lg, backgroundColor: colors.surfaceAlt },
   actionTile: { flex: 1, minHeight: 64, alignItems: "center", justifyContent: "center", gap: 4, borderRadius: radius.md, paddingHorizontal: 4 },
-  actionIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.blueSoft, alignItems: "center", justifyContent: "center" },
+  actionIcon: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   actionLabel: { color: colors.inkMuted, fontSize: 10.5, fontWeight: "600", textAlign: "center" },
   attentionSurface: { paddingVertical: spacing.xs, paddingHorizontal: spacing.md },
-  dayCompleteRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  dayCompleteRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, ...elevation.card },
   dayCompleteMark: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.greenSoft, alignItems: "center", justifyContent: "center" },
   dayCompleteTitle: { color: colors.ink, fontSize: 15.5, fontWeight: "700" },
   dayCompleteMeta: { color: colors.inkMuted, fontSize: 12.5, marginTop: 2 },
@@ -545,7 +549,8 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.72 },
 
   sheetOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(8, 15, 28, 0.54)" },
-  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 34, borderTopRightRadius: 34, paddingHorizontal: spacing.xl, paddingTop: 34, paddingBottom: 30, alignItems: "center", gap: spacing.md },
+  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 34, borderTopRightRadius: 34, paddingHorizontal: spacing.xl, paddingTop: 18, paddingBottom: 30, alignItems: "center", gap: spacing.md, ...elevation.floating },
+  sheetHandle: { width: 38, height: 4, borderRadius: 2, backgroundColor: colors.separator, marginBottom: spacing.sm },
   sheetBadge: { width: 102, height: 102, borderRadius: 32, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
   sheetBadgeText: { color: colors.onDark, fontSize: 34, fontWeight: "800", fontVariant: ["tabular-nums"] },
   sheetTitle: { color: colors.ink, fontSize: 26, lineHeight: 31, fontWeight: "800", textAlign: "center", letterSpacing: -0.55 },

@@ -1,6 +1,6 @@
 # Gagan Salesperson V2.2 — Material and Motion Audit
 
-Status: pre-implementation audit  
+Status: implementation and device audit — awaiting Founder device review
 Date: 4 September 2026  
 Source branch: `codex/gagan-salesperson-v2-2-material-motion`  
 Source commit: `e47e38e99cf08c0d71542ea230815c33dca17a26`  
@@ -24,8 +24,10 @@ The current evidence set is stored outside the repository at:
 
 `/tmp/codex-remote-attachments/01a03ead-23c6-7c42-8516-b0fb855094fc/661BFC3E-6B09-42BC-B7AD-B599FC933C82/`
 
-The source implementation was also inspected in the isolated worktree. No
-V2.2 code changes had been made when this document was created.
+The source implementation was also inspected in the isolated worktree. The
+baseline observations below were recorded before the V2.2 implementation; the
+device evidence and final implementation notes are recorded at the end of this
+document.
 
 ## Current rendered baseline
 
@@ -135,3 +137,63 @@ is therefore: centralize tokens, upgrade surfaces/buttons/segments/tab bar,
 add reduced-motion-safe native-driver feedback, then verify Home, Reports,
 Timeline, Retailer Detail, New Retailer, and the existing long-scroll flows on
 the physical Moto E13.
+
+## Implementation and device evidence
+
+The V2.2 implementation stayed inside `rep/`. It did not change the API
+client, backend, seed data, business calculations, or any non-Salesperson
+product. The shared material and interaction work was implemented in:
+
+- `rep/src/theme.ts` for the neutral/midnight/cobalt/coral palette, elevation,
+  geometry, and timing tokens;
+- `rep/src/components/companion.tsx` and `rep/src/components/ui.tsx` for the
+  shared `Surface`, `TactilePressable`, button, progress, list, error, and
+  reduced-motion primitives;
+- `rep/App.tsx` for the normal-flow bottom-tab material and animated selection;
+- the existing Salesperson screens for composition only, with canonical data
+  and existing navigation/actions preserved.
+
+The physical verification was performed on the connected Moto E13:
+
+- device: serial `ZD2229Q3KB`, 720×1600 display, 280 dpi;
+- app area: approximately 720×1510 with the Android system area excluded;
+- release APK was installed and launched with `am start` after the final
+  source build;
+- the normal-flow tab wrapper remained at the bottom of the scene (`y=1464`
+  to `1510`) with four tab buttons, confirming that the V2.1 viewport-gap
+  contract was not reintroduced;
+- no visible tap/scroll/navigation stutter was observed during the physical
+  run, though this is observational QA rather than a frame-time benchmark.
+
+Evidence directory:
+
+`/Users/tanutejas/Desktop/gagan-salesperson-v2-2-material-motion-evidence/`
+
+Captured surfaces include Home top/lower, Timeline, Performance, Outlets,
+Retailer Detail, Order Taking, More, New Retailer step 1/2, keyboard-safe
+form progression, and a native report detail sheet. The 27.9-second physical
+recording is `gagan-v2-2-material-motion-final.mp4` in the same directory.
+
+The current seeded device identity is Nikhil and its canonical day was already
+complete. Consequently, the fresh V2.2 device screenshots show the compact
+day-complete Home state. The active-day Next Visit hero remains implemented
+from the approved V2.1 path and was previously physically evidenced; it was not
+recreated by mutating staging data for this presentation pass. The custom
+milestone/EOD sheet remains source-backed, while the captured Android detail
+sheet is a native `pageSheet` presentation rather than evidence of a fabricated
+milestone crossing.
+
+## Post-implementation audit outcome
+
+| Area | V2.2 result | Evidence / boundary |
+| --- | --- | --- |
+| Canvas and ambient framing | PASS | Cool neutral canvas plus static, low-contrast top tint; no animated or full-screen gradient |
+| Material hierarchy | PASS | Level 1 inset, Level 2 raised, and Level 3 floating treatments are centralized and selectively applied |
+| Button and row response | PASS | Shared native-driver press scale/opacity with existing haptic helper; disabled/loading geometry preserved |
+| Segments and tabs | PASS | Stable control frames with animated selection/selection icon treatment and reduced-motion fallback |
+| Reports and Timeline | PASS | Raised report cockpit, inset chart region, timeline rail, and bounded chart transition; canonical data unchanged |
+| Retailer Detail and Order Taking | PASS | Raised identity/commercial surface, floating CTA, tactile product/cart controls |
+| New Retailer | PASS | Four-step flow, smaller inputs, top-level Add store/My requests separation, focus treatment, and keyboard-safe CTA |
+| Bottom navigation | PASS | Material bar styling remains normal-flow; no second tab-bar inset or overlay model introduced |
+| Color discipline | PASS with semantic exceptions | Neutral + midnight/cobalt + muted coral UI families; restrained green remains only for genuine success/status signals and product imagery retains its own packaging palette |
+| Motion performance | PASS, observational | Physical Moto E13 run showed responsive press, tab, segment, progress, and bounded screen transitions; reduced-motion hook is shared |

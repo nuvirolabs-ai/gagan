@@ -1,12 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   Image,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -22,7 +22,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { repApi } from "../api/repClient";
 import { captureForegroundLocation } from "../location/deviceLocation";
 import { useRep } from "../context/RepContext";
-import { colors, control, radius, spacing } from "../theme";
+import { colors, control, elevation, radius, spacing } from "../theme";
+import { TactilePressable } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 
 const DRAFT_KEY = "gagan.new-retailer.v2-1.draft";
@@ -113,6 +114,7 @@ export default function AddRetailerScreen() {
   const [aadhaarNumber, setAadhaarNumber] = useState("");
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [step, setStep] = useState(0);
+  const [showRequests, setShowRequests] = useState(false);
   const [proposals, setProposals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -121,6 +123,22 @@ export default function AddRetailerScreen() {
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<FieldKey, string>>>({});
   const [location, setLocation] = useState<{ latitude: number; longitude: number; accuracyMeters: number } | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
+  const inputRefs = useRef<Record<string, TextInput | null>>({});
+  const focusedInput = useRef<string | null>(null);
+  const keyboardHeightRef = useRef(0);
+
+  const revealFocusedInput = useCallback((keyboardInset = keyboardHeightRef.current) => {
+    const key = focusedInput.current;
+    const node = key ? inputRefs.current[key] : null;
+    if (!node) return;
+    node.measureInWindow((_x, y, _width, height) => {
+      const viewportBottom = Dimensions.get("window").height - keyboardInset - spacing.md;
+      if (y + height > viewportBottom) {
+        scrollRef.current?.scrollTo({ y: Math.max(0, y - Dimensions.get("window").height * 0.28), animated: true });
+      }
+    });
+  }, []);
 
   const update = (key: keyof Draft, value: string) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -156,13 +174,20 @@ export default function AddRetailerScreen() {
   // tab-bar inset and is zero as soon as the keyboard is dismissed.
   useEffect(() => {
     if (Platform.OS !== "android") return;
-    const show = Keyboard.addListener("keyboardDidShow", ({ endCoordinates }) => setKeyboardHeight(endCoordinates.height));
-    const hide = Keyboard.addListener("keyboardDidHide", () => setKeyboardHeight(0));
+    const show = Keyboard.addListener("keyboardDidShow", ({ endCoordinates }) => {
+      keyboardHeightRef.current = endCoordinates.height;
+      setKeyboardHeight(endCoordinates.height);
+      setTimeout(() => revealFocusedInput(endCoordinates.height), 80);
+    });
+    const hide = Keyboard.addListener("keyboardDidHide", () => {
+      keyboardHeightRef.current = 0;
+      setKeyboardHeight(0);
+    });
     return () => {
       show.remove();
       hide.remove();
     };
-  }, []);
+  }, [revealFocusedInput]);
 
   const load = useCallback(async () => {
     try {
@@ -316,6 +341,7 @@ export default function AddRetailerScreen() {
 
   const input = (key: keyof Draft, placeholder: string, options?: { keyboardType?: any; multiline?: boolean }) => (
     <TextInput
+      ref={(node) => { inputRefs.current[key] = node; }}
       value={form[key]}
       onChangeText={(value) => update(key, value)}
       placeholder={placeholder}
@@ -323,6 +349,10 @@ export default function AddRetailerScreen() {
       style={[styles.input, fieldErrors[key] && styles.inputError, options?.multiline && styles.multiline]}
       keyboardType={options?.keyboardType}
       multiline={options?.multiline}
+      onFocus={() => {
+        focusedInput.current = key;
+        setTimeout(() => revealFocusedInput(), 220);
+      }}
       accessibilityLabel={placeholder}
     />
   );
@@ -374,10 +404,10 @@ export default function AddRetailerScreen() {
           <Field label="District">{input("district", "Pune")}</Field>
           <Field label="State">{input("state", "Maharashtra")}</Field>
           <Field label="Delivery City*" error={fieldErrors.deliveryCity}>{input("deliveryCity", "Pune")}</Field>
-          <Pressable accessibilityRole="button" style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]} onPress={() => void captureLocation()}>
+          <TactilePressable accessibilityRole="button" style={styles.secondaryButton} onPress={() => void captureLocation()}>
             <Ionicons name="location-outline" size={18} color={colors.primary} />
             <Text style={styles.secondaryButtonText}>{location ? `Location captured · ${Math.round(location.accuracyMeters)} m` : "Capture shop location"}</Text>
-          </Pressable>
+          </TactilePressable>
         </>
       );
     }
@@ -402,16 +432,16 @@ export default function AddRetailerScreen() {
       <>
         <View style={styles.securityNote}><Ionicons name="shield-checkmark-outline" size={18} color={colors.primary} /><Text style={styles.securityText}>Identity details are encrypted and visible only to authorised reviewers. They are not saved in your draft.</Text></View>
         <Field label="Aadhaar Number*" hint="12 digits · encrypted on submit" error={fieldErrors.aadhaarNumber}>
-          <TextInput value={aadhaarNumber} onChangeText={(value) => { setAadhaarNumber(value.replace(/\D/g, "").slice(0, 12)); setFieldErrors((current) => ({ ...current, aadhaarNumber: undefined })); setError(""); }} placeholder="1234 5678 9012" placeholderTextColor={colors.inkFaint} style={[styles.input, fieldErrors.aadhaarNumber && styles.inputError]} keyboardType="number-pad" secureTextEntry accessibilityLabel="Aadhaar Number" />
+          <TextInput ref={(node) => { inputRefs.current.aadhaarNumber = node; }} value={aadhaarNumber} onChangeText={(value) => { setAadhaarNumber(value.replace(/\D/g, "").slice(0, 12)); setFieldErrors((current) => ({ ...current, aadhaarNumber: undefined })); setError(""); }} onFocus={() => { focusedInput.current = "aadhaarNumber"; setTimeout(() => revealFocusedInput(), 220); }} placeholder="1234 5678 9012" placeholderTextColor={colors.inkFaint} style={[styles.input, fieldErrors.aadhaarNumber && styles.inputError]} keyboardType="number-pad" secureTextEntry accessibilityLabel="Aadhaar Number" />
         </Field>
         <Field label="Aadhaar Card Photo*" hint="Required for manager review" error={fieldErrors.aadhaarPhoto}>
           {photo ? (
             <View style={styles.photoPreview}>
               <Image source={{ uri: photo.uri }} style={styles.photo} />
-              <View style={styles.photoMeta}><Text style={styles.photoName} numberOfLines={1}>{photo.name ?? "Aadhaar photo ready"}</Text><Text style={styles.fieldHint}>Private upload on submit</Text><View style={styles.photoActions}><Pressable onPress={() => void choosePhoto("camera")}><Text style={styles.link}>Replace</Text></Pressable><Pressable onPress={() => { setPhoto(null); setFieldErrors((current) => ({ ...current, aadhaarPhoto: "Aadhaar Card Photo is required." })); }}><Text style={styles.remove}>Remove</Text></Pressable></View></View>
+              <View style={styles.photoMeta}><Text style={styles.photoName} numberOfLines={1}>{photo.name ?? "Aadhaar photo ready"}</Text><Text style={styles.fieldHint}>Private upload on submit</Text><View style={styles.photoActions}><TactilePressable onPress={() => void choosePhoto("camera")} style={styles.quietAction}><Text style={styles.link}>Replace</Text></TactilePressable><TactilePressable onPress={() => { setPhoto(null); setFieldErrors((current) => ({ ...current, aadhaarPhoto: "Aadhaar Card Photo is required." })); }} style={styles.quietAction} hapticKind="warning"><Text style={styles.remove}>Remove</Text></TactilePressable></View></View>
             </View>
           ) : (
-            <View style={styles.photoButtons}><Pressable style={styles.photoButton} onPress={() => void choosePhoto("camera")}><Ionicons name="camera-outline" size={20} color={colors.primary} /><Text style={styles.photoButtonText}>Take photo</Text></Pressable><Pressable style={styles.photoButton} onPress={() => void choosePhoto("library")}><Ionicons name="images-outline" size={20} color={colors.primary} /><Text style={styles.photoButtonText}>Choose from gallery</Text></Pressable></View>
+            <View style={styles.photoButtons}><TactilePressable style={styles.photoButton} onPress={() => void choosePhoto("camera")}><Ionicons name="camera-outline" size={20} color={colors.primary} /><Text style={styles.photoButtonText}>Take photo</Text></TactilePressable><TactilePressable style={styles.photoButton} onPress={() => void choosePhoto("library")}><Ionicons name="images-outline" size={20} color={colors.primary} /><Text style={styles.photoButtonText}>Choose from gallery</Text></TactilePressable></View>
           )}
         </Field>
         <Field label="Review"><View style={styles.reviewList}>{reviewValues.map(([label, value]) => <View style={styles.reviewRow} key={label}><Text style={styles.reviewLabel}>{label}</Text><Text style={styles.reviewValue} numberOfLines={2}>{value || "—"}</Text></View>)}</View></Field>
@@ -424,13 +454,23 @@ export default function AddRetailerScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView contentContainerStyle={[styles.content, keyboardHeight > 0 && { paddingBottom: keyboardHeight + spacing.xl }]} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={colors.primary} />}>
+      <ScrollView ref={scrollRef} contentContainerStyle={[styles.content, keyboardHeight > 0 && { paddingBottom: keyboardHeight + spacing.xl }]} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={colors.primary} />}>
         <View style={styles.header}><Text style={styles.kicker}>CUSTOMER MASTER</Text><Text style={styles.title}>New retailer</Text><Text style={styles.subtitle}>Submit a complete store profile for manager review. Approval creates one canonical retailer.</Text></View>
-        <View style={styles.stepper}>{STEPS.map((label, index) => <Pressable key={label} accessibilityRole="button" accessibilityState={{ selected: index === step }} onPress={() => index <= step && setStep(index)} style={styles.step}><View style={[styles.stepDot, index <= step && styles.stepDotActive]}><Text style={[styles.stepNumber, index <= step && styles.stepNumberActive]}>{index + 1}</Text></View><Text style={[styles.stepLabel, index === step && styles.stepLabelActive]}>{label}</Text></Pressable>)}</View>
-        {error ? <View style={styles.errorBanner}><Ionicons name="alert-circle-outline" size={18} color={colors.danger} /><Text style={styles.errorBannerText}>{error}</Text></View> : null}
-        <View style={styles.formSurface}><Text style={styles.formHeading}>{STEPS[step]}</Text><Text style={styles.formProgress}>Step {step + 1} of {STEPS.length}</Text>{stepContent}</View>
-        <View style={styles.navigation}>{step > 0 ? <Pressable accessibilityRole="button" onPress={() => { setError(""); setStep((current) => current - 1); }} style={styles.backButton}><Text style={styles.backText}>Back</Text></Pressable> : <View />}{step < STEPS.length - 1 ? <Pressable accessibilityRole="button" onPress={() => { const issue = validateStep(step); if (issue) setError(issue); else { setError(""); setStep((current) => current + 1); } }} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}><Text style={styles.primaryText}>Continue</Text><Ionicons name="arrow-forward" size={18} color={colors.onDark} /></Pressable> : <Pressable accessibilityRole="button" disabled={saving} onPress={() => void submit()} style={({ pressed }) => [styles.primaryButton, saving && styles.disabled, pressed && styles.pressed]}><Text style={styles.primaryText}>{saving ? "Sending…" : "Send for review"}</Text><Ionicons name="paper-plane-outline" size={18} color={colors.onDark} /></Pressable>}</View>
-        <View style={styles.requests}><Text style={styles.sectionTitle}>My requests</Text>{proposals.length === 0 ? <Text style={styles.fieldHint}>Submitted stores and their review status will appear here.</Text> : proposals.map((proposal) => <View key={proposal.id} style={styles.requestRow}><View style={styles.requestIcon}><Ionicons name="storefront-outline" size={18} color={colors.primary} /></View><View style={styles.requestMain}><Text style={styles.requestName}>{proposal.businessName}</Text><Text style={styles.fieldHint} numberOfLines={1}>{proposal.deliveryCity ?? proposal.shopAddress}</Text></View><View style={[styles.status, STATUS_TONE[proposal.status] ?? STATUS_TONE.pending]}><Text style={[styles.statusText, { color: (STATUS_TONE[proposal.status] ?? STATUS_TONE.pending).color }]}>{proposal.status}</Text></View>{proposal.status === "pending" ? <Pressable onPress={() => void withdraw(proposal.id)}><Text style={styles.remove}>Withdraw</Text></Pressable> : null}</View>)}</View>
+        <View style={styles.modeControl} accessibilityRole="tablist">
+          <TactilePressable style={[styles.modeOption, !showRequests && styles.modeOptionActive]} accessibilityRole="tab" accessibilityState={{ selected: !showRequests }} onPress={() => setShowRequests(false)}>
+            <Text style={[styles.modeOptionText, !showRequests && styles.modeOptionTextActive]}>Add store</Text>
+          </TactilePressable>
+          <TactilePressable style={[styles.modeOption, showRequests && styles.modeOptionActive]} accessibilityRole="tab" accessibilityState={{ selected: showRequests }} onPress={() => setShowRequests(true)}>
+            <Text style={[styles.modeOptionText, showRequests && styles.modeOptionTextActive]}>My requests</Text>
+          </TactilePressable>
+        </View>
+        {!showRequests ? <>
+          <View style={styles.stepper}>{STEPS.map((label, index) => <TactilePressable key={label} accessibilityRole="button" accessibilityState={{ selected: index === step }} onPress={() => index <= step && setStep(index)} style={styles.step}><View style={[styles.stepDot, index <= step && styles.stepDotActive]}><Text style={[styles.stepNumber, index <= step && styles.stepNumberActive]}>{index + 1}</Text></View><Text style={[styles.stepLabel, index === step && styles.stepLabelActive]}>{label}</Text></TactilePressable>)}</View>
+          {error ? <View style={styles.errorBanner}><Ionicons name="alert-circle-outline" size={18} color={colors.danger} /><Text style={styles.errorBannerText}>{error}</Text></View> : null}
+          <View style={styles.formSurface}><Text style={styles.formHeading}>{STEPS[step]}</Text><Text style={styles.formProgress}>Step {step + 1} of {STEPS.length}</Text>{stepContent}</View>
+          <View style={styles.navigation}>{step > 0 ? <TactilePressable accessibilityRole="button" onPress={() => { setError(""); setStep((current) => current - 1); }} style={styles.backButton}><Text style={styles.backText}>Back</Text></TactilePressable> : <View />}{step < STEPS.length - 1 ? <TactilePressable accessibilityRole="button" onPress={() => { const issue = validateStep(step); if (issue) setError(issue); else { setError(""); setStep((current) => current + 1); } }} style={styles.primaryButton}><Text style={styles.primaryText}>Continue</Text><Ionicons name="arrow-forward" size={18} color={colors.onDark} /></TactilePressable> : <TactilePressable accessibilityRole="button" disabled={saving} onPress={() => void submit()} style={[styles.primaryButton, saving && styles.disabled]}><Text style={styles.primaryText}>{saving ? "Sending…" : "Send for review"}</Text><Ionicons name="paper-plane-outline" size={18} color={colors.onDark} /></TactilePressable>}</View>
+        </> : null}
+        {showRequests ? <View style={styles.requests}><Text style={styles.sectionTitle}>Submitted stores</Text>{proposals.length === 0 ? <Text style={styles.fieldHint}>Submitted stores and their review status will appear here.</Text> : proposals.map((proposal) => <View key={proposal.id} style={styles.requestRow}><View style={styles.requestIcon}><Ionicons name="storefront-outline" size={18} color={colors.primary} /></View><View style={styles.requestMain}><Text style={styles.requestName}>{proposal.businessName}</Text><Text style={styles.fieldHint} numberOfLines={1}>{proposal.deliveryCity ?? proposal.shopAddress}</Text></View><View style={[styles.status, STATUS_TONE[proposal.status] ?? STATUS_TONE.pending]}><Text style={[styles.statusText, { color: (STATUS_TONE[proposal.status] ?? STATUS_TONE.pending).color }]}>{proposal.status}</Text></View>{proposal.status === "pending" ? <TactilePressable onPress={() => void withdraw(proposal.id)} style={styles.quietAction} hapticKind="warning"><Text style={styles.remove}>Withdraw</Text></TactilePressable> : null}</View>)}</View> : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -444,6 +484,11 @@ const styles = StyleSheet.create({
   kicker: { fontSize: 10, letterSpacing: 1.2, fontWeight: "700", color: colors.textSecondary },
   title: { fontSize: 28, lineHeight: 34, fontWeight: "700", color: colors.ink, letterSpacing: -0.7 },
   subtitle: { fontSize: 13, color: colors.textSecondary, lineHeight: 19, maxWidth: 480 },
+  modeControl: { flexDirection: "row", backgroundColor: colors.surfaceAlt, borderRadius: radius.pill, padding: 4, borderWidth: 1, borderColor: colors.border },
+  modeOption: { flex: 1, minHeight: 40, borderRadius: radius.pill, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.md },
+  modeOptionActive: { backgroundColor: colors.primary, ...elevation.card },
+  modeOptionText: { color: colors.textSecondary, fontSize: 13, fontWeight: "600" },
+  modeOptionTextActive: { color: colors.onDark },
   stepper: { flexDirection: "row", justifyContent: "space-between", paddingVertical: spacing.sm },
   step: { alignItems: "center", gap: spacing.xs, flex: 1 },
   stepDot: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.separator },
@@ -454,14 +499,14 @@ const styles = StyleSheet.create({
   stepLabelActive: { color: colors.ink, fontWeight: "700" },
   errorBanner: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start", backgroundColor: colors.dangerSoft, padding: spacing.md, borderRadius: radius.md },
   errorBannerText: { flex: 1, color: colors.danger, fontSize: 13, lineHeight: 18 },
-  formSurface: { backgroundColor: colors.surface, borderRadius: radius.xl, padding: spacing.lg, gap: spacing.lg, borderWidth: 1, borderColor: colors.border },
+  formSurface: { backgroundColor: colors.surface, borderRadius: radius.xl, padding: spacing.lg, gap: spacing.lg, borderWidth: 1, borderColor: colors.border, ...elevation.card },
   formHeading: { fontSize: 19, fontWeight: "700", color: colors.ink },
   formProgress: { fontSize: 11, color: colors.textSecondary, marginTop: -spacing.md },
   field: { gap: spacing.xs },
   fieldLabel: { color: colors.ink, fontSize: 13, fontWeight: "600" },
   fieldHint: { color: colors.textSecondary, fontSize: 11, lineHeight: 16 },
   fieldError: { color: colors.danger, fontSize: 11, lineHeight: 16 },
-  input: { backgroundColor: colors.surfaceAlt, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, paddingVertical: 12, color: colors.ink, fontSize: 14, minHeight: control.buttonHeight },
+  input: { backgroundColor: colors.surfaceAlt, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, paddingVertical: 10, color: colors.ink, fontSize: 14, minHeight: 50 },
   inputError: { borderColor: colors.danger, backgroundColor: colors.dangerSoft },
   multiline: { minHeight: 76, textAlignVertical: "top" },
   secondaryButton: { minHeight: control.buttonHeight, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceSecondary, paddingHorizontal: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.sm },
@@ -472,13 +517,14 @@ const styles = StyleSheet.create({
   securityNote: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, backgroundColor: colors.surfaceSecondary, padding: spacing.md, borderRadius: radius.md },
   securityText: { flex: 1, color: colors.textSecondary, fontSize: 12, lineHeight: 17 },
   photoButtons: { flexDirection: "row", gap: spacing.sm },
-  photoButton: { flex: 1, minHeight: 74, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center", gap: spacing.xs },
+  photoButton: { flex: 1, minHeight: 70, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center", gap: spacing.xs },
   photoButtonText: { color: colors.primary, fontSize: 12, fontWeight: "600", textAlign: "center" },
   photoPreview: { flexDirection: "row", gap: spacing.md, padding: spacing.sm, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary },
   photo: { width: 86, height: 68, borderRadius: radius.sm, backgroundColor: colors.bg },
   photoMeta: { flex: 1, justifyContent: "center", gap: spacing.xs },
   photoName: { color: colors.ink, fontSize: 13, fontWeight: "600" },
   photoActions: { flexDirection: "row", gap: spacing.lg, marginTop: spacing.xs },
+  quietAction: { alignSelf: "flex-start" },
   link: { color: colors.primary, fontWeight: "700", fontSize: 12 },
   remove: { color: colors.danger, fontWeight: "700", fontSize: 12 },
   reviewList: { borderTopWidth: 1, borderTopColor: colors.separator },
@@ -488,7 +534,7 @@ const styles = StyleSheet.create({
   navigation: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: spacing.md },
   backButton: { minHeight: control.buttonHeight, justifyContent: "center", paddingHorizontal: spacing.md },
   backText: { color: colors.textSecondary, fontWeight: "700", fontSize: 14 },
-  primaryButton: { minHeight: control.buttonHeight, borderRadius: radius.md, backgroundColor: colors.primary, paddingHorizontal: spacing.lg, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm },
+  primaryButton: { minHeight: control.buttonHeight, borderRadius: radius.md, backgroundColor: colors.primary, paddingHorizontal: spacing.lg, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.18)", ...elevation.card },
   primaryText: { color: colors.onDark, fontWeight: "700", fontSize: 14 },
   pressed: { opacity: 0.72 },
   disabled: { opacity: 0.5 },

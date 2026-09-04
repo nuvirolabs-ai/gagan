@@ -4,13 +4,12 @@ import {
   FlatList,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { Banner, EmptyState, SearchBar, SecondaryButton, Tag } from "../components/ui";
+import { Banner, EmptyState, SearchBar, SecondaryButton, Tag, TactilePressable } from "../components/ui";
 import { openDirections } from "./RouteScreen";
 import { repApi } from "../api/repClient";
 import { captureForegroundLocation } from "../location/deviceLocation";
@@ -80,7 +79,7 @@ export default function CustomerMapScreen({ navigation }: any) {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.green} />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -121,10 +120,10 @@ export default function CustomerMapScreen({ navigation }: any) {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
-          <TouchableOpacity
+          <TactilePressable
             style={styles.card}
-            activeOpacity={0.85}
             onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: item.id })}
+            accessibilityLabel={`Open ${item.name}`}
           >
             <View style={styles.row}>
               <View
@@ -136,7 +135,7 @@ export default function CustomerMapScreen({ navigation }: any) {
                 <Ionicons
                   name={item.latitude == null ? "help-outline" : "location"}
                   size={16}
-                  color={item.latitude == null ? colors.inkFaint : colors.green}
+                  color={item.latitude == null ? colors.inkFaint : colors.primary}
                 />
               </View>
               <View style={{ flex: 1 }}>
@@ -161,17 +160,17 @@ export default function CustomerMapScreen({ navigation }: any) {
                 <Text style={styles.sub}>No overdue amount</Text>
               )}
               {item.latitude != null ? (
-                <TouchableOpacity
+                <TactilePressable
                   style={styles.navBtn}
                   onPress={() => openDirections(item)}
                   accessibilityLabel={`Directions to ${item.name}`}
                 >
-                  <Ionicons name="navigate-outline" size={14} color={colors.green} />
+                  <Ionicons name="navigate-outline" size={14} color={colors.primary} />
                   <Text style={styles.navText}>{t("route.navigate")}</Text>
-                </TouchableOpacity>
+                </TactilePressable>
               ) : null}
             </View>
-          </TouchableOpacity>
+          </TactilePressable>
         )}
       />
     </View>
@@ -198,13 +197,13 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: radius.pill,
-    backgroundColor: colors.greenSoft,
+    backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center",
   },
   name: { fontSize: 15, fontWeight: "700", color: colors.ink },
   sub: { fontSize: 12, color: colors.inkMuted, marginTop: 2, lineHeight: 17 },
-  distance: { fontSize: 12.5, fontWeight: "700", color: colors.green },
+  distance: { fontSize: 12.5, fontWeight: "700", color: colors.primary },
 
   footer: {
     flexDirection: "row",
@@ -215,6 +214,6 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
   },
   overdue: { fontSize: 12.5, fontWeight: "700", color: colors.danger },
-  navBtn: { flexDirection: "row", alignItems: "center", gap: 5 },
-  navText: { fontSize: 12.5, fontWeight: "700", color: colors.green },
+  navBtn: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 32 },
+  navText: { fontSize: 12.5, fontWeight: "700", color: colors.primary },
 });

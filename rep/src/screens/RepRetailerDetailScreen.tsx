@@ -13,7 +13,7 @@ import { repApi } from "../api/repClient";
 import { captureForegroundLocation } from "../location/deviceLocation";
 import { useRep } from "../context/RepContext";
 import { staffCapabilities } from "../auth/staffCapabilities";
-import { colors, inr, spacing } from "../theme";
+import { colors, elevation, inr, spacing } from "../theme";
 import { formatOrderRef } from "../lib/orderRef";
 import {
   AppScreen,
@@ -240,26 +240,26 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   return (
     <AppScreen>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.head}>
-          <InitialsBadge name={retailer.name} size={56} tone={credit.overdue > 0 ? "danger" : "green"} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.name}>{retailer.name}</Text>
-            <Text style={styles.address} numberOfLines={2}>
-              {retailer.shopAddress}
-            </Text>
-            <View style={styles.chips}>
-              {retailer.tier ? (
-                <StatusChip label={`${retailer.tier} retailer`} tone={retailer.tier.toLowerCase() === "gold" ? "gold" : "neutral"} />
-              ) : null}
-              <StatusChip
-                label={locationLabel}
-                tone={location?.status === "VERIFIED" ? "green" : location?.status === "NEEDS_REVIEW" ? "warning" : "neutral"}
-              />
+        <Surface level={2} style={styles.identitySurface}>
+          <View style={styles.head}>
+            <InitialsBadge name={retailer.name} size={56} tone={credit.overdue > 0 ? "danger" : "green"} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.name}>{retailer.name}</Text>
+              <Text style={styles.address} numberOfLines={2}>
+                {retailer.shopAddress}
+              </Text>
+              <View style={styles.chips}>
+                {retailer.tier ? (
+                  <StatusChip label={`${retailer.tier} retailer`} tone={retailer.tier.toLowerCase() === "gold" ? "gold" : "neutral"} />
+                ) : null}
+                <StatusChip
+                  label={locationLabel}
+                  tone={location?.status === "VERIFIED" ? "green" : location?.status === "NEEDS_REVIEW" ? "warning" : "neutral"}
+                />
+              </View>
             </View>
           </View>
-        </View>
-
-        <Surface>
+          <View style={styles.identityDivider} />
           <View style={styles.moneyRow}>
             <View style={styles.moneyCell}>
               <Text style={styles.moneyLabel}>{t("profile.outstanding")}</Text>
@@ -282,7 +282,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
         </Surface>
 
         {baseline ? (
-          <Surface>
+          <Surface level={1}>
             <SectionHeader title="Store intelligence" />
             <View style={styles.intelligenceGrid}>
               <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Last order</Text><Text style={styles.intelligenceValue}>{baseline.lastOrderAt ? new Date(baseline.lastOrderAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "No order yet"}</Text></View>
@@ -301,7 +301,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
         ) : null}
 
         {schemes.length > 0 ? (
-          <Surface>
+          <Surface level={1}>
             <SectionHeader title="Schemes for this store" />
             {schemes.map((scheme) => (
               <View key={scheme.id} style={styles.schemeRow}>
@@ -317,7 +317,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
         ) : null}
 
         {recentOrders.length >= 3 ? (
-          <Surface>
+          <Surface level={1}>
             <SectionHeader title="Last 6 orders" />
             <Text style={styles.muted}>A small view of this store's recent order value.</Text>
             <View style={styles.orderBars}>
@@ -566,11 +566,13 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
 const styles = StyleSheet.create({
   pad: { padding: spacing.xl },
   content: { padding: spacing.xl, gap: spacing.section, paddingBottom: 140 },
+  identitySurface: { gap: spacing.lg },
   head: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
   name: { fontSize: 26, fontWeight: "700", color: colors.ink, letterSpacing: -0.6 },
   address: { fontSize: 13, color: colors.textSecondary, marginTop: 4, lineHeight: 18 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 },
   moneyRow: { flexDirection: "row", gap: spacing.lg },
+  identityDivider: { height: 1, backgroundColor: colors.separator },
   moneyCell: { flex: 1 },
   moneyLabel: { fontSize: 12, color: colors.textSecondary },
   moneyValue: { fontSize: 24, fontWeight: "700", color: colors.ink, marginTop: 4 },
@@ -602,6 +604,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.section,
     borderTopWidth: 1,
     borderTopColor: colors.separator,
+    ...elevation.floating,
   },
   intelligenceGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
   intelligenceCell: { width: "46%" },

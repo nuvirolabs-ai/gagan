@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { repApi } from "../api/repClient";
-import { colors, inr, radius, spacing } from "../theme";
+import { colors, elevation, inr, radius, spacing } from "../theme";
 import { useRep } from "../context/RepContext";
 import { useLanguage } from "../i18n/LanguageContext";
+import { TactilePressable } from "../components/ui";
 
 const reasonLabel = (code: string) => ({
   new_customer_second_invoice: "Second invoice approval",
@@ -84,7 +85,7 @@ export default function ApprovalDetailScreen({ route, navigation }: any) {
     }
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator color={colors.green} /></View>;
+  if (loading) return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
   if (!request) return <View style={styles.center}><Text style={styles.error}>{error || t("approval.notFound")}</Text></View>;
 
   return (
@@ -106,30 +107,30 @@ export default function ApprovalDetailScreen({ route, navigation }: any) {
             <Text style={styles.section}>{canResolveDispute ? "Resolve written dispute" : "Dispute under review"}</Text>
             <Text style={styles.copy}>{openDispute.writtenPosition}</Text>
             {canResolveDispute ? (!pendingDecision ? <View style={styles.actions}>
-              <TouchableOpacity style={styles.reject} onPress={() => void begin("rejected")}><Text style={styles.rejectText}>{t("approval.reject")}</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.approve} onPress={() => void begin("approved")}><Text style={styles.approveText}>{t("approval.approve")}</Text></TouchableOpacity>
+              <TactilePressable style={styles.reject} hapticKind="warning" onPress={() => void begin("rejected")}><Text style={styles.rejectText}>{t("approval.reject")}</Text></TactilePressable>
+              <TactilePressable style={styles.approve} onPress={() => void begin("approved")}><Text style={styles.approveText}>{t("approval.approve")}</Text></TactilePressable>
             </View> : <>
               <Text style={styles.copy}>Enter the six-digit verification code.</Text>
               <TextInput style={styles.otp} keyboardType="number-pad" maxLength={6} value={otp} onChangeText={(value) => setOtp(value.replace(/\D/g, ""))} />
-              <TouchableOpacity disabled={otp.length !== 6} style={[styles.approve, otp.length !== 6 && styles.disabled]} onPress={() => void decide()}><Text style={styles.approveText}>Verify and close dispute</Text></TouchableOpacity>
+              <TactilePressable disabled={otp.length !== 6} style={[styles.approve, otp.length !== 6 && styles.disabled]} onPress={() => void decide()}><Text style={styles.approveText}>Verify and close dispute</Text></TactilePressable>
             </>) : null}
           </> : <>
             <Text style={styles.section}>Order remains held</Text>
             <Text style={styles.copy}>Opening a dispute does not authorize dispatch.</Text>
-            <TouchableOpacity style={styles.approve} onPress={() => void raiseDispute()}><Text style={styles.approveText}>Open dispute</Text></TouchableOpacity>
+            <TactilePressable style={styles.approve} onPress={() => void raiseDispute()}><Text style={styles.approveText}>Open dispute</Text></TactilePressable>
           </>}
         </View>
       ) : !pendingDecision ? (
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.reject} onPress={() => void begin("rejected")}><Text style={styles.rejectText}>{t("approval.reject")}</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.approve} onPress={() => void begin("approved")}><Text style={styles.approveText}>{t("approval.approve")}</Text></TouchableOpacity>
+          <TactilePressable style={styles.reject} hapticKind="warning" onPress={() => void begin("rejected")}><Text style={styles.rejectText}>{t("approval.reject")}</Text></TactilePressable>
+          <TactilePressable style={styles.approve} onPress={() => void begin("approved")}><Text style={styles.approveText}>{t("approval.approve")}</Text></TactilePressable>
         </View>
       ) : (
         <View style={styles.verify}>
           <Text style={styles.section}>{t("approval.verify")}</Text>
           <Text style={styles.copy}>Enter the six-digit code sent to your registered phone.</Text>
           <TextInput style={styles.otp} keyboardType="number-pad" maxLength={6} value={otp} onChangeText={(value) => setOtp(value.replace(/\D/g, ""))} />
-          <TouchableOpacity disabled={otp.length !== 6} style={[styles.approve, otp.length !== 6 && styles.disabled]} onPress={() => void decide()}><Text style={styles.approveText}>Verify and {pendingDecision === "approved" ? "approve" : "reject"}</Text></TouchableOpacity>
+          <TactilePressable disabled={otp.length !== 6} style={[styles.approve, otp.length !== 6 && styles.disabled]} onPress={() => void decide()}><Text style={styles.approveText}>Verify and {pendingDecision === "approved" ? "approve" : "reject"}</Text></TactilePressable>
         </View>
       )}
     </ScrollView>
@@ -140,9 +141,9 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, paddingBottom: 48 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
-  eyebrow: { color: colors.green, fontSize: 12, fontWeight: "700" },
+  eyebrow: { color: colors.primary, fontSize: 12, fontWeight: "700" },
   title: { color: colors.ink, fontSize: 24, fontWeight: "800", marginTop: 5 },
-  exposure: { backgroundColor: colors.cream, borderRadius: radius.lg, padding: spacing.lg, marginVertical: spacing.xl },
+  exposure: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, padding: spacing.lg, marginVertical: spacing.xl, ...elevation.card },
   exposureValue: { color: colors.ink, fontSize: 22, fontWeight: "800" },
   exposureLabel: { color: colors.inkMuted, fontSize: 12.5, marginTop: 4 },
   section: { color: colors.ink, fontSize: 16, fontWeight: "700", marginBottom: spacing.sm },
@@ -151,11 +152,11 @@ const styles = StyleSheet.create({
   label: { color: colors.inkMuted, fontSize: 12, fontWeight: "600", marginTop: spacing.lg, marginBottom: 6 },
   note: { minHeight: 86, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.md, color: colors.ink, textAlignVertical: "top" },
   actions: { flexDirection: "row", gap: spacing.md, marginTop: spacing.xl },
-  reject: { flex: 1, borderWidth: 1, borderColor: colors.danger, borderRadius: radius.md, padding: 14, alignItems: "center" },
+  reject: { flex: 1, borderWidth: 1, borderColor: colors.danger, borderRadius: radius.lg, minHeight: 54, padding: 14, alignItems: "center", justifyContent: "center" },
   rejectText: { color: colors.danger, fontWeight: "800" },
-  approve: { flex: 1, backgroundColor: colors.green, borderRadius: radius.md, padding: 14, alignItems: "center" },
+  approve: { flex: 1, backgroundColor: colors.primary, borderRadius: radius.lg, minHeight: 54, padding: 14, alignItems: "center", justifyContent: "center", ...elevation.card },
   approveText: { color: colors.onDark, fontWeight: "800" },
-  verify: { backgroundColor: colors.greenSoft, borderRadius: radius.lg, padding: spacing.lg, marginTop: spacing.xl },
+  verify: { backgroundColor: colors.primarySoft, borderRadius: radius.lg, padding: spacing.lg, marginTop: spacing.xl },
   copy: { color: colors.inkMuted, fontSize: 12.5, marginBottom: spacing.md },
   otp: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 13, fontSize: 20, letterSpacing: 8, textAlign: "center", color: colors.ink, marginBottom: spacing.md },
   disabled: { opacity: .45 },

@@ -5,13 +5,12 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { AppScreen, Card, EmptyState, SectionTitle, Tag } from "../components/ui";
+import { AppScreen, Card, EmptyState, SectionTitle, Tag, TactilePressable } from "../components/ui";
 import { repApi } from "../api/repClient";
 import { colors, radius, spacing } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -83,7 +82,7 @@ export default function OpportunitiesScreen({ navigation }: any) {
               await load();
               setRefreshing(false);
             }}
-            tintColor={colors.green}
+            tintColor={colors.primary}
           />
         }
       >
@@ -110,12 +109,12 @@ export default function OpportunitiesScreen({ navigation }: any) {
           />
         ) : (
           triggers.map((trigger: any) => (
-            <TouchableOpacity
+            <TactilePressable
               key={`${trigger.type}-${trigger.retailerId}`}
-              activeOpacity={0.85}
               onPress={() =>
                 navigation.navigate("RepRetailerDetail", { retailerId: trigger.retailerId })
               }
+              accessibilityLabel={`${trigger.retailerName}: ${trigger.headline}`}
             >
               <Card>
                 <View style={styles.head}>
@@ -149,7 +148,7 @@ export default function OpportunitiesScreen({ navigation }: any) {
                   ))}
                 </View>
               </Card>
-            </TouchableOpacity>
+            </TactilePressable>
           ))
         )}
       </ScrollView>

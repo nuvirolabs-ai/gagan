@@ -1,9 +1,9 @@
-import React from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { Animated, View, Text, TextInput, StyleSheet, ScrollView } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { colors, control, FILTER_ROW_HEIGHT, radius, spacing } from "../theme";
+import { colors, control, elevation, FILTER_ROW_HEIGHT, motion, radius, spacing } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
-import { useHeaderPaddingTop } from "./companion";
+import { TactilePressable, useHeaderPaddingTop, useReducedMotion } from "./companion";
 export {
   AppScreen,
   AttentionRow,
@@ -23,8 +23,10 @@ export {
   StatusChip,
   Surface,
   TaskRow,
+  TactilePressable,
   TextButton,
   TimelineEvent,
+  useReducedMotion,
   useHeaderPaddingTop,
 } from "./companion";
 
@@ -99,13 +101,13 @@ export function ChipRow({
       {options.map((opt) => {
         const active = opt === value;
         return (
-          <TouchableOpacity
+          <TactilePressable
             key={opt}
             style={[s.chip, active && s.chipActive]}
             onPress={() => onChange(opt)}
           >
             <Text style={[s.chipText, active && s.chipTextActive]}>{opt}</Text>
-          </TouchableOpacity>
+          </TactilePressable>
         );
       })}
     </ScrollView>
@@ -124,32 +126,32 @@ export function QtyStepper({
   const { t } = useLanguage();
   if (qty <= 0) {
     return (
-      <TouchableOpacity
+      <TactilePressable
         style={[s.addBtn, compact && s.addBtnCompact]}
         onPress={() => onChange(1)}
         accessibilityLabel={t("orders.place")}
       >
         <Ionicons name="add" size={compact ? 16 : 18} color={colors.onDark} />
-      </TouchableOpacity>
+      </TactilePressable>
     );
   }
   return (
     <View style={[s.stepper, compact && s.stepperCompact]}>
-      <TouchableOpacity
+      <TactilePressable
         style={s.stepBtn}
         onPress={() => onChange(qty - 1)}
         accessibilityLabel={t("common.decreaseQuantity")}
       >
         <Ionicons name={qty === 1 ? "trash-outline" : "remove"} size={15} color={colors.ink} />
-      </TouchableOpacity>
+      </TactilePressable>
       <Text style={s.stepQty}>{qty}</Text>
-      <TouchableOpacity
+      <TactilePressable
         style={s.stepBtn}
         onPress={() => onChange(qty + 1)}
         accessibilityLabel={t("common.increaseQuantity")}
       >
         <Ionicons name="add" size={15} color={colors.ink} />
-      </TouchableOpacity>
+      </TactilePressable>
     </View>
   );
 }
@@ -175,9 +177,9 @@ export function EmptyState({
       <Text style={s.emptyTitle}>{title}</Text>
       {body ? <Text style={s.emptyBody}>{body}</Text> : null}
       {actionLabel && onAction ? (
-        <TouchableOpacity style={s.emptyBtn} onPress={onAction}>
+        <TactilePressable style={s.emptyBtn} onPress={onAction}>
           <Text style={s.emptyBtnText}>{actionLabel}</Text>
-        </TouchableOpacity>
+        </TactilePressable>
       ) : null}
     </View>
   );
@@ -301,10 +303,36 @@ export function ProgressTrack({
   // danger remains reserved for work that is genuinely late or blocked.
   const fill =
     tone === "danger" ? colors.danger : tone === "accent" ? colors.accentPrimary : colors.blue;
+  const bounded = Math.max(0, Math.min(100, pct));
+  const animated = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (reduceMotion) {
+      animated.setValue(bounded);
+      return;
+    }
+    Animated.timing(animated, {
+      toValue: bounded,
+      duration: motion.progress,
+      useNativeDriver: false,
+    }).start();
+  }, [animated, bounded, reduceMotion]);
+
   return (
-    <View style={s.track}>
-      <View
-        style={[s.trackFill, { width: `${Math.max(0, Math.min(100, pct))}%`, backgroundColor: fill }]}
+    <View
+      style={s.track}
+      accessibilityRole="progressbar"
+      accessibilityValue={{ now: bounded, min: 0, max: 100 }}
+    >
+      <Animated.View
+        style={[
+          s.trackFill,
+          {
+            backgroundColor: fill,
+            width: animated.interpolate({ inputRange: [0, 100], outputRange: ["0%", "100%"] }),
+          },
+        ]}
       />
     </View>
   );
@@ -389,9 +417,9 @@ export function ListRow({
   );
   if (!onPress) return body;
   return (
-    <TouchableOpacity activeOpacity={0.75} onPress={onPress}>
+    <TactilePressable onPress={onPress}>
       {body}
-    </TouchableOpacity>
+    </TactilePressable>
   );
 }
 
@@ -409,7 +437,7 @@ export function PrimaryButton({
   tone?: "blue" | "navy" | "green" | "danger";
 }) {
   return (
-    <TouchableOpacity
+    <TactilePressable
       style={[
         s.primary,
         tone === "navy" && { backgroundColor: colors.navy },
@@ -419,11 +447,12 @@ export function PrimaryButton({
       ]}
       onPress={onPress}
       disabled={disabled}
-      activeOpacity={0.85}
+      accessibilityRole="button"
+      hapticKind={tone === "danger" ? "warning" : "light"}
     >
       {icon ? <Ionicons name={icon as any} size={16} color={colors.onDark} /> : null}
       <Text style={s.primaryText}>{label}</Text>
-    </TouchableOpacity>
+    </TactilePressable>
   );
 }
 
@@ -441,15 +470,15 @@ export function SecondaryButton({
   variant?: "outline" | "text";
 }) {
   return (
-    <TouchableOpacity
+    <TactilePressable
       style={[variant === "text" ? s.secondaryTextButton : s.secondary, disabled && { opacity: 0.5 }]}
       onPress={onPress}
       disabled={disabled}
-      activeOpacity={0.75}
+      accessibilityRole="button"
     >
       {icon ? <Ionicons name={icon as any} size={15} color={colors.blueInk} /> : null}
       <Text style={s.secondaryText}>{label}</Text>
-    </TouchableOpacity>
+    </TactilePressable>
   );
 }
 
@@ -491,14 +520,13 @@ export function OptionGrid({
       {options.map((option) => {
         const active = option.value === value;
         return (
-          <TouchableOpacity
+          <TactilePressable
             key={option.value}
             style={[s.option, active && s.optionActive]}
             onPress={() => onChange(option.value)}
-            activeOpacity={0.8}
           >
             <Text style={[s.optionText, active && s.optionTextActive]}>{option.label}</Text>
-          </TouchableOpacity>
+          </TactilePressable>
         );
       })}
     </View>
@@ -629,6 +657,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.separator,
     gap: spacing.sm,
+    ...elevation.card,
   },
   sectionTitleRow: {
     flexDirection: "row",
@@ -672,7 +701,7 @@ const s = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: radius.pill,
-    backgroundColor: colors.greenSoft,
+    backgroundColor: colors.blueSoft,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -689,6 +718,9 @@ const s = StyleSheet.create({
     minHeight: control.buttonHeight,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.16)",
+    ...elevation.card,
   },
   primaryDisabled: { backgroundColor: colors.inkFaint },
   primaryText: { color: colors.onDark, fontWeight: "600", fontSize: 15 },

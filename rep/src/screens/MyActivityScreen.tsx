@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useState } from "react";
-import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Animated, Modal, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Circle, Line, Path, Svg } from "react-native-svg";
 import { useFocusEffect } from "@react-navigation/native";
 
@@ -14,12 +14,14 @@ import {
   Skeleton,
   StatusChip,
   Surface,
+  TactilePressable,
   TimelineEvent,
+  useReducedMotion,
 } from "../components/ui";
 import { ACTIVITY_LABELS } from "../components/ActivityComposer";
 import { AchievementLine } from "../components/Achievement";
 import { repApi } from "../api/repClient";
-import { colors, inr, spacing } from "../theme";
+import { colors, inr, motion, spacing } from "../theme";
 import { SCREEN_CONTENT_BOTTOM_GAP } from "../layout/viewportPolicy";
 import { useLanguage } from "../i18n/LanguageContext";
 import {
@@ -426,8 +428,25 @@ function TrendChart({ rows, metric }: { rows: MetricRow[]; metric: PerformanceMe
   const line = points.map((point, index) => `${index === 0 ? "M" : "L"}${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
   const area = `${line} L${points[points.length - 1].x.toFixed(1)},${(inset.top + plotHeight).toFixed(1)} L${points[0].x.toFixed(1)},${(inset.top + plotHeight).toFixed(1)} Z`;
   const labels = [rows[0], rows[Math.floor(rows.length / 2)], rows[rows.length - 1]].filter(Boolean);
+  const entrance = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReducedMotion();
+  const seriesKey = rows.map((row) => `${row.date}:${row.value}`).join("|");
+
+  useEffect(() => {
+    if (reduceMotion) {
+      entrance.setValue(1);
+      return;
+    }
+    entrance.setValue(0);
+    Animated.timing(entrance, { toValue: 1, duration: motion.chart, useNativeDriver: true }).start();
+  }, [entrance, metric, reduceMotion, seriesKey]);
+
   return (
-    <View accessible accessibilityLabel={`${metric} trend for the selected period`}>
+    <Animated.View
+      accessible
+      accessibilityLabel={`${metric} trend for the selected period`}
+      style={{ opacity: entrance, transform: [{ translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [5, 0] }) }] }}
+    >
       <Svg width={chartWidth} height={chartHeight}>
         <Line x1={inset.left} x2={chartWidth - inset.right} y1={inset.top} y2={inset.top} stroke={colors.track} strokeWidth="1" />
         <Line x1={inset.left} x2={chartWidth - inset.right} y1={inset.top + plotHeight / 2} y2={inset.top + plotHeight / 2} stroke={colors.track} strokeWidth="1" />
@@ -440,7 +459,7 @@ function TrendChart({ rows, metric }: { rows: MetricRow[]; metric: PerformanceMe
         {labels.map((row, index) => <Text key={`${row!.date}-${index}`} style={styles.chartLabel}>{chartDateLabel(row!.date)}</Text>)}
       </View>
       <Text style={styles.chartScale}>Scale: {metricDisplay(metric, max)} peak in selected window</Text>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -497,7 +516,7 @@ function PerformanceCockpit({
         <Text style={styles.salesSub}>{metric === "sales" ? "Sales value" : metric[0].toUpperCase() + metric.slice(1)} · {period.attendance.present} working days</Text>
       </View>
 
-      <Surface level={1} style={styles.cockpitSurface}>
+      <Surface level={2} style={styles.cockpitSurface}>
         <View style={styles.metricBand}>
           {[
             ["Sales", compactInr(period.orderValue)],
@@ -531,9 +550,9 @@ function PerformanceCockpit({
             <Text style={styles.instrumentLabel}>TREND</Text>
             <Text style={styles.sectionTitle}>{metric[0].toUpperCase() + metric.slice(1)} over time</Text>
           </View>
-          <Pressable accessibilityRole="button" onPress={() => setDailyDetailOpen(true)} style={({ pressed }) => [styles.detailLink, pressed && { opacity: 0.65 }]}>
+          <TactilePressable accessibilityRole="button" onPress={() => setDailyDetailOpen(true)} style={styles.detailLink}>
             <Text style={styles.detailLinkText}>Daily detail</Text>
-          </Pressable>
+          </TactilePressable>
         </View>
         <View style={styles.metricPicker}>
           {(["sales", "orders", "visits", "collections"] as PerformanceMetric[]).map((key) => (
@@ -573,7 +592,7 @@ function PerformanceCockpit({
       ) : null}
 
       <Modal visible={dailyDetailOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setDailyDetailOpen(false)}>
-        <View style={styles.detailSheet}><View style={styles.between}><View><Text style={styles.periodKicker}>DAILY LEDGER</Text><Text style={styles.detailTitle}>{metric[0].toUpperCase() + metric.slice(1)} · {monthLabel}</Text></View><Pressable accessibilityRole="button" onPress={() => setDailyDetailOpen(false)}><Text style={styles.detailClose}>Done</Text></Pressable></View><ScrollView contentContainerStyle={styles.detailList}>{rawRows.length === 0 ? <Text style={styles.muted}>No canonical daily activity is available.</Text> : rawRows.slice().reverse().map((row) => <View key={row.date} style={styles.detailRow}><Text style={styles.detailDate}>{chartDateLabel(row.date)}</Text><Text style={styles.detailValue}>{metricDisplay(metric, row.value)}</Text></View>)}</ScrollView></View>
+        <View style={styles.detailSheet}><View style={styles.between}><View><Text style={styles.periodKicker}>DAILY LEDGER</Text><Text style={styles.detailTitle}>{metric[0].toUpperCase() + metric.slice(1)} · {monthLabel}</Text></View><TactilePressable accessibilityRole="button" onPress={() => setDailyDetailOpen(false)} style={styles.detailCloseButton}><Text style={styles.detailClose}>Done</Text></TactilePressable></View><ScrollView contentContainerStyle={styles.detailList}>{rawRows.length === 0 ? <Text style={styles.muted}>No canonical daily activity is available.</Text> : rawRows.slice().reverse().map((row) => <View key={row.date} style={styles.detailRow}><Text style={styles.detailDate}>{chartDateLabel(row.date)}</Text><Text style={styles.detailValue}>{metricDisplay(metric, row.value)}</Text></View>)}</ScrollView></View>
       </Modal>
     </>
   );
@@ -650,6 +669,7 @@ const styles = StyleSheet.create({
   secondaryRow: { flexDirection: "row", justifyContent: "space-between", gap: spacing.md, marginTop: spacing.md },
   detailSheet: { flex: 1, padding: spacing.xl, paddingTop: spacing.block, backgroundColor: colors.bg },
   detailTitle: { fontSize: 22, fontWeight: "700", color: colors.ink, marginTop: spacing.xs },
+  detailCloseButton: { minHeight: 44, justifyContent: "center", paddingHorizontal: spacing.sm },
   detailClose: { fontSize: 15, color: colors.ink, fontWeight: "700" },
   detailList: { paddingTop: spacing.block, paddingBottom: spacing.xxl, gap: 0 },
   detailRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.separator },

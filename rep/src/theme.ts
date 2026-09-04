@@ -1,77 +1,72 @@
 export const colors = {
-  // V2.1 field system: a quiet neutral canvas, one dark structural colour,
-  // and one reserved alert colour. Keep aliases below so older screens inherit
-  // the same system without page-by-page palette drift.
-  bg: "#F5F6F8",
+  // V2.2 material system: cool neutral canvas, midnight/cobalt interaction
+  // family, and a restrained coral alert family. Compatibility aliases below
+  // intentionally resolve into this small palette so older screens do not
+  // introduce a second visual language.
+  bg: "#F4F6F9",
   surface: "#FFFFFF",
-  surfaceAlt: "#F0F2F5",
+  surfaceAlt: "#EEF1F5",
 
-  ink: "#0B1220",
+  ink: "#081221",
   inkMuted: "#667085",
   inkFaint: "#98A2B3",
   onDark: "#FFFFFF",
-  onDarkMuted: "#D0D5DD",
+  onDarkMuted: "#D7DEE9",
 
-  navy: "#0B1220",
-  blue: "#0B1220",
-  blueSoft: "#F0F2F5",
-  blueMid: "#667085",
-  blueInk: "#0B1220",
+  navy: "#071426",
+  blue: "#2F69F5",
+  blueSoft: "#EAF1FF",
+  blueMid: "#5C86E8",
+  blueInk: "#2F69F5",
 
-  // Kept as compatibility names. The new field UI intentionally has no neon
-  // achievement colour; milestones use the same dark instrument colour.
-  lime: "#0B1220",
-  limeSoft: "#F0F2F5",
+  // Legacy milestone aliases are now quiet members of the primary family;
+  // V2.2 does not use neon/lime as a general-purpose UI colour.
+  lime: "#2F69F5",
+  limeSoft: "#EAF1FF",
 
-  green: "#0B1220",
-  greenDeep: "#0B1220",
-  greenMid: "#667085",
-  greenSoft: "#F0F2F5",
+  // Green is reserved for small, truthful success indicators.
+  green: "#17815A",
+  greenDeep: "#071426",
+  greenMid: "#4D9B7C",
+  greenSoft: "#E9F6EF",
 
-  gold: "#0B1220",
-  goldSoft: "#F0F2F5",
-  cream: "#F5F6F8",
+  // Compatibility names map to the interaction family rather than creating a
+  // gold/orange visual family in the field-sales UI.
+  gold: "#2F69F5",
+  goldSoft: "#EAF1FF",
+  cream: "#F4F6F9",
 
-  danger: "#B9382E",
-  dangerSoft: "#FBE9E7",
+  danger: "#CF4038",
+  dangerSoft: "#FCEDEA",
 
-  /**
-   * Compatibility aliases for older feature surfaces. V2.1 uses the dark
-   * structural colour for actions and achievement emphasis; the only separate
-   * chromatic family reserved for UI state is the muted alert red.
-   */
-  accentPrimary: "#0B1220",
-  accentStrong: "#0B1220",
-  accentSoft: "#F0F2F5",
+  accentPrimary: "#2F69F5",
+  accentStrong: "#071426",
+  accentSoft: "#EAF1FF",
   onAccent: "#FFFFFF",
 
-  /**
-   * Status stays status. These never borrow the accent, so "warning" cannot be
-   * confused with "you are doing well".
-   */
-  success: "#344054",
-  successSoft: "#F0F2F5",
-  warning: "#B9382E",
-  warningSoft: "#FBE9E7",
-  error: "#B9382E",
-  errorSoft: "#FBE9E7",
-  info: "#667085",
-  infoSoft: "#F0F2F5",
+  success: "#17815A",
+  successSoft: "#E9F6EF",
+  warning: "#CF4038",
+  warningSoft: "#FCEDEA",
+  error: "#CF4038",
+  errorSoft: "#FCEDEA",
+  info: "#2F69F5",
+  infoSoft: "#EAF1FF",
 
-  border: "#E4E7EC",
-  track: "#E4E7EC",
+  border: "#DDE3EB",
+  track: "#DDE3EB",
 
-  /* Semantic aliases used by the companion system. Same values, clearer names. */
-  canvas: "#F5F6F8",
-  surfaceSecondary: "#F0F2F5",
-  textPrimary: "#0B1220",
+  /* Semantic aliases used by the companion system. */
+  canvas: "#F4F6F9",
+  surfaceSecondary: "#EEF1F5",
+  textPrimary: "#081221",
   textSecondary: "#667085",
   textTertiary: "#98A2B3",
-  separator: "#E4E7EC",
-  primaryDeep: "#0B1220",
-  primary: "#0B1220",
-  primarySoft: "#F0F2F5",
-  goldStrong: "#0B1220",
+  separator: "#DDE3EB",
+  primaryDeep: "#071426",
+  primary: "#2F69F5",
+  primarySoft: "#EAF1FF",
+  goldStrong: "#071426",
 };
 
 export const radius = {
@@ -97,13 +92,13 @@ export const spacing = {
 };
 
 export const type = {
-  display: { fontSize: 30, fontWeight: "700" as const, color: colors.ink, letterSpacing: -0.7, fontVariant: ["tabular-nums"] as const },
-  screenTitle: { fontSize: 26, fontWeight: "700" as const, color: colors.ink, letterSpacing: -0.6 },
+  display: { fontSize: 32, fontWeight: "700" as const, color: colors.ink, letterSpacing: -0.8, fontVariant: ["tabular-nums"] as const },
+  screenTitle: { fontSize: 28, fontWeight: "700" as const, color: colors.ink, letterSpacing: -0.7 },
   sectionTitle: { fontSize: 13, fontWeight: "600" as const, color: colors.ink, letterSpacing: 0.4 },
   cardTitle: { fontSize: 17, fontWeight: "600" as const, color: colors.ink },
   body: { fontSize: 15, fontWeight: "400" as const, color: colors.ink, lineHeight: 21 },
   bodyStrong: { fontSize: 15, fontWeight: "600" as const, color: colors.ink },
-  metricXL: { fontSize: 36, fontWeight: "700" as const, color: colors.ink, letterSpacing: -0.9, fontVariant: ["tabular-nums"] as const },
+  metricXL: { fontSize: 38, fontWeight: "700" as const, color: colors.ink, letterSpacing: -1, fontVariant: ["tabular-nums"] as const },
   metricLarge: { fontSize: 22, fontWeight: "600" as const, color: colors.ink, letterSpacing: -0.3 },
   metricMedium: { fontSize: 17, fontWeight: "600" as const, color: colors.ink },
   caption: { fontSize: 13, fontWeight: "400" as const, color: colors.inkMuted, lineHeight: 18 },
@@ -116,13 +111,26 @@ export const type = {
 
 export const elevation = {
   none: {},
-  card: {},
+  card: {
+    shadowColor: colors.ink,
+    shadowOpacity: 0.075,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
   floating: {
-    shadowColor: colors.navy,
-    shadowOpacity: 0.12,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
+    shadowColor: colors.ink,
+    shadowOpacity: 0.14,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 7 },
     elevation: 6,
+  },
+  bar: {
+    shadowColor: colors.ink,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: -3 },
+    elevation: 3,
   },
 };
 
@@ -133,15 +141,19 @@ export const shadow = {
 };
 
 export const motion = {
-  fast: 160,
-  base: 220,
+  fast: 110,
+  base: 200,
   slow: 320,
+  progress: 520,
+  chart: 260,
+  list: 200,
+  sheet: 280,
 };
 
 export const control = {
   minTap: 44,
-  buttonHeight: 48,
-  chipHeight: 36,
+  buttonHeight: 54,
+  chipHeight: 40,
   iconSm: 16,
   iconMd: 20,
   iconLg: 24,

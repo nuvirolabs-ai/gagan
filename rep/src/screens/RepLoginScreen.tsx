@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   StyleSheet,
   Alert,
   ActivityIndicator,
@@ -16,6 +15,7 @@ import { useRep } from "../context/RepContext";
 import { ApiError } from "../api/repClient";
 import { colors, radius, spacing } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
+import { TactilePressable } from "../components/ui";
 
 export default function RepLoginScreen() {
   const { requestOtp, login } = useRep();
@@ -74,7 +74,7 @@ export default function RepLoginScreen() {
               onChangeText={setPhone}
               maxLength={10}
             />
-            <TouchableOpacity style={styles.button} onPress={handleRequestOtp} disabled={busy}>
+            <TactilePressable style={styles.button} onPress={handleRequestOtp} disabled={busy}>
               {busy ? (
                 <ActivityIndicator color={colors.onDark} />
               ) : (
@@ -83,7 +83,7 @@ export default function RepLoginScreen() {
                   <Ionicons name="arrow-forward" size={17} color={colors.onDark} />
                 </>
               )}
-            </TouchableOpacity>
+            </TactilePressable>
           </>
         ) : (
           <>
@@ -99,16 +99,16 @@ export default function RepLoginScreen() {
               onChangeText={setOtp}
               maxLength={6}
             />
-            <TouchableOpacity style={styles.button} onPress={handleVerify} disabled={busy}>
+            <TactilePressable style={styles.button} onPress={handleVerify} disabled={busy}>
               {busy ? (
                 <ActivityIndicator color={colors.onDark} />
               ) : (
                 <Text style={styles.buttonText}>{t("auth.verify")}</Text>
               )}
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setStage("phone")}>
+            </TactilePressable>
+            <TactilePressable onPress={() => setStage("phone")} style={styles.linkButton}>
               <Text style={styles.link}>{t("auth.changePhone")}</Text>
-            </TouchableOpacity>
+            </TactilePressable>
           </>
         )}
       </View>
@@ -172,5 +172,6 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
   },
   buttonText: { color: colors.onDark, fontWeight: "700", fontSize: 15.5 },
-  link: { textAlign: "center", color: colors.blue, marginTop: spacing.lg, fontWeight: "600" },
+  linkButton: { alignSelf: "center", minHeight: 44, justifyContent: "center" },
+  link: { textAlign: "center", color: colors.blue, fontWeight: "600" },
 });

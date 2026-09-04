@@ -3,7 +3,6 @@ import {
   View,
   Text,
   FlatList,
-  TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
   Alert,
@@ -12,10 +11,10 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { repApi, ApiError } from "../api/repClient";
 import { useRep } from "../context/RepContext";
-import { colors, radius, spacing, inr } from "../theme";
+import { colors, elevation, radius, spacing, inr } from "../theme";
 import { haptic } from "../feedback/haptics";
 import ProductThumb from "../components/ProductThumb";
-import { SearchBar, ChipRow, QtyStepper, EmptyState } from "../components/ui";
+import { SearchBar, ChipRow, QtyStepper, EmptyState, TactilePressable } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 import { formatOrderRef } from "../lib/orderRef";
 
@@ -180,7 +179,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
             </Text>
             <Text style={styles.barValue}>{inr(cartTotal)}</Text>
           </View>
-          <TouchableOpacity style={styles.placeBtn} disabled={placing} onPress={submit}>
+          <TactilePressable style={styles.placeBtn} disabled={placing} onPress={submit}>
             {placing ? (
               <ActivityIndicator color={colors.onDark} />
             ) : (
@@ -189,7 +188,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
                 <Ionicons name="arrow-forward" size={16} color={colors.onDark} />
               </>
             )}
-          </TouchableOpacity>
+          </TactilePressable>
         </View>
       )}
     </View>
@@ -210,6 +209,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     paddingVertical: 10,
     paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   bannerIcon: {
     width: 30,
@@ -231,6 +232,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     borderWidth: 1,
     borderColor: colors.separator,
+    ...elevation.card,
   },
   cardSelected: {
     borderColor: colors.blue,
@@ -261,6 +263,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+    ...elevation.floating,
   },
   barLabel: { fontSize: 11.5, color: colors.inkMuted },
   barValue: { fontSize: 19, fontWeight: "700", color: colors.ink },
@@ -270,9 +273,11 @@ const styles = StyleSheet.create({
     gap: 7,
     backgroundColor: colors.blue,
     borderRadius: radius.lg,
-    minHeight: 48,
+    minHeight: 54,
     paddingVertical: 14,
     paddingHorizontal: 20,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.16)",
   },
   placeText: { color: colors.onDark, fontWeight: "700", fontSize: 14.5 },
 });

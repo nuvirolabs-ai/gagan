@@ -1,14 +1,14 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useRoute } from "@react-navigation/native";
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { File } from "expo-file-system";
-import { ScreenHeader } from "../components/ui";
+import { ScreenHeader, TactilePressable } from "../components/ui";
 import { useRep } from "../context/RepContext";
 import { staffCapabilities } from "../auth/staffCapabilities";
 import { repApi } from "../api/repClient";
-import { colors, radius, spacing } from "../theme";
+import { colors, elevation, radius, spacing } from "../theme";
 import { SCREEN_CONTENT_BOTTOM_GAP } from "../layout/viewportPolicy";
 import { useLanguage } from "../i18n/LanguageContext";
 
@@ -104,28 +104,28 @@ export default function StaffHomeScreen() {
     } catch (error) { Alert.alert("Could not confirm", error instanceof Error ? error.message : "Try again."); }
   };
 
-  if (loading) return <View style={styles.loading}><ActivityIndicator color={colors.green} /></View>;
+  if (loading) return <View style={styles.loading}><ActivityIndicator color={colors.primary} /></View>;
 
   return (
     <View style={styles.screen}>
       <ScreenHeader title={t("tabs.work")} subtitle={`Hi ${staff?.name ?? ""}`} />
       <ScrollView contentContainerStyle={styles.content}>
         {capabilities.canCollect ? <View style={styles.card}>
-          <View style={styles.cardTitleRow}><View style={styles.icon}><Ionicons name="cash-outline" size={22} color={colors.green} /></View><View><Text style={styles.title}>{t("work.submitCollection")}</Text><Text style={styles.muted}>{t("work.accountsVerify")}</Text></View></View>
+          <View style={styles.cardTitleRow}><View style={styles.icon}><Ionicons name="cash-outline" size={22} color={colors.primary} /></View><View><Text style={styles.title}>{t("work.submitCollection")}</Text><Text style={styles.muted}>{t("work.accountsVerify")}</Text></View></View>
           <Text style={styles.label}>Retailer</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>{retailers.map((retailer) => <TouchableOpacity key={retailer.id} onPress={() => setSelectedRetailerId(retailer.id)} style={[styles.chip, selectedRetailerId === retailer.id && styles.chipActive]}><Text style={[styles.chipText, selectedRetailerId === retailer.id && styles.chipTextActive]}>{retailer.name}</Text></TouchableOpacity>)}</ScrollView>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>{retailers.map((retailer) => <TactilePressable key={retailer.id} onPress={() => setSelectedRetailerId(retailer.id)} style={[styles.chip, selectedRetailerId === retailer.id && styles.chipActive]}><Text style={[styles.chipText, selectedRetailerId === retailer.id && styles.chipTextActive]}>{retailer.name}</Text></TactilePressable>)}</ScrollView>
           <Text style={styles.label}>Amount (₹)</Text>
           <TextInput value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={colors.inkFaint} style={styles.input} />
           <Text style={styles.label}>Method</Text>
-          <View style={styles.methodRow}>{methods.map((value) => <TouchableOpacity key={value} onPress={() => setMethod(value)} style={[styles.method, method === value && styles.methodActive]}><Text style={[styles.methodText, method === value && styles.methodTextActive]}>{value.toUpperCase()}</Text></TouchableOpacity>)}</View>
+          <View style={styles.methodRow}>{methods.map((value) => <TactilePressable key={value} onPress={() => setMethod(value)} style={[styles.method, method === value && styles.methodActive]}><Text style={[styles.methodText, method === value && styles.methodTextActive]}>{value.toUpperCase()}</Text></TactilePressable>)}</View>
           <TextInput value={reference} onChangeText={setReference} placeholder="Receipt / cheque / bank reference" placeholderTextColor={colors.inkFaint} style={styles.input} />
-          <TouchableOpacity disabled={saving} onPress={() => void pickReceipt()} style={styles.attachment}><Ionicons name="attach-outline" size={17} color={colors.green} /><Text style={styles.attachmentText}>{receipt ? `Attached: ${receipt.name}` : "Attach receipt photo or PDF (optional)"}</Text></TouchableOpacity>
-          <TouchableOpacity disabled={saving} onPress={submit} style={styles.primary}><Text style={styles.primaryText}>{saving ? t("collections.submitting") : t("collections.submit")}</Text></TouchableOpacity>
+          <TactilePressable disabled={saving} onPress={() => void pickReceipt()} style={styles.attachment}><Ionicons name="attach-outline" size={17} color={colors.primary} /><Text style={styles.attachmentText}>{receipt ? `Attached: ${receipt.name}` : "Attach receipt photo or PDF (optional)"}</Text></TactilePressable>
+          <TactilePressable disabled={saving} onPress={submit} style={styles.primary}><Text style={styles.primaryText}>{saving ? t("collections.submitting") : t("collections.submit")}</Text></TactilePressable>
         </View> : null}
 
         {canConfirmCollections ? <View style={styles.card}>
-          <View style={styles.cardTitleRow}><View style={styles.icon}><Ionicons name="checkmark-done-outline" size={22} color={colors.green} /></View><View><Text style={styles.title}>{t("collections.accountsQueue")}</Text><Text style={styles.muted}>{submissions.length} pending verification{stepUpChallenge ? " · verification active" : ""}</Text></View></View>
-          {submissions.map((submission) => <View key={submission.id} style={styles.queueRow}><View style={{ flex: 1 }}><Text style={styles.queueTitle}>{submission.retailer.name}</Text><Text style={styles.muted}>₹{Number(submission.amount).toLocaleString("en-IN")} · {submission.method}</Text></View><TouchableOpacity onPress={stepUpChallenge ? () => void confirm(submission.id) : () => void startConfirm()} style={styles.smallButton}><Text style={styles.smallButtonText}>{stepUpChallenge ? "Confirm" : "Verify"}</Text></TouchableOpacity></View>)}
+          <View style={styles.cardTitleRow}><View style={styles.icon}><Ionicons name="checkmark-done-outline" size={22} color={colors.primary} /></View><View><Text style={styles.title}>{t("collections.accountsQueue")}</Text><Text style={styles.muted}>{submissions.length} pending verification{stepUpChallenge ? " · verification active" : ""}</Text></View></View>
+          {submissions.map((submission) => <View key={submission.id} style={styles.queueRow}><View style={{ flex: 1 }}><Text style={styles.queueTitle}>{submission.retailer.name}</Text><Text style={styles.muted}>₹{Number(submission.amount).toLocaleString("en-IN")} · {submission.method}</Text></View><TactilePressable onPress={stepUpChallenge ? () => void confirm(submission.id) : () => void startConfirm()} style={styles.smallButton}><Text style={styles.smallButtonText}>{stepUpChallenge ? "Confirm" : "Verify"}</Text></TactilePressable></View>)}
           {stepUpChallenge ? <TextInput value={stepUpOtp} onChangeText={setStepUpOtp} keyboardType="number-pad" placeholder="Enter OTP" placeholderTextColor={colors.inkFaint} style={styles.input} /> : null}
           {submissions.length === 0 ? <Text style={styles.muted}>{t("work.noCollections")}</Text> : null}
         </View> : null}
@@ -140,29 +140,29 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   loading: { flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" },
   content: { padding: spacing.lg, gap: spacing.lg, paddingBottom: SCREEN_CONTENT_BOTTOM_GAP },
-  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.sm },
+  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.sm, ...elevation.card },
   cardTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.sm },
-  icon: { width: 44, height: 44, borderRadius: radius.pill, backgroundColor: colors.greenSoft, alignItems: "center", justifyContent: "center" },
+  icon: { width: 44, height: 44, borderRadius: radius.pill, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
   title: { fontSize: 17, fontWeight: "700", color: colors.ink },
   muted: { fontSize: 12.5, lineHeight: 18, color: colors.inkMuted },
   label: { fontSize: 12, fontWeight: "700", color: colors.inkMuted, marginTop: spacing.sm },
   chips: { gap: spacing.sm, paddingVertical: spacing.xs },
   chip: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, backgroundColor: colors.surface },
-  chipActive: { borderColor: colors.green, backgroundColor: colors.greenSoft },
+  chipActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   chipText: { color: colors.inkMuted, fontSize: 12, fontWeight: "600" },
-  chipTextActive: { color: colors.green },
+  chipTextActive: { color: colors.primary },
   input: { backgroundColor: colors.surfaceAlt, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.md, color: colors.ink, fontSize: 14, borderWidth: 1, borderColor: colors.border },
   methodRow: { flexDirection: "row", gap: spacing.sm },
   method: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, alignItems: "center", paddingVertical: spacing.sm },
-  methodActive: { borderColor: colors.green, backgroundColor: colors.greenSoft },
+  methodActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   methodText: { color: colors.inkMuted, fontSize: 11, fontWeight: "700" },
-  methodTextActive: { color: colors.green },
-  primary: { backgroundColor: colors.green, borderRadius: radius.md, alignItems: "center", paddingVertical: spacing.md, marginTop: spacing.sm },
+  methodTextActive: { color: colors.primary },
+  primary: { backgroundColor: colors.primary, borderRadius: radius.lg, minHeight: 54, alignItems: "center", justifyContent: "center", paddingVertical: spacing.md, marginTop: spacing.sm, ...elevation.card },
   primaryText: { color: colors.onDark, fontWeight: "700", fontSize: 13 },
   attachment: { flexDirection: "row", alignItems: "center", gap: spacing.sm, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.md },
-  attachmentText: { color: colors.green, fontSize: 12.5, fontWeight: "700", flex: 1 },
+  attachmentText: { color: colors.primary, fontSize: 12.5, fontWeight: "700", flex: 1 },
   queueRow: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.md, marginTop: spacing.sm, flexDirection: "row", alignItems: "center", gap: spacing.md },
   queueTitle: { color: colors.ink, fontWeight: "700", fontSize: 14 },
-  smallButton: { backgroundColor: colors.greenSoft, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  smallButtonText: { color: colors.green, fontWeight: "700", fontSize: 12 },
+  smallButton: { backgroundColor: colors.primarySoft, borderRadius: radius.pill, minHeight: 40, justifyContent: "center", paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  smallButtonText: { color: colors.primary, fontWeight: "700", fontSize: 12 },
 });

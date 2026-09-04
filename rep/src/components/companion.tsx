@@ -10,10 +10,12 @@ import {
   Text,
   useWindowDimensions,
   View,
+  type StyleProp,
   type ViewStyle,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { haptic } from "../feedback/haptics";
 import {
   colors,
   composeGreeting,
@@ -30,10 +32,116 @@ import {
   type as typeRoles,
 } from "../theme";
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 export function useHeaderPaddingTop(): number {
   const insets = useSafeAreaInsets();
   const androidStatus = Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0;
   return headerInsetTop(insets.top, androidStatus);
+}
+
+type ReducedMotionListener = (value: boolean) => void;
+const reducedMotionListeners = new Set<ReducedMotionListener>();
+let reducedMotionValue = false;
+let reducedMotionSubscription: { remove: () => void } | null = null;
+let reducedMotionRequested = false;
+
+function notifyReducedMotion(value: boolean) {
+  reducedMotionValue = value;
+  reducedMotionListeners.forEach((listener) => listener(value));
+}
+
+function ensureReducedMotionSubscription() {
+  if (reducedMotionRequested) return;
+  reducedMotionRequested = true;
+  AccessibilityInfo.isReduceMotionEnabled().then(notifyReducedMotion).catch(() => undefined);
+  reducedMotionSubscription = AccessibilityInfo.addEventListener("reduceMotionChanged", notifyReducedMotion);
+}
+
+/** One app-level listener keeps long lists from subscribing row-by-row. */
+export function useReducedMotion(): boolean {
+  const [value, setValue] = useState(reducedMotionValue);
+  useEffect(() => {
+    reducedMotionListeners.add(setValue);
+    ensureReducedMotionSubscription();
+    return () => {
+      reducedMotionListeners.delete(setValue);
+      if (reducedMotionListeners.size === 0 && reducedMotionSubscription) {
+        reducedMotionSubscription.remove();
+        reducedMotionSubscription = null;
+        reducedMotionRequested = false;
+      }
+    };
+  }, []);
+  return value;
+}
+
+/**
+ * Shared native-driver press feedback. Layout never changes while pressed;
+ * only the content scales slightly and the control provides a light haptic.
+ */
+export function TactilePressable({
+  children,
+  onPress,
+  onLongPress,
+  disabled,
+  style,
+  accessibilityLabel,
+  accessibilityRole = "button",
+  accessibilityState,
+  hitSlop,
+  hapticKind = "light",
+  testID,
+}: {
+  children: React.ReactNode;
+  onPress?: () => void;
+  onLongPress?: () => void;
+  disabled?: boolean;
+  style?: StyleProp<ViewStyle>;
+  accessibilityLabel?: string;
+  accessibilityRole?: any;
+  accessibilityState?: any;
+  hitSlop?: number | { top?: number; bottom?: number; left?: number; right?: number };
+  hapticKind?: "light" | "medium" | "success" | "warning";
+  testID?: string;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
+  const reduceMotion = useReducedMotion();
+
+  const animate = (toScale: number, toOpacity: number) => {
+    if (reduceMotion) {
+      scale.setValue(toScale);
+      opacity.setValue(toOpacity);
+      return;
+    }
+    Animated.parallel([
+      Animated.timing(scale, { toValue: toScale, duration: motion.fast, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: toOpacity, duration: motion.fast, useNativeDriver: true }),
+    ]).start();
+  };
+
+  return (
+    <AnimatedPressable
+      onPress={onPress}
+      onLongPress={onLongPress}
+      disabled={disabled}
+      hitSlop={hitSlop}
+      accessibilityRole={accessibilityRole}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={accessibilityState}
+      testID={testID}
+      onPressIn={() => {
+        if (disabled) return;
+        haptic(hapticKind);
+        animate(0.985, 0.92);
+      }}
+      onPressOut={() => animate(1, disabled ? 0.5 : 1)}
+      style={[styles.tactilePressable, disabled && styles.tactileDisabled, style, { opacity, transform: [{ scale }] }]}
+    >
+      {children}
+    </AnimatedPressable>
+  );
 }
 
 export function AppScreen({
@@ -48,7 +156,36 @@ export function AppScreen({
   // must not consume BottomTabBarHeightContext as screen padding. Doing so
   // shrinks every tab scene by one complete tab-bar height and creates a
   // permanent, scroll-proof blank band above the visible bar.
-  return <View style={[styles.screen, style]}>{children}</View>;
+  const entrance = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (reduceMotion) {
+      entrance.setValue(1);
+      return;
+    }
+    Animated.timing(entrance, {
+      toValue: 1,
+      duration: motion.base,
+      useNativeDriver: true,
+    }).start();
+  }, [entrance, reduceMotion]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.screen,
+        {
+          opacity: entrance,
+          transform: [{ translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [5, 0] }) }],
+        },
+        style,
+      ]}
+    >
+      <View pointerEvents="none" style={styles.ambientTop} />
+      {children}
+    </Animated.View>
+  );
 }
 
 export function PersonalGreeting({
@@ -130,7 +267,7 @@ export function Surface({
   level?: 1 | 2 | 3;
   style?: ViewStyle;
 }) {
-  return <View style={[level === 1 ? styles.surface1 : styles.surface2, style]}>{children}</View>;
+  return <View style={[level === 1 ? styles.surface1 : level === 3 ? styles.surface3 : styles.surface2, style]}>{children}</View>;
 }
 
 export function MetricStrip({
@@ -188,19 +325,7 @@ export function ProgressRow({
     tone === "danger" ? colors.danger : tone === "green" ? colors.primary : colors.gold;
   const width = Math.max(0, Math.min(100, pct));
   const animated = useRef(new Animated.Value(0)).current;
-  const [reduceMotion, setReduceMotion] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-    AccessibilityInfo.isReduceMotionEnabled().then((value) => {
-      if (mounted) setReduceMotion(value);
-    });
-    const sub = AccessibilityInfo.addEventListener("reduceMotionChanged", setReduceMotion);
-    return () => {
-      mounted = false;
-      sub.remove();
-    };
-  }, []);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     if (reduceMotion) {
@@ -209,7 +334,7 @@ export function ProgressRow({
     }
     Animated.timing(animated, {
       toValue: width,
-      duration: motion.slow,
+      duration: motion.progress,
       useNativeDriver: false,
     }).start();
   }, [animated, reduceMotion, width]);
@@ -242,15 +367,15 @@ export function TextButton({
   disabled?: boolean;
 }) {
   return (
-    <Pressable
+    <TactilePressable
       onPress={onPress}
       disabled={disabled}
       hitSlop={8}
       accessibilityRole="button"
-      style={({ pressed }) => [styles.textBtn, pressed && { opacity: 0.7 }]}
+      style={styles.textBtn}
     >
       <Text style={styles.textBtnLabel}>{label}</Text>
-    </Pressable>
+    </TactilePressable>
   );
 }
 
@@ -264,20 +389,16 @@ export function FilterChip({
   onPress: () => void;
 }) {
   return (
-    <Pressable
+    <TactilePressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
-      style={({ pressed }) => [
-        styles.filterChip,
-        active && styles.filterChipActive,
-        pressed && { opacity: 0.85 },
-      ]}
+      style={[styles.filterChip, active && styles.filterChipActive]}
     >
       <Text style={[styles.filterChipText, active && styles.filterChipTextActive]} numberOfLines={1}>
         {label}
       </Text>
-    </Pressable>
+    </TactilePressable>
   );
 }
 
@@ -387,10 +508,10 @@ export function CustomerRow({
   onPress: () => void;
 }) {
   return (
-    <Pressable
+    <TactilePressable
       onPress={onPress}
       accessibilityRole="button"
-      style={({ pressed }) => [styles.customerRow, pressed && { backgroundColor: colors.surfaceSecondary }]}
+      style={styles.customerRow}
     >
       <InitialsBadge name={name} tone={dueTone === "danger" ? "danger" : "green"} />
       <View style={{ flex: 1, minWidth: 0 }}>
@@ -420,7 +541,7 @@ export function CustomerRow({
           </Text>
         ) : null}
       </View>
-    </Pressable>
+    </TactilePressable>
   );
 }
 
@@ -459,9 +580,9 @@ export function AttentionRow({
   );
   if (!onPress) return body;
   return (
-    <Pressable onPress={onPress} accessibilityRole="button">
+    <TactilePressable onPress={onPress} accessibilityRole="button">
       {body}
-    </Pressable>
+    </TactilePressable>
   );
 }
 
@@ -480,7 +601,7 @@ export function TaskRow({
 }) {
   return (
     <View style={styles.taskRow}>
-      <Pressable
+      <TactilePressable
         onPress={done ? undefined : onComplete}
         disabled={done || !onComplete}
         accessibilityRole="checkbox"
@@ -494,7 +615,7 @@ export function TaskRow({
           size={22}
           color={done ? colors.primary : overdue ? colors.danger : colors.textTertiary}
         />
-      </Pressable>
+      </TactilePressable>
       <View style={{ flex: 1 }}>
         <Text style={[styles.taskTitle, done && styles.taskDone]} numberOfLines={2}>
           {title}
@@ -598,16 +719,27 @@ export function ErrorState({
       <Text style={styles.errorTitle}>{title}</Text>
       {body ? <Text style={styles.errorBody}>{body}</Text> : null}
       {actionLabel && onAction ? (
-        <Pressable onPress={onAction} style={styles.errorAction}>
-          <Text style={styles.errorActionText}>{actionLabel}</Text>
-        </Pressable>
+      <TactilePressable onPress={onAction} style={styles.errorAction}>
+        <Text style={styles.errorActionText}>{actionLabel}</Text>
+      </TactilePressable>
       ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.canvas },
+  screen: { flex: 1, backgroundColor: colors.canvas, overflow: "hidden" },
+  ambientTop: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    height: 240,
+    backgroundColor: colors.blueSoft,
+    opacity: 0.28,
+  },
+  tactilePressable: { alignSelf: "stretch" },
+  tactileDisabled: { opacity: 0.5 },
   greeting: {
     flexDirection: "row",
     alignItems: "center",
@@ -656,6 +788,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
     padding: spacing.xl,
     ...elevation.card,
+  },
+  surface3: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    ...elevation.floating,
   },
 
   metricStrip: {
@@ -727,7 +865,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: colors.surfaceSecondary,
   },
-  filterChipActive: { backgroundColor: colors.blue, borderColor: colors.blue },
+  filterChipActive: { backgroundColor: colors.navy, borderColor: colors.navy },
   filterChipText: { fontSize: 13, fontWeight: "600", color: colors.textSecondary },
   filterChipTextActive: { color: colors.onDark },
 

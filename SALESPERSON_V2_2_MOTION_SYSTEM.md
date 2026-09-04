@@ -1,6 +1,6 @@
 # Gagan Salesperson V2.2 — Motion System
 
-Status: frozen implementation contract for the V2.2 material/motion pass  
+Status: working implementation contract — awaiting Founder device review
 Scope: Salesperson App only  
 Baseline: `e47e38e99cf08c0d71542ea230815c33dca17a26`
 
@@ -218,6 +218,22 @@ flow.
 
 No confetti, continuous animation, looping shimmer after error, or haptic-only
 confirmation.
+
+## Verification note
+
+The implementation was built and installed as a standalone release on the
+physical Moto E13 (`ZD2229Q3KB`). The final physical evidence and the
+27.9-second interaction recording live in:
+
+`/Users/tanutejas/Desktop/gagan-salesperson-v2-2-material-motion-evidence/`
+
+The device run covered Home, Reports/Timeline, Performance, Outlets, Retailer
+Detail, Order Taking, More, New Retailer, keyboard-safe progression, and the
+normal-flow bottom tab bar. The current canonical Nikhil fixture was already in
+a completed-day state, so the fresh Home capture demonstrates the compact
+completed-day composition. Active-day/Next Visit and milestone-trigger states
+were not manufactured by altering canonical staging data; their code paths and
+approved V2.1 evidence remain the reference for Founder review.
 
 ## Performance budget
 

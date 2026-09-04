@@ -1,9 +1,9 @@
 import React, { useCallback, useState } from "react";
-import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { ScreenHeader, EmptyState } from "../components/ui";
+import { ScreenHeader, EmptyState, TactilePressable } from "../components/ui";
 import { repApi } from "../api/repClient";
-import { colors, inr, radius, spacing } from "../theme";
+import { colors, elevation, inr, radius, spacing } from "../theme";
 import { SCREEN_CONTENT_BOTTOM_GAP } from "../layout/viewportPolicy";
 import { useRep } from "../context/RepContext";
 import { staffCapabilities } from "../auth/staffCapabilities";
@@ -52,9 +52,9 @@ export default function ApprovalsScreen({ navigation }: any) {
 
   return (
     <View style={styles.screen}>
-      <ScreenHeader title={t("approvals.title")} subtitle={t("approvals.subtitle")} right={capabilities.canReviewRatings ? <TouchableOpacity onPress={() => navigation.navigate("RatingReviews")}><Text style={styles.reviewLink}>{t("approvals.ratingReviews")}</Text></TouchableOpacity> : undefined} />
+      <ScreenHeader title={t("approvals.title")} subtitle={t("approvals.subtitle")} right={capabilities.canReviewRatings ? <TactilePressable onPress={() => navigation.navigate("RatingReviews")} style={styles.reviewButton}><Text style={styles.reviewLink}>{t("approvals.ratingReviews")}</Text></TactilePressable> : undefined} />
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      {loading ? <ActivityIndicator style={styles.loader} color={colors.green} /> : items.length === 0 ? (
+      {loading ? <ActivityIndicator style={styles.loader} color={colors.primary} /> : items.length === 0 ? (
         <EmptyState icon="check-decagram-outline" title={t("approvals.title")} body={t("approvals.subtitle")} />
       ) : (
         <FlatList
@@ -62,7 +62,7 @@ export default function ApprovalsScreen({ navigation }: any) {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("ApprovalDetail", { approvalId: item.id })}>
+            <TactilePressable style={styles.card} onPress={() => navigation.navigate("ApprovalDetail", { approvalId: item.id })}>
               <View style={styles.between}>
                 <View style={styles.grow}>
                   <Text style={styles.name}>{item.retailer.name}</Text>
@@ -71,7 +71,7 @@ export default function ApprovalsScreen({ navigation }: any) {
                 <Text style={styles.amount}>{inr(Number(item.order?.orderTotal ?? 0))}</Text>
               </View>
               <Text style={styles.exposure}>{inr(Number(item.assessment.projectedExposure))} projected exposure</Text>
-            </TouchableOpacity>
+            </TactilePressable>
           )}
         />
       )}
@@ -83,13 +83,14 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   loader: { marginTop: spacing.xxl },
   list: { padding: spacing.lg, paddingBottom: SCREEN_CONTENT_BOTTOM_GAP, gap: spacing.md },
-  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.lg },
+  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.lg, ...elevation.card },
   between: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   grow: { flex: 1 },
   name: { color: colors.ink, fontSize: 16, fontWeight: "700" },
   meta: { color: colors.inkMuted, fontSize: 12.5, marginTop: 4, textTransform: "capitalize" },
   amount: { color: colors.ink, fontWeight: "800" },
-  exposure: { color: colors.green, fontSize: 12, fontWeight: "700", marginTop: spacing.md },
+  exposure: { color: colors.primary, fontSize: 12, fontWeight: "700", marginTop: spacing.md },
   error: { color: colors.danger, marginHorizontal: spacing.lg },
-  reviewLink: { color: colors.green, fontWeight: "700", paddingBottom: 3 },
+  reviewButton: { minHeight: 44, justifyContent: "center" },
+  reviewLink: { color: colors.primary, fontWeight: "700" },
 });

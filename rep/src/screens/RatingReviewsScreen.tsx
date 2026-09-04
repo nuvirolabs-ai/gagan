@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { repApi } from "../api/repClient";
-import { colors, radius, spacing } from "../theme";
+import { colors, elevation, radius, spacing } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
+import { TactilePressable } from "../components/ui";
 
 export default function RatingReviewsScreen() {
   const { t } = useLanguage();
@@ -32,7 +33,7 @@ export default function RatingReviewsScreen() {
       setSelected(null); setOtp(""); setReason(""); await load();
     } catch (err) { setError(err instanceof Error ? err.message : "Could not confirm rating"); }
   };
-  if (loading) return <View style={styles.center}><ActivityIndicator color={colors.green} /></View>;
+  if (loading) return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     {error ? <Text style={styles.error}>{error}</Text> : null}
     {proposals.length === 0 ? <Text style={styles.empty}>{t("rating.noChanges")}</Text> : proposals.map((proposal) => <View style={styles.card} key={proposal.id}>
@@ -40,16 +41,16 @@ export default function RatingReviewsScreen() {
       <Text style={styles.rating}>{proposal.previousRating} → {proposal.proposedRating}</Text>
       <Text style={styles.meta}>{proposal.trigger.replaceAll("_", " ")} · DSO {proposal.evidence.averageDso ?? "—"} days · {proposal.evidence.cleanInvoiceCount ?? 0} clean invoices</Text>
       <TextInput style={styles.input} value={reason} onChangeText={setReason} placeholder={t("rating.confirmationReason")} placeholderTextColor={colors.inkFaint} />
-      {selected === proposal.id ? <View style={styles.verify}><TextInput style={styles.otp} keyboardType="number-pad" maxLength={6} value={otp} onChangeText={(value) => setOtp(value.replace(/\D/g, ""))} /><TouchableOpacity style={styles.button} disabled={otp.length !== 6} onPress={() => void confirm()}><Text style={styles.buttonText}>{t("rating.verifyConfirm")}</Text></TouchableOpacity></View> : <TouchableOpacity style={styles.button} onPress={() => void begin(proposal.id)}><Text style={styles.buttonText}>{t("rating.confirm")}</Text></TouchableOpacity>}
+      {selected === proposal.id ? <View style={styles.verify}><TextInput style={styles.otp} keyboardType="number-pad" maxLength={6} value={otp} onChangeText={(value) => setOtp(value.replace(/\D/g, ""))} /><TactilePressable style={styles.button} disabled={otp.length !== 6} onPress={() => void confirm()}><Text style={styles.buttonText}>{t("rating.verifyConfirm")}</Text></TactilePressable></View> : <TactilePressable style={styles.button} onPress={() => void begin(proposal.id)}><Text style={styles.buttonText}>{t("rating.confirm")}</Text></TactilePressable>}
     </View>)}
   </ScrollView>;
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg }, content: { padding: spacing.lg, gap: spacing.md }, center: { flex: 1, justifyContent: "center", backgroundColor: colors.bg },
-  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.lg },
-  name: { color: colors.ink, fontWeight: "700" }, rating: { color: colors.green, fontSize: 23, fontWeight: "800", marginVertical: 7 }, meta: { color: colors.inkMuted, fontSize: 12.5, lineHeight: 18, textTransform: "capitalize" },
+  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.lg, ...elevation.card },
+  name: { color: colors.ink, fontWeight: "700" }, rating: { color: colors.primary, fontSize: 23, fontWeight: "700", marginVertical: 7 }, meta: { color: colors.inkMuted, fontSize: 12.5, lineHeight: 18, textTransform: "capitalize" },
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.md, color: colors.ink, marginTop: spacing.lg },
   verify: { marginTop: spacing.md }, otp: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.md, textAlign: "center", letterSpacing: 8, fontSize: 19, marginBottom: spacing.sm },
-  button: { backgroundColor: colors.green, borderRadius: radius.md, padding: 13, alignItems: "center", marginTop: spacing.md }, buttonText: { color: colors.onDark, fontWeight: "800" }, error: { color: colors.danger }, empty: { color: colors.inkMuted, textAlign: "center", marginTop: 40 },
+  button: { backgroundColor: colors.primary, borderRadius: radius.lg, minHeight: 54, padding: 13, alignItems: "center", justifyContent: "center", marginTop: spacing.md }, buttonText: { color: colors.onDark, fontWeight: "700" }, error: { color: colors.danger }, empty: { color: colors.inkMuted, textAlign: "center", marginTop: 40 },
 });

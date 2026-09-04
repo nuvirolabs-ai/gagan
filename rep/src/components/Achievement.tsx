@@ -1,8 +1,9 @@
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { colors, radius, spacing } from "../theme";
+import { TactilePressable } from "./ui";
 
 /**
  * How the app celebrates.
@@ -64,13 +65,13 @@ export function AchievementCard({
         </Text>
       </View>
       {onDismiss ? (
-        <TouchableOpacity
+        <TactilePressable
           onPress={onDismiss}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           accessibilityLabel="Dismiss"
         >
           <Ionicons name="close" size={17} color={colors.inkMuted} />
-        </TouchableOpacity>
+        </TactilePressable>
       ) : null}
     </View>
   );

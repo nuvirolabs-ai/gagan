@@ -1,6 +1,6 @@
 import React from "react";
 import { StatusBar } from "expo-status-bar";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, Animated, StyleSheet, View } from "react-native";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -10,7 +10,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { RepProvider, useRep } from "./src/context/RepContext";
 import { FieldProvider } from "./src/context/FieldContext";
 import { LanguageProvider, useLanguage } from "./src/i18n/LanguageContext";
-import { colors } from "./src/theme";
+import { colors, elevation, motion } from "./src/theme";
+import { TactilePressable, useReducedMotion } from "./src/components/ui";
 
 import RepLoginScreen from "./src/screens/RepLoginScreen";
 import RepRetailersScreen from "./src/screens/RepRetailersScreen";
@@ -70,6 +71,58 @@ const TAB_ICONS: Record<string, string> = {
   More: "ellipsis-horizontal-outline",
 };
 
+function AnimatedTabIcon({ routeName, color, focused }: { routeName: string; color: string; focused: boolean }) {
+  const progress = React.useRef(new Animated.Value(focused ? 1 : 0)).current;
+  const reduceMotion = useReducedMotion();
+
+  React.useEffect(() => {
+    if (reduceMotion) {
+      progress.setValue(focused ? 1 : 0);
+      return;
+    }
+    Animated.timing(progress, {
+      toValue: focused ? 1 : 0,
+      duration: motion.base,
+      useNativeDriver: true,
+    }).start();
+  }, [focused, progress, reduceMotion]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.tabIcon,
+        {
+          backgroundColor: focused ? colors.navy : "transparent",
+          opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [0.78, 1] }),
+          transform: [{ scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }],
+        },
+      ]}
+    >
+      <Ionicons
+        name={(TAB_ICONS[routeName] ?? "ellipse-outline") as any}
+        size={20}
+        color={focused ? colors.onDark : color}
+      />
+    </Animated.View>
+  );
+}
+
+function TabBarButton(props: any) {
+  const { children, onPress, onLongPress, accessibilityState, accessibilityLabel, testID } = props;
+  return (
+    <TactilePressable
+      onPress={onPress}
+      onLongPress={onLongPress}
+      accessibilityState={accessibilityState}
+      accessibilityLabel={accessibilityLabel}
+      testID={testID}
+      style={styles.tabButton}
+    >
+      {children}
+    </TactilePressable>
+  );
+}
+
 function RepTabs() {
   const { staff } = useRep();
   const { t } = useLanguage();
@@ -83,8 +136,9 @@ function RepTabs() {
         tabBarLabel: tabLabel(route.name),
         tabBarActiveTintColor: colors.navy,
         tabBarInactiveTintColor: colors.inkMuted,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: "700", marginBottom: 2 },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "600", marginBottom: 2 },
         tabBarItemStyle: { paddingTop: 3 },
+        tabBarButton: (props) => <TabBarButton {...props} />,
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.separator,
@@ -92,24 +146,10 @@ function RepTabs() {
           height: 78,
           paddingTop: 7,
           paddingBottom: 7,
+          ...elevation.bar,
         },
         tabBarIcon: ({ color, focused }) => (
-          <View
-            style={{
-              backgroundColor: focused ? colors.navy : "transparent",
-              borderRadius: 17,
-              width: 44,
-              height: 34,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Ionicons
-              name={(TAB_ICONS[route.name] ?? "ellipse-outline") as any}
-              size={20}
-              color={focused ? colors.onDark : color}
-            />
-          </View>
+          <AnimatedTabIcon routeName={route.name} color={color} focused={focused} />
         ),
       })}
     >
@@ -126,6 +166,17 @@ function RepTabs() {
     </Tab.Navigator>
   );
 }
+
+const styles = StyleSheet.create({
+  tabButton: { flex: 1 },
+  tabIcon: {
+    width: 44,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});
 
 function RootNavigator() {
   const { staff, loading } = useRep();

@@ -3,7 +3,6 @@ import {
   View,
   Text,
   FlatList,
-  TouchableOpacity,
   StyleSheet,
   RefreshControl,
 } from "react-native";
@@ -24,6 +23,7 @@ import {
   FilterChipRow,
   SearchBar,
   useHeaderPaddingTop,
+  TactilePressable,
 } from "../components/ui";
 import { staffCapabilities } from "../auth/staffCapabilities";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -100,13 +100,13 @@ export default function RepRetailersScreen({ navigation }: any) {
           <Text style={styles.sub}>{t("retailers.accounts", { count: totals.count })}</Text>
         </View>
         {capabilities.canProposeRetailers ? (
-          <TouchableOpacity
+          <TactilePressable
             style={styles.addBtn}
             onPress={() => navigation.navigate("AddRetailer")}
             accessibilityLabel={t("addRetailer.title")}
           >
             <Ionicons name="add" size={18} color={colors.onDark} />
-          </TouchableOpacity>
+          </TactilePressable>
         ) : null}
       </View>
 

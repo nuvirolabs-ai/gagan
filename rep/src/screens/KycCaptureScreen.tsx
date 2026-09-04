@@ -1,10 +1,11 @@
 import React, { useCallback, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import * as DocumentPicker from "expo-document-picker";
 import { File } from "expo-file-system";
 import { repApi } from "../api/repClient";
-import { colors, radius, spacing } from "../theme";
+import { colors, elevation, radius, spacing } from "../theme";
+import { TactilePressable } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 
 const REQUIRED = [
@@ -54,22 +55,22 @@ export default function KycCaptureScreen({ route }: any) {
     finally { setBusy(null); }
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator color={colors.green} /></View>;
+  if (loading) return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <Text style={styles.title}>{t("kyc.forRetailer", { name: retailerName })}</Text>
     <Text style={styles.sub}>{t("kyc.copy")}</Text>
     {error ? <Text style={styles.error}>{error}</Text> : null}
     {REQUIRED.map(([type, label]) => {
       const uploaded = kyc?.documents?.some((document: any) => document.type === type);
-      return <View style={styles.card} key={type}><View style={styles.row}><Text style={styles.label}>{label}</Text><Text style={uploaded ? styles.done : styles.required}>{uploaded ? t("kyc.uploaded") : t("kyc.required")}</Text></View><TouchableOpacity disabled={busy !== null || kyc?.status === "submitted"} style={styles.button} onPress={() => void pick(type)}><Text style={styles.buttonText}>{busy === type ? "Uploading…" : uploaded ? t("kyc.replace") : t("kyc.choose")}</Text></TouchableOpacity></View>;
+      return <View style={styles.card} key={type}><View style={styles.row}><Text style={styles.label}>{label}</Text><Text style={uploaded ? styles.done : styles.required}>{uploaded ? t("kyc.uploaded") : t("kyc.required")}</Text></View><TactilePressable disabled={busy !== null || kyc?.status === "submitted"} style={styles.button} onPress={() => void pick(type)}><Text style={styles.buttonText}>{busy === type ? "Uploading…" : uploaded ? t("kyc.replace") : t("kyc.choose")}</Text></TactilePressable></View>;
     })}
-    {kyc?.status === "draft" || kyc?.status === "rejected" ? <TouchableOpacity disabled={busy !== null || kyc?.documents?.length < 3} style={[styles.submit, (busy !== null || kyc?.documents?.length < 3) && styles.disabled]} onPress={() => void submit()}><Text style={styles.submitText}>{busy === "submit" ? "Submitting…" : t("kyc.submitReview")}</Text></TouchableOpacity> : <Text style={styles.status}>Case status: {kyc?.status}</Text>}
+    {kyc?.status === "draft" || kyc?.status === "rejected" ? <TactilePressable disabled={busy !== null || kyc?.documents?.length < 3} style={[styles.submit, (busy !== null || kyc?.documents?.length < 3) && styles.disabled]} onPress={() => void submit()}><Text style={styles.submitText}>{busy === "submit" ? "Submitting…" : t("kyc.submitReview")}</Text></TactilePressable> : <Text style={styles.status}>Case status: {kyc?.status}</Text>}
   </ScrollView>;
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg }, content: { padding: spacing.lg, paddingBottom: 48 }, center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
   title: { fontSize: 22, fontWeight: "800", color: colors.ink }, sub: { color: colors.inkMuted, lineHeight: 20, marginTop: spacing.sm, marginBottom: spacing.lg }, error: { color: colors.danger, marginBottom: spacing.md },
-  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md }, row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }, label: { color: colors.ink, fontWeight: "700" }, required: { color: colors.danger, fontSize: 12 }, done: { color: colors.green, fontSize: 12, fontWeight: "700" },
-  button: { backgroundColor: colors.greenSoft, padding: spacing.md, borderRadius: radius.md, alignItems: "center", marginTop: spacing.md }, buttonText: { color: colors.green, fontWeight: "700" }, submit: { backgroundColor: colors.greenDeep, padding: spacing.lg, borderRadius: radius.md, alignItems: "center", marginTop: spacing.sm }, submitText: { color: colors.onDark, fontWeight: "800" }, disabled: { opacity: 0.45 }, status: { color: colors.green, fontWeight: "700", marginTop: spacing.md },
+  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md, ...elevation.card }, row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }, label: { color: colors.ink, fontWeight: "700" }, required: { color: colors.danger, fontSize: 12 }, done: { color: colors.green, fontSize: 12, fontWeight: "700" },
+  button: { backgroundColor: colors.primarySoft, padding: spacing.md, minHeight: 50, borderRadius: radius.md, alignItems: "center", justifyContent: "center", marginTop: spacing.md }, buttonText: { color: colors.primary, fontWeight: "700" }, submit: { backgroundColor: colors.primaryDeep, minHeight: 54, padding: spacing.lg, borderRadius: radius.lg, alignItems: "center", justifyContent: "center", marginTop: spacing.sm, ...elevation.card }, submitText: { color: colors.onDark, fontWeight: "800" }, disabled: { opacity: 0.45 }, status: { color: colors.green, fontWeight: "700", marginTop: spacing.md },
 });

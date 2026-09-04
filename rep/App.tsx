@@ -108,15 +108,11 @@ function AnimatedTabIcon({ routeName, color, focused }: { routeName: string; col
 }
 
 function TabBarButton(props: any) {
-  const { children, onPress, onLongPress, accessibilityState, accessibilityLabel, testID } = props;
+  const { children, style, ...pressableProps } = props;
   return (
     <TactilePressable
-      onPress={onPress}
-      onLongPress={onLongPress}
-      accessibilityState={accessibilityState}
-      accessibilityLabel={accessibilityLabel}
-      testID={testID}
-      style={styles.tabButton}
+      {...pressableProps}
+      style={[styles.tabButton, style]}
     >
       {children}
     </TactilePressable>

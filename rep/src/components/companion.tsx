@@ -77,8 +77,8 @@ export function useReducedMotion(): boolean {
 }
 
 /**
- * Shared native-driver press feedback. Layout never changes while pressed;
- * only the content scales slightly and the control provides a light haptic.
+ * Shared native-driver press feedback. Layout and geometry never change while
+ * pressed; only opacity changes and the control provides a light haptic.
  */
 export function TactilePressable({
   children,
@@ -105,20 +105,15 @@ export function TactilePressable({
   hapticKind?: "light" | "medium" | "success" | "warning";
   testID?: string;
 }) {
-  const scale = useRef(new Animated.Value(1)).current;
   const opacity = useRef(new Animated.Value(1)).current;
   const reduceMotion = useReducedMotion();
 
-  const animate = (toScale: number, toOpacity: number) => {
+  const animate = (toOpacity: number) => {
     if (reduceMotion) {
-      scale.setValue(toScale);
       opacity.setValue(toOpacity);
       return;
     }
-    Animated.parallel([
-      Animated.timing(scale, { toValue: toScale, duration: motion.fast, useNativeDriver: true }),
-      Animated.timing(opacity, { toValue: toOpacity, duration: motion.fast, useNativeDriver: true }),
-    ]).start();
+    Animated.timing(opacity, { toValue: toOpacity, duration: motion.fast, useNativeDriver: true }).start();
   };
 
   return (
@@ -134,10 +129,10 @@ export function TactilePressable({
       onPressIn={() => {
         if (disabled) return;
         haptic(hapticKind);
-        animate(0.985, 0.92);
+        animate(0.92);
       }}
-      onPressOut={() => animate(1, disabled ? 0.5 : 1)}
-      style={[styles.tactilePressable, disabled && styles.tactileDisabled, style, { opacity, transform: [{ scale }] }]}
+      onPressOut={() => animate(disabled ? 0.5 : 1)}
+      style={[styles.tactilePressable, disabled && styles.tactileDisabled, style, { opacity }]}
     >
       {children}
     </AnimatedPressable>
@@ -156,6 +151,12 @@ export function AppScreen({
   // must not consume BottomTabBarHeightContext as screen padding. Doing so
   // shrinks every tab scene by one complete tab-bar height and creates a
   // permanent, scroll-proof blank band above the visible bar.
+  //
+  // Keep this shell transform-free. On Android, translating a parent that
+  // owns many Pressables can leave native hit testing in the pre-transform
+  // coordinate space while the pixels have already moved. Fade-only entrance
+  // preserves the material motion without ever separating visible controls
+  // from their native touch geometry.
   const entrance = useRef(new Animated.Value(0)).current;
   const reduceMotion = useReducedMotion();
 
@@ -177,7 +178,6 @@ export function AppScreen({
         styles.screen,
         {
           opacity: entrance,
-          transform: [{ translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [5, 0] }) }],
         },
         style,
       ]}

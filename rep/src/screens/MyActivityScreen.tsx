@@ -445,7 +445,7 @@ function TrendChart({ rows, metric }: { rows: MetricRow[]; metric: PerformanceMe
     <Animated.View
       accessible
       accessibilityLabel={`${metric} trend for the selected period`}
-      style={{ opacity: entrance, transform: [{ translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [5, 0] }) }] }}
+      style={{ opacity: entrance }}
     >
       <Svg width={chartWidth} height={chartHeight}>
         <Line x1={inset.left} x2={chartWidth - inset.right} y1={inset.top} y2={inset.top} stroke={colors.track} strokeWidth="1" />

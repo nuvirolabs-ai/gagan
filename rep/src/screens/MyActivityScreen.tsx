@@ -506,7 +506,7 @@ function PerformanceCockpit({
           ].map(([label, value], index) => (
             <View key={label} style={[styles.bandCell, index > 0 && styles.bandCellDivided]}>
               <Text style={styles.bandValue} numberOfLines={1}>{value}</Text>
-              <Text style={styles.bandLabel}>{label}</Text>
+              <Text style={styles.bandLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78}>{label}</Text>
             </View>
           ))}
         </View>

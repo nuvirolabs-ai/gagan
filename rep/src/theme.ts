@@ -147,12 +147,6 @@ export const control = {
   iconLg: 24,
 };
 
-/**
- * Vertical space the tab bar occupies. Screens inside the tab navigator must
- * reserve this at the bottom or content hides behind it.
- */
-export const TAB_BAR_SPACE = 88;
-
 /** Chip row must never inherit leftover column height while lists load. */
 export const FILTER_CHIP_HEIGHT = 40;
 export const FILTER_ROW_HEIGHT = 44;

@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -119,6 +120,7 @@ export default function AddRetailerScreen() {
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<FieldKey, string>>>({});
   const [location, setLocation] = useState<{ latitude: number; longitude: number; accuracyMeters: number } | null>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const update = (key: keyof Draft, value: string) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -147,6 +149,20 @@ export default function AddRetailerScreen() {
     const timer = setTimeout(() => void AsyncStorage.setItem(DRAFT_KEY, JSON.stringify(form)), 250);
     return () => clearTimeout(timer);
   }, [form]);
+
+  // Android 15+ keeps edge-to-edge content at the full window height, so the
+  // native adjustResize flag alone does not protect the last form action from
+  // the IME. The form owns this one keyboard-only content inset; it is not a
+  // tab-bar inset and is zero as soon as the keyboard is dismissed.
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const show = Keyboard.addListener("keyboardDidShow", ({ endCoordinates }) => setKeyboardHeight(endCoordinates.height));
+    const hide = Keyboard.addListener("keyboardDidHide", () => setKeyboardHeight(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -408,7 +424,7 @@ export default function AddRetailerScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={colors.primary} />}>
+      <ScrollView contentContainerStyle={[styles.content, keyboardHeight > 0 && { paddingBottom: keyboardHeight + spacing.xl }]} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={colors.primary} />}>
         <View style={styles.header}><Text style={styles.kicker}>CUSTOMER MASTER</Text><Text style={styles.title}>New retailer</Text><Text style={styles.subtitle}>Submit a complete store profile for manager review. Approval creates one canonical retailer.</Text></View>
         <View style={styles.stepper}>{STEPS.map((label, index) => <Pressable key={label} accessibilityRole="button" accessibilityState={{ selected: index === step }} onPress={() => index <= step && setStep(index)} style={styles.step}><View style={[styles.stepDot, index <= step && styles.stepDotActive]}><Text style={[styles.stepNumber, index <= step && styles.stepNumberActive]}>{index + 1}</Text></View><Text style={[styles.stepLabel, index === step && styles.stepLabelActive]}>{label}</Text></Pressable>)}</View>
         {error ? <View style={styles.errorBanner}><Ionicons name="alert-circle-outline" size={18} color={colors.danger} /><Text style={styles.errorBannerText}>{error}</Text></View> : null}

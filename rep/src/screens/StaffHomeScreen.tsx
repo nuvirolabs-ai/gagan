@@ -9,6 +9,7 @@ import { useRep } from "../context/RepContext";
 import { staffCapabilities } from "../auth/staffCapabilities";
 import { repApi } from "../api/repClient";
 import { colors, radius, spacing } from "../theme";
+import { SCREEN_CONTENT_BOTTOM_GAP } from "../layout/viewportPolicy";
 import { useLanguage } from "../i18n/LanguageContext";
 
 type CollectionRetailer = { id: string; name: string; phone: string; shopAddress: string };
@@ -138,7 +139,7 @@ export default function StaffHomeScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   loading: { flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" },
-  content: { padding: spacing.lg, gap: spacing.lg, paddingBottom: 120 },
+  content: { padding: spacing.lg, gap: spacing.lg, paddingBottom: SCREEN_CONTENT_BOTTOM_GAP },
   card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.sm },
   cardTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.sm },
   icon: { width: 44, height: 44, borderRadius: radius.pill, backgroundColor: colors.greenSoft, alignItems: "center", justifyContent: "center" },

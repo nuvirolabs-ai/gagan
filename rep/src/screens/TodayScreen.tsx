@@ -38,6 +38,7 @@ import { repApi } from "../api/repClient";
 import { captureForegroundLocation } from "../location/deviceLocation";
 import { trackingBanner } from "../tracking/fieldTracker";
 import { colors, greetingForHour, inr, radius, spacing } from "../theme";
+import { SCREEN_CONTENT_BOTTOM_GAP } from "../layout/viewportPolicy";
 import { useLanguage } from "../i18n/LanguageContext";
 
 const OPPORTUNITY_ICONS: Record<string, string> = {
@@ -463,9 +464,9 @@ export default function TodayScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   pad: { paddingHorizontal: spacing.xl, paddingTop: spacing.md },
-  // AppScreen reserves the measured tab-bar height. Adding TAB_BAR_SPACE here
-  // as well created the large blank/dead region below the final section.
-  content: { paddingHorizontal: spacing.xl, gap: spacing.section, paddingBottom: spacing.xl },
+  // React Navigation owns the normal-flow tab bar. Keep only a small final
+  // content gap so the last action does not touch the visible bar.
+  content: { paddingHorizontal: spacing.xl, gap: spacing.section, paddingBottom: SCREEN_CONTENT_BOTTOM_GAP },
   bellButton: { width: 44, height: 52, alignItems: "center", justifyContent: "center", position: "relative" },
   notificationDot: { position: "absolute", top: 12, right: 9, width: 7, height: 7, borderRadius: 99, backgroundColor: colors.danger, borderWidth: 1.5, borderColor: colors.canvas },
 

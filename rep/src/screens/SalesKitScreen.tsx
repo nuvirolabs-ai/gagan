@@ -4,7 +4,8 @@ import { useFocusEffect } from "@react-navigation/native";
 
 import { repApi } from "../api/repClient";
 import { AppScreen, EmptyState, ScreenHeader, SectionHeader, Skeleton, StatusChip, Surface } from "../components/ui";
-import { colors, spacing, TAB_BAR_SPACE } from "../theme";
+import { colors, spacing } from "../theme";
+import { SCREEN_CONTENT_BOTTOM_GAP } from "../layout/viewportPolicy";
 
 const ICONS: Record<string, string> = { pdf: "PDF", image: "IMAGE", video: "VIDEO", link: "LINK" };
 
@@ -68,7 +69,7 @@ export default function SalesKitScreen() {
 
 const styles = StyleSheet.create({
   loading: { paddingHorizontal: spacing.xl, gap: spacing.md },
-  content: { paddingHorizontal: spacing.xl, gap: spacing.section, paddingBottom: TAB_BAR_SPACE + spacing.xl },
+  content: { paddingHorizontal: spacing.xl, gap: spacing.section, paddingBottom: SCREEN_CONTENT_BOTTOM_GAP },
   intro: { gap: spacing.sm },
   eyebrow: { fontSize: 11, fontWeight: "600", letterSpacing: 1.2, color: colors.goldStrong },
   introTitle: { fontSize: 21, fontWeight: "600", color: colors.ink },

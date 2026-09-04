@@ -20,6 +20,7 @@ import { ACTIVITY_LABELS } from "../components/ActivityComposer";
 import { AchievementLine } from "../components/Achievement";
 import { repApi } from "../api/repClient";
 import { colors, inr, spacing } from "../theme";
+import { SCREEN_CONTENT_BOTTOM_GAP } from "../layout/viewportPolicy";
 import { useLanguage } from "../i18n/LanguageContext";
 import {
   chartDateLabel,
@@ -581,7 +582,7 @@ function PerformanceCockpit({
 const styles = StyleSheet.create({
   tabs: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.xl, paddingBottom: spacing.md },
   skel: { paddingHorizontal: spacing.xl, gap: spacing.md },
-  content: { paddingHorizontal: spacing.xl, gap: spacing.section, paddingBottom: spacing.xl },
+  content: { paddingHorizontal: spacing.xl, gap: spacing.section, paddingBottom: SCREEN_CONTENT_BOTTOM_GAP },
   dayHeading: {
     fontSize: 12,
     fontWeight: "600",

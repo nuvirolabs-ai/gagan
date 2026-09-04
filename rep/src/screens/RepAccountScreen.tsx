@@ -4,7 +4,8 @@ import { View, Text, StyleSheet, Alert, ScrollView } from "react-native";
 import { useRep } from "../context/RepContext";
 import { useField } from "../context/FieldContext";
 import { staffCapabilities } from "../auth/staffCapabilities";
-import { colors, spacing, TAB_BAR_SPACE } from "../theme";
+import { colors, spacing } from "../theme";
+import { SCREEN_CONTENT_BOTTOM_GAP } from "../layout/viewportPolicy";
 import {
   AppScreen,
   Banner,
@@ -196,7 +197,7 @@ export default function RepAccountScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: spacing.xl, gap: spacing.section, paddingBottom: TAB_BAR_SPACE + spacing.xl },
+  content: { paddingHorizontal: spacing.xl, gap: spacing.section, paddingBottom: SCREEN_CONTENT_BOTTOM_GAP },
   profile: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   name: { fontSize: 18, fontWeight: "600", color: colors.ink },
   sub: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },

@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   AccessibilityInfo,
   Animated,
@@ -13,7 +13,6 @@ import {
   type ViewStyle,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { BottomTabBarHeightContext } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   colors,
@@ -44,11 +43,12 @@ export function AppScreen({
   children: React.ReactNode;
   style?: ViewStyle;
 }) {
-  // Bottom-tab scenes are rendered edge-to-edge by React Navigation. Consume
-  // its measured bar height at the shared shell so content never sits behind
-  // the fixed navigation surface; stack screens simply receive no inset.
-  const tabBarHeight = useContext(BottomTabBarHeightContext);
-  return <View style={[styles.screen, tabBarHeight ? { paddingBottom: tabBarHeight } : null, style]}>{children}</View>;
+  // The app uses React Navigation's normal-flow bottom tabs. The navigator
+  // allocates the tab bar as a sibling below the scene, so the shared shell
+  // must not consume BottomTabBarHeightContext as screen padding. Doing so
+  // shrinks every tab scene by one complete tab-bar height and creates a
+  // permanent, scroll-proof blank band above the visible bar.
+  return <View style={[styles.screen, style]}>{children}</View>;
 }
 
 export function PersonalGreeting({

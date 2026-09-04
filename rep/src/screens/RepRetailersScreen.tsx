@@ -13,7 +13,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { repApi } from "../api/repClient";
 import { useRep } from "../context/RepContext";
 import { useField } from "../context/FieldContext";
-import { colors, inr, radius, spacing, TAB_BAR_SPACE } from "../theme";
+import { colors, inr, radius, spacing } from "../theme";
+import { SCREEN_CONTENT_BOTTOM_GAP } from "../layout/viewportPolicy";
 import {
   AppScreen,
   CustomerRow,
@@ -140,7 +141,7 @@ export default function RepRetailersScreen({ navigation }: any) {
         <FlatList
           data={visible}
           keyExtractor={(r) => r.id}
-          contentContainerStyle={{ paddingBottom: TAB_BAR_SPACE }}
+          contentContainerStyle={{ paddingBottom: SCREEN_CONTENT_BOTTOM_GAP }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
           ItemSeparatorComponent={() => <View style={styles.divider} />}
           ListEmptyComponent={

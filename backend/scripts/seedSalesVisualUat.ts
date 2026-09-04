@@ -10,11 +10,14 @@
  *
  *   NODE_ENV=staging npm run seed:sales-visual-uat
  *   NODE_ENV=staging npm run seed:sales-visual-uat -- --date=2026-09-04
+ *   NODE_ENV=staging npm run seed:sales-visual-uat -- --date=2026-09-04 --reopen-day --fresh-achievements
  *
  * The script is add-only for its own namespace. Re-running it does not reset
- * route-stop progress, close an active day, duplicate orders, or pre-record a
- * milestone. The normal Today read model records the first 75% achievement on
- * first load, which is what makes the real milestone sheet appear once.
+ * route-stop progress, duplicate orders, or pre-record a milestone. The
+ * optional --reopen-day and --fresh-achievements flags reset only this
+ * staging-UAT identity for a clean visual run. The normal Today read model
+ * records the first 75% achievement on first load, which is what makes the
+ * real milestone sheet appear once.
  */
 import { PrismaClient } from "@prisma/client";
 import { recomputeOverdue } from "../src/lib/ageing";
@@ -274,6 +277,8 @@ async function main() {
 
   const now = new Date();
   const workDate = parseDate(process.argv, now);
+  const reopenDay = process.argv.includes("--reopen-day");
+  const freshAchievements = process.argv.includes("--fresh-achievements");
   const dateLabel = workDate.toISOString().slice(0, 10);
   const monthStart = new Date(Date.UTC(workDate.getUTCFullYear(), workDate.getUTCMonth(), 1));
   const monthEnd = new Date(Date.UTC(workDate.getUTCFullYear(), workDate.getUTCMonth() + 1, 0));
@@ -333,6 +338,13 @@ async function main() {
     create: { staffId: staff.id, roleId: salespersonRole.id },
   });
   changed(`staging-only salesperson ready: ${staff.name} (${staff.phone})`, changes);
+
+  if (freshAchievements) {
+    const cleared = await prisma.achievementEvent.deleteMany({
+      where: { subjectKind: "salesperson", subjectId: staff.id },
+    });
+    changed(`cleared ${cleared.count} achievement events for a fresh visual run`, changes);
+  }
 
   const tier = await prisma.tier.findFirst({ where: { name: "Gold" }, select: { id: true } });
   if (!tier) throw new Error("Gold tier is missing; run the normal staging seed first");
@@ -394,6 +406,7 @@ async function main() {
     where: { salespersonId_workDate: { salespersonId: staff.id, workDate } },
     select: { id: true, status: true },
   });
+  let dayStatus: string;
   if (!session) {
     await prisma.workdaySession.create({
       data: {
@@ -407,10 +420,20 @@ async function main() {
         devicePlatform: "android-visual-uat",
       },
     });
+    dayStatus = "open";
     changed("open workday created", changes);
   } else if (session.status === "open") {
+    dayStatus = session.status;
     changed("open workday preserved", changes);
+  } else if (reopenDay) {
+    await prisma.workdaySession.update({
+      where: { id: session.id },
+      data: { status: "open", endedAt: null, workedMinutes: null },
+    });
+    dayStatus = "open";
+    changed(`workday reopened for a clean visual run (was ${session.status})`, changes);
   } else {
+    dayStatus = session.status;
     changed(`existing workday preserved (${session.status}); use a new --date for a fresh visual run`, changes);
   }
 
@@ -528,7 +551,7 @@ async function main() {
   console.log(`  Work date         ${dateLabel}`);
   console.log(`  Salesperson       ${staff.name}`);
   console.log(`  Route             ${retailers.map((retailer) => retailer.name).join(" → ")}`);
-  console.log("  Active state      open day · 2 visited · 3 pending · next stop Patel Mart");
+  console.log(`  Active state      ${dayStatus} day · 2 visited · 3 pending · next stop Patel Mart`);
   console.log("  Sales target      ₹400,000 with ₹300,000 current-period rep orders (75%)");
   console.log(`  Attention         ${overdueRetailer.name} · ₹${FIXTURE.overdueAmount.toLocaleString("en-IN")} overdue`);
   console.log("  Milestone         not pre-recorded; first Today load should earn TARGET_75");

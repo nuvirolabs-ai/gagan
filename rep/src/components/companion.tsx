@@ -616,16 +616,16 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
   },
   greetingAvatar: {
-    width: 52,
-    height: 52,
+    width: 48,
+    height: 48,
     borderRadius: radius.pill,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center",
   },
   greetingInitials: { color: colors.blueInk, fontWeight: "700", fontSize: 16 },
-  greetingHello: { ...typeRoles.screenTitle, fontSize: 21, letterSpacing: -0.45 },
-  greetingStatus: { color: colors.inkMuted, fontSize: 13.5, lineHeight: 18, marginTop: 1 },
+  greetingHello: { ...typeRoles.screenTitle, fontSize: 20, letterSpacing: -0.35 },
+  greetingStatus: { color: colors.inkMuted, fontSize: 13, lineHeight: 17, marginTop: 1 },
   greetingDate: { color: colors.inkFaint, fontSize: 11.5, lineHeight: 15, marginTop: 1 },
 
   sectionHeader: {

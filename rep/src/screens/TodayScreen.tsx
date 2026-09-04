@@ -73,7 +73,13 @@ function safeCount(value: unknown): number {
 }
 
 function stopTime(stop: any): string {
-  return formatClock(stop?.plannedAt ?? stop?.scheduledAt ?? stop?.visitAt ?? stop?.time);
+  const structuredTime = formatClock(stop?.plannedAt ?? stop?.scheduledAt ?? stop?.visitAt ?? stop?.time);
+  if (structuredTime) return structuredTime;
+  // RoutePlanStop currently stores the planned visit time in its existing
+  // operator note. Reading it here is presentation-only; the route contract
+  // and stop state remain untouched until the backend exposes a structured
+  // scheduling field.
+  return String(stop?.note ?? "").match(/\b(?:[01]?\d|2[0-3]):[0-5]\d\b/)?.[0] ?? "";
 }
 
 function ActionTile({ icon, label, onPress }: { icon: string; label: string; onPress: () => void }) {
@@ -92,13 +98,22 @@ function ActionTile({ icon, label, onPress }: { icon: string; label: string; onP
 }
 
 function MilestoneRail({ completion }: { completion: number }) {
+  const highestReached = [...MILESTONES].reverse().find((milestone) => completion >= milestone);
   return (
     <View style={styles.milestoneRail} accessibilityLabel={`Target progress ${completion}%`}>
       {MILESTONES.map((milestone) => {
         const reached = completion >= milestone;
+        const current = reached && milestone === highestReached;
         return (
-          <View key={milestone} style={[styles.milestoneItem, reached && styles.milestoneItemReached]}>
-            <Text style={[styles.milestoneText, reached && styles.milestoneTextReached]}>{milestone}%</Text>
+          <View
+            key={milestone}
+            style={[
+              styles.milestoneItem,
+              reached && styles.milestoneItemPast,
+              current && styles.milestoneItemCurrent,
+            ]}
+          >
+            <Text style={[styles.milestoneText, reached && styles.milestoneTextPast, current && styles.milestoneTextCurrent]}>{milestone}%</Text>
           </View>
         );
       })}
@@ -148,6 +163,7 @@ function AchievementSheet({
 }) {
   const match = String(achievement?.type ?? "").match(/(25|50|75|80|90|100)/);
   const milestone = match?.[1] ?? "";
+  const isTargetMilestone = String(achievement?.type ?? "").startsWith("TARGET_");
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onDismiss}>
       <View style={styles.sheetOverlay}>
@@ -155,9 +171,11 @@ function AchievementSheet({
           <View style={styles.sheetBadge}>
             <Text style={styles.sheetBadgeText}>{milestone ? `${milestone}%` : "✓"}</Text>
           </View>
-          <Text style={styles.sheetTitle}>{achievement?.title || `Strong work, ${name}`}</Text>
+          <Text style={styles.sheetTitle}>{isTargetMilestone ? `Strong work, ${name}` : achievement?.title || `Strong work, ${name}`}</Text>
           <Text style={styles.sheetMessage}>
-            {achievement?.message || "You just reached an important point of today’s target."}
+            {isTargetMilestone && milestone
+              ? `You just reached ${milestone}% of this period’s target. ${achievement?.message ?? ""}`
+              : achievement?.message || "You just reached an important point of your target."}
           </Text>
           {current && target ? <Text style={styles.sheetAmount}>{current} · target {target}</Text> : null}
           <PrimaryButton label="Keep going" tone="navy" onPress={onDismiss} />
@@ -165,6 +183,26 @@ function AchievementSheet({
         </View>
       </View>
     </Modal>
+  );
+}
+
+function CompactDayStatus({ minutes, onPress }: { minutes: number | null | undefined; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Day complete. View activity."
+      onPress={onPress}
+      style={({ pressed }) => [styles.dayCompleteRow, pressed && styles.pressed]}
+    >
+      <View style={styles.dayCompleteMark}>
+        <Ionicons name="checkmark" size={18} color={colors.green} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.dayCompleteTitle}>Day complete</Text>
+        <Text style={styles.dayCompleteMeta}>{duration(minutes)} in field · View activity</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
+    </Pressable>
   );
 }
 
@@ -315,17 +353,18 @@ export default function TodayScreen({ navigation }: any) {
               <SecondaryButton variant="text" label="Navigate" icon="navigate-outline" onPress={() => navigateTo(nextStop)} />
             </View>
           </View>
+        ) : dayClosed ? (
+          <CompactDayStatus minutes={attendance.minutesSoFar} onPress={() => navigation.navigate("Activity")} />
         ) : (
           <Surface style={styles.calmHero}>
             <View style={styles.calmHeroContent}>
-              <View style={styles.calmHeroMark}><Ionicons name={dayClosed ? "checkmark" : "calendar-outline"} size={20} color={dayClosed ? colors.green : colors.blueInk} /></View>
+              <View style={styles.calmHeroMark}><Ionicons name="calendar-outline" size={20} color={colors.blueInk} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.eyebrow}>FIELD DAY</Text>
-                <Text style={styles.calmTitle}>{dayClosed ? "Day complete" : "No next visit assigned"}</Text>
-                <Text style={styles.caption}>{dayClosed ? `You worked ${duration(attendance.minutesSoFar)} today.` : banner.body}</Text>
+                <Text style={styles.calmTitle}>No next visit assigned</Text>
+                <Text style={styles.caption}>{banner.body}</Text>
               </View>
             </View>
-            {dayClosed ? <TextButton label={t("today.seeActivity")} onPress={() => navigation.navigate("Activity")} /> : null}
           </Surface>
         )}
 
@@ -344,6 +383,7 @@ export default function TodayScreen({ navigation }: any) {
             <>
               <View style={styles.targetGrid}>
                 <TargetBlock label={target.label || "Monthly sales"} value={`${targetActual} / ${targetTotal}`} detail={targetProgressDetail} pct={completion} />
+                <View style={styles.targetDivider} />
                 <TargetBlock label={safeCount(target.remaining) > 0 ? "To go" : "Target"} value={safeCount(target.remaining) > 0 ? (target.unit === "currency" ? inr(safeCount(target.remaining)) : String(safeCount(target.remaining))) : "Done"} detail={safeCount(target.remaining) > 0 ? (target.periodStart && target.periodEnd ? `${new Date(target.periodStart).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} — ${new Date(target.periodEnd).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}` : "Configured target period") : "Target reached"} pct={safeCount(target.remaining) > 0 ? Math.max(0, 100 - completion) : 100} pctLabel={safeCount(target.remaining) > 0 ? `${Math.max(0, 100 - completion)}% left` : "Done"} />
               </View>
               <MilestoneRail completion={completion} />
@@ -382,16 +422,16 @@ export default function TodayScreen({ navigation }: any) {
 
         <View>
           <SectionHeader title="Quick actions" />
-          <Surface style={styles.actionSurface}>
+          <View style={styles.actionSurface}>
             <ActionTile icon="calendar-outline" label="Attendance" onPress={() => (dayOpen ? setEodOpen(true) : void toggleDay())} />
             <ActionTile icon="cart-outline" label="Order" onPress={() => nextStop ? navigation.navigate("RepRetailerDetail", { retailerId: nextStop.retailer.id }) : navigation.navigate("Retailers")} />
             <ActionTile icon="cube-outline" label="Sales Kit" onPress={() => navigation.navigate("SalesKit")} />
             <ActionTile icon="ellipsis-horizontal" label="More" onPress={() => navigation.navigate("More")} />
-          </Surface>
+          </View>
         </View>
 
         {attentionItems.length > 0 ? (
-          <View><SectionHeader title="Needs attention" action={<TextButton label="See all" onPress={() => navigation.navigate("Opportunities")} />} /><Surface>{attentionItems.slice(0, 4).map((item) => <AttentionRow key={item.key} tone={item.source === "overdue" || item.type === "COLLECTION_DUE" ? "danger" : "gold"} icon={item.source === "overdue" ? "wallet-outline" : (OPPORTUNITY_ICONS[item.type ?? ""] ?? "bulb-outline")} title={item.title} subtitle={item.source === "overdue" && item.overdue != null ? `${inr(item.overdue)} overdue` : item.subtitle} onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: item.retailerId })} />)}</Surface></View>
+          <View><SectionHeader title="Needs attention" action={<TextButton label="See all" onPress={() => navigation.navigate("Opportunities")} />} /><Surface style={styles.attentionSurface}>{attentionItems.slice(0, 4).map((item) => <AttentionRow key={item.key} tone={item.source === "overdue" || item.type === "COLLECTION_DUE" ? "danger" : "gold"} icon={item.source === "overdue" ? "wallet-outline" : (OPPORTUNITY_ICONS[item.type ?? ""] ?? "bulb-outline")} title={item.title} subtitle={item.source === "overdue" && item.overdue != null ? `${inr(item.overdue)} overdue` : item.subtitle} onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: item.retailerId })} />)}</Surface></View>
         ) : null}
 
         {remainingTasks.length > 0 ? (
@@ -437,36 +477,39 @@ const styles = StyleSheet.create({
   heroLocation: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 2 },
   heroLocationText: { color: colors.onDarkMuted, fontSize: 12.5 },
   heroActions: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.lg },
-  calmHero: { gap: spacing.md, minHeight: 116 },
+  calmHero: { gap: spacing.md, minHeight: 96, paddingVertical: spacing.lg },
   calmHeroContent: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   calmHeroMark: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.blueSoft, alignItems: "center", justifyContent: "center" },
   eyebrow: { color: colors.inkMuted, fontSize: 10.5, fontWeight: "800", letterSpacing: 1.2 },
   calmTitle: { color: colors.ink, fontSize: 21, fontWeight: "800", letterSpacing: -0.3, marginTop: 3 },
   caption: { color: colors.inkMuted, fontSize: 13, lineHeight: 18 },
 
-  salesSurface: { gap: spacing.lg },
+  salesSurface: { gap: spacing.md, paddingVertical: spacing.lg },
   salesHeading: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
-  salesValue: { color: colors.ink, fontSize: 38, lineHeight: 43, fontWeight: "800", letterSpacing: -1.2, fontVariant: ["tabular-nums"] },
+  salesValue: { color: colors.ink, fontSize: 32, lineHeight: 37, fontWeight: "700", letterSpacing: -0.8, fontVariant: ["tabular-nums"] },
   salesContext: { alignItems: "flex-end", paddingTop: 2 },
   contextLabel: { color: colors.inkMuted, fontSize: 10, fontWeight: "800", letterSpacing: 0.8 },
-  contextValue: { color: colors.blue, fontSize: 23, fontWeight: "800", marginTop: 4, fontVariant: ["tabular-nums"] },
+  contextValue: { color: colors.blue, fontSize: 20, fontWeight: "700", marginTop: 4, fontVariant: ["tabular-nums"] },
   contextValueQuiet: { color: colors.inkFaint },
-  targetGrid: { flexDirection: "row", gap: spacing.sm },
-  targetBlock: { flex: 1, minWidth: 0, backgroundColor: colors.surfaceAlt, borderRadius: radius.lg, padding: spacing.md, gap: 7 },
+  targetGrid: { flexDirection: "row", gap: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.md },
+  targetBlock: { flex: 1, minWidth: 0, gap: 6 },
+  targetDivider: { width: 1, backgroundColor: colors.separator, marginVertical: 2 },
   targetBlockHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 4 },
   targetBlockLabel: { color: colors.inkMuted, fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.55, flex: 1 },
-  targetBlockPct: { color: colors.blueInk, fontSize: 16, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  targetBlockPct: { color: colors.blueInk, fontSize: 15, fontWeight: "700", fontVariant: ["tabular-nums"] },
   targetBlockDetail: { color: colors.inkMuted, fontSize: 11, lineHeight: 15 },
   targetBlockValue: { color: colors.ink, fontSize: 13, fontWeight: "700", fontVariant: ["tabular-nums"] },
-  targetUnavailable: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surfaceAlt, borderRadius: radius.lg, padding: spacing.md },
+  targetUnavailable: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surfaceAlt, borderRadius: radius.md, padding: spacing.md },
   milestoneRail: { flexDirection: "row", justifyContent: "space-between", gap: 6, paddingTop: spacing.xs },
   milestoneItem: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 34, borderRadius: radius.pill, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border },
-  milestoneItemReached: { backgroundColor: colors.lime, borderColor: colors.lime },
+  milestoneItemPast: { backgroundColor: colors.limeSoft, borderColor: colors.limeSoft },
+  milestoneItemCurrent: { backgroundColor: colors.lime, borderColor: colors.lime },
   milestoneText: { color: colors.inkMuted, fontSize: 11, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  milestoneTextReached: { color: colors.ink },
+  milestoneTextPast: { color: colors.green },
+  milestoneTextCurrent: { color: colors.ink },
 
-  metricStrip: { flexDirection: "row", backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, paddingVertical: spacing.lg },
-  metricCell: { flex: 1, alignItems: "center", gap: 3, paddingHorizontal: spacing.xs },
+  metricStrip: { flexDirection: "row", backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, paddingVertical: spacing.md },
+  metricCell: { flex: 1, alignItems: "center", gap: 4, paddingHorizontal: spacing.xs },
   metricValue: { color: colors.ink, fontSize: 22, fontWeight: "800", fontVariant: ["tabular-nums"] },
   metricLabel: { color: colors.inkMuted, fontSize: 11.5, textAlign: "center", width: "100%" },
 
@@ -474,7 +517,9 @@ const styles = StyleSheet.create({
   routeProgressLine: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   routePct: { color: colors.blueInk, fontSize: 13, fontWeight: "800", fontVariant: ["tabular-nums"] },
   stopRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.md, borderTopWidth: 1, borderTopColor: colors.border, minHeight: 58 },
-  stopTimeCol: { width: 38 },
+  // Keep the full HH:MM token on one line on narrow Android devices. The
+  // route is an itinerary, so a wrapped time is materially harder to scan.
+  stopTimeCol: { width: 52 },
   stopTime: { color: colors.inkMuted, fontSize: 11, fontWeight: "800", fontVariant: ["tabular-nums"] },
   stopName: { color: colors.ink, fontSize: 14.5, fontWeight: "700" },
   stopAddress: { color: colors.inkMuted, fontSize: 12, marginTop: 2 },
@@ -482,10 +527,15 @@ const styles = StyleSheet.create({
   stopStatusDone: { color: colors.green },
   stopStatusSkipped: { color: colors.warning },
 
-  actionSurface: { flexDirection: "row", gap: spacing.sm, padding: spacing.sm },
-  actionTile: { flex: 1, minHeight: 84, alignItems: "center", justifyContent: "center", gap: 7, borderRadius: radius.lg, backgroundColor: colors.surfaceAlt, paddingHorizontal: 4 },
-  actionIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.blueSoft, alignItems: "center", justifyContent: "center" },
-  actionLabel: { color: colors.ink, fontSize: 11.5, fontWeight: "700", textAlign: "center" },
+  actionSurface: { flexDirection: "row", gap: spacing.xs, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, borderRadius: radius.lg, backgroundColor: colors.surfaceAlt },
+  actionTile: { flex: 1, minHeight: 64, alignItems: "center", justifyContent: "center", gap: 4, borderRadius: radius.md, paddingHorizontal: 4 },
+  actionIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.blueSoft, alignItems: "center", justifyContent: "center" },
+  actionLabel: { color: colors.inkMuted, fontSize: 10.5, fontWeight: "600", textAlign: "center" },
+  attentionSurface: { paddingVertical: spacing.xs, paddingHorizontal: spacing.md },
+  dayCompleteRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  dayCompleteMark: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.greenSoft, alignItems: "center", justifyContent: "center" },
+  dayCompleteTitle: { color: colors.ink, fontSize: 15.5, fontWeight: "700" },
+  dayCompleteMeta: { color: colors.inkMuted, fontSize: 12.5, marginTop: 2 },
   daySurface: { backgroundColor: colors.blueSoft },
   dayTitle: { color: colors.ink, fontSize: 16, fontWeight: "700", marginTop: 4 },
   between: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md },

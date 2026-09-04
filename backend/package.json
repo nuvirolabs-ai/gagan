@@ -23,6 +23,7 @@
     "check:sales-org-readiness": "ts-node --transpile-only scripts/checkSalesOrgReadiness.ts",
     "seed:staging-hierarchy": "ts-node --transpile-only scripts/seedStagingHierarchy.ts",
     "seed:field-uat": "ts-node --transpile-only scripts/seedFieldUat.ts",
+    "seed:sales-visual-uat": "ts-node --transpile-only scripts/seedSalesVisualUat.ts",
     "seed:founder-uat": "ts-node --transpile-only scripts/seedFounderUat.ts"
   },
   "dependencies": {

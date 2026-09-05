@@ -20,6 +20,7 @@ import {
 } from "../tracking/fieldTracker";
 import { useRep } from "./RepContext";
 import { staffCapabilities } from "../auth/staffCapabilities";
+import { createSingleFlight } from "../performance/singleFlight";
 
 export interface TrackingState {
   tracking: boolean;
@@ -99,6 +100,7 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
   const [outbox, setOutbox] = useState<OutboxSummary>(EMPTY_SUMMARY);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const refreshGate = useRef(createSingleFlight());
 
   const lastReading = useRef<TrackerReading | null>(null);
   const queue = useRef<Outbox | null>(null);
@@ -122,27 +124,29 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async () => {
     if (!enabled) return;
-    setLoading(true);
-    try {
-      const payload = await repApi.today();
-      setToday(payload);
-      setTracking(payload.tracking ?? null);
-      const earned: any[] = payload.achievements?.new ?? [];
-      if (earned.length > 0) {
-        setCelebrations((current) => {
-          const seen = new Set(current.map((event) => event.id));
-          return [...current, ...earned.filter((event) => !seen.has(event.id))];
-        });
+    await refreshGate.current(async () => {
+      setLoading(true);
+      try {
+        const payload = await repApi.today();
+        setToday(payload);
+        setTracking(payload.tracking ?? null);
+        const earned: any[] = payload.achievements?.new ?? [];
+        if (earned.length > 0) {
+          setCelebrations((current) => {
+            const seen = new Set(current.map((event) => event.id));
+            return [...current, ...earned.filter((event) => !seen.has(event.id))];
+          });
+        }
+        setError(null);
+      } catch (err) {
+        // A failed refresh must not wipe the last good day the salesperson saw,
+        // and a dropped connection should read like one rather than like a
+        // browser error string.
+        setError(offlineMessage(err));
+      } finally {
+        setLoading(false);
       }
-      setError(null);
-    } catch (err) {
-      // A failed refresh must not wipe the last good day the salesperson saw,
-      // and a dropped connection should read like one rather than like a
-      // browser error string.
-      setError(offlineMessage(err));
-    } finally {
-      setLoading(false);
-    }
+    });
   }, [enabled]);
 
   useEffect(() => {

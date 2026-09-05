@@ -6,6 +6,7 @@ import {
 } from "../api/repClient";
 import { CartLine } from "../types";
 import { isAuthenticationFailure } from "../auth/sessionFetch";
+import { isRecoverableOtpError } from "../auth/otpErrors";
 import { staffIdentityCache } from "../auth/identityCache";
 import { useLanguage } from "../i18n/LanguageContext";
 
@@ -28,7 +29,7 @@ interface RepContextValue {
   staff: StaffIdentity | null;
   loading: boolean;
   login: (phone: string, otp: string) => Promise<void>;
-  requestOtp: (phone: string) => Promise<void>;
+  requestOtp: (phone: string) => Promise<string>;
   logout: () => Promise<void>;
 
   /** Retailer the rep is currently ordering for. */
@@ -103,16 +104,26 @@ export function RepProvider({ children }: { children: React.ReactNode }) {
     const result = await repApi.requestOtp(phone);
     if (typeof result.challengeId !== "string") throw new Error("Could not start OTP challenge");
     setChallengeId(result.challengeId);
+    return result.challengeId;
   };
 
-  const login = async (phone: string, otp: string) => {
-    if (!challengeId) throw new Error("Request a new OTP first");
-    const res = await repApi.verifyOtp(challengeId, phone, otp);
+  const acceptSession = async (res: { staff: StaffIdentity; rep: Rep | null }) => {
     setChallengeId(null);
     setStaff(res.staff);
     setRep(res.rep);
     await staffIdentityCache.save({ staff: res.staff, rep: res.rep ?? null });
     beginLoginSelection();
+  };
+
+  const login = async (phone: string, otp: string) => {
+    const verify = async (id: string) => acceptSession(await repApi.verifyOtp(id, phone, otp));
+    try {
+      const id = challengeId ?? (await requestOtp(phone));
+      await verify(id);
+    } catch (error) {
+      if (!isRecoverableOtpError(error)) throw error;
+      await verify(await requestOtp(phone));
+    }
   };
 
   const logout = async () => {

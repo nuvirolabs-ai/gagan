@@ -13,12 +13,12 @@ import {
   InitialsBadge,
   ListRow,
   OfflineBanner,
-  ScreenHeader,
   SecondaryButton,
   SectionHeader,
   StatusChip,
   Surface,
   TextButton,
+  useHeaderPaddingTop,
 } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 
@@ -26,6 +26,7 @@ export default function RepAccountScreen({ navigation }: any) {
   const { staff, rep, logout } = useRep();
   const { today, outbox, flushOutbox } = useField();
   const { language, t, setLanguage } = useLanguage();
+  const headerPaddingTop = useHeaderPaddingTop();
   const capabilities = staffCapabilities(staff?.permissions ?? []);
   const onDuty = today?.attendance?.status === "open";
 
@@ -127,9 +128,15 @@ export default function RepAccountScreen({ navigation }: any) {
 
   return (
     <AppScreen>
-      <ScreenHeader title={t("more.title")} />
+      <View style={[styles.moreHeader, { paddingTop: headerPaddingTop }]}>
+        <Text style={styles.moreKicker}>GAGAN FIELD COMPANION</Text>
+        <View style={styles.moreTitleRow}>
+          <Text style={styles.moreTitle}>{t("more.title")}</Text>
+          <StatusChip label={onDuty ? t("more.onDuty") : t("more.offDuty")} tone={onDuty ? "green" : "neutral"} />
+        </View>
+      </View>
       <ScrollView contentContainerStyle={styles.content}>
-        <Surface>
+        <Surface level={2}>
           <View style={styles.profile}>
             <InitialsBadge name={staff?.name ?? "?"} size={56} />
             <View style={{ flex: 1 }}>
@@ -142,7 +149,7 @@ export default function RepAccountScreen({ navigation }: any) {
         </Surface>
 
         {outbox.pending > 0 || outbox.failed > 0 ? (
-          <Surface>
+          <Surface level={1}>
             <SectionHeader title={t("more.offlineQueue")} />
             {outbox.failed > 0 ? (
               <Banner
@@ -177,7 +184,7 @@ export default function RepAccountScreen({ navigation }: any) {
 
         <View>
           <SectionHeader title={t("more.accountGroup")} />
-          <Surface>
+          <Surface level={2}>
             <Text style={styles.langLabel}>{t("more.settings")}</Text>
             <View style={styles.langRow}>
               <FilterChip label="English" active={language === "en"} onPress={() => void setLanguage("en")} />
@@ -197,6 +204,10 @@ export default function RepAccountScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
+  moreHeader: { paddingHorizontal: spacing.xl, paddingBottom: spacing.lg, gap: spacing.xs },
+  moreKicker: { color: colors.blueInk, fontSize: 10, fontWeight: "800", letterSpacing: 1.1 },
+  moreTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md },
+  moreTitle: { color: colors.ink, fontSize: 30, lineHeight: 36, fontWeight: "700", letterSpacing: -0.8 },
   content: { paddingHorizontal: spacing.xl, gap: spacing.section, paddingBottom: SCREEN_CONTENT_BOTTOM_GAP },
   profile: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   name: { fontSize: 18, fontWeight: "600", color: colors.ink },

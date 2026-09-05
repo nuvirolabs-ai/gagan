@@ -14,8 +14,30 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { useRep } from "../context/RepContext";
 import { ApiError } from "../api/repClient";
+import { otpErrorCode } from "../auth/otpErrors";
 import { colors, radius, spacing } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
+import type { TranslationKey } from "../i18n/translations";
+
+function loginAlertMessage(
+  error: unknown,
+  fallback: string,
+  t: (key: TranslationKey) => string
+) {
+  switch (otpErrorCode(error)) {
+    case "challenge_expired":
+      return t("auth.challengeExpired");
+    case "resend_cooldown":
+      return t("auth.resendCooldown");
+    case "incorrect_code":
+      return t("auth.incorrectCode");
+    case "invalid_challenge":
+    case "challenge_used":
+      return t("auth.invalidChallenge");
+    default:
+      return error instanceof ApiError ? error.message : fallback;
+  }
+}
 
 export default function RepLoginScreen() {
   const { requestOtp, login } = useRep();
@@ -32,7 +54,7 @@ export default function RepLoginScreen() {
       await requestOtp(phone);
       setStage("otp");
     } catch (e) {
-      Alert.alert("Couldn't send OTP", e instanceof ApiError ? e.message : t("errors.generic"));
+      Alert.alert("Couldn't send OTP", loginAlertMessage(e, t("errors.generic"), t));
     } finally {
       setBusy(false);
     }
@@ -43,7 +65,7 @@ export default function RepLoginScreen() {
     try {
       await login(phone, otp);
     } catch (e) {
-      Alert.alert("Couldn't sign in", e instanceof ApiError ? e.message : t("errors.generic"));
+      Alert.alert("Couldn't sign in", loginAlertMessage(e, t("errors.generic"), t));
     } finally {
       setBusy(false);
     }
@@ -105,6 +127,9 @@ export default function RepLoginScreen() {
               ) : (
                 <Text style={styles.buttonText}>{t("auth.verify")}</Text>
               )}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleRequestOtp} disabled={busy}>
+              <Text style={styles.link}>{t("auth.resendOtp")}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setStage("phone")}>
               <Text style={styles.link}>{t("auth.changePhone")}</Text>

@@ -503,9 +503,8 @@ function PerformanceCockpit({
     <>
       <View style={styles.performanceIntro}>
         <View style={styles.between}>
-          <View>
+          <View style={styles.performanceIntroMeta}>
             <Text style={styles.periodKicker}>PERFORMANCE · {monthLabel.toUpperCase()}</Text>
-            <Text style={styles.performanceTitle}>Your operating pulse</Text>
           </View>
           <View style={styles.windowChips}>
             <ReportWindowChip label="7D" active={windowDays === 7} onPress={() => setWindowDays(7)} />
@@ -635,8 +634,8 @@ const styles = StyleSheet.create({
   barFill: { height: "100%", borderRadius: 99, backgroundColor: colors.blue },
   barValue: { width: 60, fontSize: 11, color: colors.ink, textAlign: "right" },
   performanceIntro: { gap: spacing.xs, marginHorizontal: spacing.xl, padding: spacing.xl, borderRadius: radius.hero, backgroundColor: colors.blue },
+  performanceIntroMeta: { flex: 1, minWidth: 0 },
   periodKicker: { fontSize: 10, color: "rgba(255,255,255,0.78)", letterSpacing: 1.2, fontWeight: "800" },
-  performanceTitle: { fontSize: 21, fontWeight: "700", color: colors.onDark, marginTop: 3, letterSpacing: -0.35 },
   performanceNumber: { fontSize: 34, lineHeight: 40, fontWeight: "700", color: colors.onDark, letterSpacing: -0.8, marginTop: spacing.md, fontVariant: ["tabular-nums"] },
   performanceSub: { fontSize: 13, color: "rgba(255,255,255,0.82)", marginTop: 4 },
   cockpitSurface: { padding: spacing.lg, gap: spacing.lg },

@@ -81,9 +81,9 @@ function RepTabs() {
         // Every tab screen renders its own <ScreenHeader>.
         headerShown: false,
         tabBarLabel: tabLabel(route.name),
-        tabBarActiveTintColor: colors.navy,
+        tabBarActiveTintColor: colors.blue,
         tabBarInactiveTintColor: colors.inkMuted,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: "700", marginBottom: 2 },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "600", marginBottom: 2 },
         tabBarItemStyle: { paddingTop: 3 },
         tabBarStyle: {
           backgroundColor: colors.surface,
@@ -96,7 +96,7 @@ function RepTabs() {
         tabBarIcon: ({ color, focused }) => (
           <View
             style={{
-              backgroundColor: focused ? colors.navy : "transparent",
+              backgroundColor: focused ? colors.blueSoft : "transparent",
               borderRadius: 17,
               width: 44,
               height: 34,
@@ -107,7 +107,7 @@ function RepTabs() {
             <Ionicons
               name={(TAB_ICONS[route.name] ?? "ellipse-outline") as any}
               size={20}
-              color={focused ? colors.onDark : color}
+              color={focused ? colors.blue : color}
             />
           </View>
         ),
@@ -126,7 +126,6 @@ function RepTabs() {
     </Tab.Navigator>
   );
 }
-
 function RootNavigator() {
   const { staff, loading } = useRep();
   const { selectionRequired, t } = useLanguage();

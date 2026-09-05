@@ -17,18 +17,64 @@ import { colors, inr, radius, spacing } from "../theme";
 import { SCREEN_CONTENT_BOTTOM_GAP } from "../layout/viewportPolicy";
 import {
   AppScreen,
-  CustomerRow,
   CustomerRowSkeleton,
   EmptyState,
   FilterChip,
   FilterChipRow,
+  ProgressRow,
   SearchBar,
+  StatusChip,
+  Surface,
   useHeaderPaddingTop,
 } from "../components/ui";
 import { staffCapabilities } from "../auth/staffCapabilities";
 import { useLanguage } from "../i18n/LanguageContext";
 
 type Filter = "all" | "route" | "overdue" | "opportunities";
+
+function OutletCard({
+  item,
+  chip,
+  dueLabel,
+  dueTone,
+  creditLabel,
+  onPress,
+}: {
+  item: any;
+  chip?: { label: string; tone: "green" | "gold" | "danger" | "warning" | "neutral" };
+  dueLabel: string;
+  dueTone: "ink" | "danger";
+  creditLabel: string;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      accessibilityRole="button"
+      onPress={onPress}
+      activeOpacity={0.78}
+      style={styles.outletCard}
+    >
+      <View style={styles.outletCardTop}>
+        <View style={styles.outletAvatar}>
+          <Text style={styles.outletAvatarText}>{String(item.name ?? "?").slice(0, 1).toUpperCase()}</Text>
+        </View>
+        <View style={styles.outletIdentity}>
+          <Text style={styles.outletName} numberOfLines={1}>{item.name}</Text>
+          <Text style={styles.outletMeta} numberOfLines={1}>{item.shopAddress || item.phone || "Assigned account"}</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} />
+      </View>
+      <View style={styles.outletRule} />
+      <View style={styles.outletBottom}>
+        <View style={styles.outletMoney}>
+          <Text style={[styles.outletDue, dueTone === "danger" && styles.outletDueDanger]} numberOfLines={1}>{dueLabel}</Text>
+          <Text style={styles.outletCredit} numberOfLines={1}>{creditLabel}</Text>
+        </View>
+        {chip ? <StatusChip label={chip.label} tone={chip.tone} /> : <Text style={styles.outletQuiet}>Open account</Text>}
+      </View>
+    </TouchableOpacity>
+  );
+}
 
 export default function RepRetailersScreen({ navigation }: any) {
   const { staff } = useRep();
@@ -92,6 +138,11 @@ export default function RepRetailersScreen({ navigation }: any) {
     { id: "opportunities", label: t("retailers.filterOpportunities") },
   ];
 
+  const routeProgress = today?.route?.progress;
+  const routeTotal = Number(routeProgress?.total) || 0;
+  const routeVisited = (Number(routeProgress?.visited) || 0) + (Number(routeProgress?.skipped) || 0);
+  const routeCompletion = Number(routeProgress?.completionPct) || 0;
+
   return (
     <AppScreen>
       <View style={[styles.header, { paddingTop: headerPaddingTop }]}>
@@ -128,6 +179,19 @@ export default function RepRetailersScreen({ navigation }: any) {
         ))}
       </FilterChipRow>
 
+      {today?.route && routeTotal > 0 ? (
+        <Surface level={1} style={styles.routeSummary}>
+          <View style={styles.routeSummaryHead}>
+            <View>
+              <Text style={styles.routeSummaryKicker}>TODAY’S ROUTE</Text>
+              <Text style={styles.routeSummaryTitle}>{routeVisited} of {routeTotal} stops complete</Text>
+            </View>
+            <Text style={styles.routeSummaryPct}>{routeCompletion}%</Text>
+          </View>
+          <ProgressRow pct={routeCompletion} tone="green" />
+        </Surface>
+      ) : null}
+
       {loading && retailers.length === 0 ? (
         <View style={styles.skel}>
           <CustomerRowSkeleton />
@@ -162,13 +226,12 @@ export default function RepRetailersScreen({ navigation }: any) {
                   ? { label: t("retailers.gold"), tone: "gold" as const }
                   : undefined;
             return (
-              <CustomerRow
-                name={item.name}
+              <OutletCard
+                item={item}
                 chip={chip}
                 dueLabel={overdue ? t("retailers.overdueAmount", { amount: inr(item.overdue) }) : t("retailers.due", { amount: inr(item.outstanding) })}
                 dueTone={overdue ? "danger" : "ink"}
                 creditLabel={t("retailers.credit", { amount: inr(item.available) })}
-                meta={item.phone}
                 onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: item.id })}
               />
             );
@@ -194,6 +257,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textSecondary,
   },
+  routeSummary: {
+    marginHorizontal: spacing.xl,
+    marginBottom: spacing.md,
+    gap: spacing.md,
+    borderRadius: radius.xl,
+  },
+  routeSummaryHead: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: spacing.md },
+  routeSummaryKicker: { color: colors.blueInk, fontSize: 10, fontWeight: "800", letterSpacing: 1.1 },
+  routeSummaryTitle: { color: colors.ink, fontSize: 15, fontWeight: "700", marginTop: 3 },
+  routeSummaryPct: { color: colors.blueInk, fontSize: 17, fontWeight: "800", fontVariant: ["tabular-nums"] },
   addBtn: {
     width: 44,
     height: 44,
@@ -203,5 +276,26 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   skel: { paddingTop: spacing.sm },
-  divider: { height: 1, backgroundColor: colors.separator, marginLeft: 76 },
+  divider: { height: spacing.md },
+  outletCard: {
+    marginHorizontal: spacing.xl,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+  },
+  outletCardTop: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  outletAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.blueSoft, alignItems: "center", justifyContent: "center" },
+  outletAvatarText: { color: colors.blueInk, fontSize: 16, fontWeight: "800" },
+  outletIdentity: { flex: 1, minWidth: 0, gap: 3 },
+  outletName: { color: colors.ink, fontSize: 16, fontWeight: "700" },
+  outletMeta: { color: colors.inkMuted, fontSize: 12.5 },
+  outletRule: { height: 1, backgroundColor: colors.border, marginVertical: spacing.md },
+  outletBottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md },
+  outletMoney: { flex: 1, flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
+  outletDue: { color: colors.ink, fontSize: 12.5, fontWeight: "700" },
+  outletDueDanger: { color: colors.danger },
+  outletCredit: { color: colors.inkMuted, fontSize: 12.5 },
+  outletQuiet: { color: colors.inkFaint, fontSize: 11, fontWeight: "600" },
 });

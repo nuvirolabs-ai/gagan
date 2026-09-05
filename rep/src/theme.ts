@@ -1,86 +1,88 @@
 export const colors = {
-  // V2.1 field system: a quiet neutral canvas, one dark structural colour,
-  // and one reserved alert colour. Keep aliases below so older screens inherit
-  // the same system without page-by-page palette drift.
-  bg: "#F5F6F8",
+  // Stitch native translation: cool slate canvas, white surfaces, one royal
+  // blue interaction family, and a restrained red/amber semantic family.
+  // Compatibility aliases below keep the existing business screens on one
+  // token system while their presentation is progressively reconstructed.
+  bg: "#F8FAFC",
   surface: "#FFFFFF",
-  surfaceAlt: "#F0F2F5",
+  surfaceAlt: "#F1F5F9",
 
-  ink: "#0B1220",
-  inkMuted: "#667085",
-  inkFaint: "#98A2B3",
+  ink: "#0F172A",
+  inkMuted: "#64748B",
+  inkFaint: "#94A3B8",
   onDark: "#FFFFFF",
-  onDarkMuted: "#D0D5DD",
+  onDarkMuted: "#CBD5E1",
 
-  navy: "#0B1220",
-  blue: "#0B1220",
-  blueSoft: "#F0F2F5",
-  blueMid: "#667085",
-  blueInk: "#0B1220",
+  navy: "#0F172A",
+  blue: "#2563EB",
+  blueSoft: "#DBEAFE",
+  blueMid: "#93A4BF",
+  blueInk: "#1D4ED8",
 
-  // Kept as compatibility names. The new field UI intentionally has no neon
-  // achievement colour; milestones use the same dark instrument colour.
-  lime: "#0B1220",
-  limeSoft: "#F0F2F5",
+  // Kept as compatibility names. Stitch uses blue for achievement emphasis;
+  // these aliases avoid reintroducing a separate neon family.
+  lime: "#2563EB",
+  limeSoft: "#DBEAFE",
 
-  green: "#0B1220",
-  greenDeep: "#0B1220",
-  greenMid: "#667085",
-  greenSoft: "#F0F2F5",
+  green: "#047857",
+  greenDeep: "#065F46",
+  greenMid: "#10B981",
+  greenSoft: "#ECFDF5",
 
-  gold: "#0B1220",
-  goldSoft: "#F0F2F5",
-  cream: "#F5F6F8",
+  gold: "#D97706",
+  goldSoft: "#FFF7ED",
+  cream: "#FFFBEB",
 
-  danger: "#B9382E",
-  dangerSoft: "#FBE9E7",
+  danger: "#DC2626",
+  dangerSoft: "#FEF2F2",
 
   /**
    * Compatibility aliases for older feature surfaces. V2.1 uses the dark
    * structural colour for actions and achievement emphasis; the only separate
    * chromatic family reserved for UI state is the muted alert red.
    */
-  accentPrimary: "#0B1220",
-  accentStrong: "#0B1220",
-  accentSoft: "#F0F2F5",
+  accentPrimary: "#2563EB",
+  accentStrong: "#1D4ED8",
+  accentSoft: "#DBEAFE",
   onAccent: "#FFFFFF",
 
   /**
    * Status stays status. These never borrow the accent, so "warning" cannot be
    * confused with "you are doing well".
    */
-  success: "#344054",
-  successSoft: "#F0F2F5",
-  warning: "#B9382E",
-  warningSoft: "#FBE9E7",
-  error: "#B9382E",
-  errorSoft: "#FBE9E7",
-  info: "#667085",
-  infoSoft: "#F0F2F5",
+  success: "#047857",
+  successSoft: "#ECFDF5",
+  // Darkened slightly so warning text remains AA-readable on white surfaces.
+  warning: "#B45309",
+  warningSoft: "#FFF7ED",
+  error: "#DC2626",
+  errorSoft: "#FEF2F2",
+  info: "#2563EB",
+  infoSoft: "#EFF6FF",
 
-  border: "#E4E7EC",
-  track: "#E4E7EC",
+  border: "#E2E8F0",
+  track: "#DCE4F0",
 
   /* Semantic aliases used by the companion system. Same values, clearer names. */
-  canvas: "#F5F6F8",
-  surfaceSecondary: "#F0F2F5",
-  textPrimary: "#0B1220",
-  textSecondary: "#667085",
-  textTertiary: "#98A2B3",
-  separator: "#E4E7EC",
-  primaryDeep: "#0B1220",
-  primary: "#0B1220",
-  primarySoft: "#F0F2F5",
-  goldStrong: "#0B1220",
+  canvas: "#F8FAFC",
+  surfaceSecondary: "#F1F5F9",
+  textPrimary: "#0F172A",
+  textSecondary: "#64748B",
+  textTertiary: "#94A3B8",
+  separator: "#E2E8F0",
+  primaryDeep: "#065F46",
+  primary: "#2563EB",
+  primarySoft: "#DBEAFE",
+  goldStrong: "#1D4ED8",
 };
 
 export const radius = {
-  sm: 8,
-  md: 14,
-  lg: 20,
-  xl: 24,
-  focus: 26,
-  hero: 28,
+  sm: 6,
+  md: 10,
+  lg: 14,
+  xl: 18,
+  focus: 20,
+  hero: 22,
   pill: 999,
 };
 
@@ -98,8 +100,8 @@ export const spacing = {
 
 export const type = {
   display: { fontSize: 30, fontWeight: "700" as const, color: colors.ink, letterSpacing: -0.7, fontVariant: ["tabular-nums"] as const },
-  screenTitle: { fontSize: 26, fontWeight: "700" as const, color: colors.ink, letterSpacing: -0.6 },
-  sectionTitle: { fontSize: 13, fontWeight: "600" as const, color: colors.ink, letterSpacing: 0.4 },
+  screenTitle: { fontSize: 24, fontWeight: "700" as const, color: colors.ink, letterSpacing: -0.6 },
+  sectionTitle: { fontSize: 13, fontWeight: "600" as const, color: colors.inkMuted, letterSpacing: 0.4 },
   cardTitle: { fontSize: 17, fontWeight: "600" as const, color: colors.ink },
   body: { fontSize: 15, fontWeight: "400" as const, color: colors.ink, lineHeight: 21 },
   bodyStrong: { fontSize: 15, fontWeight: "600" as const, color: colors.ink },
@@ -116,13 +118,19 @@ export const type = {
 
 export const elevation = {
   none: {},
-  card: {},
+  card: {
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
   floating: {
-    shadowColor: colors.navy,
-    shadowOpacity: 0.12,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 5,
   },
 };
 
@@ -139,7 +147,7 @@ export const motion = {
 };
 
 export const control = {
-  minTap: 44,
+  minTap: 48,
   buttonHeight: 48,
   chipHeight: 36,
   iconSm: 16,

@@ -29,6 +29,7 @@ Native evidence:
 
 - [Home loaded on device](docs/stitch-redesign/evidence/stitch-home-awake-2.png)
 - [Home lower composition](docs/stitch-redesign/evidence/stitch-home-top-2.png)
+- [Final release APK after install](docs/stitch-redesign/evidence/stitch-final-after-wait.png)
 
 Implemented correspondence:
 

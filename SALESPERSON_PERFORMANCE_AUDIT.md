@@ -25,6 +25,9 @@ Evidence:
 - [Home before — top](docs/performance-attendance/evidence/before-home-top.png)
 - [Home before — lower Quick actions](docs/performance-attendance/evidence/before-home-lower.png)
 - [Attendance tap before — no app response](docs/performance-attendance/evidence/before-attendance-no-response.png)
+- [Final Home — top](docs/performance-attendance/evidence/final-home-top.png)
+- [Final Home — lower Quick actions](docs/performance-attendance/evidence/final-home-lower.png)
+- [Final Attendance — My day](docs/performance-attendance/evidence/final-attendance-my-day.png)
 
 ### Attendance trace
 

@@ -38,6 +38,7 @@ Evidence:
 
 - [Home launch](docs/stitch-restore/evidence/home-launch.png)
 - [Home lower scroll](docs/stitch-restore/evidence/home-lower.png)
+- [Home from the committed restore APK](docs/stitch-restore/evidence/home-final-committed.png)
 
 The current staging identity has a completed day and no published route, so the
 physical evidence truthfully shows the compact completed-day state and calm

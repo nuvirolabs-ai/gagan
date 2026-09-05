@@ -1,3 +1,10 @@
+# Historical matrix — superseded by `GAGAN_REAL_WORLD_UAT_FINAL_REPORT_V2.md`
+
+This matrix is retained as the prior run's evidence and draft. The earlier
+results must be read with their original test method boundaries. The corrected
+native/UI matrix, using the approved template source and isolated databases,
+is in `GAGAN_REAL_WORLD_UAT_FINAL_REPORT_V2.md`.
+
 # Gagan Real-World End-to-End UAT Matrix
 
 **Run:** 2026-09-06

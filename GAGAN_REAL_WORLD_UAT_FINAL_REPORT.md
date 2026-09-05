@@ -1,3 +1,10 @@
+# Historical report — superseded by `GAGAN_REAL_WORLD_UAT_FINAL_REPORT_V2.md`
+
+This document is retained as the prior partial/API-led UAT record. Its claims are
+not the final native-app result. The corrected source, isolated databases,
+native UI evidence, and updated capability classification are in
+`GAGAN_REAL_WORLD_UAT_FINAL_REPORT_V2.md`.
+
 # Gagan Full Real-World End-to-End UAT + Hardening Report
 
 **Run date:** 2026-09-06

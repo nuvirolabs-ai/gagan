@@ -82,6 +82,48 @@ export function PersonalGreeting({
   );
 }
 
+/**
+ * Stitch's approved product header: brand first, operator identity second.
+ * It deliberately keeps the existing notification action and initials rather
+ * than replacing the native session/profile data with mock content.
+ */
+export function FieldCompanionHeader({
+  name,
+  notificationCount = 0,
+  onNotifications,
+}: {
+  name: string;
+  notificationCount?: number;
+  onNotifications?: () => void;
+}) {
+  const paddingTop = useHeaderPaddingTop();
+  return (
+    <View style={[styles.brandHeader, { paddingTop }]}>
+      <View style={styles.brandLockup}>
+        <View style={styles.brandNameRow}>
+          <Text style={styles.brandName}>Gagan</Text>
+          <View style={styles.brandDot} />
+        </View>
+        <Text style={styles.brandSubtitle}>FIELD COMPANION</Text>
+      </View>
+      {onNotifications ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Notifications"
+          onPress={onNotifications}
+          style={({ pressed }) => [styles.brandIconButton, pressed && { opacity: 0.7 }]}
+        >
+          <Ionicons name="notifications-outline" size={21} color={colors.inkMuted} />
+          {notificationCount > 0 ? <View style={styles.brandNotificationDot} /> : null}
+        </Pressable>
+      ) : null}
+      <View style={styles.brandAvatar} accessibilityLabel={`${name || "Salesperson"} profile`}>
+        <Text style={styles.brandAvatarText}>{initials(name || "?")}</Text>
+      </View>
+    </View>
+  );
+}
+
 export function SectionHeader({
   title,
   action,
@@ -130,7 +172,7 @@ export function Surface({
   level?: 1 | 2 | 3;
   style?: ViewStyle;
 }) {
-  return <View style={[level === 1 ? styles.surface1 : styles.surface2, style]}>{children}</View>;
+  return <View style={[level === 1 ? styles.surface1 : level === 3 ? styles.surface3 : styles.surface2, style]}>{children}</View>;
 }
 
 export function MetricStrip({
@@ -628,6 +670,26 @@ const styles = StyleSheet.create({
   greetingStatus: { color: colors.inkMuted, fontSize: 13, lineHeight: 17, marginTop: 1 },
   greetingDate: { color: colors.inkFaint, fontSize: 11.5, lineHeight: 15, marginTop: 1 },
 
+  brandHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.separator,
+    backgroundColor: "rgba(248,250,252,0.96)",
+  },
+  brandLockup: { flex: 1, gap: 2 },
+  brandNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  brandName: { color: colors.ink, fontSize: 22, lineHeight: 26, fontWeight: "700", letterSpacing: -0.5 },
+  brandDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.blue },
+  brandSubtitle: { color: colors.inkMuted, fontSize: 10, fontWeight: "600", letterSpacing: 1.1 },
+  brandIconButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.separator, alignItems: "center", justifyContent: "center", position: "relative" },
+  brandNotificationDot: { position: "absolute", top: 8, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.danger, borderWidth: 2, borderColor: colors.surface },
+  brandAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.navy, borderWidth: 2, borderColor: colors.surface, alignItems: "center", justifyContent: "center" },
+  brandAvatarText: { color: colors.onDark, fontSize: 13, fontWeight: "700", letterSpacing: 0.2 },
+
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -656,6 +718,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
     padding: spacing.xl,
     ...elevation.card,
+  },
+  surface3: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    ...elevation.floating,
   },
 
   metricStrip: {

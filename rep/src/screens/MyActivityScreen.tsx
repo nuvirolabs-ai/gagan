@@ -19,7 +19,7 @@ import {
 import { ACTIVITY_LABELS } from "../components/ActivityComposer";
 import { AchievementLine } from "../components/Achievement";
 import { repApi } from "../api/repClient";
-import { colors, inr, spacing } from "../theme";
+import { colors, inr, radius, spacing } from "../theme";
 import { SCREEN_CONTENT_BOTTOM_GAP } from "../layout/viewportPolicy";
 import { useLanguage } from "../i18n/LanguageContext";
 import {
@@ -76,6 +76,27 @@ function dayGroup(iso: string, t: (key: string) => string) {
   if (date.toDateString() === today.toDateString()) return t("common.today");
   if (date.toDateString() === yesterday.toDateString()) return t("activity.yesterday");
   return t("activity.earlier");
+}
+
+function ReportWindowChip({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      onPress={onPress}
+      style={({ pressed }) => [styles.reportWindowChip, active && styles.reportWindowChipActive, pressed && { opacity: 0.78 }]}
+    >
+      <Text style={[styles.reportWindowChipText, active && styles.reportWindowChipTextActive]}>{label}</Text>
+    </Pressable>
+  );
 }
 
 export default function MyActivityScreen({ route }: any) {
@@ -487,14 +508,14 @@ function PerformanceCockpit({
             <Text style={styles.performanceTitle}>Your operating pulse</Text>
           </View>
           <View style={styles.windowChips}>
-            <FilterChip label="7D" active={windowDays === 7} onPress={() => setWindowDays(7)} />
-            <FilterChip label="30D" active={windowDays === 30} onPress={() => setWindowDays(30)} />
+            <ReportWindowChip label="7D" active={windowDays === 7} onPress={() => setWindowDays(7)} />
+            <ReportWindowChip label="30D" active={windowDays === 30} onPress={() => setWindowDays(30)} />
           </View>
         </View>
         <Text style={styles.performanceNumber} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
           {metricDisplay(metric, metricValue)}
         </Text>
-        <Text style={styles.salesSub}>{metric === "sales" ? "Sales value" : metric[0].toUpperCase() + metric.slice(1)} · {period.attendance.present} working days</Text>
+        <Text style={styles.performanceSub}>{metric === "sales" ? "Sales value" : metric[0].toUpperCase() + metric.slice(1)} · {period.attendance.present} working days</Text>
       </View>
 
       <Surface level={1} style={styles.cockpitSurface}>
@@ -602,6 +623,10 @@ const styles = StyleSheet.create({
   targetSource: { fontSize: 11, color: colors.textTertiary, lineHeight: 16 },
   rank: { fontSize: 32, fontWeight: "600", color: colors.ink, letterSpacing: -0.6 },
   windowChips: { flexDirection: "row", gap: spacing.xs },
+  reportWindowChip: { minWidth: 42, height: 34, paddingHorizontal: spacing.sm, borderRadius: radius.pill, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.42)" },
+  reportWindowChipActive: { backgroundColor: colors.onDark, borderColor: colors.onDark },
+  reportWindowChipText: { color: colors.onDark, fontSize: 12, fontWeight: "700" },
+  reportWindowChipTextActive: { color: colors.blueInk },
   conclusion: { fontSize: 13, color: colors.textSecondary, lineHeight: 18, marginBottom: spacing.md },
   visualBars: { gap: spacing.sm },
   barRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
@@ -609,10 +634,11 @@ const styles = StyleSheet.create({
   barTrack: { flex: 1, height: 8, borderRadius: 99, backgroundColor: colors.track, overflow: "hidden" },
   barFill: { height: "100%", borderRadius: 99, backgroundColor: colors.blue },
   barValue: { width: 60, fontSize: 11, color: colors.ink, textAlign: "right" },
-  performanceIntro: { gap: spacing.xs },
-  periodKicker: { fontSize: 11, color: colors.textSecondary, letterSpacing: 1.2, fontWeight: "700" },
-  performanceTitle: { fontSize: 20, fontWeight: "700", color: colors.ink, marginTop: 3 },
-  performanceNumber: { fontSize: 34, lineHeight: 40, fontWeight: "700", color: colors.ink, letterSpacing: -0.8, marginTop: spacing.md, fontVariant: ["tabular-nums"] },
+  performanceIntro: { gap: spacing.xs, marginHorizontal: spacing.xl, padding: spacing.xl, borderRadius: radius.hero, backgroundColor: colors.blue },
+  periodKicker: { fontSize: 10, color: "rgba(255,255,255,0.78)", letterSpacing: 1.2, fontWeight: "800" },
+  performanceTitle: { fontSize: 21, fontWeight: "700", color: colors.onDark, marginTop: 3, letterSpacing: -0.35 },
+  performanceNumber: { fontSize: 34, lineHeight: 40, fontWeight: "700", color: colors.onDark, letterSpacing: -0.8, marginTop: spacing.md, fontVariant: ["tabular-nums"] },
+  performanceSub: { fontSize: 13, color: "rgba(255,255,255,0.82)", marginTop: 4 },
   cockpitSurface: { padding: spacing.lg, gap: spacing.lg },
   metricBand: { flexDirection: "row", alignItems: "stretch" },
   bandCell: { flex: 1, gap: 3 },

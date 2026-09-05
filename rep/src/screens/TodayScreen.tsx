@@ -18,9 +18,10 @@ import {
   AppScreen,
   AttentionRow,
   EmptyState,
+  FieldCompanionHeader,
+  FocusCard,
   MetricStrip,
   OfflineBanner,
-  PersonalGreeting,
   PrimaryButton,
   ProgressRow,
   SecondaryButton,
@@ -37,7 +38,7 @@ import { useRep } from "../context/RepContext";
 import { repApi } from "../api/repClient";
 import { captureForegroundLocation } from "../location/deviceLocation";
 import { trackingBanner } from "../tracking/fieldTracker";
-import { colors, greetingForHour, inr, radius, spacing } from "../theme";
+import { colors, inr, radius, spacing } from "../theme";
 import { SCREEN_CONTENT_BOTTOM_GAP } from "../layout/viewportPolicy";
 import { useLanguage } from "../i18n/LanguageContext";
 
@@ -259,12 +260,10 @@ export default function TodayScreen({ navigation }: any) {
     Linking.openURL(url).catch(() => Linking.openURL(`https://maps.google.com/?q=${latitude},${longitude}`).catch(() => Alert.alert("No maps app", "This phone has no app that can open directions.")));
   };
 
-  const salutation = greetingForHour(new Date().getHours()) === "morning" ? t("today.goodMorning") : greetingForHour(new Date().getHours()) === "afternoon" ? t("today.goodAfternoon") : t("today.goodEvening");
-
   if (loading && !today) {
     return (
       <AppScreen>
-        <PersonalGreeting name={staff?.name ?? ""} salutation={salutation} dateLabel={formatLongDate()} />
+        <FieldCompanionHeader name={staff?.name ?? ""} />
         <View style={styles.pad}>
           <Skeleton height={170} radius={radius.hero} />
           <View style={{ height: spacing.section }} />
@@ -277,7 +276,7 @@ export default function TodayScreen({ navigation }: any) {
   if (!today) {
     return (
       <AppScreen>
-        <PersonalGreeting name={staff?.name ?? ""} salutation={salutation} dateLabel={formatLongDate()} />
+        <FieldCompanionHeader name={staff?.name ?? ""} />
         <EmptyState icon="calendar-blank-outline" title="Your day is not available" body={error ?? "Pull down to try again once you have a connection."} actionLabel={t("common.retry")} onAction={() => void refresh()} />
       </AppScreen>
     );
@@ -305,26 +304,13 @@ export default function TodayScreen({ navigation }: any) {
       : "Target reached"
     : "Target progress";
   const coverage = planned > 0 ? Math.round((safeCount(metrics.customersCovered) / planned) * 100) : null;
-  const statusLabel = dayClosed ? "Day complete" : `${pendingStops} stop${pendingStops === 1 ? "" : "s"} left · ${dayOpen ? "on track" : "ready to start"}`;
 
   return (
     <AppScreen>
-      <PersonalGreeting
+      <FieldCompanionHeader
         name={staff?.name ?? ""}
-        salutation={salutation}
-        statusLabel={statusLabel}
-        dateLabel={formatLongDate()}
-        right={
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Notifications"
-            style={styles.bellButton}
-            onPress={() => Alert.alert("Notifications", today.notifications?.length ? `${today.notifications.length} notification${today.notifications.length === 1 ? "" : "s"} available.` : "You’re all caught up for now.")}
-          >
-            <Ionicons name="notifications-outline" size={23} color={colors.ink} />
-            {(today.notifications?.length ?? 0) > 0 ? <View style={styles.notificationDot} /> : null}
-          </Pressable>
-        }
+        notificationCount={today.notifications?.length ?? 0}
+        onNotifications={() => Alert.alert("Notifications", today.notifications?.length ? `${today.notifications.length} notification${today.notifications.length === 1 ? "" : "s"} available.` : "You’re all caught up for now.")}
       />
 
       <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.blue} />}>
@@ -369,6 +355,25 @@ export default function TodayScreen({ navigation }: any) {
           </Surface>
         )}
 
+        {attentionItems.length > 0 ? (
+          <FocusCard tone="danger" style={styles.attentionFocus}>
+            <View style={styles.attentionFocusHeader}>
+              <View>
+                <Text style={styles.attentionKicker}>NEEDS ATTENTION</Text>
+                <Text style={styles.attentionFocusTitle}>One store needs a decision</Text>
+              </View>
+              <TextButton label="See all" onPress={() => navigation.navigate("Opportunities")} />
+            </View>
+            <AttentionRow
+              tone="danger"
+              icon={attentionItems[0].source === "overdue" ? "wallet-outline" : (OPPORTUNITY_ICONS[attentionItems[0].type ?? ""] ?? "bulb-outline")}
+              title={attentionItems[0].title}
+              subtitle={attentionItems[0].source === "overdue" && attentionItems[0].overdue != null ? `${inr(attentionItems[0].overdue)} overdue` : attentionItems[0].subtitle}
+              onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: attentionItems[0].retailerId })}
+            />
+          </FocusCard>
+        ) : null}
+
         <Surface style={styles.salesSurface}>
           <View style={styles.salesHeading}>
             <View style={{ flex: 1 }}>
@@ -394,19 +399,19 @@ export default function TodayScreen({ navigation }: any) {
           )}
         </Surface>
 
-          <View style={styles.metricStrip}>
+        <View style={styles.metricStrip}>
             <View style={styles.metricCell}><Text style={styles.metricValue}>{safeCount(metrics.visits)}</Text><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.metricLabel}>Visits</Text></View>
             <View style={styles.metricCell}><Text style={styles.metricValue}>{visited}</Text><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.metricLabel}>Done</Text></View>
             <View style={styles.metricCell}><Text style={styles.metricValue}>{coverage == null ? "—" : `${coverage}%`}</Text><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.metricLabel}>Coverage</Text></View>
         </View>
 
         <View>
-          <SectionHeader title="Today’s route" action={route ? <TextButton label="Full plan" onPress={() => navigation.navigate("Route")} /> : undefined} />
+          <SectionHeader title="Next up today" action={route ? <TextButton label={`${pendingStops} stops left`} onPress={() => navigation.navigate("Route")} /> : undefined} />
           {route ? (
             <Surface style={styles.routeSurface}>
               <View style={styles.routeProgressLine}><Text style={styles.caption}>{visited} of {planned} stops complete</Text><Text style={styles.routePct}>{safeCount(route.progress.completionPct)}%</Text></View>
               <ProgressRow pct={safeCount(route.progress.completionPct)} tone="green" />
-              {(route.stops ?? []).slice(0, 4).map((stop: any) => {
+              {(route.stops ?? []).filter((stop: any) => stop.status !== "visited" && stop.status !== "skipped").slice(0, 2).map((stop: any) => {
                 const visitedStop = stop.status === "visited";
                 const skipped = stop.status === "skipped";
                 return (
@@ -417,6 +422,7 @@ export default function TodayScreen({ navigation }: any) {
                   </Pressable>
                 );
               })}
+              <TextButton label="Full plan" onPress={() => navigation.navigate("Route")} />
             </Surface>
           ) : <Text style={styles.caption}>{t("today.noRouteBody")}</Text>}
         </View>
@@ -430,10 +436,6 @@ export default function TodayScreen({ navigation }: any) {
             <ActionTile icon="ellipsis-horizontal" label="More" onPress={() => navigation.navigate("More")} />
           </View>
         </View>
-
-        {attentionItems.length > 0 ? (
-          <View><SectionHeader title="Needs attention" action={<TextButton label="See all" onPress={() => navigation.navigate("Opportunities")} />} /><Surface style={styles.attentionSurface}>{attentionItems.slice(0, 4).map((item) => <AttentionRow key={item.key} tone={item.source === "overdue" || item.type === "COLLECTION_DUE" ? "danger" : "gold"} icon={item.source === "overdue" ? "wallet-outline" : (OPPORTUNITY_ICONS[item.type ?? ""] ?? "bulb-outline")} title={item.title} subtitle={item.source === "overdue" && item.overdue != null ? `${inr(item.overdue)} overdue` : item.subtitle} onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: item.retailerId })} />)}</Surface></View>
-        ) : null}
 
         {remainingTasks.length > 0 ? (
           <View><SectionHeader title="Tasks" action={<Text style={styles.caption}>{remainingTasks.length} remaining</Text>} /><Surface>{(today.tasks ?? []).slice(0, 4).map((task: any) => <TaskRow key={task.id} title={task.title} subtitle={task.retailer?.name} done={task.status === "done"} overdue={task.overdue} onComplete={async () => { try { await repApi.setTaskStatus(task.id, "done"); haptic("success"); await refresh(); } catch { Alert.alert("Could not update the task", "Try again when you have a connection."); } }} />)}</Surface></View>
@@ -472,8 +474,8 @@ const styles = StyleSheet.create({
 
   hero: { backgroundColor: colors.navy, borderRadius: radius.hero, padding: spacing.xl, gap: spacing.sm },
   heroTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  heroBadge: { backgroundColor: colors.surface, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 8, alignSelf: "flex-start" },
-  heroBadgeText: { color: colors.navy, fontSize: 12, fontWeight: "800", letterSpacing: 0.25 },
+  heroBadge: { backgroundColor: "rgba(37,99,235,0.22)", borderWidth: 1, borderColor: "rgba(96,165,250,0.55)", borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 8, alignSelf: "flex-start" },
+  heroBadgeText: { color: "#BFDBFE", fontSize: 12, fontWeight: "800", letterSpacing: 0.25 },
   heroMetaTop: { color: colors.onDarkMuted, fontSize: 11, fontWeight: "700", letterSpacing: 1, textTransform: "uppercase", marginTop: spacing.md },
   heroName: { color: colors.onDark, fontSize: 27, lineHeight: 32, fontWeight: "800", letterSpacing: -0.6, marginTop: 2 },
   heroAddress: { color: colors.onDarkMuted, fontSize: 15, lineHeight: 21 },
@@ -535,6 +537,10 @@ const styles = StyleSheet.create({
   actionIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.blueSoft, alignItems: "center", justifyContent: "center" },
   actionLabel: { color: colors.inkMuted, fontSize: 10.5, fontWeight: "600", textAlign: "center" },
   attentionSurface: { paddingVertical: spacing.xs, paddingHorizontal: spacing.md },
+  attentionFocus: { backgroundColor: "#FFFBEB", borderColor: "#FCD34D", padding: spacing.lg, gap: spacing.sm },
+  attentionFocusHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: spacing.sm },
+  attentionKicker: { color: colors.goldStrong, fontSize: 10, fontWeight: "800", letterSpacing: 1.1 },
+  attentionFocusTitle: { color: colors.ink, fontSize: 14, fontWeight: "700", marginTop: 3 },
   dayCompleteRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   dayCompleteMark: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.greenSoft, alignItems: "center", justifyContent: "center" },
   dayCompleteTitle: { color: colors.ink, fontSize: 15.5, fontWeight: "700" },

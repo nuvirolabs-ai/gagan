@@ -10,6 +10,7 @@ export {
   CustomerRow,
   CustomerRowSkeleton,
   ErrorState,
+  FieldCompanionHeader,
   FilterChip,
   FilterChipRow,
   FocusCard,

@@ -41,6 +41,7 @@ import { trackingBanner } from "../tracking/fieldTracker";
 import { colors, inr, radius, spacing } from "../theme";
 import { SCREEN_CONTENT_BOTTOM_GAP } from "../layout/viewportPolicy";
 import { useLanguage } from "../i18n/LanguageContext";
+import { homeAttendanceAction } from "./attendanceHomeAction";
 
 const OPPORTUNITY_ICONS: Record<string, string> = {
   ORDER_DUE: "time-outline",
@@ -253,6 +254,20 @@ export default function TodayScreen({ navigation }: any) {
     }
   };
 
+  const handleAttendancePress = () => {
+    switch (homeAttendanceAction({ dayOpen, dayClosed })) {
+      case "open_attendance":
+        navigation.navigate("MyDay");
+        return;
+      case "end_day":
+        setEodOpen(true);
+        return;
+      case "start_day":
+        void toggleDay();
+        return;
+    }
+  };
+
   const navigateTo = (stop: any) => {
     const { latitude, longitude, name } = stop.retailer;
     if (latitude == null || longitude == null) return Alert.alert("No saved location", "This store has no saved location yet. Open the store and capture it while you are there.");
@@ -430,7 +445,7 @@ export default function TodayScreen({ navigation }: any) {
         <View>
           <SectionHeader title="Quick actions" />
           <View style={styles.actionSurface}>
-            <ActionTile icon="calendar-outline" label="Attendance" onPress={() => (dayOpen ? setEodOpen(true) : void toggleDay())} />
+            <ActionTile icon="calendar-outline" label="Attendance" onPress={handleAttendancePress} />
             <ActionTile icon="cart-outline" label="Order" onPress={() => nextStop ? navigation.navigate("RepRetailerDetail", { retailerId: nextStop.retailer.id }) : navigation.navigate("Retailers")} />
             <ActionTile icon="cube-outline" label="Sales Kit" onPress={() => navigation.navigate("SalesKit")} />
             <ActionTile icon="ellipsis-horizontal" label="More" onPress={() => navigation.navigate("More")} />

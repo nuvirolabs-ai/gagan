@@ -29,14 +29,12 @@ describe("outbox state machine", () => {
     expect(second).toHaveLength(1);
   });
 
-  it("keeps the queue bounded during a long offline stretch", () => {
-    let items = [] as ReturnType<typeof newItem>[];
-    for (let index = 0; index < MAX_QUEUE + 25; index += 1) {
-      items = enqueue(items, newItem("location_ping", `p-${index}`, {}, index));
-    }
+  it("refuses new work at capacity without discarding any pending work", () => {
+    let items=[] as ReturnType<typeof newItem>[];
+    for(let i=0;i<MAX_QUEUE;i++) items=enqueue(items,newItem("customer_activity",`a-${i}`,{},i));
+    expect(()=>enqueue(items,newItem("customer_activity","extra",{},501))).toThrow("queue is full");
     expect(items).toHaveLength(MAX_QUEUE);
-    // The newest readings survive; the oldest are dropped.
-    expect(items[items.length - 1].id).toBe(`p-${MAX_QUEUE + 24}`);
+    expect(items[0].id).toBe("a-0");
   });
 
   it("retries a failure until it has tried enough times to report it", () => {
@@ -98,7 +96,7 @@ describe("outbox queue", () => {
         .mockResolvedValueOnce({ ok: true }),
       location_ping: vi.fn(),
     };
-    const outbox = createOutbox({ senders, storage: memoryStorage(), now: () => 1 });
+    const outbox = createOutbox({ accountId: "A", isCurrentAccount: () => true, senders, storage: memoryStorage(), now: () => 1 });
 
     await outbox.queueActivity("device-1", { retailerId: "r-1", type: "stock_check" });
     expect(await outbox.summary()).toMatchObject({ pending: 1 });
@@ -113,7 +111,7 @@ describe("outbox queue", () => {
 
   it("sends the client reference with the payload so a replay is idempotent", async () => {
     const senders = { customer_activity: vi.fn().mockResolvedValue({}), location_ping: vi.fn() };
-    const outbox = createOutbox({ senders, storage: memoryStorage(), now: () => 1 });
+    const outbox = createOutbox({ accountId: "A", isCurrentAccount: () => true, senders, storage: memoryStorage(), now: () => 1 });
 
     await outbox.queueActivity("device-abc", { retailerId: "r-1", type: "note" });
     await outbox.flush();
@@ -126,7 +124,7 @@ describe("outbox queue", () => {
   it("sends buffered pings as one batch rather than one request each", async () => {
     const senders = { customer_activity: vi.fn(), location_ping: vi.fn().mockResolvedValue({}) };
     let clock = 0;
-    const outbox = createOutbox({
+    const outbox = createOutbox({ accountId: "A", isCurrentAccount: () => true,
       senders,
       storage: memoryStorage(),
       now: () => (clock += 1),
@@ -149,7 +147,7 @@ describe("outbox queue", () => {
       customer_activity: vi.fn().mockReturnValue(inFlight),
       location_ping: vi.fn(),
     };
-    const outbox = createOutbox({ senders, storage: memoryStorage(), now: () => 1 });
+    const outbox = createOutbox({ accountId: "A", isCurrentAccount: () => true, senders, storage: memoryStorage(), now: () => 1 });
     await outbox.queueActivity("device-1", {});
 
     const both = Promise.all([outbox.flush(), outbox.flush()]);
@@ -160,15 +158,15 @@ describe("outbox queue", () => {
     expect(senders.customer_activity).toHaveBeenCalledTimes(1);
   });
 
-  it("starts clean rather than crashing on a corrupt queue", async () => {
+  it("surfaces corrupt storage without overwriting it", async () => {
     const storage = memoryStorage();
-    await storage.setItem("gagan.rep.outbox.v1", "{not json");
-    const outbox = createOutbox({
+    await storage.setItem("gagan.rep.outbox.v2.A", "{not json");
+    const outbox = createOutbox({ accountId: "A", isCurrentAccount: () => true,
       senders: { customer_activity: vi.fn(), location_ping: vi.fn() },
       storage,
       now: () => 1,
     });
-    expect(await outbox.summary()).toEqual({ pending: 0, failed: 0, synced: 0 });
+    await expect(outbox.summary()).rejects.toThrow("outbox_storage_corrupt");
   });
 
   it("leaves an exhausted write alone on an automatic flush", async () => {
@@ -177,7 +175,7 @@ describe("outbox queue", () => {
       location_ping: vi.fn(),
     };
     const storage = memoryStorage();
-    const outbox = createOutbox({ senders, storage, now: () => 1 });
+    const outbox = createOutbox({ accountId: "A", isCurrentAccount: () => true, senders, storage, now: () => 1 });
     await outbox.queueActivity("device-1", {});
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) await outbox.flush();
     expect(await outbox.summary()).toMatchObject({ pending: 0, failed: 1 });
@@ -193,7 +191,7 @@ describe("outbox queue", () => {
       customer_activity: vi.fn().mockRejectedValue(new Error("Network request failed")),
       location_ping: vi.fn(),
     };
-    const outbox = createOutbox({ senders, storage: memoryStorage(), now: () => 1 });
+    const outbox = createOutbox({ accountId: "A", isCurrentAccount: () => true, senders, storage: memoryStorage(), now: () => 1 });
     await outbox.queueActivity("device-1", {});
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) await outbox.flush();
     expect(await outbox.summary()).toMatchObject({ failed: 1 });
@@ -205,7 +203,7 @@ describe("outbox queue", () => {
 
   it("does nothing when there is nothing waiting", async () => {
     const senders = { customer_activity: vi.fn(), location_ping: vi.fn() };
-    const outbox = createOutbox({ senders, storage: memoryStorage(), now: () => 1 });
+    const outbox = createOutbox({ accountId: "A", isCurrentAccount: () => true, senders, storage: memoryStorage(), now: () => 1 });
     await outbox.flush();
     expect(senders.customer_activity).not.toHaveBeenCalled();
     expect(senders.location_ping).not.toHaveBeenCalled();

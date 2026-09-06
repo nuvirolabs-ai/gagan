@@ -31,9 +31,14 @@ export const MAX_QUEUE = 500;
 
 export function enqueue(items: readonly OutboxItem[], item: OutboxItem): OutboxItem[] {
   // A retried enqueue of the same client reference must not double up.
-  if (items.some((existing) => existing.id === item.id)) return [...items];
-  const next = [...items, item];
-  return next.length > MAX_QUEUE ? next.slice(next.length - MAX_QUEUE) : next;
+  const existing=items.find(row=>row.id===item.id);
+  if(existing) {
+    if(existing.kind!==item.kind || JSON.stringify(existing.payload)!==JSON.stringify(item.payload)) throw new Error("outbox_reference_conflict");
+    return [...items];
+  }
+  const unsent=items.filter(existing=>existing.state!=="SYNCED");
+  if(unsent.length>=MAX_QUEUE) throw new Error("Offline queue is full. Sync pending work before adding more.");
+  return [...items.filter(existing=>existing.state!=="SYNCED" || items.length<MAX_QUEUE), item];
 }
 
 /** Everything still waiting to reach the server, oldest first. */

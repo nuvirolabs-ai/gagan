@@ -3,6 +3,7 @@ import {
   repApi,
   staffSessionStore,
   setRepUnauthorizedHandler,
+  setRepAccount,
 } from "../api/repClient";
 import { CartLine } from "../types";
 import { isAuthenticationFailure } from "../auth/sessionFetch";
@@ -59,6 +60,7 @@ export function RepProvider({ children }: { children: React.ReactNode }) {
     setRepUnauthorizedHandler(() => {
       void staffIdentityCache.clear();
       setRep(null);
+      setRepAccount(null);
       setStaff(null);
       resetSelectionGate();
     });
@@ -74,7 +76,8 @@ export function RepProvider({ children }: { children: React.ReactNode }) {
       }
       try {
         const res = await repApi.me();
-        setStaff(res.staff);
+        setRepAccount(res.staff.id);
+    setStaff(res.staff);
         setRep(res.rep);
         await staffIdentityCache.save({ staff: res.staff, rep: res.rep ?? null });
       } catch (error) {
@@ -85,11 +88,13 @@ export function RepProvider({ children }: { children: React.ReactNode }) {
         if (isAuthenticationFailure(error)) {
           await staffSessionStore.clear();
           await staffIdentityCache.clear();
-          setStaff(null);
+          setRepAccount(null);
+      setStaff(null);
           setRep(null);
         } else {
           const cached = await staffIdentityCache.load();
           if (cached) {
+            setRepAccount(cached.staff.id);
             setStaff(cached.staff);
             setRep(cached.rep);
           }
@@ -109,6 +114,7 @@ export function RepProvider({ children }: { children: React.ReactNode }) {
 
   const acceptSession = async (res: { staff: StaffIdentity; rep: Rep | null }) => {
     setChallengeId(null);
+    setRepAccount(res.staff.id);
     setStaff(res.staff);
     setRep(res.rep);
     await staffIdentityCache.save({ staff: res.staff, rep: res.rep ?? null });
@@ -116,6 +122,7 @@ export function RepProvider({ children }: { children: React.ReactNode }) {
   };
 
   const login = async (phone: string, otp: string) => {
+    setRepAccount(null);
     const verify = async (id: string) => acceptSession(await repApi.verifyOtp(id, phone, otp));
     try {
       const id = challengeId ?? (await requestOtp(phone));
@@ -127,11 +134,13 @@ export function RepProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
+    setRepAccount(null);
     try {
       await repApi.logout();
     } finally {
       await staffIdentityCache.clear();
       setChallengeId(null);
+      setRepAccount(null);
       setStaff(null);
       setRep(null);
       resetSelectionGate();

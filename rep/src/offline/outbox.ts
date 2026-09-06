@@ -1,136 +1,138 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import {
-  enqueue,
-  markFailed,
-  markSynced,
-  markSyncing,
-  newItem,
-  pending,
-  prune,
-  retryFailed,
-  summarise,
-  type OutboxItem,
-  type OutboxKind,
-  type OutboxSummary,
-} from "./outboxDomain";
-
-const STORAGE_KEY = "gagan.rep.outbox.v1";
+import { enqueue, markFailed, markSynced, markSyncing, newItem, pending, prune, retryFailed, summarise, type OutboxItem, type OutboxKind, type OutboxSummary } from "./outboxDomain";
 
 export interface OutboxStorage {
   getItem(key: string): Promise<string | null>;
   setItem(key: string, value: string): Promise<void>;
 }
+export interface OutboxSenders { customer_activity(payload:any):Promise<unknown>; location_ping(payloads:any[]):Promise<unknown>; }
 
-/** How each queued write is actually delivered once the device is back online. */
-export interface OutboxSenders {
-  customer_activity(payload: any): Promise<unknown>;
-  location_ping(payloads: any[]): Promise<unknown>;
+// Shared across instances in this JS runtime, not just across flush calls.
+// Never hold the storage lock over a network request: new work can persist
+// while a sender waits. Each acknowledgement reloads the current queue.
+const locks = new WeakMap<OutboxStorage, Map<string, Promise<unknown>>>();
+const flushes = new WeakMap<OutboxStorage, Map<string, Promise<OutboxSummary>>>();
+function mapFor<T>(map: WeakMap<OutboxStorage, Map<string,T>>, storage: OutboxStorage) {
+  let value=map.get(storage);
+  if (!value) { value=new Map(); map.set(storage,value); }
+  return value;
 }
 
-/**
- * A durable queue for field writes that can safely arrive late. Reads and
- * writes go through AsyncStorage so a queued activity survives the app being
- * killed in a basement with no signal.
- */
 export function createOutbox(options: {
+  accountId: string;
+  isCurrentAccount: () => boolean;
   senders: OutboxSenders;
   storage?: OutboxStorage;
   now?: () => number;
 }) {
-  const storage = options.storage ?? AsyncStorage;
-  const now = options.now ?? Date.now;
-  let flushing: Promise<OutboxSummary> | null = null;
-
+  if (!options.accountId.trim()) throw new Error("outbox_account_required");
+  const storage=options.storage ?? AsyncStorage;
+  const now=options.now ?? Date.now;
+  // The old ownerless v1 key is deliberately retained, never automatically
+  // assigned to whoever signs in next. Recovery requires verified ownership.
+  const key="gagan.rep.outbox.v2."+encodeURIComponent(options.accountId);
+  const assertAccount=() => { if (!options.isCurrentAccount()) throw new Error("outbox_account_changed"); };
+  const serial=<T>(work: () => Promise<T>): Promise<T> => {
+    const map=mapFor(locks,storage);
+    const result=(map.get(key) ?? Promise.resolve()).catch(()=>{}).then(work);
+    map.set(key,result);
+    void result.finally(()=>{ if(map.get(key)===result) map.delete(key); }).catch(()=>{});
+    return result;
+  };
   async function read(): Promise<OutboxItem[]> {
-    try {
-      const raw = await storage.getItem(STORAGE_KEY);
-      if (!raw) return [];
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? (parsed as OutboxItem[]) : [];
-    } catch {
-      // A corrupt queue must not brick the app; start clean instead.
+    const raw=await storage.getItem(key);
+    if(raw===null) {
+      const legacy=await storage.getItem("gagan.rep.outbox.v1");
+      if(legacy!==null) {
+        let rows: any;
+        try { rows=JSON.parse(legacy); } catch { throw new Error("outbox_legacy_storage_needs_owner_recovery"); }
+        if(!Array.isArray(rows) || rows.some((item:any)=>item?.state!=="SYNCED")) {
+          throw new Error("outbox_legacy_storage_needs_owner_recovery");
+        }
+      }
       return [];
     }
+    let parsed: any;
+    try { parsed=JSON.parse(raw); } catch { throw new Error("outbox_storage_corrupt"); }
+    if(parsed?.version!==2 || parsed.accountId!==options.accountId || !Array.isArray(parsed.items)) throw new Error("outbox_storage_corrupt");
+    const ids=new Set<string>();
+    for(const item of parsed.items) {
+      if(!item || typeof item.id!=="string" || !item.id || ids.has(item.id) ||
+        !["customer_activity","location_ping"].includes(item.kind) ||
+        !["LOCAL_PENDING","SYNCING","SYNCED","FAILED"].includes(item.state) ||
+        !Number.isInteger(item.attempts) || item.attempts<0 || !Number.isFinite(item.createdAt) ||
+        !item.payload || typeof item.payload!=="object" || Array.isArray(item.payload) ||
+        !(item.lastError===null || typeof item.lastError==="string")) throw new Error("outbox_storage_corrupt");
+      ids.add(item.id);
+    }
+    return parsed.items;
   }
-
   async function write(items: OutboxItem[]) {
-    await storage.setItem(STORAGE_KEY, JSON.stringify(prune(items)));
+    await storage.setItem(key,JSON.stringify({version:2,accountId:options.accountId,items:prune(items)}));
   }
-
-  async function add(kind: OutboxKind, id: string, payload: Record<string, unknown>) {
-    const items = enqueue(await read(), newItem(kind, id, payload, now()));
-    await write(items);
-    return summarise(items);
+  async function add(kind:OutboxKind,id:string,payload:Record<string,unknown>) {
+    assertAccount();
+    return serial(async()=>{
+      assertAccount();
+      const items=enqueue(await read(),newItem(kind,id,payload,now()));
+      assertAccount();
+      await write(items);
+      return summarise(items);
+    });
   }
-
-  async function flushOnce(includeFailed: boolean): Promise<OutboxSummary> {
-    const items = includeFailed ? retryFailed(await read()) : await read();
-    const waiting = pending(items);
-    if (waiting.length === 0) return summarise(items);
-
-    let next = markSyncing(items, waiting.map((item) => item.id));
-    await write(next);
-
-    const activities = waiting.filter((item) => item.kind === "customer_activity");
-    const pings = waiting.filter((item) => item.kind === "location_ping");
-
-    for (const activity of activities) {
-      try {
-        await options.senders.customer_activity(activity.payload);
-        next = markSynced(next, [activity.id]);
-      } catch (error) {
-        next = markFailed(next, [activity.id], errorText(error));
-      }
-    }
-
-    if (pings.length > 0) {
-      try {
-        // Pings sync as one batch: it is one request per sync window rather
-        // than one per reading, which is what keeps the radio (and battery)
-        // use low.
-        await options.senders.location_ping(pings.map((item) => item.payload));
-        next = markSynced(next, pings.map((item) => item.id));
-      } catch (error) {
-        next = markFailed(next, pings.map((item) => item.id), errorText(error));
-      }
-    }
-
-    await write(next);
-    return summarise(next);
+  async function settle(ids:string[], error?:unknown) {
+    // A response already sent as A may finish after logout. Persist its exact
+    // acknowledgement to A's partition, without exposing it in B's session.
+    await serial(async()=>{
+      const items=await read();
+      await write(error===undefined ? markSynced(items,ids) : markFailed(items,ids,error instanceof Error?error.message:"sync_failed"));
+    });
   }
-
+  async function deliver(items:OutboxItem[],send:()=>Promise<unknown>) {
+    assertAccount();
+    let failure:unknown;
+    try { await send(); } catch(error) { failure=error ?? new Error("sync_failed"); }
+    // Storage failures propagate, never get mislabelled as sender failures or
+    // an empty/successful queue. A restart retries the same stable references.
+    await settle(items.map(i=>i.id),failure);
+  }
+  async function flushOnce(includeFailed:boolean) {
+    assertAccount();
+    const waiting=await serial(async()=>{
+      assertAccount();
+      const items=includeFailed?retryFailed(await read()):await read();
+      const next=pending(items);
+      if(next.length) await write(markSyncing(items,next.map(i=>i.id)));
+      return next;
+    });
+    for(const item of waiting.filter(i=>i.kind==="customer_activity")) await deliver([item],()=>options.senders.customer_activity(item.payload));
+    const pings=waiting.filter(i=>i.kind==="location_ping");
+    if(pings.length) await deliver(pings,()=>options.senders.location_ping(pings.map(i=>i.payload)));
+    assertAccount();
+    return serial(async()=>{ assertAccount(); const items=await read(); assertAccount(); return summarise(items); });
+  }
   return {
-    queueActivity: (clientReference: string, payload: Record<string, unknown>) =>
-      add("customer_activity", clientReference, { ...payload, clientReference }),
-    queuePing: (clientReference: string, payload: Record<string, unknown>) =>
-      add("location_ping", clientReference, { ...payload, clientReference }),
-    async summary() {
-      return summarise(await read());
-    },
-    async items() {
-      return read();
-    },
-    /**
-     * Concurrent callers share one in-flight flush rather than racing.
-     * `includeFailed` is for an explicit "Sync now": it gives writes that ran
-     * out of automatic retries one more chance.
-     */
-    flush(options: { includeFailed?: boolean } = {}): Promise<OutboxSummary> {
-      if (!flushing) {
-        flushing = flushOnce(options.includeFailed ?? false).finally(() => {
-          flushing = null;
-        });
+    accountId:options.accountId,
+    queueActivity:(id:string,payload:Record<string,unknown>)=>add("customer_activity",id,{...payload,clientReference:id}),
+    queuePing:(id:string,payload:Record<string,unknown>)=>add("location_ping",id,{...payload,clientReference:id}),
+    summary:()=>serial(async()=>{ assertAccount(); const items=await read(); assertAccount(); return summarise(items); }),
+    items:()=>serial(async()=>{ assertAccount(); const items=await read(); assertAccount(); return items; }),
+    flush({includeFailed=false}:{includeFailed?:boolean}={}):Promise<OutboxSummary> {
+      try { assertAccount(); } catch(error) { return Promise.reject(error); }
+      const map=mapFor(flushes,storage);
+      let result=map.get(key);
+      if(!result) {
+        result=flushOnce(includeFailed).finally(()=>{map.delete(key);});
+        map.set(key,result);
       }
-      return flushing;
+      return result;
     },
-    async clear() {
-      await storage.setItem(STORAGE_KEY, "[]");
-    },
+    clear:()=>serial(async()=>{
+      assertAccount();
+      const items=await read();
+      if(items.some(i=>i.state!=="SYNCED")) throw new Error("outbox_pending_work_retained");
+      await write([]);
+    }),
   };
 }
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : "sync_failed";
-}
-
-export type Outbox = ReturnType<typeof createOutbox>;
+export type Outbox=ReturnType<typeof createOutbox>;

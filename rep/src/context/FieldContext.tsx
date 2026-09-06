@@ -10,7 +10,7 @@ import React, {
 import { AppState, Platform } from "react-native";
 import * as Location from "expo-location";
 
-import { repApi } from "../api/repClient";
+import { repApi, accountReplayApi } from "../api/repClient";
 import { createOutbox, type Outbox } from "../offline/outbox";
 import type { OutboxSummary } from "../offline/outboxDomain";
 import {
@@ -103,31 +103,43 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
   const refreshGate = useRef(createSingleFlight());
 
   const lastReading = useRef<TrackerReading | null>(null);
-  const queue = useRef<Outbox | null>(null);
-  if (!queue.current) {
-    queue.current = createOutbox({
-      senders: {
-        customer_activity: (payload) => repApi.logActivity(payload),
-        location_ping: (payloads) => repApi.sendPings(payloads),
-      },
+  const queue = useMemo<Outbox | null>(() => {
+    if(!staff?.id) return null;
+    const scoped=accountReplayApi(staff.id);
+    return createOutbox({
+      accountId:staff.id,
+      isCurrentAccount:scoped.isCurrentAccount,
+      senders:{ customer_activity: (payload) => scoped.api.logActivity(payload),
+        location_ping: (payloads) => scoped.api.sendPings(payloads), },
     });
-  }
+  },[staff?.id]);
+  const currentQueue=useRef(queue);
+  currentQueue.current=queue;
 
   const flushOutbox = useCallback<FieldContextValue["flushOutbox"]>(async (options) => {
-    if (!queue.current) return;
+    if(!queue) return;
     try {
-      setOutbox(await queue.current.flush({ includeFailed: options?.retryFailed }));
-    } catch {
-      setOutbox(await queue.current.summary());
+      const summary=await queue.flush({includeFailed:options?.retryFailed});
+      if(currentQueue.current===queue) setOutbox(summary);
+    } catch (failure) {
+      if(currentQueue.current===queue) setError("Pending work could not sync. It remains on this phone; retry when signed in and connected.");
     }
-  }, []);
+  }, [queue]);
+
+  useEffect(()=>{
+    setOutbox(EMPTY_SUMMARY);
+    setToday(null);
+    setError(null);
+    setTracking(null); setCelebrations([]); lastReading.current=null;
+  },[queue]);
 
   const refresh = useCallback(async () => {
-    if (!enabled) return;
+    if (!enabled || !queue) return;
     await refreshGate.current(async () => {
       setLoading(true);
       try {
         const payload = await repApi.today();
+        if(currentQueue.current!==queue) return;
         setToday(payload);
         setTracking(payload.tracking ?? null);
         const earned: any[] = payload.achievements?.new ?? [];
@@ -147,7 +159,7 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       }
     });
-  }, [enabled]);
+  }, [enabled, queue]);
 
   useEffect(() => {
     if (!enabled) {
@@ -189,7 +201,7 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
         const position = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
         });
-        if (cancelled) return;
+        if (cancelled || currentQueue.current!==queue) return;
         const reading: TrackerReading = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
@@ -205,7 +217,7 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
         });
         if (!decision.record) return;
         lastReading.current = reading;
-        await queue.current!.queuePing(clientReference("ping"), {
+        await queue!.queuePing(clientReference("ping"), {
           recordedAt: new Date(reading.recordedAt).toISOString(),
           latitude: reading.latitude,
           longitude: reading.longitude,
@@ -230,7 +242,7 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [enabled, tracking?.tracking, tracking?.pingIntervalSeconds, flushOutbox]);
+  }, [enabled, tracking?.tracking, tracking?.pingIntervalSeconds, flushOutbox, queue]);
 
   const startDay = useCallback(
     async (input: { latitude: number; longitude: number; accuracyMeters: number; managerNote?: string }) => {
@@ -238,7 +250,7 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
       lastReading.current = null;
       await refresh();
     },
-    [refresh]
+    [refresh, queue]
   );
 
   const endDay = useCallback(
@@ -255,6 +267,7 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
 
   const logActivity = useCallback<FieldContextValue["logActivity"]>(
     async (input) => {
+      if(!queue) throw new Error("Sign in before recording activity.");
       const reference = clientReference("activity");
       try {
         await repApi.logActivity({ ...input, clientReference: reference });
@@ -266,11 +279,12 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
           error instanceof TypeError ||
           /network request failed|failed to fetch|load failed/i.test(raw);
         if (!looksOffline) throw error;
-        setOutbox(await queue.current!.queueActivity(reference, input));
+        const summary=await queue.queueActivity(reference, input);
+        if(currentQueue.current===queue) setOutbox(summary);
         return "queued";
       }
     },
-    [refresh]
+    [refresh, queue]
   );
 
   const dismissCelebration = useCallback((id: string) => {

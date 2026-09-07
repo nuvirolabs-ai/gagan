@@ -194,7 +194,7 @@ export class HierarchyService {
       return { changed: false, employee: employee! };
     }
 
-    const [updated] = await this.prisma.$transaction([
+    const writes = [
       this.prisma.staffUser.update({
         where: { id: input.employeeId },
         data: { managerId: input.managerId },
@@ -215,7 +215,12 @@ export class HierarchyService {
           },
         },
       }),
-    ]);
+    ];
+    // Import Center supplies its existing transaction so identity, hierarchy,
+    // row progress and the batch result cannot commit independently.
+    const [updated] = typeof this.prisma.$transaction === "function"
+      ? await this.prisma.$transaction(writes)
+      : await Promise.all(writes);
 
     return { changed: true, employee: updated };
   }

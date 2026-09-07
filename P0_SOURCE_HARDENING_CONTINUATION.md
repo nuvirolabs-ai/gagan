@@ -88,3 +88,16 @@ changes only the dedicated fixture SKU, delivers/invoices, and regenerates SAP
 payload after a further master change. Invoice and payload stay at 3,000. The
 legacy mismatch test verifies the old ledger remains unchanged. This is local
 integration evidence, not a real SAP or employee UI claim.
+# Import Center ownership checkpoint
+
+Two concurrent applies and interruption after row writes were reproduced against
+PostgreSQL before correction. ImportJob row ownership now spans row changes,
+inventory effects, result and completion audit in one transaction. Completed
+replay returns the saved result without executing rows again. A terminated
+transaction leaves its pre-apply state, not unrecorded committed business writes.
+Existing legacy applying/failed records are not blindly reclaimed: their old
+partial effects require explicit inspection. No new queue or claim migration.
+
+Gagan retains valid-row application with savepoints and durable per-row results. Retry skips already-successful rows. A failed manager link records its completed identity step and retries only the link, preserving create-only behavior and preventing duplicate staff. Five database tests cover ownership, interruption, partial-row resume, invalidated source and manager-link resume. Full backend before the fifth targeted case: 836 tests / 122 files pass; the five-case targeted suite, typecheck and build pass. Final fresh-db suite is still required.
+
+These are source/database checkpoints, not hosted or physical acceptance.

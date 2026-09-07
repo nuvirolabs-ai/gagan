@@ -11,6 +11,7 @@ import { ensureKycApprovedForDispatch, KycGateError } from "../../modules/kyc/ky
 
 const router = Router();
 router.use(requireAdmin);
+class OrderTransitionConflict extends Error {}
 
 // Orders move forward only, one step at a time. Anything else is a bad request
 // rather than a silent no-op, so a double-clicked button can't skip a stage.
@@ -81,11 +82,12 @@ async function transition(orderId: string, to: OrderStatus, res: any, actorStaff
   }
 
   const updated = await prisma.$transaction(async (tx) => {
-    const next = await tx.order.update({
-      where: { id: orderId },
+    const claimed = await tx.order.updateMany({
+      where: { id: orderId, status: order.status },
       data: { status: to },
-      include: orderInclude,
     });
+    if(claimed.count!==1) return null;
+    const next=await tx.order.findUniqueOrThrow({where:{id:orderId},include:orderInclude});
     await tx.auditEvent.create({
       data: {
         actorStaffId,
@@ -97,6 +99,7 @@ async function transition(orderId: string, to: OrderStatus, res: any, actorStaff
     });
     return next;
   });
+  if(!updated) return res.status(409).json({error:"order_transition_conflict"});
   res.json({ order: updated });
 }
 
@@ -138,14 +141,19 @@ router.post("/dispatch/:orderId/assign", async (req: AdminRequest, res) => {
       data: { status: "used", usedAt: new Date() },
     });
     if (consumed.count !== 1) return null;
+    const claimed=await tx.order.updateMany({
+      where:{id:order.id,status:order.status},
+      data:{status:"out_for_delivery",expectedDeliveryAt:slot??order.expectedDeliveryAt},
+    });
+    // Throw rather than return: failed state ownership must roll back consumed authorization.
+    if(claimed.count!==1) throw new OrderTransitionConflict("order_transition_conflict");
     await tx.delivery.upsert({
       where: { orderId: order.id },
       update: { routeId: parsed.data.routeId, deliverySlot: slot },
       create: { orderId: order.id, routeId: parsed.data.routeId, deliverySlot: slot },
     });
-    const next = await tx.order.update({
+    const next = await tx.order.findUniqueOrThrow({
       where: { id: order.id },
-      data: { status: "out_for_delivery", expectedDeliveryAt: slot ?? order.expectedDeliveryAt },
       include: orderInclude,
     });
     await tx.auditEvent.create({
@@ -154,11 +162,11 @@ router.post("/dispatch/:orderId/assign", async (req: AdminRequest, res) => {
         action: "dispatch.assigned",
         subjectType: "order",
         subjectId: order.id,
-        metadata: { routeId: parsed.data.routeId, authorizationId: authorization.id },
+        metadata: { from:order.status,to:"out_for_delivery",routeId: parsed.data.routeId, authorizationId: authorization.id },
       },
     });
     return next;
-  });
+  }).catch(error=>{if(error instanceof OrderTransitionConflict) return null;throw error;});
 
   if (!updated) return res.status(409).json({ error: "dispatch_authorization_expired" });
 

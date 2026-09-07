@@ -67,7 +67,7 @@ describe("delivery API cutover", () => {
     mocks.findOrder.mockResolvedValue({ id: "order-confirm", status: "placed" });
     mocks.findAuthorization.mockResolvedValue({ id: "authorization-confirm" });
     mocks.transaction.mockImplementationOnce(async (work) => work({
-      order: { update: vi.fn().mockResolvedValue({ id: "order-confirm", status: "confirmed" }) },
+      order: { updateMany: vi.fn().mockResolvedValue({count:1}),findUniqueOrThrow:vi.fn().mockResolvedValue({id:"order-confirm",status:"confirmed"}) },
       auditEvent: { create: mocks.auditCreate },
     }));
     const app = express();

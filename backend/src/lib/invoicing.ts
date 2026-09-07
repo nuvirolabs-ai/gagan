@@ -20,6 +20,7 @@ type ItemForInvoice = {
   qtyOrdered: number;
   qtyDelivered: number | null;
   weightDelivered: Prisma.Decimal | null;
+  caseWeightKgSnapshot?: Prisma.Decimal | null;
   variant: { unitsPerCase: number; unitWeightKg: Prisma.Decimal };
 };
 
@@ -39,7 +40,11 @@ function round2(n: number): number {
 export function buildInvoice(items: ItemForInvoice[]): InvoiceBreakdown {
   const lines: InvoiceLine[] = items.map((item) => {
     const unitPrice = Number(item.unitPrice);
-    const caseWeightKg = Number(item.variant.unitWeightKg) * item.variant.unitsPerCase;
+    // Legacy null rows retain the explicit pre-snapshot policy until invoicing;
+    // accepted new lines never consult mutable master conversion again.
+    const caseWeightKg = item.caseWeightKgSnapshot != null
+      ? Number(item.caseWeightKgSnapshot)
+      : Number(item.variant.unitWeightKg) * item.variant.unitsPerCase;
     const pricePerKg = caseWeightKg > 0 ? unitPrice / caseWeightKg : 0;
 
     if (item.weightDelivered != null && caseWeightKg > 0) {

@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "../prisma";
 import { getSapConnector, SapSalesOrderPayload, SapInvoicePayload } from "./index";
+import { buildInvoice } from "../invoicing";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -36,9 +37,21 @@ async function invoicePayload(db: Db, ledgerEntryId: string): Promise<SapInvoice
     include: {
       retailer: { select: { sapCustomerId: true } },
       order: { include: { items: { include: { variant: { include: { product: true } } } } } },
+      financialInvoice: { include: { lines: true } },
     },
   });
   if (!entry || !entry.order) return null;
+
+  const savedLines = new Map(entry.financialInvoice?.lines.map(line => [line.orderItemId, line]) ?? []);
+  const calculated = buildInvoice(entry.order.items);
+  if (entry.financialInvoice && entry.order.items.some(item => !savedLines.has(item.id))) {
+    throw new Error("invoice_line_snapshot_incomplete");
+  }
+  // Legacy ledger-only documents have no frozen line totals. Never send a new
+  // interpretation that disagrees with the already-issued financial amount.
+  if (!entry.financialInvoice && calculated.total !== Number(entry.amount)) {
+    throw new Error("legacy_invoice_conversion_review_required");
+  }
 
   return {
     ledgerEntryId: entry.id,
@@ -48,17 +61,13 @@ async function invoicePayload(db: Db, ledgerEntryId: string): Promise<SapInvoice
     invoicedAt: entry.createdAt.toISOString(),
     lines: entry.order.items.map((i) => ({
       sapMaterialId: i.variant.product.sapMaterialId ?? "",
-      billedWeightKg: i.weightDelivered != null ? Number(i.weightDelivered) : null,
-      billedCases: i.qtyDelivered,
-      lineTotal:
-        i.weightDelivered != null
-          ? Math.round(
-              (Number(i.unitPrice) /
-                (Number(i.variant.unitWeightKg) * i.variant.unitsPerCase)) *
-                Number(i.weightDelivered) *
-                100
-            ) / 100
-          : Number(i.unitPrice) * (i.qtyDelivered ?? i.qtyOrdered),
+      billedWeightKg: savedLines.has(i.id)
+        ? (savedLines.get(i.id)!.deliveredWeightKg == null ? null : Number(savedLines.get(i.id)!.deliveredWeightKg))
+        : (i.weightDelivered != null ? Number(i.weightDelivered) : null),
+      billedCases: savedLines.has(i.id) ? savedLines.get(i.id)!.deliveredCases : i.qtyDelivered,
+      lineTotal: savedLines.has(i.id)
+        ? Number(savedLines.get(i.id)!.lineTotal)
+        : calculated.lines.find(line => line.orderItemId === i.id)!.lineTotal,
     })),
   };
 }

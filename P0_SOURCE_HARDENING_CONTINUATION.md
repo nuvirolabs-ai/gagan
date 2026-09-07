@@ -55,7 +55,36 @@ files pass**; typecheck passes. Physical acceptance is not claimed.
 
 ## Remaining gates
 
-Historical conversion snapshots and Import Center ownership
-are not yet complete. Final fresh-database reconstruction, all application
+Import Center ownership is not yet complete. Final fresh-database reconstruction, all application
 regressions, offline replays, local UI/device acceptance and push safety remain
 separate gates. This document is not a completion or deployment approval.
+
+## Historical commercial conversion
+
+Reproduced a 30kg case accepted for 3,000 becoming a 1,500 invoice when the master
+was changed to 60kg before delivery. New accepted OrderItems now freeze only the
+necessary `caseWeightKgSnapshot` (kilograms per priced case). Both mobile origins
+use the same acceptance service. Existing case price and delivered-weight billing
+rules are unchanged; no alternate product master or UOM system was introduced.
+The database prohibits modification/removal of an already-populated snapshot.
+
+Migration `20260907020000_order_case_weight_snapshot` adds one nullable Decimal,
+a positive-value check and an immutability trigger. No row backfill or table data
+rewrite. Existing orders remain explicitly legacy/null; for uninvoiced legacy
+lines, the established current-master conversion remains the compatibility policy,
+not a claim to recover a missing historic agreement. Once an invoice is issued,
+its saved line amounts and delivery quantities are authoritative for SAP retries.
+For older ledger-only documents with no saved invoice lines, a recomputed amount
+that disagrees with the issued ledger amount is held with
+`legacy_invoice_conversion_review_required`, never silently rewritten or sent.
+
+The migration is additive but coordinated app rollout is needed: an old writer
+can still create null legacy rows. Dropping snapshot data would destroy accepted
+conversion evidence and is not a safe rollback strategy. Shared staging data
+preflight and deployment are not performed in this source-only session.
+
+Database regression captures an order through the canonical acceptance service,
+changes only the dedicated fixture SKU, delivers/invoices, and regenerates SAP
+payload after a further master change. Invoice and payload stay at 3,000. The
+legacy mismatch test verifies the old ledger remains unchanged. This is local
+integration evidence, not a real SAP or employee UI claim.

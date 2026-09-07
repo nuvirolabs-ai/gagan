@@ -104,12 +104,13 @@ export function createApp(options: CreateAppOptions = {}) {
   // settles that store's planned route stop, without the location module
   // depending on the field module.
   const locationService = new LocationService(prisma, loadLocationConfig(), {
-    afterCheckIn: (visit) =>
+    afterCheckIn: (visit, tx) =>
       defaultRouteService.linkVisitToPlannedStop({
         visitId: visit.id,
         salespersonId: visit.salespersonId,
         retailerId: visit.retailerId,
-      }),
+        at: visit.checkedInAt,
+      }, tx),
   });
 
   app.use(

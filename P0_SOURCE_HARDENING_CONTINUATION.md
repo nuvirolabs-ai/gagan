@@ -32,9 +32,30 @@ lacked `PII_ENCRYPTION_KEY`. Supported local seed and a generated process-local
 test encryption key resolved these prerequisites without weakening guards.
 No hosted data or production credentials were used.
 
+## Single-open visit and atomic route linkage
+
+Reproduced duplicate same-store visits, parallel different-store visits, orphan
+visits on route-hook failure and duplicate checkout. Staff-row serialization,
+visit-row checkout lock and one shared visit/route transaction close these paths.
+Same-store retries return the same open visit; another store returns 409.
+Route settlement uses pending-state ownership and does not overwrite skipped work.
+Original check-in time is retained for route reconciliation on later retries.
+
+Migration `20260907010000_single_open_visit` adds a partial unique index on
+salesperson for rows with no checkout. The local preflight found zero conflicts;
+SQL explicitly refuses conflicting existing rows. It scans/builds an index and
+can block writes; shared staging still requires read-only preflight and a planned
+migration window. No historical rows are closed, deleted or backfilled. Old
+runtime duplicate starts may receive constraint errors, so coordinated runtime
+rollout is required. Removing the index would remove durability, not restore data.
+
+Five database tests verify same/different-store races, direct-writer constraint,
+route rollback and checkout/new-cycle behavior. Full backend: **830 tests / 120
+files pass**; typecheck passes. Physical acceptance is not claimed.
+
 ## Remaining gates
 
-Visit durability, historical conversion snapshots and Import Center ownership
+Historical conversion snapshots and Import Center ownership
 are not yet complete. Final fresh-database reconstruction, all application
 regressions, offline replays, local UI/device acceptance and push safety remain
 separate gates. This document is not a completion or deployment approval.

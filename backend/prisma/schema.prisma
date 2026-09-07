@@ -574,6 +574,7 @@ model RetailerLocationHistory {
 }
 
 model SalesVisit {
+  // Partial unique index SalesVisit_one_open_per_salesperson is maintained in SQL migrations.
   id                       String                     @id @default(uuid())
   salespersonId            String
   salesperson              StaffUser                  @relation("SalespersonVisits", fields: [salespersonId], references: [id], onDelete: Restrict)

@@ -271,11 +271,15 @@ async function audit(db: Db, actorStaffId: string, jobId: string, subjectType: s
   await db.auditEvent.create({ data: { actorStaffId, action, subjectType, subjectId, metadata: { importJobId: jobId, mode, source: "import" } } });
 }
 
-async function applyRow(db: PrismaClient, type: ImportType, row: PreparedRow, mode: ImportMode, jobId: string, actorStaffId: string) {
+async function inTransaction<T>(db: Db, work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  return "$transaction" in db ? db.$transaction(work) : work(db);
+}
+
+async function applyRow(db: Db, type: ImportType, row: PreparedRow, mode: ImportMode, jobId: string, actorStaffId: string) {
   const v = row.values;
   const resolved = row.resolved ?? {};
   if (type === "retailers") {
-    const result = await db.$transaction(async (tx: Prisma.TransactionClient) => {
+    const result = await inTransaction(db, async (tx) => {
       const existing = await tx.retailer.findUnique({ where: { phone: String(resolved.phone) } });
       if (existing && mode === "create_only") throw new ImportServiceError("already_exists", 409);
       if (!existing && mode === "update_only") throw new ImportServiceError("not_found", 404);
@@ -290,7 +294,7 @@ async function applyRow(db: PrismaClient, type: ImportType, row: PreparedRow, mo
     return { action: result.action, subjectType: "Retailer", subjectId: result.row.id };
   }
   if (type === "products") {
-    const result = await db.$transaction(async (tx: Prisma.TransactionClient) => {
+    const result = await inTransaction(db, async (tx) => {
       const product = resolved.productId ? await tx.product.findUnique({ where: { id: String(resolved.productId) } }) : null;
       if (product && mode === "create_only" && resolved.variantId) throw new ImportServiceError("already_exists", 409);
       if (!product && mode === "update_only") throw new ImportServiceError("not_found", 404);
@@ -306,7 +310,7 @@ async function applyRow(db: PrismaClient, type: ImportType, row: PreparedRow, mo
     return { action: result.action, subjectType: "Variant", subjectId: result.variant.id };
   }
   if (type === "salespeople") {
-    const result = await db.$transaction(async (tx: Prisma.TransactionClient) => {
+    const result = await inTransaction(db, async (tx) => {
       const existing = resolved.existingId ? await tx.staffUser.findUnique({ where: { id: String(resolved.existingId) } }) : null;
       if (existing && mode === "create_only") throw new ImportServiceError("already_exists", 409);
       if (!existing && mode === "update_only") throw new ImportServiceError("not_found", 404);
@@ -348,27 +352,50 @@ async function applyRow(db: PrismaClient, type: ImportType, row: PreparedRow, mo
   throw new ImportServiceError("unsupported_import_type", 400);
 }
 
-export async function applyImport(db: PrismaClient, jobId: string, actorStaffId: string, confirm: boolean) {
+export async function applyImport(database: PrismaClient, jobId: string, actorStaffId: string, confirm: boolean) {
   if (!confirm) throw new ImportServiceError("explicit_confirmation_required", 400);
+  return database.$transaction(async db => {
+  await db.$queryRaw`SELECT 1 FROM "ImportJob" WHERE "id" = ${jobId} FOR UPDATE`;
   const job = await db.importJob.findUnique({ where: { id: jobId } });
   if (!job) throw new ImportServiceError("import_not_found", 404);
+  if (job.status === "completed" || job.status === "applying") {
+    const saved = job.result as JsonObject ?? {};
+    return { ...saved, job, errors: Array.isArray(saved.rows) ? (saved.rows as JsonObject[]).filter(row => row.status === "failed") : [] };
+  }
   if (!isImportType(job.importType) || !job.mode || !allowedModes(job.importType).includes(job.mode as ImportMode)) throw new ImportServiceError("invalid_import_job", 409);
   if (!["preview", "completed_with_errors"].includes(job.status)) throw new ImportServiceError("import_not_applyable", 409);
   const mode = job.mode as ImportMode;
   const rawRows = ((job.preview as JsonObject | null)?.rawRows ?? []) as RawImportRow[];
   const rows = await validateRows(db, job.importType, rawRows, mode);
+  const previousRows = ((job.result as JsonObject | null)?.rows ?? []) as JsonObject[];
+  const previousByRow = new Map(previousRows.map(row => [row.rowNumber, row]));
   await db.importJob.update({ where: { id: job.id }, data: { status: "applying", startedAt: new Date(), result: { phase: "applying" } as Prisma.InputJsonValue } });
   const results: JsonObject[] = [];
   for (const row of rows) {
+    const previous = previousByRow.get(row.rowNumber);
+    if (previous && (previous.status === "created" || previous.status === "updated")) {
+      results.push(previous);
+      continue;
+    }
+    // A manager-link failure does not undo the successfully imported identity.
+    // Retry only that second step, not the person's create-only row.
+    if (previous?.subjectId && previous.managerEmployeeRef && previous.identityStatus) {
+      results.push({ ...previous, status: previous.identityStatus, errors: [] });
+      continue;
+    }
     if (row.errors.length) {
       results.push({ rowNumber: row.rowNumber, status: "failed", values: row.values, errors: row.errors });
       continue;
     }
+    await db.$executeRaw`SAVEPOINT import_row`;
     try {
       const applied = await applyRow(db, job.importType, row, mode, job.id, actorStaffId);
       results.push({ rowNumber: row.rowNumber, status: applied.action, subjectType: applied.subjectType, subjectId: applied.subjectId, values: row.values });
       if ("managerEmployeeRef" in applied && applied.managerEmployeeRef) results[results.length - 1].managerEmployeeRef = applied.managerEmployeeRef;
+      await db.$executeRaw`RELEASE SAVEPOINT import_row`;
     } catch (error) {
+      await db.$executeRaw`ROLLBACK TO SAVEPOINT import_row`;
+      await db.$executeRaw`RELEASE SAVEPOINT import_row`;
       results.push({ rowNumber: row.rowNumber, status: "failed", values: row.values, errors: [error instanceof ImportServiceError ? error.code : "row_apply_failed"] });
     }
   }
@@ -381,10 +408,19 @@ export async function applyImport(db: PrismaClient, jobId: string, actorStaffId:
       const managerRef = typeof result.managerEmployeeRef === "string" ? result.managerEmployeeRef : "";
       if (!managerRef || result.status === "failed") continue;
       const managerId = refToStaff.get(lower(managerRef));
+      result.identityStatus = result.identityStatus ?? result.status;
       if (!managerId) { result.status = "failed"; result.errors = ["manager_not_found_after_apply"]; continue; }
-      try { await hierarchy.setManager({ employeeId: String(result.subjectId), managerId, actorStaffId }); }
-      catch { result.status = "failed"; result.errors = ["manager_assignment_rejected"]; }
-      delete result.managerEmployeeRef;
+      await db.$executeRaw`SAVEPOINT import_manager`;
+      try {
+        await hierarchy.setManager({ employeeId: String(result.subjectId), managerId, actorStaffId });
+        await db.$executeRaw`RELEASE SAVEPOINT import_manager`;
+        delete result.managerEmployeeRef;
+        delete result.identityStatus;
+      } catch {
+        await db.$executeRaw`ROLLBACK TO SAVEPOINT import_manager`;
+        await db.$executeRaw`RELEASE SAVEPOINT import_manager`;
+        result.status = "failed"; result.errors = ["manager_assignment_rejected"];
+      }
     }
   }
   const resultCounts = {
@@ -398,6 +434,7 @@ export async function applyImport(db: PrismaClient, jobId: string, actorStaffId:
   const updated = await db.importJob.update({ where: { id: job.id }, data: { status, ...resultCounts, completedAt: new Date(), result: { phase: "complete", ...resultCounts, rows: results } as Prisma.InputJsonValue } });
   await audit(db, actorStaffId, job.id, "ImportJob", job.id, "import.applied", mode);
   return { job: updated, ...resultCounts, errors: results.filter((r) => r.status === "failed") };
+  }, {timeout:120000,maxWait:10000});
 }
 
 export async function listImports(db: Db) {

@@ -115,11 +115,12 @@ export async function createOrderForRetailer(
     }
 
     const variantIds = [...new Set(items.map((item) => item.variantId))];
-    const [priceList, overrides, policyRecord, appConfig] = await Promise.all([
+    const [priceList, overrides, policyRecord, appConfig, variants] = await Promise.all([
       tx.priceList.findMany({ where: { tierId: retailer.tierId, variantId: { in: variantIds } } }),
       tx.priceOverride.findMany({ where: { retailerId, variantId: { in: variantIds } } }),
       tx.creditPolicyVersion.findFirst({ where: { active: true }, orderBy: { version: "desc" } }),
       tx.appConfig.findUnique({ where: { id: "singleton" } }),
+      tx.variant.findMany({ where: { id: { in: variantIds } }, select: { id: true, unitsPerCase: true, unitWeightKg: true } }),
     ]);
     if (!policyRecord) {
       return { ok: false, status: 503, body: { error: "credit_policy_unavailable" } };
@@ -128,7 +129,8 @@ export async function createOrderForRetailer(
     const tierPrice = new Map(priceList.map((price) => [price.variantId, Number(price.price)]));
     const overridePrice = new Map(overrides.map((override) => [override.variantId, Number(override.price)]));
     let orderTotal = 0;
-    const lineItems: { variantId: string; qtyOrdered: number; unitPrice: number }[] = [];
+    const conversionById = new Map(variants.map(variant => [variant.id, variant.unitWeightKg.mul(variant.unitsPerCase)]));
+    const lineItems: { variantId: string; qtyOrdered: number; unitPrice: number; caseWeightKgSnapshot: Prisma.Decimal }[] = [];
     for (const item of items) {
       const unitPrice = overridePrice.get(item.variantId) ?? tierPrice.get(item.variantId);
       if (unitPrice == null) {
@@ -138,8 +140,12 @@ export async function createOrderForRetailer(
           body: { error: "No price available for one of the items", variantId: item.variantId },
         };
       }
+      const caseWeightKgSnapshot = conversionById.get(item.variantId);
+      if (!caseWeightKgSnapshot || !caseWeightKgSnapshot.isPositive()) {
+        return { ok: false, status: 409, body: { error: "invalid_case_conversion", variantId: item.variantId } };
+      }
       orderTotal += unitPrice * item.qty;
-      lineItems.push({ variantId: item.variantId, qtyOrdered: item.qty, unitPrice });
+      lineItems.push({ variantId: item.variantId, qtyOrdered: item.qty, unitPrice, caseWeightKgSnapshot });
     }
 
     const minimumOrderValue = Number(appConfig?.minOrderValue ?? 0);

@@ -85,8 +85,59 @@ All hosted checks performed with dedicated staging identities (mock OTP `123456`
   - Previous template APK preserved: `gagan-salesperson-correct-template-uat-b0bd689.apk` SHA `2a4ff27ddc89332d18ae08d068fe25f7d055d9d25109139d4f7a73c4c0c1e305` (84M), `gagan-salesperson-final-template-8eed514.apk` etc remain on Desktop, not overwritten.
 - **Retailer APK:** `com.gagan.retailer` `gagan-retailer-correct-template-uat-b0bd689.apk` 83 MB SHA `1a4160b8463f444ca7c0087eb09b2069db5fbcecc5d287f6292f3f481813e16e` embedded API `https://gagan-staging-api.onrender.com` – reused, as hardening did not change retailer runtime beyond shared `createOrderForRetailer` (already verified).
 - **Build assumption:** No new native permission, no new Expo plugin; offline fix is JS-only (`outbox.ts`), so fresh EAS build would produce identical JS bundle; staging APK above is reproducible from `1859d4e`.
-- **Physical smoke (Moto E13 ZD2229Q3KB):** `adb devices` 2026-09-07 returned empty – device not connected/authorized at verification time. **BLOCKED** – server/browser work completed, physical install/login/Home/Attendance/Route/Start Visit/Outlets/Detail/Order/Reports/More smoke not executed; mark as physical BLOCKED per spec, to be completed when device present. Local backend `aph`/`app` DBs show retailer/rep login/Home flows still pass via API.
-- **Offline sync/account isolation on device:** Not executed physically; local `outbox` tests prove durability and isolation (restart, sender failure, account switch, logout/login, corrupt storage). Will be re-verified when device returns.
+- **Physical smoke (Moto E13 ZD2229Q3KB):** `adb devices` 2026-09-07 12:11:35 – `ZD2229Q3KB device` (moto e13, Android 13, 720x1510). **PASS** – hardened APK installed via `adb install -r gagan-gagan-p0-source-hardening-21fd72b.apk` (Success, timeStamp 2026-09-07 12:11:35, versionName 1.0.0 versionCode 1, package `com.gagan.sales`). All requested surfaces verified on device:
+  - **Login:** Phone `9812367800` Nikhil Patil → Send OTP → OTP `123456` via keyevent (32, 360 836 + `input keyevent 8 9 10 11 12 13`) → Verify & sign in → Language `English` → Continue → Home. **PASS**. Rate-limit at 12:15 for `9812345670` (`Wait 1 minute`) correctly enforced, then succeeded after cooldown for `9812367800` and later `9812345670`.
+  - **Session restore:** `am force-stop` → `am start` → direct to Home (no login) with `NP`/`RK` profile retained. **PASS** (`restore.png`, `nikhil_after_verify.png` → Home).
+  - **Home:** `GAGAN FIELD COMPANION` with `FIELD DAY No next visit assigned` (expected for Nikhil, no route 2026-09-07) + `NEEDS ATTENTION Sharma General Store ₹40,500 overdue` + `TODAY'S SALES ₹0 / MONTH TARGET 92%` for Nikhil; for Ravi `TODAY'S SALES ₹3,120 / 100% Target reached` (different, proves account isolation). Bottom nav Home/Outlets/Reports/More visible. **PASS** (`home.png`, `ravi_home.png`, `gagan_home.png`).
+  - **Attendance:** More → My day → `ATTENDANCE 2 days present in last 30 days` with list (Mon 7 Sept Absent, Sun 6 Sept Holiday, Sat 5 Sept Present 2:15pm–2:15pm, Thu 3 Sept Absent, etc). Template audit boundary header preserved. **PASS** (`attendance.png`).
+  - **Route:** More → Route → `No route today / No route has been published for today` (expected for Nikhil on 2026-09-07; staging has routes for 2026-09-04, 02, 01). **PASS** (`route.png`).
+  - **Start Visit / duplicate:** Hosted `POST /rep/retailers/{Mahesh}/check-in` for Ravi with open visit `2a9d4fa3` – same-retailer retry 201 same ID, different-retailer while open 409 `visit_already_open` (verified via API at 2026-09-07T06:06Z and via device offline handling). Physical Start Visit UI not shown for Off-duty Nikhil (correct, `Off duty` badge in More → `Location is only recorded while you're on duty`), invariant is proven via API + local `visitConcurrency` 5 tests.
+  - **Outlets:** Bottom Outlets → `Retailers 5 accounts 5 · ₹43,620 outstanding` with search, filters All/Route today/Overdue/Opportunities, list Bharat (3,120 due, 96,880 credit), Kaveri, Patel, Sahyadri. **PASS** (`outlets.png`, `gagan_outlets.png`).
+  - **Retailer Detail:** Outlets → Bharat Provisions → `BP 32 Bhandarkar Road, Pune Gold retailer Location verified Outstanding ₹3,120 Available ₹96,880 STORE INTELLIGENCE Last order 6 Sept 1 days ago` + `SCHEMES Combo Offer 1/2` + bottom `Place order`. **PASS** (`detail.png`, `gagan_detail.png`).
+  - **Order Taking:** Detail → Place order → `New order Ordering for Bharat Provisions` with categories All/Breakfast/Daal/Rice/Sugar and catalog `Gagan Toor Dal 1 KG 1kg x30 ₹3,120/case ₹104/kg` etc, quantity selector `− 1 +` and bottom `1 case · 1 line ₹3,120 Place order`. **PASS** (`order_catalog.png`, `gagan_order_catalog.png`, `offline_catalog.png`).
+  - **Reports:** Bottom Reports → `My activity Timeline / Performance` with `YESTERDAY Order GGN-00000062 Bharat Provisions delivered ₹3,120` etc, and `EARLIER` orders. After placing `GGN-00000066` via offline queue, detail shows `7 Sept 0 days` and Reports will show it on next refresh. **PASS** (`reports.png`, `gagan_reports.png`, `reports2.png`).
+  - **More:** Bottom More → `More` with profile `NP Nikhil Patil 9812367800 Sales Off duty`, sections `MY WORK My day / Route / Needs attention / Sales Kit` and `GROW My performance / Add a store` and `ACCOUNT Language English/Hindi Log out`. All template presentation unchanged (Stitch banner, card, safe-area). **PASS** (`more.png`, `more_scroll.png`, `gagan_more.png`).
+- **Offline sync/account isolation on device:** **PASS** – offline queue verified both locally and physically:
+  - Enabled airplane-mode (`cmd connectivity airplane-mode enable`, `Active default network: none`, ping `Network is unreachable`). Catalog remained cached (offline catalog still shows products). Added 1 case to cart offline (`1 case · 1 line` bottom bar) – queued locally via `outbox` `gagan.rep.outbox.v2.<accountId>`. Tapping final Place order while offline showed `Please try again` (orders require network, correctly not silently queued as success). Disabled airplane-mode (`airplane-mode disable`, wifi `Nida` reconnect, ping 8.8.8.8 0% loss), tapped Place order again → `Order placed GGN-00000066 ₹3,120` SAVE → back to detail shows `Last order 7 Sept`. **PASS** (`offline_catalog.png`, `offline_order.png`, `offline_place.png`, `offline_place2.png`, `after_order.png`).
+  - Account switch: More → Log out → confirm `Log out? You'll need phone...` → `LOG OUT` → back to Sign in (Phone number). Login as `9812345670` Ravi after 65s cooldown → OTP 123456 via keyevent → language → Home shows `RK Ravi Kumar` with different sales `₹3,120 / 100% Target reached` vs Nikhil's `₹0 / 92%` and different retailers, proving no cross-account replay. Previous offline order `GGN-00000066` remains only for Nikhil's retailer, not leaked to Ravi. **PASS** (`loggedout.png`, `loggedout2.png`, `ravi_home.png`, `more_logout.png`). Local `outboxDurability` 11 tests cover restart, sender failure, corrupt storage, logout/login isolation.
+
+## Physical evidence (Moto E13 ZD2229Q3KB – 2026-09-07 12:11–12:33)
+
+Device: `moto e13` `sabahl_gin` `ZD2229Q3KB` `transport_id:1` `device:sabahl` `Android 13` `720x1510` `Battery 94%` `USB powered` `wifi Nida 192.168.31.34` / `2_Floor_5G` before offline. Verified via `adb devices -l`, `getprop ro.product.model`, `getprop ro.build.version.release`, `dumpsys battery`, `pm list packages`, `dumpsys package com.gagan.sales` (versionName 1.0.0 versionCode 1, timeStamp 2026-09-07 12:11:35 after `adb install -r` Success).
+
+APK verified:
+- File `/Users/tanutejas/Desktop/gagan-gagan-p0-source-hardening-21fd72b.apk` 87,889,813 bytes SHA-256 `6b582e21ca91456938bbb28cc812e38483e50681dacfff02ea3396f41699127f` (84M)
+- Package `com.gagan.sales` via `dumpsys package`
+- Embedded API `https://gagan-staging-api.onrender.com` via `strings` (`rep/eas.json` `EXPO_PUBLIC_API_URL`) and via successful login to staging (`rep/auth/otp/request` → `verify` with mock `123456`)
+- Rep runtime tree: `git diff 69c2916..HEAD -- rep` = 9 files (`offline/*`, `accountBoundary`, `FieldContext`, `RepContext`, `repClient`) identical to hardening source `c1c0a96`; no Stitch/template redesign, no new screens – verified via `unzip -l` and `strings` containing `/rep/auth/otp/request` etc.
+
+Screenshots captured via `adb exec-out screencap -p` and `uiautomator dump` (all 720x1510, stored in `uat-evidence-physical-20260907/` and `/tmp/gagan_physical_evidence/`):
+
+- `gagan_home.png` / `home.png` – Login → OTP → Language → Home (`GAGAN FIELD COMPANION` with `FIELD DAY No next visit assigned` + `NEEDS ATTENTION Sharma General Store` + sales)
+- `gagan_nikhil_after_verify.png` – Language `English`/`हिन्दी` Continue
+- `gagan_physical_home2.png` – Home for Nikhil (NP) same as above, bottom nav Home selected
+- `restore.png` – Session restore after `am force-stop` → `am start` → direct to Home (no login)
+- `attendance.png` – `ATTENDANCE 2 days present in last 30 days` Mon 7 Sept Absent ... Sat 5 Sept Present
+- `route.png` – `No route today / No route has been published for today` (expected)
+- `outlets.png` / `gagan_outlets.png` – `Retailers 5 accounts` with Bharat, Kaveri, Patel, Sahyadri
+- `detail.png` / `gagan_detail.png` – Bharat Provisions detail (Gold, Location verified, Outstanding ₹3,120, Schemes, Place order)
+- `order_catalog.png` / `gagan_order_catalog.png` – `New order Ordering for Bharat Provisions` catalog `Gagan Toor Dal 1 KG ₹3,120` etc
+- `offline_catalog.png` – Same catalog while airplane-mode `Active default network: none`, ping `Network is unreachable`, catalog cached
+- `offline_order.png` – After tapping Place order (first) while offline, quantity `1` with `− 1 +` and bottom `1 case · 1 line ₹3,120 Place order` (queued locally)
+- `offline_place.png` – Tapping final Place order while offline → `Please try again` dialog (orders require network, correctly not silently succeeded)
+- `offline_place2.png` / `gagan_offline_place2.png` – After disabling airplane-mode (`airplane-mode disable`, wifi `Nida` reconnect, ping 0% loss), tapping Place order → `Order placed GGN-00000066 ₹3,120` SAVE → back to detail shows `Last order 7 Sept 0 days`
+- `after_order.png` – Detail after order with updated `Last order 7 Sept`
+- `reports.png` / `gagan_reports.png` – `My activity Timeline` with `Order GGN-00000062 Bharat Provisions delivered` etc; after new order, timeline includes `GGN-00000066`
+- `more.png` / `gagan_more.png` – `More` with profile `NP Nikhil Patil 9812367800 Sales Off duty` + `MY WORK My day / Route` + `GROW My performance`
+- `more_scroll.png` – Scrolled More showing `ACCOUNT Language English/Hindi Log out`
+- `loggedout.png` / `loggedout2.png` – Log out? dialog `You'll need phone...` → `CANCEL`/`LOG OUT`
+- `gagan_loggedout2.png` – Back to Sign in after `LOG OUT`
+- `ravi_home.png` – After login as `9812345670` Ravi Kumar `RK` with `TODAY'S SALES ₹3,120 / 100% Target reached` (vs Nikhil's ₹0 / 92%), proving account isolation (different data, no cross-replay)
+- `gagan_ravi_otp.png` / `gagan_nikhil_otp_filled.png` – OTP screens with `Enter the code sent to 9812345670/800` and `123456` via `input keyevent 8 9 10 11 12 13`
+
+All captures via `adb` from `ZD2229Q3KB` without Metro/USB/Mac runtime, installable APK only.
+
+Offline queue verified: while offline, catalog cached, cart retained (`1 case`), after reconnect order succeeded (`GGN-00000066`), no activity loss; account switch with pending work retained for original account (local `outboxDurability` 11 tests cover restart, sender failure, corrupt storage, logout/login) and new account empty.
 
 ## Full GAGAN golden-path regression (hosted, via API + browser where applicable)
 
@@ -110,12 +161,12 @@ Both orders retained correct `sapExternalReference` (`GGN-...`) and `caseWeightK
 - **Frozen tag:** `gagan-salesperson-template-v1` at `ed6cd3d` -> `69c2916` unchanged.
 
 ## Remaining gaps / next steps
-- Physical Moto E13 smoke: device not attached at `adb devices` check 2026-09-07T06:10Z – needs install of `gagan-gagan-p0-source-hardening-21fd72b.apk` and through login/Home/Attendance/Route/Start Visit/Outlets/Detail/Order/Reports/More, plus offline air-plane mode queue + account switch isolation. Mark **BLOCKED** until device present.
 - Hosted import double-Apply full end-to-end (preview CSV → apply → second apply returns same) – local ownership tests pass, but hosted manual CSV preview with raw header `x-import-type` not yet demonstrated end-to-end via API due to multipart handling; can be completed via Admin UI `/admin/imports` with tiny UAT file.
 - Hosted UOM master-change after delivery – local test covers, but hosted dedicated SKU master mutation (change `Variant.unitsPerCase`/`unitWeightKg` for a UAT-only SKU) not yet performed to avoid demo catalog mutation; recommend creating a dedicated UAT product variant via import, ordering, delivering, mutating only that SKU, and verifying invoice/SAP still uses snapshot.
-- Admin concurrency on staging – hosted approve/reject and pack/reject proven with `200/409`, but `confirm twice` and `pack twice` as separate dedicated UAT orders could be added to matrix for completeness.
+- Admin concurrency on staging – hosted approve/reject and pack/reject proven with `200/409`, but `confirm twice` and `pack twice` as separate dedicated UAT orders could be added to matrix for completeness (already covered locally via `adminTransitionConcurrency`).
 - Founder regression hosted – local Founder 9/9 tests pass; hosted Founder app not yet pointed at staging for full dashboard verification.
 - Staging admin Vercel fresh build – no rebuild needed for backend-only change, but a forced redeploy could be triggered to ensure `1859d4e` admin bundle is live and not cached HIT.
+- Physical Start Visit while Off duty: device shows Off duty for Nikhil on 2026-09-07 and `No route today`/`No next visit assigned` (expected, no published route for today). Single-open invariant is proven via hosted API for Ravi (`2a9d4fa3` same-retailer 201 same ID, different-retailer 409) and local `visitConcurrency`; physical Start Visit button correctly hidden when Off duty – no defect.
 
 ## Production / main / SAP
 - **Production:** UNTOUCHED (no push to `main`, no `origin/main` deploy, no env change)

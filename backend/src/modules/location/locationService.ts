@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import {
   classifyVisitDistance,
@@ -45,7 +45,7 @@ export interface CaptureLocationInput extends CoordinateInput {
  */
 export interface LocationServiceHooks {
   /** Called once a visit row exists, before the response is sent. */
-  afterCheckIn?(visit: { id: string; retailerId: string; salespersonId: string }): Promise<unknown>;
+  afterCheckIn?(visit: { id: string; retailerId: string; salespersonId: string; checkedInAt: Date }, tx: Prisma.TransactionClient): Promise<unknown>;
 }
 
 export class LocationService {
@@ -296,7 +296,15 @@ export class LocationService {
       : lowAccuracy
         ? "LOW_GPS_ACCURACY"
         : classifyVisitDistance(distance!, this.config);
-    const visit = await this.prisma.salesVisit.create({
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await tx.$queryRaw`SELECT 1 FROM "StaffUser" WHERE "id" = ${input.salespersonId} FOR UPDATE`;
+    const existing = await tx.salesVisit.findFirst({ where: { salespersonId: input.salespersonId, checkedOutAt: null } });
+    if (existing) {
+      if (existing.retailerId !== input.retailerId) throw new LocationServiceError("visit_already_open", 409);
+      if (!existing.routeStopId) await this.hooks.afterCheckIn?.(existing, tx);
+      return tx.salesVisit.findUniqueOrThrow({ where: { id: existing.id } });
+    }
+    const visit = await tx.salesVisit.create({
       data: {
         retailerId: input.retailerId,
         salespersonId: input.salespersonId,
@@ -318,11 +326,13 @@ export class LocationService {
       id: visit.id,
       retailerId: input.retailerId,
       salespersonId: input.salespersonId,
-    });
+      checkedInAt: visit.checkedInAt,
+    }, tx);
     // Re-read only when a hook actually changed the row, so the caller sees the
     // route stop the visit was attached to.
     if (!linked) return visit;
-    return (await this.prisma.salesVisit.findUnique({ where: { id: visit.id } })) ?? visit;
+    return (await tx.salesVisit.findUnique({ where: { id: visit.id } })) ?? visit;
+    });
   }
 
   async checkOut(
@@ -335,7 +345,10 @@ export class LocationService {
     } & CoordinateInput
   ) {
     validateCoordinateInput(input);
-    const visit = await this.prisma.salesVisit.findUnique({ where: { id: input.visitId } });
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await tx.$queryRaw`SELECT 1 FROM "StaffUser" WHERE "id" = ${input.salespersonId} FOR UPDATE`;
+    await tx.$queryRaw`SELECT 1 FROM "SalesVisit" WHERE "id" = ${input.visitId} FOR UPDATE`;
+    const visit = await tx.salesVisit.findUnique({ where: { id: input.visitId } });
     if (!visit || visit.salespersonId !== input.salespersonId) {
       throw new LocationServiceError("visit_not_found", 404);
     }
@@ -347,7 +360,7 @@ export class LocationService {
             { latitude: Number(visit.storeLatitudeSnapshot), longitude: Number(visit.storeLongitudeSnapshot) },
             input
           );
-    return this.prisma.salesVisit.update({
+    return tx.salesVisit.update({
       where: { id: input.visitId },
       data: {
         checkedOutLatitude: input.latitude,
@@ -361,6 +374,7 @@ export class LocationService {
         ...(input.notes !== undefined ? { notes: input.notes.trim() || null } : {}),
         ...(input.followUpAt !== undefined ? { followUpAt: input.followUpAt } : {}),
       },
+    });
     });
   }
 

@@ -8,11 +8,11 @@ function fakePrisma() {
     update: vi.fn(),
   };
   const history = { create: vi.fn() };
-  const visits = { create: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() };
+  const visits = { create: vi.fn(), findFirst: vi.fn().mockResolvedValue(null), findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() };
   const retailer = { findUnique: vi.fn() };
   const staffUser = { findUnique: vi.fn() };
   const auditEvent = { create: vi.fn() };
-  const tx = { retailerLocation: location, retailerLocationHistory: history, salesVisit: visits, retailer, staffUser, auditEvent };
+  const tx = { $queryRaw: vi.fn(), retailerLocation: location, retailerLocationHistory: history, salesVisit: visits, retailer, staffUser, auditEvent };
   return {
     retailerLocation: location,
     retailerLocationHistory: history,

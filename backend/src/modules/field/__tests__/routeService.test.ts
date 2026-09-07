@@ -144,6 +144,8 @@ describe("running a route", () => {
 
   it("settles the planned stop when the salesperson checks in there", async () => {
     const prisma = fakePrisma();
+    prisma.salesVisit.findUnique.mockResolvedValue({id:"visit-1",salespersonId:"staff-1",retailerId:"retailer-1",routeStopId:null});
+    prisma.routePlanStop.updateMany.mockResolvedValue({count:1});
     prisma.routePlanStop.findFirst.mockResolvedValue({
       id: "stop-1",
       purpose: "collection",
@@ -159,8 +161,8 @@ describe("running a route", () => {
     });
 
     expect(stop).toMatchObject({ id: "stop-1" });
-    expect(prisma.routePlanStop.update).toHaveBeenCalledWith({
-      where: { id: "stop-1" },
+    expect(prisma.routePlanStop.updateMany).toHaveBeenCalledWith({
+      where: { id: "stop-1", status: "pending" },
       data: { status: "visited", visitedAt: at },
     });
     // The visit inherits why the stop was planned, so an unplanned check-in and
@@ -173,6 +175,7 @@ describe("running a route", () => {
 
   it("leaves an unplanned visit alone", async () => {
     const prisma = fakePrisma();
+    prisma.salesVisit.findUnique.mockResolvedValue({id:"visit-1",salespersonId:"staff-1",retailerId:"retailer-9",routeStopId:null});
     prisma.routePlanStop.findFirst.mockResolvedValue(null);
 
     const stop = await new RouteService(prisma).linkVisitToPlannedStop({

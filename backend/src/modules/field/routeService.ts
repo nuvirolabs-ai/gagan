@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../../lib/prisma";
 import { FieldServiceError } from "./attendanceService";
 import { isWithinScope, nextStop, routeProgress, startOfDay } from "./fieldDomain";
@@ -157,9 +157,15 @@ export class RouteService {
     salespersonId: string;
     retailerId: string;
     at?: Date;
-  }) {
+  }, transaction?: Prisma.TransactionClient) {
     const at = input.at ?? new Date();
-    const stop = await this.prisma.routePlanStop.findFirst({
+    const link = async (tx: Prisma.TransactionClient) => {
+    const visit = await tx.salesVisit.findUnique({ where: { id: input.visitId } });
+    if (!visit || visit.salespersonId !== input.salespersonId || visit.retailerId !== input.retailerId) {
+      throw new FieldServiceError("visit_not_found", 404);
+    }
+    if (visit.routeStopId) return null;
+    const stop = await tx.routePlanStop.findFirst({
       where: {
         retailerId: input.retailerId,
         status: "pending",
@@ -172,17 +178,18 @@ export class RouteService {
       orderBy: { sequence: "asc" },
     });
     if (!stop) return null;
-    await this.prisma.$transaction(async (tx: Db) => {
-      await tx.routePlanStop.update({
-        where: { id: stop.id },
+      const claimed = await tx.routePlanStop.updateMany({
+        where: { id: stop.id, status: "pending" },
         data: { status: "visited", visitedAt: at },
       });
+      if (claimed.count !== 1) return null;
       await tx.salesVisit.update({
         where: { id: input.visitId },
         data: { routeStopId: stop.id, purpose: stop.purpose },
       });
-    });
     return stop;
+    };
+    return transaction ? link(transaction) : this.prisma.$transaction(link);
   }
 
   /* ------------------------------ management ------------------------------ */

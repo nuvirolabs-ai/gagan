@@ -2,42 +2,18 @@ import { describe, expect, it } from "vitest";
 import { visibleAttentionItems } from "../attentionFeed";
 
 describe("visibleAttentionItems", () => {
-  it("keeps one overdue row when the same store also has COLLECTION_DUE", () => {
+  it("explains and de-duplicates overdue, opportunity and follow-up work", () => {
     const items = visibleAttentionItems({
-      overdueRetailers: [{ id: "mahesh", name: "Mahesh Store", overdue: 40500 }],
+      overdueRetailers: [{ id: "r1", name: "Sharma Store", overdue: 18400 }],
       opportunityActions: [
-        {
-          type: "COLLECTION_DUE",
-          retailerId: "mahesh",
-          headline: "Mahesh Store",
-          why: "₹40,500 overdue",
-        },
+        { type: "COLLECTION_DUE", retailerId: "r1", headline: "Collect from Sharma Store" },
+        { type: "ORDER_DUE", retailerId: "r2", headline: "Order due at Kaveri Mart", why: "Usual cycle is today" },
       ],
+      followUps: [{ id: "a1", retailer: { id: "r3", name: "Patel Mart" }, notes: "Follow up on price list" }],
     });
 
-    expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({
-      retailerId: "mahesh",
-      source: "overdue",
-      title: "Mahesh Store",
-      overdue: 40500,
-    });
-  });
-
-  it("still shows a different opportunity for the same store", () => {
-    const items = visibleAttentionItems({
-      overdueRetailers: [{ id: "mahesh", name: "Mahesh Store", overdue: 40500 }],
-      opportunityActions: [
-        {
-          type: "VISIT_OVERDUE",
-          retailerId: "mahesh",
-          headline: "Visit Mahesh Store",
-          why: "No visit this week",
-        },
-      ],
-    });
-
-    expect(items.map((item) => item.source)).toEqual(["overdue", "opportunity"]);
-    expect(items[1].type).toBe("VISIT_OVERDUE");
+    expect(items.map((item) => item.retailerId)).toEqual(["r1", "r2", "r3"]);
+    expect(items[0].source).toBe("overdue");
+    expect(items[2]).toMatchObject({ source: "follow_up", subtitle: "Follow up on price list" });
   });
 });

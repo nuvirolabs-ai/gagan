@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -8,7 +8,9 @@ import {
   Text,
   TextInput,
   View,
+  Pressable,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 
 import {
@@ -22,6 +24,8 @@ import {
   Tag,
   inputStyle,
 } from "../components/ui";
+import DatePickerModal from "../components/DatePickerModal";
+import { formatIsoDay, isoDay as isoDayValue, monthGrid, monthStart, parseIsoDay, shiftMonth } from "../components/dateHelpers";
 import { repApi } from "../api/repClient";
 import { colors, spacing } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -48,15 +52,20 @@ const LEAVE_STATUS_TONE: Record<string, "green" | "gold" | "danger" | "neutral">
   cancelled: "neutral",
 };
 
+const LEAVE_STATUS_LABEL: Record<string, string> = {
+  approved: "Approved",
+  pending: "Pending",
+  rejected: "Rejected",
+  cancelled: "Withdrawn",
+};
+
 function isoDay(value: Date) {
-  return value.toISOString().slice(0, 10);
+  return isoDayValue(value);
 }
 
 /** Accepts YYYY-MM-DD only; anything else is rejected before it is sent. */
 function parseDay(value: string): Date | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  const parsed = new Date(`${value}T00:00:00.000Z`);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  return parseIsoDay(value);
 }
 
 export default function MyDayScreen() {
@@ -69,17 +78,21 @@ export default function MyDayScreen() {
   const [saving, setSaving] = useState(false);
   const [fromDate, setFromDate] = useState(isoDay(new Date()));
   const [toDate, setToDate] = useState(isoDay(new Date()));
+  const [month, setMonth] = useState(() => monthStart(new Date()));
+  const [datePicker, setDatePicker] = useState<"from" | "to" | null>(null);
   const [leaveType, setLeaveType] = useState("casual");
   const [reason, setReason] = useState("");
 
   const load = useCallback(async () => {
+    const monthFrom = isoDayValue(month);
+    const monthTo = isoDayValue(new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + 1, 0)));
     const [attendance, requests] = await Promise.all([
-      repApi.attendance().catch(() => ({ days: [] })),
+      repApi.attendance(monthFrom, monthTo).catch(() => ({ days: [] })),
       repApi.leaveRequests().catch(() => ({ requests: [] })),
     ]);
     setDays([...attendance.days].reverse());
     setLeave(requests.requests);
-  }, []);
+  }, [month]);
 
   useFocusEffect(
     useCallback(() => {
@@ -125,12 +138,17 @@ export default function MyDayScreen() {
   };
 
   const cancel = async (id: string) => {
-    try {
-      await repApi.cancelLeave(id);
-      await load();
-    } catch {
-      Alert.alert("Could not cancel", "Only a request that is still pending can be cancelled.");
-    }
+    Alert.alert("Withdraw this leave request?", "Your manager will no longer see it as pending.", [
+      { text: "Keep request", style: "cancel" },
+      { text: "Withdraw", style: "destructive", onPress: async () => {
+        try {
+          await repApi.cancelLeave(id);
+          await load();
+        } catch {
+          Alert.alert("Could not withdraw", "Only a request that is still pending can be withdrawn.");
+        }
+      } },
+    ]);
   };
 
   if (loading) {
@@ -142,11 +160,16 @@ export default function MyDayScreen() {
   }
 
   const worked = days.filter((day) => day.mark === "present").length;
+  const cells = useMemo(() => monthGrid(month), [month]);
+  const leaveForDay = (date: string) =>
+    leave.find((request) => request.fromDate?.slice(0, 10) <= date && request.toDate?.slice(0, 10) >= date);
+  const attendanceForDay = (date: string) => days.find((day) => day.date === date);
 
   return (
     <View style={styles.screen}>
       <ScrollView
         contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -159,6 +182,45 @@ export default function MyDayScreen() {
           />
         }
       >
+        <Card>
+          <SectionTitle
+            title="Attendance calendar"
+            action={
+              <View style={styles.monthActions}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Previous month" onPress={() => setMonth((current) => shiftMonth(current, -1))} hitSlop={8}>
+                  <Ionicons name="chevron-back" size={18} color={colors.inkMuted} />
+                </Pressable>
+                <Text style={styles.monthLabel}>{month.toLocaleDateString("en-IN", { month: "short", year: "numeric", timeZone: "UTC" })}</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel="Next month" onPress={() => setMonth((current) => shiftMonth(current, 1))} hitSlop={8}>
+                  <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
+                </Pressable>
+              </View>
+            }
+          />
+          <View style={styles.weekRow}>{["S", "M", "T", "W", "T", "F", "S"].map((day, index) => <Text key={`${day}-${index}`} style={styles.weekday}>{day}</Text>)}</View>
+          <View style={styles.calendarGrid}>
+            {cells.map((date, index) => {
+              const attendance = date ? attendanceForDay(date) : undefined;
+              const request = date ? leaveForDay(date) : undefined;
+              const marked = attendance?.mark === "present";
+              const leaveMarked = request?.status === "approved" || request?.status === "pending";
+              return date ? (
+                <Pressable key={date} accessibilityRole="button" accessibilityLabel={formatIsoDay(date, { weekday: "long", day: "numeric", month: "long" })} onPress={() => setFromDate(date)} style={styles.calendarDay}>
+                  <View style={[styles.dayDot, marked && styles.presentDot, leaveMarked && styles.leaveDot, request?.status === "rejected" && styles.rejectedDot]}>
+                    <Text style={[styles.dayNumber, (marked || leaveMarked) && styles.dayNumberMarked]}>{Number(date.slice(-2))}</Text>
+                  </View>
+                </Pressable>
+              ) : <View key={`empty-${index}`} style={styles.calendarDay} />;
+            })}
+          </View>
+          <View style={styles.legend}>
+            <Text style={styles.legendText}>● Present</Text>
+            <Text style={styles.legendText}>● Leave</Text>
+            <Text style={styles.legendText}>○ Absent / not marked</Text>
+          </View>
+          <Text style={styles.muted}>{worked} day{worked === 1 ? "" : "s"} present in this month. Tap a date to use it as the leave start date.</Text>
+        </Card>
+
         <Card>
           <SectionTitle title={t("myday.attendance")} />
           <Text style={styles.muted}>
@@ -230,7 +292,7 @@ export default function MyDayScreen() {
                 }`}
                 right={
                   <Tag
-                    label={request.status}
+                    label={LEAVE_STATUS_LABEL[request.status] ?? request.status}
                     tone={LEAVE_STATUS_TONE[request.status] ?? "neutral"}
                   />
                 }
@@ -241,24 +303,10 @@ export default function MyDayScreen() {
           {composing ? (
             <View style={{ gap: spacing.md, marginTop: spacing.md }}>
               <Field label={t("myday.leaveFrom")} hint="YYYY-MM-DD">
-                <TextInput
-                  value={fromDate}
-                  onChangeText={setFromDate}
-                  placeholder="2026-03-10"
-                  placeholderTextColor={colors.inkFaint}
-                  style={inputStyle}
-                  autoCapitalize="none"
-                />
+                <Pressable style={styles.dateInput} onPress={() => setDatePicker("from")}><Text style={styles.dateInputText}>{formatIsoDay(fromDate, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</Text><Ionicons name="calendar-outline" size={18} color={colors.primary} /></Pressable>
               </Field>
               <Field label={t("myday.leaveTo")} hint="YYYY-MM-DD">
-                <TextInput
-                  value={toDate}
-                  onChangeText={setToDate}
-                  placeholder="2026-03-11"
-                  placeholderTextColor={colors.inkFaint}
-                  style={inputStyle}
-                  autoCapitalize="none"
-                />
+                <Pressable style={styles.dateInput} onPress={() => setDatePicker("to")}><Text style={styles.dateInputText}>{formatIsoDay(toDate, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</Text><Ionicons name="calendar-outline" size={18} color={colors.primary} /></Pressable>
               </Field>
               <Field label={t("myday.leave")}>
                 <OptionGrid options={LEAVE_TYPES} value={leaveType} onChange={setLeaveType} />
@@ -295,6 +343,13 @@ export default function MyDayScreen() {
           )}
         </Card>
       </ScrollView>
+      <DatePickerModal
+        visible={datePicker !== null}
+        value={datePicker === "to" ? toDate : fromDate}
+        title={datePicker === "to" ? "Leave ends" : "Leave starts"}
+        onChange={(value) => datePicker === "to" ? setToDate(value) : setFromDate(value)}
+        onClose={() => setDatePicker(null)}
+      />
     </View>
   );
 }
@@ -305,4 +360,20 @@ const styles = StyleSheet.create({
   content: { padding: spacing.xl, gap: spacing.section, paddingBottom: spacing.xxl },
   muted: { fontSize: 12.5, color: colors.inkMuted, lineHeight: 18 },
   actions: { flexDirection: "row", gap: spacing.sm },
+  monthActions: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  monthLabel: { color: colors.ink, fontSize: 12, fontWeight: "700" },
+  weekRow: { flexDirection: "row", marginBottom: spacing.xs },
+  weekday: { flex: 1, textAlign: "center", color: colors.inkFaint, fontSize: 10, fontWeight: "700" },
+  calendarGrid: { flexDirection: "row", flexWrap: "wrap", rowGap: spacing.xs },
+  calendarDay: { width: "14.2857%", height: 36, alignItems: "center", justifyContent: "center" },
+  dayDot: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 15 },
+  presentDot: { backgroundColor: colors.greenSoft },
+  leaveDot: { backgroundColor: colors.goldSoft },
+  rejectedDot: { borderWidth: 1, borderColor: colors.danger },
+  dayNumber: { color: colors.ink, fontSize: 12, fontWeight: "600" },
+  dayNumberMarked: { color: colors.ink },
+  legend: { flexDirection: "row", gap: spacing.md, marginTop: spacing.sm, flexWrap: "wrap" },
+  legendText: { color: colors.inkMuted, fontSize: 10.5 },
+  dateInput: { minHeight: 48, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceAlt, paddingHorizontal: spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  dateInputText: { color: colors.ink, fontSize: 14, fontWeight: "600" },
 });

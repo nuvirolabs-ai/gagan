@@ -30,6 +30,8 @@ import CustomerMapScreen from "./src/screens/CustomerMapScreen";
 import MyActivityScreen from "./src/screens/MyActivityScreen";
 import ExpensesScreen from "./src/screens/ExpensesScreen";
 import IssuesScreen from "./src/screens/IssuesScreen";
+import IssueDetailScreen from "./src/screens/IssueDetailScreen";
+import OrderDetailScreen from "./src/screens/OrderDetailScreen";
 import OpportunitiesScreen from "./src/screens/OpportunitiesScreen";
 import AddRetailerScreen from "./src/screens/AddRetailerScreen";
 import { staffCapabilities } from "./src/auth/staffCapabilities";
@@ -174,6 +176,13 @@ function RootNavigator() {
               />
             </>
           )}
+          {(capabilities.canOrderForRetailers || capabilities.canRunFieldDay) && (
+            <Stack.Screen
+              name="OrderDetail"
+              component={OrderDetailScreen}
+              options={{ title: "Order detail", headerBackTitle: t("common.back") }}
+            />
+          )}
           {capabilities.canRunFieldDay && (
             <>
               <Stack.Screen
@@ -224,6 +233,13 @@ function RootNavigator() {
               name="Issues"
               component={IssuesScreen}
               options={{ title: t("issues.title"), headerBackTitle: t("tabs.more") }}
+            />
+          )}
+          {capabilities.canRaiseIssues && (
+            <Stack.Screen
+              name="IssueDetail"
+              component={IssueDetailScreen}
+              options={{ title: "Issue detail", headerBackTitle: t("issues.title") }}
             />
           )}
           {(capabilities.canCollect || capabilities.canOrderForRetailers) && (

@@ -117,6 +117,7 @@ export default function AddRetailerScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [withdrawing, setWithdrawing] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<FieldKey, string>>>({});
   const [location, setLocation] = useState<{ latitude: number; longitude: number; accuracyMeters: number } | null>(null);
@@ -306,12 +307,29 @@ export default function AddRetailerScreen() {
   };
 
   const withdraw = async (id: string) => {
-    try {
-      await repApi.withdrawRetailerProposal(id);
-      await load();
-    } catch {
-      Alert.alert("Could not withdraw", "Only a request still waiting can be withdrawn.");
-    }
+    Alert.alert(
+      "Withdraw this request?",
+      "The store will no longer be in your manager review queue. You can submit a new request later if needed.",
+      [
+        { text: "Keep request", style: "cancel" },
+        {
+          text: "Withdraw",
+          style: "destructive",
+          onPress: async () => {
+            setWithdrawing(id);
+            try {
+              await repApi.withdrawRetailerProposal(id);
+              await load();
+              Alert.alert("Request withdrawn", "The store proposal is no longer awaiting review.");
+            } catch {
+              Alert.alert("Could not withdraw", "Only a request still waiting can be withdrawn.");
+            } finally {
+              setWithdrawing(null);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const input = (key: keyof Draft, placeholder: string, options?: { keyboardType?: any; multiline?: boolean }) => (
@@ -430,7 +448,7 @@ export default function AddRetailerScreen() {
         {error ? <View style={styles.errorBanner}><Ionicons name="alert-circle-outline" size={18} color={colors.danger} /><Text style={styles.errorBannerText}>{error}</Text></View> : null}
         <View style={styles.formSurface}><Text style={styles.formHeading}>{STEPS[step]}</Text><Text style={styles.formProgress}>Step {step + 1} of {STEPS.length}</Text>{stepContent}</View>
         <View style={styles.navigation}>{step > 0 ? <Pressable accessibilityRole="button" onPress={() => { setError(""); setStep((current) => current - 1); }} style={styles.backButton}><Text style={styles.backText}>Back</Text></Pressable> : <View />}{step < STEPS.length - 1 ? <Pressable accessibilityRole="button" onPress={() => { const issue = validateStep(step); if (issue) setError(issue); else { setError(""); setStep((current) => current + 1); } }} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}><Text style={styles.primaryText}>Continue</Text><Ionicons name="arrow-forward" size={18} color={colors.onDark} /></Pressable> : <Pressable accessibilityRole="button" disabled={saving} onPress={() => void submit()} style={({ pressed }) => [styles.primaryButton, saving && styles.disabled, pressed && styles.pressed]}><Text style={styles.primaryText}>{saving ? "Sending…" : "Send for review"}</Text><Ionicons name="paper-plane-outline" size={18} color={colors.onDark} /></Pressable>}</View>
-        <View style={styles.requests}><Text style={styles.sectionTitle}>My requests</Text>{proposals.length === 0 ? <Text style={styles.fieldHint}>Submitted stores and their review status will appear here.</Text> : proposals.map((proposal) => <View key={proposal.id} style={styles.requestRow}><View style={styles.requestIcon}><Ionicons name="storefront-outline" size={18} color={colors.primary} /></View><View style={styles.requestMain}><Text style={styles.requestName}>{proposal.businessName}</Text><Text style={styles.fieldHint} numberOfLines={1}>{proposal.deliveryCity ?? proposal.shopAddress}</Text></View><View style={[styles.status, STATUS_TONE[proposal.status] ?? STATUS_TONE.pending]}><Text style={[styles.statusText, { color: (STATUS_TONE[proposal.status] ?? STATUS_TONE.pending).color }]}>{proposal.status}</Text></View>{proposal.status === "pending" ? <Pressable onPress={() => void withdraw(proposal.id)}><Text style={styles.remove}>Withdraw</Text></Pressable> : null}</View>)}</View>
+        <View style={styles.requests}><Text style={styles.sectionTitle}>My requests</Text>{proposals.length === 0 ? <Text style={styles.fieldHint}>Submitted stores and their review status will appear here.</Text> : proposals.map((proposal) => <View key={proposal.id} style={styles.requestRow}><View style={styles.requestIcon}><Ionicons name="storefront-outline" size={18} color={colors.primary} /></View><View style={styles.requestMain}><Text style={styles.requestName}>{proposal.businessName}</Text><Text style={styles.fieldHint} numberOfLines={1}>{proposal.deliveryCity ?? proposal.shopAddress}</Text></View><View style={[styles.status, STATUS_TONE[proposal.status] ?? STATUS_TONE.pending]}><Text style={[styles.statusText, { color: (STATUS_TONE[proposal.status] ?? STATUS_TONE.pending).color }]}>{proposal.status}</Text></View>{proposal.status === "pending" ? <Pressable disabled={withdrawing === proposal.id} onPress={() => void withdraw(proposal.id)}><Text style={[styles.remove, withdrawing === proposal.id && { opacity: 0.45 }]}>{withdrawing === proposal.id ? "Withdrawing…" : "Withdraw"}</Text></Pressable> : null}</View>)}</View>
       </ScrollView>
     </KeyboardAvoidingView>
   );

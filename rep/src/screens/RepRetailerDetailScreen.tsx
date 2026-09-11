@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Alert,
   Linking,
+  Pressable,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
@@ -354,11 +355,13 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
             <PrimaryButton label={t("customer.takeOrder")} icon="cart-outline" disabled={blocked} onPress={startOrder} />
             <View style={styles.actions}>
               <View style={{ flex: 1 }}>
-                <SecondaryButton
-                  label={t("customer.collect")}
-                  icon="wallet-outline"
-                  onPress={() => navigation.navigate("Collections", { retailerId: retailer.id })}
-                />
+                {capabilities.canCollect && (Number(credit.outstanding) > 0 || Number(credit.overdue) > 0) ? (
+                  <SecondaryButton
+                    label={t("customer.collect")}
+                    icon="wallet-outline"
+                    onPress={() => navigation.navigate("Collections", { retailerId: retailer.id })}
+                  />
+                ) : <View />}
               </View>
               <View style={{ flex: 1 }}>
                 <SecondaryButton label={t("visit.finish")} icon="exit-outline" onPress={() => openVisit(activeVisit)} />
@@ -435,16 +438,16 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
             {activities.length === 0 ? (
               <Text style={styles.muted}>{t("customer.noActivity")}</Text>
             ) : (
-              activities.slice(0, 8).map((activity: any, index: number, list: any[]) => (
-                <TimelineEvent
-                  key={activity.id}
+              activities.slice(0, 8).map((activity: any, index: number, list: any[]) => {
+                const event = <TimelineEvent
                   icon="clipboard-outline"
                   title={ACTIVITY_LABELS[activity.type] ?? activity.type}
-                  context={[activity.salesperson?.name, activity.notes].filter(Boolean).join(" · ")}
+                  context={[activity.salesperson?.name, activity.notes, activity.followUpAt ? `Follow-up ${new Date(activity.followUpAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}` : null].filter(Boolean).join(" · ")}
                   time={new Date(activity.occurredAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
                   last={index === list.length - 1}
-                />
-              ))
+                />;
+                return activity.orderId ? <Pressable key={activity.id} accessibilityRole="button" onPress={() => navigation.navigate("OrderDetail", { orderId: activity.orderId })}>{event}</Pressable> : <View key={activity.id}>{event}</View>;
+              })
             )}
             {!visiting && !composing ? (
               <TextButton label={t("customer.logActivity")} onPress={() => setComposing(true)} />
@@ -493,7 +496,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
             <Text style={styles.muted}>{t("retailer.noOrders")}</Text>
           ) : (
             recentOrders.map((o: any, index: number) => (
-              <View key={o.id} style={styles.line}>
+              <Pressable key={o.id} style={({ pressed }) => [styles.line, pressed && { opacity: 0.72 }]} onPress={() => navigation.navigate("OrderDetail", { orderId: o.id })} accessibilityRole="button" accessibilityLabel={`Open ${formatOrderRef(o)}`}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.lineTitle}>
                     {formatOrderRef(o)}
@@ -508,7 +511,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
                   <Text style={styles.lineValue}>{inr(Number(o.orderTotal))}</Text>
                   <StatusPill status={o.status} />
                 </View>
-              </View>
+              </Pressable>
             ))
           )}
         </View>

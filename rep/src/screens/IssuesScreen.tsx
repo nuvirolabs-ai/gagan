@@ -17,6 +17,7 @@ import {
   ListRow,
   OptionGrid,
   PrimaryButton,
+  SearchBar,
   SecondaryButton,
   SectionTitle,
   Tag,
@@ -56,7 +57,7 @@ const STATUS_TONE: Record<string, "green" | "gold" | "danger" | "neutral"> = {
  * `complaint_raised` activity on the customer's timeline, so the store's
  * history stays complete without a second entry from the salesperson.
  */
-export default function IssuesScreen({ route }: any) {
+export default function IssuesScreen({ route, navigation }: any) {
   const presetRetailer = route?.params?.retailerId as string | undefined;
   const presetRetailerName = route?.params?.retailerName as string | undefined;
   const { t } = useLanguage();
@@ -70,6 +71,8 @@ export default function IssuesScreen({ route }: any) {
   const [type, setType] = useState<string | null>(null);
   const [priority, setPriority] = useState("normal");
   const [description, setDescription] = useState("");
+  const [query, setQuery] = useState("");
+  const [retailerQuery, setRetailerQuery] = useState("");
 
   const load = useCallback(async () => {
     const [issueList, retailerList] = await Promise.all([
@@ -113,6 +116,14 @@ export default function IssuesScreen({ route }: any) {
     }
   };
 
+  const visibleIssues = issues.filter((issue) => {
+    const haystack = [issue.retailer?.name, issue.retailer?.shopAddress, issue.type, issue.description, issue.status]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(query.trim().toLowerCase());
+  });
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -125,6 +136,7 @@ export default function IssuesScreen({ route }: any) {
     <View style={styles.screen}>
       <ScrollView
         contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -145,8 +157,9 @@ export default function IssuesScreen({ route }: any) {
                 <Text style={styles.muted}>For {presetRetailerName ?? "this customer"}</Text>
               ) : (
                 <Field label="Customer">
+                  <SearchBar value={retailerQuery} onChange={setRetailerQuery} placeholder="Search retailer, phone or area" />
                   <OptionGrid
-                    options={retailers.map((retailer: any) => ({
+                    options={retailers.filter((retailer: any) => [retailer.name, retailer.phone, retailer.shopAddress].filter(Boolean).join(" ").toLowerCase().includes(retailerQuery.trim().toLowerCase())).map((retailer: any) => ({
                       value: retailer.id,
                       label: retailer.name,
                     }))}
@@ -195,10 +208,11 @@ export default function IssuesScreen({ route }: any) {
 
         <Card>
           <SectionTitle title={t("issues.title")} />
-          {issues.length === 0 ? (
+          {issues.length > 0 ? <SearchBar value={query} onChange={setQuery} placeholder="Search issues or retailers" /> : null}
+          {visibleIssues.length === 0 ? (
             <Text style={styles.muted}>{t("issues.none")}</Text>
           ) : (
-            issues.map((issue, index) => (
+            visibleIssues.map((issue, index) => (
               <ListRow
                 key={issue.id}
                 first={index === 0}
@@ -219,6 +233,7 @@ export default function IssuesScreen({ route }: any) {
                     tone={STATUS_TONE[issue.status] ?? "neutral"}
                   />
                 }
+                onPress={() => navigation.navigate("IssueDetail", { issueId: issue.id })}
               />
             ))
           )}

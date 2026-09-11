@@ -41,6 +41,18 @@ const OUTCOMES = [
   { value: "other", label: "Other" },
 ];
 
+const NO_ORDER_REASONS = [
+  { value: "not_interested", label: "Not interested" },
+  { value: "price_issue", label: "Price issue" },
+  { value: "already_has_stock", label: "Already has stock" },
+  { value: "outstanding_payment_issue", label: "Outstanding / payment issue" },
+  { value: "owner_unavailable", label: "Owner unavailable" },
+  { value: "shop_closed", label: "Shop closed" },
+  { value: "product_unavailable", label: "Required product unavailable" },
+  { value: "follow_up_required", label: "Follow-up required" },
+  { value: "other", label: "Other" },
+];
+
 const VERIFICATION_COPY: Record<string, { tone: "active" | "idle" | "attention"; text: string }> = {
   VERIFIED: { tone: "active", text: "You're at the registered store." },
   NEEDS_REVIEW: { tone: "attention", text: "You're a little away from the store. This visit will be marked Needs review." },
@@ -62,6 +74,7 @@ export default function VisitScreen({ route, navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [composing, setComposing] = useState(false);
   const [outcome, setOutcome] = useState<string | null>(null);
+  const [noOrderReason, setNoOrderReason] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -87,6 +100,12 @@ export default function VisitScreen({ route, navigation }: any) {
     if (!outcome) {
       return Alert.alert("Pick an outcome", "Record how this visit ended before you check out.");
     }
+    if (outcome === "no_order" && !noOrderReason) {
+      return Alert.alert("Choose a no-order reason", "This helps your manager understand what blocked the sale.");
+    }
+    if (outcome === "no_order" && noOrderReason === "other" && notes.trim().length < 3) {
+      return Alert.alert("Add a note", "Describe the reason when you choose Other.");
+    }
     const reading = await captureForegroundLocation();
     if (reading.kind !== "captured") {
       return Alert.alert(
@@ -102,6 +121,7 @@ export default function VisitScreen({ route, navigation }: any) {
         ...reading,
         outcome,
         notes: notes.trim() || undefined,
+        noOrderReason: outcome === "no_order" ? noOrderReason ?? undefined : undefined,
       });
       haptic("success");
       Alert.alert("Checked out", "This visit is closed and recorded against the customer.");
@@ -133,7 +153,7 @@ export default function VisitScreen({ route, navigation }: any) {
 
   return (
     <AppScreen>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <FocusCard>
           <Text style={styles.title} numberOfLines={2}>
             {retailerName}
@@ -200,7 +220,19 @@ export default function VisitScreen({ route, navigation }: any) {
         {!closed ? (
           <Surface>
             <SectionTitle title={t("visit.outcome")} />
-            <OptionGrid options={OUTCOMES} value={outcome} onChange={setOutcome} />
+            <OptionGrid
+              options={OUTCOMES}
+              value={outcome}
+              onChange={(next) => {
+                setOutcome(next);
+                if (next !== "no_order") setNoOrderReason(null);
+              }}
+            />
+            {outcome === "no_order" ? (
+              <Field label="Why was there no order?">
+                <OptionGrid options={NO_ORDER_REASONS} value={noOrderReason} onChange={setNoOrderReason} />
+              </Field>
+            ) : null}
             <Field label={t("visit.notes")} hint={t("common.optional")}>
               <TextInput
                 value={notes}

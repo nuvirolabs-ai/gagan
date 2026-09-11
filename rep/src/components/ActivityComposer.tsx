@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { Alert, Text, TextInput, View, StyleSheet } from "react-native";
 
 import { Field, OptionGrid, PrimaryButton, SecondaryButton, inputStyle } from "./ui";
+import DatePickerModal from "./DatePickerModal";
+import { addDays, formatIsoDay, isoDay } from "./dateHelpers";
 import { useField } from "../context/FieldContext";
 import { colors, spacing } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -31,6 +33,14 @@ export const ACTIVITY_LABELS: Record<string, string> = Object.fromEntries(
   ACTIVITY_TYPES.map((type) => [type.value, type.label])
 );
 
+const FOLLOW_UP_OPTIONS = [
+  { value: "tomorrow", label: "Tomorrow" },
+  { value: "2_days", label: "In 2 days" },
+  { value: "3_days", label: "In 3 days" },
+  { value: "7_days", label: "In 7 days" },
+  { value: "custom", label: "Choose date" },
+];
+
 /**
  * Logs one structured activity against a customer, optionally inside a visit.
  * Works offline: an activity that cannot be sent is queued on the phone and the
@@ -51,15 +61,17 @@ export default function ActivityComposer({
   const { t } = useLanguage();
   const [type, setType] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
-  const [followUp, setFollowUp] = useState(false);
+  const [followUpMode, setFollowUpMode] = useState<string | null>(null);
+  const [followUpDate, setFollowUpDate] = useState(() => addDays(isoDay(new Date()), 2));
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const submit = async () => {
     if (!type) return Alert.alert("Pick what happened", "Choose an activity type to log.");
     setSaving(true);
     try {
-      const followUpAt = followUp
-        ? new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString()
+      const followUpAt = followUpMode
+        ? new Date(`${followUpDate}T09:00:00.000Z`).toISOString()
         : undefined;
       const result = await logActivity({
         retailerId,
@@ -70,7 +82,8 @@ export default function ActivityComposer({
       });
       setType(null);
       setNotes("");
-      setFollowUp(false);
+      setFollowUpMode(null);
+      setFollowUpDate(addDays(isoDay(new Date()), 2));
       onLogged?.();
       Alert.alert(
         t("activity.logged"),
@@ -98,11 +111,20 @@ export default function ActivityComposer({
           multiline
         />
       </Field>
-      <SecondaryButton
-        label={followUp ? "Follow-up in 2 days ✓" : "Add a follow-up in 2 days"}
-        icon="time-outline"
-        onPress={() => setFollowUp((current) => !current)}
-      />
+      <Field label="Follow-up date" hint={followUpMode ? `Scheduled for ${formatIsoDay(followUpDate, { weekday: "short", day: "numeric", month: "short" })}` : "Optional — keep a clear next step"}>
+        <OptionGrid
+          options={FOLLOW_UP_OPTIONS}
+          value={followUpMode}
+          onChange={(value) => {
+            setFollowUpMode(value);
+            if (value === "tomorrow") setFollowUpDate(addDays(isoDay(new Date()), 1));
+            if (value === "2_days") setFollowUpDate(addDays(isoDay(new Date()), 2));
+            if (value === "3_days") setFollowUpDate(addDays(isoDay(new Date()), 3));
+            if (value === "7_days") setFollowUpDate(addDays(isoDay(new Date()), 7));
+            if (value === "custom") setDatePickerOpen(true);
+          }}
+        />
+      </Field>
       <View style={styles.actions}>
         {onCancel ? (
           <View style={{ flex: 1 }}>
@@ -120,6 +142,13 @@ export default function ActivityComposer({
       <Text style={styles.hint}>
         Activities are saved to this customer's history and to your own activity timeline.
       </Text>
+      <DatePickerModal
+        visible={datePickerOpen}
+        value={followUpDate}
+        title="Follow-up date"
+        onChange={setFollowUpDate}
+        onClose={() => setDatePickerOpen(false)}
+      />
     </View>
   );
 }

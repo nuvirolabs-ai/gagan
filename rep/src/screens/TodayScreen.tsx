@@ -304,7 +304,7 @@ export default function TodayScreen({ navigation }: any) {
   const nextStop = route?.nextStop;
   const pendingStops = safeCount(route?.progress?.pending);
   const pendingRetailers = today.pendingCollections?.retailers ?? [];
-  const attentionItems = visibleAttentionItems({ overdueRetailers: pendingRetailers, opportunityActions: today.opportunities?.actions ?? [] });
+  const attentionItems = visibleAttentionItems({ overdueRetailers: pendingRetailers, opportunityActions: today.opportunities?.actions ?? [], followUps: today.followUps ?? [] });
   const remainingTasks = (today.tasks ?? []).filter((task: any) => task.status !== "done" && task.status !== "cancelled");
   const planned = safeCount(route?.progress?.total);
   const visited = safeCount(route?.progress?.visited) + safeCount(route?.progress?.skipped);
@@ -381,7 +381,7 @@ export default function TodayScreen({ navigation }: any) {
             </View>
             <AttentionRow
               tone="danger"
-              icon={attentionItems[0].source === "overdue" ? "wallet-outline" : (OPPORTUNITY_ICONS[attentionItems[0].type ?? ""] ?? "bulb-outline")}
+              icon={attentionItems[0].source === "overdue" ? "wallet-outline" : attentionItems[0].source === "follow_up" ? "time-outline" : (OPPORTUNITY_ICONS[attentionItems[0].type ?? ""] ?? "bulb-outline")}
               title={attentionItems[0].title}
               subtitle={attentionItems[0].source === "overdue" && attentionItems[0].overdue != null ? `${inr(attentionItems[0].overdue)} overdue` : attentionItems[0].subtitle}
               onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: attentionItems[0].retailerId })}
@@ -460,7 +460,7 @@ export default function TodayScreen({ navigation }: any) {
           <View>
             <SectionHeader title={t("today.followUps")} />
             <Surface>
-              {(today.followUps ?? []).map((followUp: any) => (
+              {(today.followUps ?? []).filter((followUp: any) => !attentionItems.some((item) => item.source === "follow_up" && item.key === `follow-up-${followUp.id}`)).map((followUp: any) => (
                 <AttentionRow
                   key={followUp.id}
                   tone="warning"

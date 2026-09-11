@@ -99,7 +99,7 @@ function ReportWindowChip({
   );
 }
 
-export default function MyActivityScreen({ route }: any) {
+export default function MyActivityScreen({ route, navigation }: any) {
   const { t } = useLanguage();
   const [tab, setTab] = useState<"timeline" | "performance">(
     route?.params?.tab === "performance" ? "performance" : "timeline"
@@ -175,6 +175,7 @@ export default function MyActivityScreen({ route }: any) {
       ) : (
         <ScrollView
           contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -200,22 +201,21 @@ export default function MyActivityScreen({ route }: any) {
                   <Text style={styles.dayHeading}>{day}</Text>
                   {dayEntries.map((entry, index) => {
                     const meta = KIND_META[entry.kind] ?? { icon: "ellipse-outline", label: entry.kind };
-                    return (
+                    const event = (
                       <TimelineEvent
-                        key={entry.id}
                         icon={meta.icon}
-                        title={
-                          entry.kind === "activity" ? ACTIVITY_LABELS[entry.title] ?? entry.title : entry.title
-                        }
-                        context={[entry.retailer?.name, humanise(entry.detail)].filter(Boolean).join(" · ")}
+                        title={entry.kind === "activity" ? ACTIVITY_LABELS[entry.title] ?? entry.title : entry.title}
+                        context={[entry.retailer?.name, humanise(entry.detail), entry.followUpAt ? `Follow-up ${new Date(entry.followUpAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}` : null].filter(Boolean).join(" · ")}
                         amount={entry.amount ? inr(entry.amount) : undefined}
-                        time={new Date(entry.at).toLocaleTimeString("en-IN", {
-                          hour: "numeric",
-                          minute: "2-digit",
-                        })}
+                        time={new Date(entry.at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}
                         last={index === dayEntries.length - 1}
                       />
                     );
+                    return entry.orderId ? (
+                      <Pressable key={entry.id} accessibilityRole="button" accessibilityLabel={`Open ${entry.title}`} onPress={() => navigation.navigate("OrderDetail", { orderId: entry.orderId })}>
+                        {event}
+                      </Pressable>
+                    ) : <View key={entry.id}>{event}</View>;
                   })}
                 </View>
               ))

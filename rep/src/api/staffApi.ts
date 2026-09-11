@@ -70,6 +70,7 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
           body: JSON.stringify({ retailerId, items }),
         }
       ),
+    order: (id: string) => request(`/rep/orders/${id}`),
     collectionRetailers: () => request("/rep/collections/assigned-retailers"),
     collectionSubmissions: () => request("/rep/collections"),
     submitCollection: (input: {
@@ -106,6 +107,7 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
         outcome?: string;
         notes?: string;
         followUpAt?: string;
+        noOrderReason?: string;
       }
     ) => post(`/rep/visits/${visitId}/check-out`, body),
     visits: () => request("/rep/visits"),

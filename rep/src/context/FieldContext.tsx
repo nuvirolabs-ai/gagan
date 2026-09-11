@@ -21,6 +21,7 @@ import {
 import { useRep } from "./RepContext";
 import { staffCapabilities } from "../auth/staffCapabilities";
 import { createSingleFlight } from "../performance/singleFlight";
+import { isOfflineTransportError } from "../offline/networkErrors";
 
 export interface TrackingState {
   tracking: boolean;
@@ -75,13 +76,9 @@ const EMPTY_SUMMARY: OutboxSummary = { pending: 0, failed: 0, synced: 0 };
  * act on. Anything the server actually said is passed through unchanged.
  */
 function offlineMessage(error: unknown): string {
-  const raw = error instanceof Error ? error.message : "";
-  const looksOffline =
-    error instanceof TypeError ||
-    /network request failed|failed to fetch|load failed/i.test(raw);
-  return looksOffline
+  return isOfflineTransportError(error)
     ? "You're offline. Your day will load as soon as you have a connection."
-    : raw || "Could not load your day.";
+    : error instanceof Error ? error.message : "Could not load your day.";
 }
 
 /** Device-unique enough to be an idempotency key for an offline replay. */
@@ -274,11 +271,7 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
         void refresh();
         return "sent";
       } catch (error) {
-        const raw = error instanceof Error ? error.message : "";
-        const looksOffline =
-          error instanceof TypeError ||
-          /network request failed|failed to fetch|load failed/i.test(raw);
-        if (!looksOffline) throw error;
+        if (!isOfflineTransportError(error)) throw error;
         const summary=await queue.queueActivity(reference, input);
         if(currentQueue.current===queue) setOutbox(summary);
         return "queued";

@@ -101,6 +101,8 @@ export default function MyDayScreen() {
     }, [load])
   );
 
+  const cells = useMemo(() => monthGrid(month), [month]);
+
   const submitLeave = async () => {
     const from = parseDay(fromDate);
     const to = parseDay(toDate);
@@ -160,7 +162,6 @@ export default function MyDayScreen() {
   }
 
   const worked = days.filter((day) => day.mark === "present").length;
-  const cells = useMemo(() => monthGrid(month), [month]);
   const leaveForDay = (date: string) =>
     leave.find((request) => request.fromDate?.slice(0, 10) <= date && request.toDate?.slice(0, 10) >= date);
   const attendanceForDay = (date: string) => days.find((day) => day.date === date);

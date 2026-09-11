@@ -53,6 +53,16 @@ Current evidence constraints are:
 - retrieval is private/signed rather than an unrestricted public URL;
 - failed collection submission cleans up the uploaded object.
 
+The exact staging configuration contract and the manual Cloudflare/Render
+handoff are recorded in
+[GAGAN_FIELD_OPS_V1_R2_STAGING_RUNBOOK.md](/Users/tanutejas/Documents/Gagan-field-ops-completion-v1/GAGAN_FIELD_OPS_V1_R2_STAGING_RUNBOOK.md).
+The required variables are `STORAGE_PROVIDER`, `OBJECT_STORAGE_BUCKET`,
+`OBJECT_STORAGE_REGION`, `OBJECT_STORAGE_ENDPOINT`,
+`OBJECT_STORAGE_ACCESS_KEY` and `OBJECT_STORAGE_SECRET_KEY`. There is no
+storage-prefix or signed-URL-TTL environment variable in the current source.
+The service requests 300-second signed reads; the adapters permit 1–900
+seconds.
+
 ### Hosted root cause
 
 The current staging deployment is configured with:
@@ -197,6 +207,8 @@ All evidence is under
 - `214-visit-checkin-success.png`, `215-visit-checkout-success.png` — earlier
   dedicated UAT physical proof;
 - `C10_PERFORMANCE_MEASUREMENTS.md` — complete timing disposition.
+- `GAGAN_FIELD_OPS_V1_R2_STAGING_RUNBOOK.md` — exact durable-storage contract
+  and manual R2/Render setup handoff.
 
 ## SAFETY
 

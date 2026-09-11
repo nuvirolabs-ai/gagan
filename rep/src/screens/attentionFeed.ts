@@ -1,5 +1,6 @@
 /**
- * Presentation-only merge of overdue collections and opportunity actions.
+ * Presentation-only merge of overdue collections, opportunities, follow-ups
+ * and unresolved service issues.
  * The APIs stay separate; this stops the same overdue collection appearing
  * twice when the opportunity engine also emits COLLECTION_DUE for that store.
  */
@@ -7,7 +8,8 @@ export function visibleAttentionItems<
   TRetailer extends { id: string; name: string; overdue?: number },
   TAction extends { type: string; retailerId: string; headline: string; why?: string },
   TFollowUp extends { id: string; retailer?: { id: string; name: string } | null; notes?: string | null },
->(input: { overdueRetailers: TRetailer[]; opportunityActions: TAction[]; followUps?: TFollowUp[]; limit?: number }) {
+  TIssue extends { id: string; retailer?: { id: string; name: string } | null; type?: string; description?: string | null },
+>(input: { overdueRetailers: TRetailer[]; opportunityActions: TAction[]; followUps?: TFollowUp[]; serviceIssues?: TIssue[]; limit?: number }) {
   const limit = input.limit ?? 3;
   const overdueIds = new Set<string>();
   const items: Array<{
@@ -16,7 +18,7 @@ export function visibleAttentionItems<
     title: string;
     subtitle?: string;
     overdue?: number;
-    source: "overdue" | "opportunity" | "follow_up";
+    source: "overdue" | "opportunity" | "follow_up" | "service_issue";
     type?: string;
   }> = [];
 
@@ -43,6 +45,20 @@ export function visibleAttentionItems<
       subtitle: action.why,
       source: "opportunity",
       type: action.type,
+    });
+  }
+
+  for (const issue of input.serviceIssues ?? []) {
+    if (items.length >= limit) break;
+    const retailerId = issue.retailer?.id;
+    if (!retailerId || overdueIds.has(retailerId) || items.some((item) => item.retailerId === retailerId)) continue;
+    items.push({
+      key: `service-issue-${issue.id}`,
+      retailerId,
+      title: issue.retailer?.name ?? "Customer issue",
+      subtitle: issue.description ?? "Service issue needs attention",
+      source: "service_issue",
+      type: "SERVICE_ISSUE",
     });
   }
 

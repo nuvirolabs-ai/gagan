@@ -142,7 +142,7 @@ export class FieldDashboardService {
     const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     const monthEnd = endOfDay(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)));
 
-    const [session, tracking, route, tasks, metrics, followUps, receivables, monthMetrics, targets] =
+    const [session, tracking, route, tasks, metrics, followUps, receivables, monthMetrics, targets, serviceIssues] =
       await Promise.all([
         this.attendance.openSession(input.salespersonId),
         this.tracking.state({ salespersonId: input.salespersonId }),
@@ -153,6 +153,21 @@ export class FieldDashboardService {
         this.pendingCollections(input.salespersonId),
         this.metricsFor({ salespersonId: input.salespersonId, from: monthStart, to: monthEnd }),
         this.targetsFor({ salespersonId: input.salespersonId, from: monthStart, to: monthEnd }),
+        this.prisma.serviceIssue.findMany({
+          where: {
+            raisedByStaffId: input.salespersonId,
+            status: { in: ["open", "in_progress"] },
+          },
+          select: {
+            id: true,
+            type: true,
+            priority: true,
+            description: true,
+            retailer: { select: { id: true, name: true } },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+        }),
       ]);
 
     const attendanceForDay = await this.attendance.attendanceHistory({
@@ -190,6 +205,13 @@ export class FieldDashboardService {
         type: activity.type,
         notes: activity.notes,
         followUpAt: activity.followUpAt,
+      })),
+      serviceIssues: serviceIssues.map((issue: any) => ({
+        id: issue.id,
+        type: issue.type,
+        priority: issue.priority,
+        description: issue.description,
+        retailer: issue.retailer,
       })),
       pendingCollections: receivables,
       todayMetrics: metrics,

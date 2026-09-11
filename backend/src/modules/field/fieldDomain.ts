@@ -187,6 +187,33 @@ export const VISIT_OUTCOMES = [
   "other",
 ] as const;
 
+/** Stable reasons for a closed visit that did not produce an order. */
+export const NO_ORDER_REASONS = [
+  "not_interested",
+  "price_issue",
+  "already_has_stock",
+  "outstanding_payment_issue",
+  "owner_unavailable",
+  "shop_closed",
+  "product_unavailable",
+  "follow_up_required",
+  "other",
+] as const;
+
+export type NoOrderReason = (typeof NO_ORDER_REASONS)[number];
+
+export const NO_ORDER_REASON_LABELS: Record<NoOrderReason, string> = {
+  not_interested: "Retailer not interested",
+  price_issue: "Price issue",
+  already_has_stock: "Already has stock",
+  outstanding_payment_issue: "Outstanding / payment issue",
+  owner_unavailable: "Owner unavailable",
+  shop_closed: "Shop closed",
+  product_unavailable: "Required product unavailable",
+  follow_up_required: "Follow-up required",
+  other: "Other",
+};
+
 export type VisitOutcomeName = (typeof VISIT_OUTCOMES)[number];
 
 export const VISIT_OUTCOME_LABELS: Record<VisitOutcomeName, string> = {

@@ -4,6 +4,7 @@ import type { AuthedRequest } from "../../lib/auth";
 import type { IdentityAuthedRequest } from "../identity/sessionAuth";
 import { Permissions } from "../identity/roleCatalog";
 import { LocationServiceError, defaultLocationService, type LocationService } from "./locationService";
+import { NO_ORDER_REASONS } from "../field/fieldDomain";
 
 const coordinateSchema = z.object({
   latitude: z.number().finite().min(-90).max(90),
@@ -39,6 +40,16 @@ const checkOutSchema = coordinateSchema.extend({
     .refine((value) => !Number.isNaN(Date.parse(value)))
     .transform((value) => new Date(value))
     .optional(),
+  noOrderReason: z.enum(NO_ORDER_REASONS).optional(),
+}).superRefine((value, context) => {
+  if (value.outcome !== "no_order") return;
+  if (!value.noOrderReason) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["noOrderReason"], message: "no_order_reason_required" });
+    return;
+  }
+  if (value.noOrderReason === "other" && !value.notes?.trim()) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["notes"], message: "no_order_note_required" });
+  }
 });
 
 function permission(permissionName: string) {

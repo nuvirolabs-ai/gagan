@@ -248,6 +248,31 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
 
 /* --------------------------------- orders --------------------------------- */
 
+/**
+ * Canonical read model for a salesperson's order detail. The order remains the
+ * source of truth; audit events are only used to show transitions that were
+ * actually recorded by Admin/delivery services.
+ */
+router.get("/orders/:id", requireRep, async (req: RepRequest, res) => {
+  const order = await prisma.order.findFirst({
+    where: { id: req.params.id, retailer: { salesRepId: req.repId } },
+    include: {
+      retailer: { select: { id: true, name: true, phone: true, shopAddress: true } },
+      items: { include: { variant: { include: { product: true } } } },
+      delivery: true,
+      invoice: { select: { invoiceNumber: true, invoiceDate: true, dueDate: true, total: true, outstandingAmount: true } },
+    },
+  });
+  if (!order) return res.status(404).json({ error: "Order not found" });
+
+  const events = await prisma.auditEvent.findMany({
+    where: { subjectType: "order", subjectId: order.id, action: { startsWith: "order." } },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, action: true, metadata: true, createdAt: true },
+  });
+  res.json({ order, events });
+});
+
 const repOrderSchema = z.object({
   retailerId: z.string(),
   items: z.array(z.object({ variantId: z.string(), qty: z.number().int().positive() })).min(1),

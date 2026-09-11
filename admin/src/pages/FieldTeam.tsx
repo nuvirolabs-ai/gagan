@@ -62,6 +62,10 @@ export default function FieldTeam() {
   }, [date]);
 
   const decide = async (id: string, decision: "approved" | "rejected") => {
+    if (decision === "rejected" && note.trim().length < 3) {
+      setError("Add a rejection reason before rejecting this leave request.");
+      return;
+    }
     try {
       await api.decideLeave(id, decision, note.trim() || undefined);
       setNote("");
@@ -222,7 +226,7 @@ export default function FieldTeam() {
           {pendingLeave.length > 0 ? (
             <div style={{ padding: 16 }}>
               <div className="field">
-                <label>Decision note (applies to the next decision)</label>
+                <label>Decision note (required for rejection)</label>
                 <input
                   value={note}
                   onChange={(event) => setNote(event.target.value)}

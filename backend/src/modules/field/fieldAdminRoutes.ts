@@ -123,6 +123,11 @@ export function createFieldAdminRouter(options: {
           decision: z.enum(["approved", "rejected"]),
           note: z.string().trim().max(500).optional(),
         })
+        .superRefine((value, context) => {
+          if (value.decision === "rejected" && (!value.note || value.note.length < 3)) {
+            context.addIssue({ code: z.ZodIssueCode.custom, path: ["note"], message: "rejection_reason_required" });
+          }
+        })
         .safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
       try {

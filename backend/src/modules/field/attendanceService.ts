@@ -304,10 +304,12 @@ export class AttendanceService {
       throw new FieldServiceError("leave_request_not_found", 404);
     }
     if (request.status !== "pending") throw new FieldServiceError("leave_already_decided", 409);
-    return this.prisma.leaveRequest.update({
-      where: { id: request.id },
+    const cancelled = await this.prisma.leaveRequest.updateMany({
+      where: { id: request.id, salespersonId: input.salespersonId, status: "pending" },
       data: { status: "cancelled" },
     });
+    if (cancelled.count !== 1) throw new FieldServiceError("leave_already_decided", 409);
+    return this.prisma.leaveRequest.findUnique({ where: { id: request.id } });
   }
 
   /** Manager/admin decision. Only a pending request can be decided. */
@@ -327,9 +329,12 @@ export class AttendanceService {
     if (!isWithinScope(request.salespersonId, input.scopeStaffIds)) {
       throw new FieldServiceError("outside_reporting_scope", 403);
     }
+    if (input.decision === "rejected" && !input.note?.trim()) {
+      throw new FieldServiceError("leave_rejection_reason_required", 400);
+    }
     return this.prisma.$transaction(async (tx: Db) => {
-      const decided = await tx.leaveRequest.update({
-        where: { id: request.id },
+      const claimed = await tx.leaveRequest.updateMany({
+        where: { id: request.id, status: "pending" },
         data: {
           status: input.decision,
           decidedByStaffId: input.decidedByStaffId,
@@ -337,6 +342,9 @@ export class AttendanceService {
           decisionNote: input.note?.trim() || null,
         },
       });
+      if (claimed.count !== 1) throw new FieldServiceError("leave_already_decided", 409);
+      const decided = await tx.leaveRequest.findUnique({ where: { id: request.id } });
+      if (!decided) throw new FieldServiceError("leave_request_not_found", 404);
       await tx.auditEvent.create({
         data: {
           actorStaffId: input.decidedByStaffId,

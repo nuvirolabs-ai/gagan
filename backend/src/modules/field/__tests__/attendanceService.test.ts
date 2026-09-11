@@ -242,7 +242,7 @@ describe("leave", () => {
       status: "pending",
       salespersonId: "staff-1",
     });
-    prisma.leaveRequest.update.mockResolvedValue({ id: "leave-1", status: "approved" });
+    prisma.leaveRequest.updateMany.mockResolvedValue({ count: 1 });
     const service = new AttendanceService(prisma, storage());
     await service.decideLeave({
       leaveId: "leave-1",
@@ -250,8 +250,9 @@ describe("leave", () => {
       decision: "approved",
       note: "Covered by Anil",
     });
-    expect(prisma.leaveRequest.update).toHaveBeenCalledWith(
+    expect(prisma.leaveRequest.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
+        where: expect.objectContaining({ id: "leave-1", status: "pending" }),
         data: expect.objectContaining({
           status: "approved",
           decidedByStaffId: "manager-1",

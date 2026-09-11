@@ -8,6 +8,7 @@ import {
 } from "./locationDomain";
 import type { LocationConfig } from "./locationConfig";
 import { loadLocationConfig } from "./locationConfig";
+import { NO_ORDER_REASONS, NO_ORDER_REASON_LABELS } from "../field/fieldDomain";
 
 type Db = PrismaClient | any;
 type TransactionDb = any;
@@ -342,9 +343,21 @@ export class LocationService {
       outcome?: string;
       notes?: string;
       followUpAt?: Date;
+      noOrderReason?: string;
     } & CoordinateInput
   ) {
     validateCoordinateInput(input);
+    if (input.outcome === "no_order") {
+      if (!input.noOrderReason || !(NO_ORDER_REASONS as readonly string[]).includes(input.noOrderReason)) {
+        throw new LocationServiceError("no_order_reason_required", 400);
+      }
+      if (input.noOrderReason === "other" && !input.notes?.trim()) {
+        throw new LocationServiceError("no_order_note_required", 400);
+      }
+    }
+    const notes = input.outcome === "no_order" && input.noOrderReason
+      ? [`No-order reason: ${NO_ORDER_REASON_LABELS[input.noOrderReason as keyof typeof NO_ORDER_REASON_LABELS] ?? input.noOrderReason}`, input.notes?.trim()].filter(Boolean).join(" · ")
+      : input.notes?.trim() || null;
     return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.$queryRaw`SELECT 1 FROM "StaffUser" WHERE "id" = ${input.salespersonId} FOR UPDATE`;
     await tx.$queryRaw`SELECT 1 FROM "SalesVisit" WHERE "id" = ${input.visitId} FOR UPDATE`;
@@ -371,7 +384,7 @@ export class LocationService {
         // The outcome is captured as the visit closes, so a visit carries what
         // it achieved rather than only where and when it happened.
         ...(input.outcome ? { outcome: input.outcome as any } : {}),
-        ...(input.notes !== undefined ? { notes: input.notes.trim() || null } : {}),
+        ...(input.notes !== undefined || input.noOrderReason !== undefined ? { notes } : {}),
         ...(input.followUpAt !== undefined ? { followUpAt: input.followUpAt } : {}),
       },
     });

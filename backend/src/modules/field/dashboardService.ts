@@ -372,6 +372,8 @@ export class FieldDashboardService {
             occurredAt: true,
             type: true,
             notes: true,
+            followUpAt: true,
+            orderId: true,
             retailer: { select: { id: true, name: true } },
           },
         }),
@@ -427,6 +429,8 @@ export class FieldDashboardService {
       detail: string | null;
       retailer: { id: string; name: string } | null;
       amount: number | null;
+      orderId?: string | null;
+      followUpAt?: Date | null;
     }> = [];
 
     for (const day of workdays) {
@@ -471,6 +475,8 @@ export class FieldDashboardService {
         detail: activity.notes,
         retailer: activity.retailer,
         amount: null,
+        orderId: activity.orderId,
+        followUpAt: activity.followUpAt,
       });
     }
     for (const order of orders) {
@@ -482,6 +488,7 @@ export class FieldDashboardService {
         detail: order.status,
         retailer: order.retailer,
         amount: money(order.orderTotal),
+        orderId: order.id,
       });
     }
     for (const collection of collections) {

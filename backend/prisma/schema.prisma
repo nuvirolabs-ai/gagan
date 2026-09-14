@@ -284,6 +284,16 @@ enum LegalDecisionType {
 }
 
 model Payment {
+  invoiceScopeId        String?
+  scopedInvoice Invoice? @relation("InvoiceScopedPayments", fields:[invoiceScopeId], references:[id], onDelete:NoAction, onUpdate:NoAction)
+  confirmedJainAmount   Decimal?              @db.Decimal(14, 2)
+  confirmedPadamAmount  Decimal?              @db.Decimal(14, 2)
+  confirmedByStaffId    String?
+  confirmedBy StaffUser? @relation("CommercialPaymentConfirmer", fields:[confirmedByStaffId],references:[id],onDelete:NoAction,onUpdate:NoAction)
+  confirmedMethod       String?
+  confirmedReference    String?
+  requestKey            String?               @unique
+  requestFingerprint    String?
   id                    String                @id @default(uuid())
   retailerId            String
   retailer              Retailer              @relation(fields: [retailerId], references: [id])
@@ -327,6 +337,7 @@ model Tier {
 }
 
 model Retailer {
+  commercialQuotes CommercialQuote[]
   id                        String                     @id @default(uuid())
   name                      String
   shopAddress               String
@@ -483,6 +494,8 @@ model SalesRep {
 }
 
 model StaffUser {
+  freightQuotes CommercialQuote[]
+  commercialPayments Payment[] @relation("CommercialPaymentConfirmer")
   id          String      @id @default(uuid())
   name        String
   phone       String      @unique
@@ -900,6 +913,8 @@ model Product {
 // A variant is one sellable case: `unitSize` x `unitsPerCase` (e.g. "1 kg" x 30).
 // PriceList.price is the price of the whole case.
 model Variant {
+  sellingEntity      String?
+  gstPercent         Decimal?            @db.Decimal(5, 2)
   id                 String              @id @default(uuid())
   productId          String
   product            Product             @relation(fields: [productId], references: [id])
@@ -913,6 +928,22 @@ model Variant {
   orderItems         OrderItem[]
   priceOverrides     PriceOverride[]
   inventorySnapshots InventorySnapshot[]
+}
+
+/// Server-priced draft; manager freight edits stop at acceptance.
+model CommercialQuote {
+  id String @id @default(uuid())
+  retailerId String
+  retailer Retailer @relation(fields:[retailerId],references:[id],onDelete:NoAction,onUpdate:NoAction)
+  snapshot Json
+  revision Int @default(1)
+  freightConfirmedByStaffId String?
+  freightConfirmedBy StaffUser? @relation(fields:[freightConfirmedByStaffId],references:[id],onDelete:NoAction,onUpdate:NoAction)
+  order Order?
+  expiresAt DateTime
+  acceptedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([retailerId, createdAt])
 }
 
 model InventorySnapshot {
@@ -938,6 +969,7 @@ model InventorySnapshot {
 }
 
 model PriceList {
+  rateBasis String @default("case")
   id        String  @id @default(uuid())
   tierId    String
   tier      Tier    @relation(fields: [tierId], references: [id])
@@ -950,6 +982,7 @@ model PriceList {
 }
 
 model PriceOverride {
+  rateBasis String @default("case")
   id         String   @id @default(uuid())
   retailerId String
   retailer   Retailer @relation(fields: [retailerId], references: [id])
@@ -961,6 +994,9 @@ model PriceOverride {
 }
 
 model Order {
+  commercialQuoteId         String?                    @unique
+  commercialQuote CommercialQuote? @relation(fields:[commercialQuoteId],references:[id],onDelete:NoAction,onUpdate:NoAction)
+  commercialSnapshot        Json?
   id                        String                     @id @default(uuid())
   // Human-facing reference shown to retailers (rendered as GGN-00000001).
   orderNo                   Int                        @unique @default(autoincrement())
@@ -997,6 +1033,7 @@ model Order {
 }
 
 model OrderItem {
+  commercialSnapshot Json?
   id              String        @id @default(uuid())
   orderId         String
   order           Order         @relation(fields: [orderId], references: [id])
@@ -1045,6 +1082,9 @@ model LedgerEntry {
 }
 
 model Invoice {
+  scopedPayments Payment[] @relation("InvoiceScopedPayments")
+  scopedCollections CollectionSubmission[]
+  commercialSnapshot  Json?
   id                  String                @id @default(uuid())
   invoiceNumber       Int                   @unique @default(autoincrement())
   retailerId          String
@@ -1223,6 +1263,10 @@ model LegalDecision {
 }
 
 model InvoiceLine {
+  sellingEntity       String?
+  taxableBase         Decimal?   @db.Decimal(14, 2)
+  gstPercent          Decimal?   @db.Decimal(5, 2)
+  taxAmount           Decimal?   @db.Decimal(14, 2)
   id                  String     @id @default(uuid())
   invoiceId           String
   invoice             Invoice    @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
@@ -1240,6 +1284,8 @@ model InvoiceLine {
 }
 
 model PaymentAllocation {
+  jainAmount Decimal? @db.Decimal(14, 2)
+  padamAmount Decimal? @db.Decimal(14, 2)
   id        String                      @id @default(uuid())
   paymentId String
   payment   Payment                     @relation(fields: [paymentId], references: [id], onDelete: Restrict)
@@ -1294,6 +1340,10 @@ model PaymentEvidence {
 /// A field-collected payment remains outside the financial ledger until Accounts
 /// verifies the evidence and confirms it. Collectors never create Payment rows.
 model CollectionSubmission {
+  invoiceScopeId String?
+  scopedInvoice Invoice? @relation(fields:[invoiceScopeId],references:[id],onDelete:NoAction,onUpdate:NoAction)
+  jainAmount Decimal? @db.Decimal(14, 2)
+  padamAmount Decimal? @db.Decimal(14, 2)
   id                 String                     @id @default(uuid())
   retailerId         String
   retailer           Retailer                   @relation(fields: [retailerId], references: [id])

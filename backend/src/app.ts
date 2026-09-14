@@ -4,6 +4,7 @@ import express from "express";
 import helmet from "helmet";
 import path from "node:path";
 import adminAuthRoutes from "./routes/admin/auth";
+import commercialRoutes from "./modules/commercial/routes";
 import adminCatalogRoutes from "./routes/admin/catalog";
 import adminOrderRoutes from "./routes/admin/orders";
 import adminRetailerRoutes from "./routes/admin/retailers";
@@ -96,6 +97,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(homeRoutes);
   app.use(catalogRoutes);
   app.use(orderRoutes);
+  app.use(commercialRoutes);
   app.use(ledgerRoutes);
   app.use(deliveryRoutes);
   app.use(paymentRoutes);

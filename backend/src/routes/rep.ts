@@ -214,14 +214,17 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
     description: product.description,
     variants: product.variants.map((v) => {
       const override = overridePrice.get(v.id);
-      const price = override ?? tierPrice.get(v.id) ?? null;
+      const rate = override ?? tierPrice.get(v.id) ?? null;
       const caseWeightKg = Number(v.unitWeightKg) * v.unitsPerCase;
+      const rateBasis=(overrides.find(p=>p.variantId===v.id) ?? priceList.find(p=>p.variantId===v.id))?.rateBasis ?? "case";
+      const price=rate===null?null:rateBasis==="quintal"?Math.round(rate*caseWeightKg)/100:rate;
       return {
         id: v.id,
         unitSize: v.unitSize,
         unit: v.unit,
         unitsPerCase: v.unitsPerCase,
         caseWeightKg,
+        commercialRate:rate,rateBasis,sellingEntity:v.sellingEntity,gstPercent:v.gstPercent,
         price,
         isOverride: override != null,
         pricePerKg:
@@ -262,7 +265,7 @@ router.get("/orders/:id", requireRep, async (req: RepRequest, res) => {
       retailer: { select: { id: true, name: true, phone: true, shopAddress: true } },
       items: { include: { variant: { include: { product: true } } } },
       delivery: true,
-      invoice: { select: { invoiceNumber: true, invoiceDate: true, dueDate: true, total: true, outstandingAmount: true } },
+      invoice: { select: { invoiceNumber: true, invoiceDate: true, dueDate: true, total: true, outstandingAmount: true, commercialSnapshot:true } },
     },
   });
   if (!order) return res.status(404).json({ error: "Order not found" });
@@ -276,6 +279,7 @@ router.get("/orders/:id", requireRep, async (req: RepRequest, res) => {
 });
 
 const repOrderSchema = z.object({
+  commercial: z.object({quoteId:z.string(),revision:z.number().int().positive()}).optional(),
   retailerId: z.string(),
   items: z.array(z.object({ variantId: z.string(), qty: z.number().int().positive() })).min(1),
 });
@@ -299,7 +303,8 @@ router.post("/orders", requireRep, createRateLimiter({ name: "rep-order", limit:
     "rep",
     req.repId,
     req.staffId,
-    idempotencyKey
+    idempotencyKey,
+    parsed.data.commercial
   );
   if (!result.ok) return res.status(result.status).json(result.body);
 

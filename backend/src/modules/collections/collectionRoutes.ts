@@ -1,5 +1,7 @@
 import { Router, type RequestHandler } from "express";
 import { z } from "zod";
+import { prisma } from "../../lib/prisma";
+import { invoiceBalances,CommercialError } from "../commercial/service";
 import { asyncRoute } from "../../platform/http/asyncRoute";
 import { requireRecentStepUp } from "../identity/sessionAuth";
 import type { StaffAuthedRequest } from "../identity/permissions";
@@ -20,6 +22,9 @@ const evidenceSchema = z.object({
 });
 
 const submitSchema = z.object({
+  invoiceScopeId:z.string().uuid().optional(),
+  jainAmount:z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
+  padamAmount:z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
   retailerId: z.string().uuid(),
   amount: z.number().positive(),
   method: z.enum(["cash", "cheque", "neft", "upi"]),
@@ -33,6 +38,17 @@ export function createCollectionRouter(options: CollectionRouterOptions) {
   const router = Router();
   const service = options.service ?? new CollectionService();
   router.use(options.authenticate);
+  router.get("/collections/invoices/:retailerId",asyncRoute(async(req:StaffAuthedRequest,res)=>{
+    const auth=req.staffAuth!;
+    if (!auth.permissions.includes("collection.submit") || !await prisma.collectionAssignment.findFirst({where:{collectorStaffId:auth.staffId,retailerId:req.params.retailerId,active:true}})) return res.status(403).json({error:"collection_assignment_required"});
+    const invoices=await prisma.invoice.findMany({where:{retailerId:req.params.retailerId,outstandingAmount:{gt:0}},orderBy:{invoiceDate:"asc"}});
+    const result=[];
+    for(const invoice of invoices.filter(i=>i.commercialSnapshot!==null)) {
+      const b=await prisma.$transaction(tx=>invoiceBalances(tx,invoice.id));
+      result.push({id:invoice.id,invoiceNumber:invoice.invoiceNumber,jain:b.jain.toFixed(2),padam:b.padam.toFixed(2),total:invoice.outstandingAmount.toFixed(2)});
+    }
+    res.json({invoices:result});
+  }));
 
   router.get(
     "/collections",
@@ -123,6 +139,7 @@ export function createCollectionRouter(options: CollectionRouterOptions) {
   );
 
   router.use((error: unknown, _req: unknown, res: any, next: (error?: unknown) => void) => {
+    if (error instanceof CommercialError) return res.status(error.status).json({error:error.code});
     if (error instanceof CollectionServiceError) {
       return res.status(error.status).json({ error: error.code, details: error.details });
     }

@@ -251,7 +251,7 @@ export function syncPricing() {
       const variant = product.variants[0];
       await prisma.priceList.upsert({
         where: { tierId_variantId: { tierId: tier.id, variantId: variant.id } },
-        update: { price: row.price },
+        update: { price: row.price, rateBasis:"case" },
         create: {
           tierId: tier.id,
           variantId: variant.id,

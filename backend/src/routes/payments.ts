@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../lib/auth";
@@ -41,6 +42,11 @@ router.post("/payments/intent", requireAuth, createRateLimiter({ name: "payment-
   if (!retailer) return res.status(404).json({ error: "Retailer not found" });
 
   const outstanding = Number(retailer.currentBalance);
+  // This legacy payment surface has no invoice/company confirmation controls.
+  // Refuse before contacting a provider, not after money has been collected.
+  if(await prisma.invoice.count({where:{retailerId:retailer.id,outstandingAmount:{gt:0},commercialSnapshot:{not:Prisma.DbNull}}})) {
+    return res.status(409).json({error:"Please ask your collecting employee to record payment against the specific invoice with Jain and Padam allocations."});
+  }
   if (outstanding <= 0) {
     return res.status(400).json({ error: "There is nothing outstanding to pay" });
   }

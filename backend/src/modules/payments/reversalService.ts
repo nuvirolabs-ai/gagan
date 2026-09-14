@@ -119,6 +119,7 @@ export async function reversePayment(input: ReversePaymentInput) {
         });
         const retailer = await tx.retailer.findUnique({ where: { id: locked[0].retailerId } });
         if (!payment) throw new FinancialCorrectionError("payment_not_found");
+        if (payment.invoiceScopeId) throw new FinancialCorrectionError("entity_attributed_reversal_requires_explicit_correction_contract");
         if (!retailer) throw new FinancialCorrectionError("retailer_not_found");
         if (payment.status !== "succeeded") {
           throw new FinancialCorrectionError(

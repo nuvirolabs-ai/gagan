@@ -73,6 +73,7 @@ export async function issueCreditNote(input: IssueCreditNoteInput) {
         const invoice = await tx.invoice.findUnique({ where: { id: input.invoiceId } });
         const retailer = await tx.retailer.findUnique({ where: { id: target.retailerId } });
         if (!invoice) throw new FinancialCorrectionError("invoice_not_found");
+        if (invoice.commercialSnapshot!==null) throw new FinancialCorrectionError("entity_attributed_credit_requires_explicit_correction_contract");
         if (!retailer) throw new FinancialCorrectionError("retailer_not_found");
         if (invoice.status === "voided") {
           throw new FinancialCorrectionError("voided_invoice_cannot_be_credited");

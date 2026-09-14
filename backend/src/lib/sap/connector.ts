@@ -80,6 +80,7 @@ export interface SapFinancialSummary {
 
 /** One order, flattened to what SAP SD needs to post a sales order. */
 export interface SapSalesOrderPayload {
+  commercial?: import("../../modules/commercial/service").CommercialSnapshot;
   orderId: string;
   orderNo: number;
   /** Future SAP B1 UDF value used for idempotent reconciliation. */
@@ -95,6 +96,7 @@ export interface SapSalesOrderPayload {
 
 /** A delivered-weight invoice, for posting back into SAP FI/SD. */
 export interface SapInvoicePayload {
+  commercial?: import("../../modules/commercial/service").CommercialSnapshot;
   ledgerEntryId: string;
   orderId: string;
   sapCustomerId: string;

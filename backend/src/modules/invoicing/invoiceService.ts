@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { snapshot, asJson, quoteDelivery } from "../commercial/service";
 import { addDays, paymentTermDays, recomputeOverdue } from "../../lib/ageing";
 import { buildInvoice } from "../../lib/invoicing";
 import { prisma } from "../../lib/prisma";
@@ -141,6 +142,15 @@ async function createOnce(input: CreateInvoiceForDeliveryInput): Promise<Invoice
         };
       });
       const breakdown = buildInvoice(resolvedItems);
+      const accepted=snapshot(order.commercialSnapshot);
+      const commercial=accepted ? quoteDelivery(accepted,order.items.map(item=>{const r=resolutions.get(item.id)!;return {variantId:item.variantId,cases:r.deliveredCases,weightKg:r.deliveredWeightKg};})) : null;
+      if (commercial) {
+        breakdown.total=Number(commercial.total);
+        for (const line of breakdown.lines) {
+          const item=order.items.find(i=>i.id===line.orderItemId)!;
+          line.lineTotal=Number(commercial.lines.find(l=>l.variantId===item.variantId)!.total);
+        }
+      }
       if (breakdown.total <= 0) throw new InvoiceCreationError("invoice_total_must_be_positive");
 
       const termDays = await paymentTermDays(tx, order.retailerId);
@@ -174,8 +184,9 @@ async function createOnce(input: CreateInvoiceForDeliveryInput): Promise<Invoice
           orderId: order.id,
           invoiceDate: input.occurredAt,
           dueDate,
-          subtotal: breakdown.total,
-          taxTotal: 0,
+          subtotal: commercial ? new Prisma.Decimal(commercial.total).minus(commercial.entities.reduce((s,e)=>s.plus(e.gst),new Prisma.Decimal(0))) : breakdown.total,
+          taxTotal: commercial ? commercial.entities.reduce((s,e)=>s.plus(e.gst),new Prisma.Decimal(0)) : 0,
+          ...(commercial ? {commercialSnapshot:asJson(commercial)}:{}),
           total: breakdown.total,
           outstandingAmount: breakdown.total,
           idempotencyKey: input.idempotencyKey,
@@ -183,16 +194,18 @@ async function createOnce(input: CreateInvoiceForDeliveryInput): Promise<Invoice
             create: breakdown.lines.map((line) => {
               const item = itemById.get(line.orderItemId)!;
               const resolution = resolutions.get(line.orderItemId)!;
+              const commercialLine=commercial?.lines.find(l=>l.variantId===item.variantId);
               return {
-                orderItemId: item.id,
-                descriptionSnapshot: item.variant.product.name,
-                itemCodeSnapshot: item.variant.product.sapMaterialId,
+                orderItemId: item.id as string | undefined,
+                descriptionSnapshot: commercialLine?.productName ?? item.variant.product.name,
+                itemCodeSnapshot: commercialLine ? commercialLine.itemCode : item.variant.product.sapMaterialId,
+                ...(commercialLine ? {sellingEntity:commercialLine.entity,taxableBase:commercialLine.base,gstPercent:commercialLine.gstPercent,taxAmount:commercialLine.gst}:{}),
                 deliveredCases: resolution.deliveredCases,
                 deliveredWeightKg: resolution.deliveredWeightKg,
                 unitPrice: item.unitPrice,
                 lineTotal: line.lineTotal,
               };
-            }),
+            }).concat(commercial?.freight ? [{orderItemId:undefined,descriptionSnapshot:"Freight",itemCodeSnapshot:null,deliveredCases:0,deliveredWeightKg:undefined,unitPrice:new Prisma.Decimal(commercial.freight.amount),lineTotal:Number(commercial.freight.total),sellingEntity:commercial.freight.entity,taxableBase:commercial.freight.amount,gstPercent:commercial.freight.gstPercent,taxAmount:commercial.freight.gst}] : []),
           },
         },
         include: { lines: true },

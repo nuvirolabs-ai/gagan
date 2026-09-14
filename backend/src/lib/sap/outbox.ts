@@ -2,6 +2,7 @@ import { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "../prisma";
 import { getSapConnector, SapSalesOrderPayload, SapInvoicePayload } from "./index";
 import { buildInvoice } from "../invoicing";
+import { snapshot } from "../../modules/commercial/service";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -19,6 +20,7 @@ async function salesOrderPayload(db: Db, orderId: string): Promise<SapSalesOrder
 
   return {
     orderId: order.id,
+    ...(order.commercialSnapshot ? {commercial:snapshot(order.commercialSnapshot)!}:{}),
     orderNo: order.orderNo,
     externalReference: order.sapExternalReference ?? `GGN-${String(order.orderNo).padStart(8, "0")}`,
     sapCustomerId: order.retailer.sapCustomerId ?? "",
@@ -55,6 +57,7 @@ async function invoicePayload(db: Db, ledgerEntryId: string): Promise<SapInvoice
 
   return {
     ledgerEntryId: entry.id,
+    ...(entry.financialInvoice?.commercialSnapshot ? {commercial:snapshot(entry.financialInvoice.commercialSnapshot)!}:{}),
     orderId: entry.order.id,
     sapCustomerId: entry.retailer.sapCustomerId ?? "",
     amount: Number(entry.amount),

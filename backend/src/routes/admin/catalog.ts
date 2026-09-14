@@ -30,10 +30,12 @@ router.get("/products", async (_req, res) => {
         unit: v.unit,
         unitsPerCase: v.unitsPerCase,
         unitWeightKg: Number(v.unitWeightKg),
+        sellingEntity:v.sellingEntity,gstPercent:v.gstPercent,
         prices: tiers.map((t) => ({
           tierId: t.id,
           tierName: t.name,
           price: prices.get(priceKey(t.id, v.id)) ?? null,
+          rateBasis:priceList.find(p=>p.tierId===t.id && p.variantId===v.id)?.rateBasis ?? "case",
         })),
       })),
     })),
@@ -52,6 +54,7 @@ router.post("/price-list", async (req, res) => {
 
   const variant = await prisma.variant.findUnique({ where: { id: parsed.data.variantId } });
   if (!variant) return res.status(404).json({ error: "Variant not found" });
+  if (variant.sellingEntity) return res.status(409).json({error:"Use Commercial configuration to explicitly review the rate basis and GST"});
 
   const row = await prisma.priceList.upsert({
     where: { tierId_variantId: { tierId: parsed.data.tierId, variantId: parsed.data.variantId } },

@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { asJson, snapshot as commercialSnapshot, normalizedLines } from "../modules/commercial/service";
 import { assessOrder, CreditDecision } from "../modules/credit/engine";
 import { ReasonCode } from "../modules/credit/reasonCodes";
 import { CreditPolicy } from "../modules/credit/policy";
@@ -128,7 +129,8 @@ export async function createOrderForRetailer(
   placedBy: "retailer" | "rep",
   placedByRepId?: string,
   placedByStaffId?: string,
-  idempotencyKey?: string
+  idempotencyKey?: string,
+  commercial?: { quoteId: string; revision: number }
 ): Promise<CreateOrderResult> {
   const normalizedItems = normalizeItems(items);
   if (!normalizedItems) return { ok: false, status: 400, body: { error: "invalid_order_items" } };
@@ -142,8 +144,18 @@ export async function createOrderForRetailer(
 
     if (idempotencyKey) {
       const replay = await replayExistingOrder(tx, retailerId, idempotencyKey, items, placedBy, placedByRepId);
-      if (replay) return replay;
+      if (replay) {
+        if (replay.ok && (replay.order.commercialQuoteId ?? null) !== (commercial?.quoteId ?? null)) return {ok:false,status:409,body:{error:"idempotency_key_conflict"}};
+        return replay;
+      }
     }
+
+    if (commercial) await tx.$queryRaw`SELECT "id" FROM "CommercialQuote" WHERE "id"=${commercial.quoteId} FOR UPDATE`;
+    const quote = commercial ? await tx.commercialQuote.findFirst({where:{id:commercial.quoteId,retailerId}}) : null;
+    const accepted = quote ? commercialSnapshot(quote.snapshot) : null;
+    if (commercial && (!quote || !accepted || quote.acceptedAt || quote.expiresAt < new Date() || quote.revision !== commercial.revision)) return {ok:false,status:409,body:{error:"quote_changed_or_expired"}};
+    if (accepted && JSON.stringify(normalizedLines(accepted.lines.map(l=>({variantId:l.variantId,qty:l.cases})))) !== JSON.stringify(items)) return {ok:false,status:409,body:{error:"quote_items_changed"}};
+    if (quote && !quote.freightConfirmedByStaffId) return {ok:false,status:409,body:{error:"manager_freight_confirmation_required"}};
 
     const variantIds = [...new Set(items.map((item) => item.variantId))];
     const [priceList, overrides, policyRecord, appConfig, variants] = await Promise.all([
@@ -151,7 +163,7 @@ export async function createOrderForRetailer(
       tx.priceOverride.findMany({ where: { retailerId, variantId: { in: variantIds } } }),
       tx.creditPolicyVersion.findFirst({ where: { active: true }, orderBy: { version: "desc" } }),
       tx.appConfig.findUnique({ where: { id: "singleton" } }),
-      tx.variant.findMany({ where: { id: { in: variantIds } }, select: { id: true, unitsPerCase: true, unitWeightKg: true } }),
+      tx.variant.findMany({ where: { id: { in: variantIds } }, select: { id: true, unitsPerCase: true, unitWeightKg: true, sellingEntity:true } }),
     ]);
     if (!policyRecord) {
       return { ok: false, status: 503, body: { error: "credit_policy_unavailable" } };
@@ -161,8 +173,16 @@ export async function createOrderForRetailer(
     const overridePrice = new Map(overrides.map((override) => [override.variantId, override.price]));
     let orderAmount = new Prisma.Decimal(0);
     const conversionById = new Map(variants.map(variant => [variant.id, variant.unitWeightKg.mul(variant.unitsPerCase)]));
-    const lineItems: { variantId: string; qtyOrdered: number; unitPrice: number; caseWeightKgSnapshot: Prisma.Decimal }[] = [];
+    if (!accepted && variants.some(v=>v.sellingEntity!==null)) return {ok:false,status:409,body:{error:"commercial_quote_required"}};
+    const lineItems: { variantId: string; qtyOrdered: number; unitPrice: number; caseWeightKgSnapshot: Prisma.Decimal; commercialSnapshot?:Prisma.InputJsonValue }[] = [];
     for (const item of items) {
+      const commercialLine=accepted?.lines.find(l=>l.variantId===item.variantId);
+      if (commercialLine) {
+        const weight=new Prisma.Decimal(commercialLine.caseWeightKg);
+        const equivalentCasePrice=new Prisma.Decimal(commercialLine.rate).mul(commercialLine.rateBasis==="quintal"?weight.div(100):1);
+        lineItems.push({variantId:item.variantId,qtyOrdered:item.qty,unitPrice:equivalentCasePrice.toDecimalPlaces(2).toNumber(),caseWeightKgSnapshot:weight,commercialSnapshot:asJson(commercialLine)});
+        continue;
+      }
       const unitPrice = overridePrice.get(item.variantId) ?? tierPrice.get(item.variantId);
       if (unitPrice == null) {
         return {
@@ -181,7 +201,7 @@ export async function createOrderForRetailer(
 
     // Persisted prices have two decimal places. Keep multiplication/addition
     // decimal until the existing credit engine's numeric boundary.
-    const orderTotal = orderAmount.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP).toNumber();
+    const orderTotal = accepted ? Number(accepted.total) : orderAmount.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP).toNumber();
 
     const minimumOrderValue = Number(appConfig?.minOrderValue ?? 0);
     if (minimumOrderValue > 0 && orderTotal < minimumOrderValue) {
@@ -264,6 +284,7 @@ export async function createOrderForRetailer(
       data: {
         retailerId,
         ...(idempotencyKey ? { idempotencyKey } : {}),
+        ...(quote && accepted ? {commercialQuoteId:quote.id,commercialSnapshot:asJson(accepted)}:{}),
         placedBy,
         placedByRepId: placedBy === "rep" ? placedByRepId ?? null : null,
         status: "placed",
@@ -272,6 +293,7 @@ export async function createOrderForRetailer(
       },
       include: { items: true },
     });
+    if (quote) await tx.commercialQuote.update({where:{id:quote.id},data:{acceptedAt:new Date()}});
     const orderWithIdentity = await tx.order.update({
       where: { id: order.id },
       data: { sapExternalReference: externalReferenceFor(order.orderNo) },

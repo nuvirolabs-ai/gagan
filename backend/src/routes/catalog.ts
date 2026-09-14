@@ -9,8 +9,8 @@ const router = Router();
 
 /** Resolve a retailer's effective price for a variant: override beats tier price. */
 function priceResolver(
-  priceList: { variantId: string; price: unknown }[],
-  overrides: { variantId: string; price: unknown }[]
+  priceList: { variantId: string; price: unknown; rateBasis?:string }[],
+  overrides: { variantId: string; price: unknown; rateBasis?:string }[]
 ) {
   const tierPrices = new Map(priceList.map((p) => [p.variantId, Number(p.price)]));
   const overridePrices = new Map(overrides.map((o) => [o.variantId, Number(o.price)]));
@@ -19,19 +19,22 @@ function priceResolver(
     return {
       price: override ?? tierPrices.get(variantId) ?? null,
       isOverride: override != null,
+      rateBasis: (overrides.find(p=>p.variantId===variantId) ?? priceList.find(p=>p.variantId===variantId))?.rateBasis ?? "case",
     };
   };
 }
 
 function shapeVariant(v: any, resolve: ReturnType<typeof priceResolver>, inventory?: any) {
-  const { price, isOverride } = resolve(v.id);
+  const { price:rate, isOverride,rateBasis } = resolve(v.id);
   const caseWeightKg = Number(v.unitWeightKg) * v.unitsPerCase;
+  const price=rate===null?null:rateBasis==="quintal"?Math.round(rate*caseWeightKg)/100:rate;
   return {
     id: v.id,
     unitSize: v.unitSize,
     unit: v.unit,
     unitsPerCase: v.unitsPerCase,
     caseWeightKg,
+    commercialRate:rate,rateBasis,sellingEntity:v.sellingEntity,gstPercent:v.gstPercent,
     price,
     isOverride,
     // Retailers compare commodities on rate per kg, and it's what the invoice

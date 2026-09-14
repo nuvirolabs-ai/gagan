@@ -4,6 +4,9 @@ type DecimalInput = string;
 export type SellingEntity = "jain_traders" | "padam_international";
 
 export interface CommercialQuoteLine {
+  productName?: string;
+  pack?: string;
+  itemCode?: string | null;
   variantId: string;
   entity: SellingEntity;
   cases: number;
@@ -11,6 +14,8 @@ export interface CommercialQuoteLine {
   rate: DecimalInput;
   rateBasis: "case" | "quintal";
   gstPercent: DecimalInput;
+  /** Delivery-only accepted weight. Absent for checkout. */
+  deliveredWeightKg?: string;
 }
 
 export interface ManagerFreight {
@@ -52,8 +57,8 @@ function entity(value: SellingEntity): SellingEntity {
 const rounded = (value: Prisma.Decimal) => value.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 const serialized = (value: Prisma.Decimal) => value.toFixed(2);
 
-/** Pure calculation foundation. Inputs must come from authorized server records,
- * never client-supplied prices. Not yet wired to order acceptance or invoicing. */
+/** Shared order/delivery calculation. Inputs come from authorized server records
+ * or accepted transaction snapshots, never client-supplied prices. */
 export function calculateCommercialQuote(input: { lines: CommercialQuoteLine[]; freight?: ManagerFreight }) {
   if (!input.lines.length) throw new Error("Quote requires items");
   const seen = new Set<string>();
@@ -70,17 +75,18 @@ export function calculateCommercialQuote(input: { lines: CommercialQuoteLine[]; 
   const lines = input.lines.map(line => {
     if (!line.variantId || seen.has(line.variantId)) throw new Error("Duplicate or missing SKU");
     seen.add(line.variantId);
-    if (!Number.isSafeInteger(line.cases) || line.cases <= 0) throw new Error("Invalid case quantity");
+    if (!Number.isSafeInteger(line.cases) || line.cases < 0 || (line.cases === 0 && line.deliveredWeightKg === undefined)) throw new Error("Invalid case quantity");
     if (line.rateBasis !== "case" && line.rateBasis !== "quintal") throw new Error("Invalid rate basis");
-    const kilograms = decimal(line.caseWeightKg, "case weight", true).mul(line.cases);
+    const caseWeight = decimal(line.caseWeightKg, "case weight", true);
+    const kilograms = line.deliveredWeightKg === undefined ? caseWeight.mul(line.cases) : decimal(line.deliveredWeightKg, "delivered weight");
     const quintals = kilograms.div(100);
-    const basisQuantity = line.rateBasis === "case" ? new Prisma.Decimal(line.cases) : quintals;
+    const basisQuantity = line.rateBasis === "case" ? kilograms.div(caseWeight) : quintals;
     const base = rounded(money(line.rate, "rate").mul(basisQuantity));
     const gst = rounded(base.mul(taxRate(line.gstPercent)).div(100));
     const group = bucket(line.entity);
     group.goods = group.goods.add(base);
     group.tax = group.tax.add(gst);
-    return { ...line, quintals: quintals.toString(), base: serialized(base), gst: serialized(gst), total: serialized(base.add(gst)) };
+    return { ...line, weightKg: kilograms.toString(), quintals: quintals.toString(), discount: "0.00", base: serialized(base), gst: serialized(gst), total: serialized(base.add(gst)) };
   });
   let freight;
   if (input.freight) {

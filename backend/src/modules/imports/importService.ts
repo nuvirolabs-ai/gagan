@@ -336,7 +336,7 @@ async function applyRow(db: Db, type: ImportType, row: PreparedRow, mode: Import
     return { action: resolved.existingId ? "updated" as const : "created" as const, subjectType: "InventorySnapshot", subjectId: snapshot.id };
   }
   if (type === "pricing") {
-    const price = await db.priceList.upsert({ where: { tierId_variantId: { tierId: String(resolved.tierId), variantId: String(resolved.variantId) } }, update: { price: numberValue(v, "price")! }, create: { tierId: String(resolved.tierId), variantId: String(resolved.variantId), productId: (await db.variant.findUnique({ where: { id: String(resolved.variantId) }, select: { productId: true } }))!.productId, price: numberValue(v, "price")! } });
+    const price = await db.priceList.upsert({ where: { tierId_variantId: { tierId: String(resolved.tierId), variantId: String(resolved.variantId) } }, update: { price: numberValue(v, "price")!, rateBasis: "case" }, create: { tierId: String(resolved.tierId), variantId: String(resolved.variantId), productId: (await db.variant.findUnique({ where: { id: String(resolved.variantId) }, select: { productId: true } }))!.productId, price: numberValue(v, "price")! } });
     await audit(db, actorStaffId, jobId, "PriceList", price.id, "import.pricing_applied", mode);
     return { action: resolved.existingId ? "updated" as const : "created" as const, subjectType: "PriceList", subjectId: price.id };
   }

@@ -119,8 +119,8 @@ router.post("/retailers/:id/price-override", async (req, res) => {
     where: {
       retailerId_variantId: { retailerId: req.params.id, variantId: parsed.data.variantId },
     },
-    update: { price: parsed.data.price },
-    create: { retailerId: req.params.id, variantId: parsed.data.variantId, price: parsed.data.price },
+    update: { price: parsed.data.price, rateBasis:"case" },
+    create: { retailerId: req.params.id, variantId: parsed.data.variantId, price: parsed.data.price, rateBasis:"case" },
   });
   res.json({ override });
 });

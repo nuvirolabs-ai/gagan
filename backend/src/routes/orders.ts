@@ -4,10 +4,12 @@ import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../lib/auth";
 import { createOrderForRetailer } from "../lib/orders";
 import { createRateLimiter } from "../platform/http/rateLimit";
+import { invoiceBalances } from "../modules/commercial/service";
 
 const router = Router();
 
 const createOrderSchema = z.object({
+  commercial: z.object({quoteId:z.string(),revision:z.number().int().positive()}).optional(),
   items: z
     .array(z.object({ variantId: z.string(), qty: z.number().int().positive() }))
     .min(1),
@@ -21,7 +23,7 @@ router.post("/orders", requireAuth, createRateLimiter({ name: "retailer-order", 
   const parsed = createOrderSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
 
-  const result = await createOrderForRetailer(req.retailerId!, parsed.data.items, "retailer", undefined, undefined, idempotencyKey);
+  const result = await createOrderForRetailer(req.retailerId!, parsed.data.items, "retailer", undefined, undefined, idempotencyKey,parsed.data.commercial);
   if (!result.ok) return res.status(result.status).json(result.body);
 
   res.status(201).json({
@@ -50,11 +52,14 @@ router.get("/orders/:id", requireAuth, async (req: AuthedRequest, res) => {
       // The invoice is priced off delivered weight, so it can differ from the
       // ordered total. Send it alongside so the retailer can see why.
       ledgerEntries: { where: { type: "invoice" }, take: 1 },
+      invoice: true,
     },
   });
   if (!order) return res.status(404).json({ error: "Order not found" });
 
   const invoice = order.ledgerEntries[0] ?? null;
+  const financialInvoice = order.invoice;
+  const entityBalances = financialInvoice?.commercialSnapshot ? await prisma.$transaction(tx=>invoiceBalances(tx,financialInvoice.id)) : null;
 
   res.json({
     order: {
@@ -65,6 +70,10 @@ router.get("/orders/:id", requireAuth, async (req: AuthedRequest, res) => {
             amount: Number(invoice.amount),
             createdAt: invoice.createdAt,
             variance: Number(invoice.amount) - Number(order.orderTotal),
+            invoiceNumber: financialInvoice?.invoiceNumber,
+            commercialSnapshot: financialInvoice?.commercialSnapshot,
+            outstandingAmount: financialInvoice?.outstandingAmount,
+            entityOutstanding: entityBalances ? {jain:entityBalances.jain.toFixed(2),padam:entityBalances.padam.toFixed(2)} : null,
           }
         : null,
     },

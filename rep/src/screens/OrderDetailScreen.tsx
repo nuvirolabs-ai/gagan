@@ -56,7 +56,12 @@ export default function OrderDetailScreen({ route }: any) {
     <AppScreen>
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => {
+          setRefreshing(true);
+          try { await load(); }
+          catch { Alert.alert("Could not refresh", "Your last order details are still shown. Please try again when connected."); }
+          finally { setRefreshing(false); }
+        }} tintColor={colors.primary} />}
       >
         <Surface>
           <View style={styles.headerRow}>
@@ -76,7 +81,7 @@ export default function OrderDetailScreen({ route }: any) {
           <SectionHeader title="Items" />
           {(order.items ?? []).map((item: any) => {
             const name = item.variant?.product?.name ?? "Product";
-            const pack = [item.variant?.unitSize, item.variant?.unit].filter(Boolean).join(" ");
+            const pack = item.variant?.unitSize ? `${item.variant.unitSize} × ${item.variant.unitsPerCase ?? 1}` : "";
             const lineTotal = Number(item.unitPrice) * Number(item.qtyOrdered);
             return <View key={item.id} style={styles.itemRow}><View style={{ flex: 1 }}><Text style={styles.itemName}>{name}</Text><Text style={styles.muted}>{pack || "Standard pack"} · Qty {item.qtyOrdered}</Text></View><View style={styles.itemRight}><Text style={styles.itemPrice}>{inr(lineTotal)}</Text><Text style={styles.muted}>{inr(Number(item.unitPrice))} each</Text></View></View>;
           })}

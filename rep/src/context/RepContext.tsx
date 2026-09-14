@@ -62,6 +62,8 @@ export function RepProvider({ children }: { children: React.ReactNode }) {
       setRep(null);
       setRepAccount(null);
       setStaff(null);
+      setActiveRetailerId(null);
+      setLines([]);
       resetSelectionGate();
     });
     return () => setRepUnauthorizedHandler(null);

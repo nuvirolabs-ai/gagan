@@ -75,9 +75,14 @@ export function createSessionFetch(options: SessionFetchOptions) {
       try {
         await refresh();
         return request(path, requestOptions, true, false);
-      } catch {
-        await options.store.clear();
-        options.onUnauthorized?.();
+      } catch (error) {
+        // An expired access token plus a temporary refresh outage is not a
+        // revoked login. Preserve the refresh credential for the next attempt.
+        if (isAuthenticationFailure(error)) {
+          await options.store.clear();
+          options.onUnauthorized?.();
+        }
+        throw error;
       }
     }
     if (!response.ok) throw new SessionFetchError(response.status, body);

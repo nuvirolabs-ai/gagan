@@ -45,7 +45,6 @@ export default function AccountStrip({
   const cells = [
     { label: t("home.outstanding"), value: account.outstanding ?? 0, tone: "ink" as const },
     { label: t("home.overdue"), value: account.overdue ?? 0, tone: (account.overdue ?? 0) > 0 ? "overdue" : "muted" as const },
-    { label: t("home.availableCredit"), value: account.available ?? 0, tone: "muted" as const },
   ];
 
   return (

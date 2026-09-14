@@ -75,7 +75,6 @@ export default function LedgerScreen() {
   }
 
   const balance = Number(summary.balance);
-  const limit = Number(summary.limit);
 
   return (
     <View style={styles.screen}>
@@ -93,21 +92,7 @@ export default function LedgerScreen() {
             {inr(balance)}
           </Text>
         </View>
-        <View style={[styles.cell, styles.cellBorder]}>
-          <Text style={styles.cellLabel} numberOfLines={1}>
-            {t("ledger.available")}
-          </Text>
-          <Text
-            style={styles.cellValue}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.65}
-          >
-            {inr(Math.max(limit - balance, 0))}
-          </Text>
-        </View>
       </View>
-      <Text style={styles.limitCue}>{t("ledger.limit", { amount: inr(limit) })}</Text>
 
       <SectionList
         sections={sections}

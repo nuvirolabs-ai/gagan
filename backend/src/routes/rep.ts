@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { publicMediaUrl } from "../lib/media";
+import { groupCatalog } from "../modules/catalog/catalogGrouping";
 import { financialLedgerFor } from "../modules/finance/financialQueries";
 import { financialSummaryFor } from "../modules/finance/financialSummary";
 import { DEFAULT_WAREHOUSE_CODE, INVENTORY_STALE_AFTER_MS } from "../modules/inventory/inventoryService";
@@ -242,6 +243,7 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
 
   res.json({
     catalog,
+    groups: groupCatalog(catalog.map((product, index) => ({ ...product, sapMaterialId: products[index].sapMaterialId }))),
     categories: [...new Set(products.map((p) => p.category))].sort(),
   });
 });

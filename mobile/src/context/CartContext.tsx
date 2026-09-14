@@ -3,8 +3,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CartLine } from "../types";
 import { api } from "../api/client";
 import { useAuth } from "./AuthContext";
+import { createAccountCartStorage } from "./accountCartStorage";
 
-const CART_KEY = "gagan_cart_v1";
+const cartStorage = createAccountCartStorage(AsyncStorage);
 
 interface CartContextValue {
   lines: CartLine[];
@@ -25,11 +26,14 @@ const CartContext = createContext<CartContextValue | undefined>(undefined);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const { retailer } = useAuth();
-  const [lines, setLines] = useState<CartLine[]>([]);
-  const [hydrated, setHydrated] = useState(false);
+  const accountId = retailer?.id ?? null;
+  const currentAccount = useRef(accountId);
+  currentAccount.current = accountId;
+  const revision = useRef(0);
+  const [cart, setCart] = useState<{ owner: string | null; lines: CartLine[]; ready: boolean }>({ owner: null, lines: [], ready: false });
+  const lines = cart.owner === accountId && accountId ? cart.lines : [];
+  const hydrated = cart.owner === accountId && cart.ready;
   const [staleNotice, setStaleNotice] = useState<string | null>(null);
-  // Avoid writing back the empty initial state before the load finishes.
-  const loaded = useRef(false);
 
   const reconcileSavedLines = async (saved: CartLine[]) => {
     const catalog = await api.getCatalog();
@@ -64,16 +68,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
-    setLines(kept);
+    let notice: string | null = null;
     if (dropped || repriced) {
       const parts: string[] = [];
       if (dropped) parts.push(`${dropped} item${dropped > 1 ? "s are" : " is"} no longer available`);
       if (repriced) parts.push(`${repriced} price${repriced > 1 ? "s" : ""} changed`);
-      setStaleNotice(`Your saved cart was updated: ${parts.join(", ")}.`);
-    } else {
-      setStaleNotice(null);
+      notice = `Your saved cart was updated: ${parts.join(", ")}.`;
     }
-    return kept;
+    return { lines: kept, notice };
   };
 
   /**
@@ -86,36 +88,26 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
    */
   useEffect(() => {
     let cancelled = false;
-
+    revision.current++;
+    setStaleNotice(null);
+    setCart({ owner: accountId, lines: [], ready: false });
+    if (!accountId) return;
     (async () => {
       try {
-        const raw = await AsyncStorage.getItem(CART_KEY);
-        const saved: CartLine[] = raw ? JSON.parse(raw) : [];
+        const saved = await cartStorage.load(accountId);
+        let restored = { lines: saved, notice: null as string | null };
         if (saved.length > 0) {
-          if (!retailer) {
-            // Keep the saved cart while signed out. Once authentication is
-            // restored, this effect runs again and reconciles against live IDs.
-            if (!cancelled) setLines(saved);
-          } else {
-            try {
-              await reconcileSavedLines(saved);
-            } catch {
-              // Offline or temporarily unavailable — keep the cart as saved.
-              // Checkout will retry reconciliation before posting the order.
-              if (!cancelled) setLines(saved);
-            }
-          }
+          // Offline: retain this account's saved cart, then retry before order.
+          try { restored = await reconcileSavedLines(saved); } catch { /* retain saved lines */ }
+        }
+        if (!cancelled && currentAccount.current === accountId) {
+          setCart({ owner: accountId, lines: restored.lines, ready: true });
+          setStaleNotice(restored.notice);
         }
       } catch {
-        // A corrupt cart must not block the app.
-        if (!cancelled) {
-          await AsyncStorage.removeItem(CART_KEY).catch(() => {});
-          setLines([]);
-        }
-      } finally {
-        if (!cancelled) {
-          loaded.current = true;
-          setHydrated(true);
+        // Do not overwrite unreadable business data with an empty basket.
+        if (!cancelled && currentAccount.current === accountId) {
+          setStaleNotice("Your saved cart could not be opened. Please reopen the app to retry; saved data has been retained.");
         }
       }
     })();
@@ -123,12 +115,25 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [retailer?.id]);
+  }, [accountId]);
 
   useEffect(() => {
-    if (!loaded.current) return;
-    AsyncStorage.setItem(CART_KEY, JSON.stringify(lines)).catch(() => {});
-  }, [lines]);
+    if (!cart.ready || !cart.owner || cart.owner !== accountId) return;
+    const owner = cart.owner;
+    cartStorage.save(owner, cart.lines).catch(() => {
+      if (currentAccount.current === owner) setStaleNotice("Cart changes could not be saved on this device. Keep the app open and try again.");
+    });
+  }, [cart, accountId]);
+
+  const setLines = (update: (previous: CartLine[]) => CartLine[]) => {
+    if (!accountId || !hydrated) {
+      setStaleNotice("Please wait for your saved cart to load before changing items.");
+      return;
+    }
+    revision.current++;
+    setCart(previous => previous.owner === accountId && previous.ready
+      ? { ...previous, lines: update(previous.lines) } : previous);
+  };
 
   const addLine = (line: CartLine) =>
     setLines((prev) => {
@@ -151,7 +156,19 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const removeLine = (variantId: string) =>
     setLines((prev) => prev.filter((l) => l.variantId !== variantId));
 
-  const clear = () => setLines([]);
+  const clear = () => setLines(() => []);
+
+  const reconcile = async () => {
+    if (!accountId || !hydrated) throw new Error("Cart is not ready");
+    const version = revision.current;
+    const result = await reconcileSavedLines(lines);
+    if (currentAccount.current !== accountId || revision.current !== version) {
+      throw new Error("Cart changed while checking prices. Please review it again.");
+    }
+    setCart({ owner: accountId, lines: result.lines, ready: true });
+    setStaleNotice(result.notice);
+    return result.lines;
+  };
 
   const total = lines.reduce((sum, l) => sum + l.unitPrice * l.qty, 0);
 
@@ -165,7 +182,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         removeLine,
         clear,
         total,
-        reconcile: () => reconcileSavedLines(lines),
+        reconcile,
         staleNotice,
         dismissStaleNotice: () => setStaleNotice(null),
       }}

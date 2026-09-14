@@ -17,7 +17,7 @@ import { haptic } from "../feedback/haptics";
 import ProductThumb from "../components/ProductThumb";
 import { SearchBar, ChipRow, QtyStepper, EmptyState } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
-import { formatOrderRef } from "../lib/orderRef";
+import { catalogGroups, selectedCatalogSku, type CatalogGroup } from "../lib/catalogSelection";
 
 const ALL = "All";
 
@@ -26,19 +26,21 @@ export default function RepCatalogScreen({ route, navigation }: any) {
   const { lines, addLine, updateQty, clearCart, cartTotal } = useRep();
   const { t } = useLanguage();
 
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<CatalogGroup[]>([]);
+  const [selectedSkus, setSelectedSkus] = useState<Record<string, string>>({});
   const [categories, setCategories] = useState<string[]>([]);
   const [category, setCategory] = useState(ALL);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const checkoutKey = useRef<string | null>(null);
+  const submitting = useRef(false);
 
   useEffect(() => {
     repApi
       .catalogFor(retailerId)
       .then((res) => {
-        setProducts(res.catalog);
+        setProducts(catalogGroups(res));
         setCategories(res.categories ?? []);
       })
       .catch(() => setProducts([]))
@@ -49,8 +51,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
     const q = query.trim().toLowerCase();
     return products
       .filter((p) => category === ALL || p.category === category)
-      .filter((p) => !q || p.name.toLowerCase().includes(q))
-      .flatMap((p) => p.variants.map((v: any) => ({ product: p, variant: v })));
+      .filter((p) => !q || p.name.toLowerCase().includes(q) || p.skus.some(sku => sku.unitSize.toLowerCase().includes(q)));
   }, [products, category, query]);
 
   const qtyFor = (variantId: string) => lines.find((l) => l.variantId === variantId)?.qty ?? 0;
@@ -76,6 +77,8 @@ export default function RepCatalogScreen({ route, navigation }: any) {
   };
 
   const submit = useCallback(async () => {
+    if (submitting.current || lines.length === 0) return;
+    submitting.current = true;
     setPlacing(true);
     try {
       checkoutKey.current ??= `rep-checkout-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -87,23 +90,21 @@ export default function RepCatalogScreen({ route, navigation }: any) {
       clearCart();
       checkoutKey.current = null;
       haptic("success");
-      Alert.alert(
-        "Order placed",
-        `${formatOrderRef(res.order)}\n${inr(Number(res.order.orderTotal))}`,
-        [{ text: t("common.save"), onPress: () => navigation.goBack() }]
-      );
+      navigation.replace("OrderDetail", { orderId: res.order.id });
     } catch (e) {
-      if (e instanceof ApiError && e.status === 402) {
+      if (e instanceof ApiError && e.body?.error === "idempotency_key_conflict") {
+        Alert.alert("Check your previous order", "This checkout already belongs to another basket. Review this retailer's orders before submitting again.");
+      } else if (e instanceof ApiError && (e.status === 402 || e.body?.error === "credit_blocked")) {
         Alert.alert(
-          "Over credit limit",
-          `This order (${inr(e.body.orderTotal)}) exceeds ${retailerName}'s available credit (${inr(
-            e.body.availableCredit
-          )}). Collect payment or reduce the order.`
+          "Order needs review",
+          `Please review ${retailerName}'s outstanding dues and commercial eligibility before placing this order.`
         );
       } else {
         Alert.alert(t("errors.generic"), e instanceof ApiError ? e.message : t("errors.generic"));
       }
+      if (e instanceof ApiError && e.status >= 400 && e.status < 500 && e.body?.error !== "idempotency_key_conflict") checkoutKey.current = null;
     } finally {
+      submitting.current = false;
       setPlacing(false);
     }
   }, [lines, retailerId, retailerName, clearCart, navigation]);
@@ -133,14 +134,16 @@ export default function RepCatalogScreen({ route, navigation }: any) {
       ) : (
         <FlatList
           data={rows}
-          keyExtractor={(r) => r.variant.id}
+          keyExtractor={(r) => r.id}
           contentContainerStyle={{ padding: spacing.lg, paddingBottom: cartCount > 0 ? 140 : 40 }}
           ListEmptyComponent={<EmptyState icon="magnify" title={t("common.search")} />}
           renderItem={({ item }) => {
-            const { product, variant } = item;
+            const product = item;
+            const variant = selectedCatalogSku(product, selectedSkus[product.id], qtyFor);
             const qty = qtyFor(variant.id);
             return (
-              <View style={[styles.card, qty > 0 && styles.cardSelected]}>
+              <View style={[styles.card, product.skus.some(sku => qtyFor(sku.id) > 0) && styles.cardSelected]}>
+                <View style={styles.productRow}>
                 <ProductThumb
                   name={product.name}
                   category={product.category}
@@ -164,7 +167,23 @@ export default function RepCatalogScreen({ route, navigation }: any) {
                   </View>
                   {variant.isOverride && <Text style={styles.override}>{t("catalog.specialRate")}</Text>}
                 </View>
-                <QtyStepper qty={qty} onChange={(next) => setQty(product, variant, next)} compact />
+                {qty === 0 ? <QtyStepper qty={qty} onChange={(next) => setQty(product, variant, next)} compact disabled={placing} /> : null}
+                </View>
+                {product.skus.length > 1 || qty > 0 ? <View style={styles.controlsRow}>
+                {product.skus.length > 1 ? <View style={styles.packOptions}>
+                  {product.skus.map(sku => <TouchableOpacity key={sku.id}
+                    style={[styles.packOption, sku.id === variant.id && styles.packOptionSelected]}
+                    disabled={placing} accessibilityRole="button"
+                    accessibilityState={{ selected: sku.id === variant.id, disabled: placing }}
+                    accessibilityLabel={`${product.name}, ${sku.unitSize}, ${qtyFor(sku.id)} cases in cart`}
+                    onPress={() => setSelectedSkus(previous => ({ ...previous, [product.id]: sku.id }))}>
+                    <Text style={styles.packOptionText}>{sku.unitSize}{qtyFor(sku.id) > 0 ? ` · ${qtyFor(sku.id)}` : ""}</Text>
+                  </TouchableOpacity>)}
+                </View> : null}
+                {qty > 0 ? <View style={{ marginLeft: "auto" }}>
+                  <QtyStepper qty={qty} onChange={(next) => setQty(product, variant, next)} compact disabled={placing} />
+                </View> : null}
+                </View> : null}
               </View>
             );
           }}
@@ -222,8 +241,6 @@ const styles = StyleSheet.create({
   bannerText: { color: colors.blueInk, fontWeight: "700", fontSize: 13.5 },
 
   card: {
-    flexDirection: "row",
-    alignItems: "center",
     gap: spacing.md,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
@@ -232,6 +249,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.separator,
   },
+  productRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  controlsRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: spacing.md },
+  packOptions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  packOption: { minHeight: 44, paddingHorizontal: spacing.md, justifyContent: "center", borderRadius: radius.md, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border },
+  packOptionSelected: { backgroundColor: colors.blueSoft, borderColor: colors.blue },
+  packOptionText: { fontSize: 13, fontWeight: "600", color: colors.ink },
   cardSelected: {
     borderColor: colors.blue,
     backgroundColor: colors.blueSoft,

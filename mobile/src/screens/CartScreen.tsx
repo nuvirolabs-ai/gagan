@@ -22,6 +22,7 @@ export default function CartScreen({ navigation }: any) {
   const { t } = useLanguage();
   const [placing, setPlacing] = useState(false);
   const checkoutKey = useRef<string | null>(null);
+  const submitting = useRef(false);
   const [credit, setCredit] = useState<any>(null);
   const [config, setConfig] = useState<any>({ freeDeliveryThreshold: 0, minOrderValue: 0 });
 
@@ -45,6 +46,8 @@ export default function CartScreen({ navigation }: any) {
   const canCheckout = lines.length > 0 && !belowMin && !overCredit && !placing;
 
   const handleCheckout = async () => {
+    if (submitting.current || !canCheckout) return;
+    submitting.current = true;
     setPlacing(true);
     try {
       // A database reset, SAP sync, or admin price edit can leave an old
@@ -63,7 +66,6 @@ export default function CartScreen({ navigation }: any) {
           );
         });
       if (cartChanged) {
-        checkoutKey.current = null;
         Alert.alert("Cart updated", "Some saved items or prices changed. Please review the cart and try again.");
         return;
       }
@@ -76,17 +78,22 @@ export default function CartScreen({ navigation }: any) {
       checkoutKey.current = null;
       navigation.navigate("OrderConfirmation", { order: res.order });
     } catch (e) {
-      if (e instanceof ApiError && e.status === 402) {
+      if (e instanceof ApiError && e.body?.error === "idempotency_key_conflict") {
+        Alert.alert("Check your previous order", "This checkout was already used for a different basket. Check order history before placing another order.",
+          [{ text: "View orders", onPress: () => navigation.navigate("Main", { screen: "Orders" }) }]);
+      } else if (e instanceof ApiError && (e.status === 402 || e.body?.error === "credit_blocked")) {
         Alert.alert(
-          "Credit limit exceeded",
-          `This order (${inr(e.body.orderTotal)}) is more than your available credit (${inr(
-            e.body.availableCredit
-          )}). Reduce quantities or clear some dues first.`
+          "Order needs review",
+          "Please clear outstanding dues or contact your salesperson before placing this order."
         );
       } else {
         Alert.alert(t("errors.order"), e instanceof ApiError ? e.message : t("errors.generic"));
       }
+      // An explicit validation rejection permits a corrected request. Unknown
+      // outcomes retain their key so a lost response cannot create two orders.
+      if (e instanceof ApiError && e.status >= 400 && e.status < 500 && e.body?.error !== "idempotency_key_conflict") checkoutKey.current = null;
     } finally {
+      submitting.current = false;
       setPlacing(false);
     }
   };
@@ -112,7 +119,7 @@ export default function CartScreen({ navigation }: any) {
         title={t("cart.title")}
         subtitle={`${lines.length} line${lines.length === 1 ? "" : "s"}`}
         right={
-          <TouchableOpacity onPress={clear}>
+          <TouchableOpacity onPress={clear} disabled={placing}>
             <Text style={styles.clear}>{t("cart.clear")}</Text>
           </TouchableOpacity>
         }
@@ -150,7 +157,7 @@ export default function CartScreen({ navigation }: any) {
               >
                 {inr(l.unitPrice * l.qty)}
               </Text>
-              <QtyStepper qty={l.qty} onChange={(next) => updateQty(l.variantId, next)} compact />
+              <QtyStepper qty={l.qty} onChange={(next) => updateQty(l.variantId, next)} compact disabled={placing} />
             </View>
           </View>
         ))}
@@ -187,37 +194,6 @@ export default function CartScreen({ navigation }: any) {
           ) : null}
         </View>
 
-        {credit && (
-          <View style={styles.creditBand}>
-            <View style={styles.between}>
-              <Text style={styles.creditLabel}>{t("profile.availableCredit")}</Text>
-              <Text
-                style={styles.creditValue}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.7}
-              >
-                {inr(credit.available)}
-              </Text>
-            </View>
-            <View style={styles.creditTrack}>
-              <View
-                style={[
-                  styles.creditFill,
-                  {
-                    width: `${Math.min(100, (payable / Math.max(credit.available, 1)) * 100)}%`,
-                    backgroundColor: overCredit ? colors.danger : colors.green,
-                  },
-                ]}
-              />
-            </View>
-            <Text style={styles.creditAfter}>
-              {overCredit
-                ? `Short by ${inr(payable - credit.available)}`
-                : `${inr(credit.available - payable)} left after this order`}
-            </Text>
-          </View>
-        )}
 
         {belowMin && (
           <View style={styles.warn}>
@@ -232,7 +208,7 @@ export default function CartScreen({ navigation }: any) {
           <View style={styles.warn}>
             <Ionicons name="alert-circle" size={15} color={colors.danger} />
             <Text style={styles.warnText}>
-              This order exceeds your available credit. Clear dues or reduce quantities.
+              Please clear outstanding dues or contact your salesperson before placing this order.
             </Text>
           </View>
         )}
@@ -298,8 +274,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   sumRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: spacing.sm, gap: spacing.md },
-  sumLabel: { fontSize: 13.5, color: colors.inkMuted },
-  sumValue: { fontSize: 13.5, fontWeight: "600", color: colors.ink },
+  sumLabel: { flex: 1, minWidth: 0, fontSize: 13.5, color: colors.inkMuted },
+  sumValue: { flexShrink: 0, fontSize: 13.5, fontWeight: "600", color: colors.ink },
   totalLabel: { fontSize: 15, fontWeight: "700", color: colors.ink },
   totalValue: { fontSize: 18, fontWeight: "700", color: colors.ink, maxWidth: 140, textAlign: "right" },
   hint: {

@@ -143,20 +143,25 @@ export function QtyStepper({
   qty,
   onChange,
   compact,
+  disabled = false,
 }: {
   qty: number;
   onChange: (next: number) => void;
   compact?: boolean;
+  disabled?: boolean;
 }) {
   const { t } = useLanguage();
   if (qty <= 0) {
     return (
       <TouchableOpacity
         style={[s.addBtn, compact && s.addBtnCompact]}
+        disabled={disabled}
+        accessibilityRole="button"
+        accessibilityState={{ disabled }}
         onPress={() => onChange(1)}
         accessibilityLabel={t("product.addToCart")}
       >
-        <Ionicons name="add" size={compact ? 16 : 18} color={colors.onDark} />
+        <Ionicons name="add" size={compact ? 18 : 19} color={colors.onDark} />
       </TouchableOpacity>
     );
   }
@@ -164,18 +169,24 @@ export function QtyStepper({
     <View style={[s.stepper, compact && s.stepperCompact]}>
       <TouchableOpacity
         style={s.stepBtn}
+        disabled={disabled}
+        accessibilityRole="button"
+        accessibilityState={{ disabled }}
         onPress={() => onChange(qty - 1)}
         accessibilityLabel={t("common.decreaseQuantity")}
       >
-        <Ionicons name={qty === 1 ? "trash-outline" : "remove"} size={15} color={colors.ink} />
+        <Ionicons name={qty === 1 ? "trash-outline" : "remove"} size={18} color={colors.ink} />
       </TouchableOpacity>
       <Text style={s.stepQty}>{qty}</Text>
       <TouchableOpacity
         style={s.stepBtn}
+        disabled={disabled}
+        accessibilityRole="button"
+        accessibilityState={{ disabled }}
         onPress={() => onChange(qty + 1)}
         accessibilityLabel={t("common.increaseQuantity")}
       >
-        <Ionicons name="add" size={15} color={colors.ink} />
+        <Ionicons name="add" size={18} color={colors.ink} />
       </TouchableOpacity>
     </View>
   );
@@ -319,26 +330,26 @@ const s = StyleSheet.create({
   skelRow: { height: 72, borderRadius: radius.md, backgroundColor: colors.surface, marginBottom: spacing.sm },
 
   addBtn: {
-    width: 34,
-    height: 34,
+    width: 44,
+    height: 44,
     borderRadius: radius.sm,
     backgroundColor: colors.greenDeep,
     alignItems: "center",
     justifyContent: "center",
   },
-  addBtnCompact: { width: 30, height: 30 },
+  addBtnCompact: { width: 44, height: 44 },
   stepper: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.goldSoft,
     borderRadius: radius.sm,
-    paddingHorizontal: 5,
-    paddingVertical: 4,
-    gap: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 5,
+    gap: 3,
   },
-  stepperCompact: { paddingVertical: 2 },
-  stepBtn: { width: 26, height: 26, alignItems: "center", justifyContent: "center" },
-  stepQty: { fontSize: 14, fontWeight: "700", color: colors.ink, minWidth: 20, textAlign: "center" },
+  stepperCompact: { paddingVertical: 3 },
+  stepBtn: { width: 44, height: 44, flexShrink: 0, alignItems: "center", justifyContent: "center" },
+  stepQty: { fontSize: 16, fontWeight: "700", color: colors.ink, minWidth: 24, textAlign: "center" },
 
   empty: { paddingVertical: spacing.xl, paddingHorizontal: spacing.lg, gap: 4 },
   emptyTitle: { fontSize: 14.5, fontWeight: "700", color: colors.ink },

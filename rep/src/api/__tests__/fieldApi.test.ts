@@ -104,4 +104,13 @@ describe("field day API", () => {
     });
     expect(JSON.parse((request.mock.calls[0][1] as any).body).purpose).toBe("collection");
   });
+
+  it("retains multiple outcomes and a structured no-order explanation", async () => {
+    const { api: client, request } = api();
+    await client.checkOut("visit-1", { latitude: 18.5, longitude: 73.8, accuracyMeters: 10,
+      outcomes: ["payment_collected", "task_completed"], noOrderReason: "already_has_stock" });
+    expect(JSON.parse((request.mock.calls[0][1] as any).body)).toMatchObject({
+      outcomes: ["payment_collected", "task_completed"], noOrderReason: "already_has_stock",
+    });
+  });
 });

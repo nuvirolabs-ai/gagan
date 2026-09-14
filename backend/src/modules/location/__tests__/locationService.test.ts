@@ -125,7 +125,7 @@ describe("LocationService", () => {
       reviewRadiusMeters: 500,
     });
 
-    await service.checkOut({ visitId: "visit-1", salespersonId: "staff-1", latitude: 18.5201, longitude: 73.8501, accuracyMeters: 10 });
+    await service.checkOut({ visitId: "visit-1", salespersonId: "staff-1", latitude: 18.5201, longitude: 73.8501, accuracyMeters: 10, outcome: "order_placed" });
     expect(prisma.salesVisit.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "visit-1" }, data: expect.objectContaining({ checkedOutAccuracyMeters: 10 }) })
     );
@@ -133,6 +133,7 @@ describe("LocationService", () => {
 
   it("requires a controlled reason when a visit ends without an order", async () => {
     const prisma = fakePrisma();
+    prisma.salesVisit.findUnique.mockResolvedValue({ id: "visit-1", salespersonId: "staff-1", purpose: "sales_call" });
     const service = new LocationService(prisma, { maxAccuracyMeters: 50, verifiedRadiusMeters: 150, reviewRadiusMeters: 500 });
     await expect(service.checkOut({
       visitId: "visit-1",

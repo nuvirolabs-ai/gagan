@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -36,6 +36,8 @@ const OUTCOMES = [
   { value: "follow_up_required", label: "Follow-up needed" },
   { value: "no_order", label: "No order" },
   { value: "issue_raised", label: "Issue raised" },
+  { value: "survey_completed", label: "Survey completed" },
+  { value: "task_completed", label: "Task completed" },
   { value: "shop_closed", label: "Shop closed" },
   { value: "decision_maker_unavailable", label: "Owner unavailable" },
   { value: "other", label: "Other" },
@@ -73,10 +75,13 @@ export default function VisitScreen({ route, navigation }: any) {
   const [activities, setActivities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [composing, setComposing] = useState(false);
-  const [outcome, setOutcome] = useState<string | null>(null);
+  const [outcomes, setOutcomes] = useState<string[]>([]);
   const [noOrderReason, setNoOrderReason] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const submitting = useRef(false);
+  const needsNoOrderReason = outcomes.includes("no_order") ||
+    ((visit?.purpose ?? "sales_call") === "sales_call" && !outcomes.includes("order_placed"));
 
   const load = useCallback(async () => {
     const [visits, timeline] = await Promise.all([
@@ -97,15 +102,19 @@ export default function VisitScreen({ route, navigation }: any) {
   );
 
   const checkOut = async () => {
-    if (!outcome) {
+    if (submitting.current) return;
+    if (outcomes.length === 0) {
       return Alert.alert("Pick an outcome", "Record how this visit ended before you check out.");
     }
-    if (outcome === "no_order" && !noOrderReason) {
+    if (needsNoOrderReason && !noOrderReason) {
       return Alert.alert("Choose a no-order reason", "This helps your manager understand what blocked the sale.");
     }
-    if (outcome === "no_order" && noOrderReason === "other" && notes.trim().length < 3) {
+    if (needsNoOrderReason && noOrderReason === "other" && notes.trim().length < 3) {
       return Alert.alert("Add a note", "Describe the reason when you choose Other.");
     }
+    submitting.current = true;
+    setSaving(true);
+    try {
     const reading = await captureForegroundLocation();
     if (reading.kind !== "captured") {
       return Alert.alert(
@@ -115,13 +124,11 @@ export default function VisitScreen({ route, navigation }: any) {
           : reading.message
       );
     }
-    setSaving(true);
-    try {
       await repApi.checkOut(visitId, {
         ...reading,
-        outcome,
+        outcomes,
         notes: notes.trim() || undefined,
-        noOrderReason: outcome === "no_order" ? noOrderReason ?? undefined : undefined,
+        noOrderReason: needsNoOrderReason ? noOrderReason ?? undefined : undefined,
       });
       haptic("success");
       Alert.alert("Checked out", "This visit is closed and recorded against the customer.");
@@ -134,6 +141,7 @@ export default function VisitScreen({ route, navigation }: any) {
           : "Try again when you have a connection."
       );
     } finally {
+      submitting.current = false;
       setSaving(false);
     }
   };
@@ -179,6 +187,9 @@ export default function VisitScreen({ route, navigation }: any) {
             />
           ) : null}
           {closed ? <Tag label="Checked out" tone="green" /> : null}
+          {closed && visit?.outcomes?.length ? <Text style={styles.muted}>
+            {visit.outcomes.map((value: string) => OUTCOMES.find(option => option.value === value)?.label ?? value).join(" · ")}
+          </Text> : null}
         </FocusCard>
 
         <Surface>
@@ -220,17 +231,20 @@ export default function VisitScreen({ route, navigation }: any) {
         {!closed ? (
           <Surface>
             <SectionTitle title={t("visit.outcome")} />
+            <Text style={styles.muted}>Select everything that happened during this visit.</Text>
             <OptionGrid
               options={OUTCOMES}
-              value={outcome}
+              value={outcomes}
+              disabled={saving}
               onChange={(next) => {
-                setOutcome(next);
-                if (next !== "no_order") setNoOrderReason(null);
+                setOutcomes(current => current.includes(next) ? current.filter(value => value !== next) :
+                  [...current.filter(value => !(next === "order_placed" && value === "no_order") && !(next === "no_order" && value === "order_placed")), next]);
+                if (next === "order_placed") setNoOrderReason(null);
               }}
             />
-            {outcome === "no_order" ? (
+            {needsNoOrderReason ? (
               <Field label="Why was there no order?">
-                <OptionGrid options={NO_ORDER_REASONS} value={noOrderReason} onChange={setNoOrderReason} />
+                <OptionGrid options={NO_ORDER_REASONS} value={noOrderReason} onChange={setNoOrderReason} disabled={saving} />
               </Field>
             ) : null}
             <Field label={t("visit.notes")} hint={t("common.optional")}>

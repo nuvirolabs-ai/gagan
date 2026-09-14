@@ -105,6 +105,7 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
         accuracyMeters: number;
         devicePlatform?: string;
         outcome?: string;
+        outcomes?: string[];
         notes?: string;
         followUpAt?: string;
         noOrderReason?: string;

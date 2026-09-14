@@ -50,8 +50,17 @@ describe("single-open visit on PostgreSQL",()=>{
  });
  it("closing allows a later legitimate visit, with one winning checkout",async()=>{
   const visit=await service.checkIn(input());
-  const results=await Promise.allSettled([service.checkOut({...input(),visitId:visit.id}),service.checkOut({...input(),visitId:visit.id})]);
+  const results=await Promise.allSettled([service.checkOut({...input(),visitId:visit.id,outcome:"no_order",noOrderReason:"already_has_stock"}),service.checkOut({...input(),visitId:visit.id,outcome:"no_order",noOrderReason:"already_has_stock"})]);
   expect(results.filter(result=>result.status==="fulfilled")).toHaveLength(1);
   expect((await service.checkIn(input(stores[1]))).id).not.toBe(visit.id);
+ });
+ it("stores multiple outcomes and rejects an unexplained sales visit atomically",async()=>{
+  const visit=await service.checkIn(input());
+  await expect(service.checkOut({...input(),visitId:visit.id,outcomes:["payment_collected","task_completed"]})).rejects.toMatchObject({code:"no_order_reason_required"});
+  expect((await prisma.salesVisit.findUniqueOrThrow({where:{id:visit.id}})).checkedOutAt).toBeNull();
+  const closed=await service.checkOut({...input(),visitId:visit.id,outcomes:["payment_collected","task_completed"],noOrderReason:"already_has_stock"});
+  expect(closed.outcomes).toEqual(["payment_collected","task_completed"]);
+  expect(closed.noOrderReason).toBe("already_has_stock");
+  expect(closed.outcome).toBe("payment_collected");
  });
 });

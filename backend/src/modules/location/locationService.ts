@@ -8,7 +8,8 @@ import {
 } from "./locationDomain";
 import type { LocationConfig } from "./locationConfig";
 import { loadLocationConfig } from "./locationConfig";
-import { NO_ORDER_REASONS, NO_ORDER_REASON_LABELS } from "../field/fieldDomain";
+import { NO_ORDER_REASON_LABELS } from "../field/fieldDomain";
+import { normalizeVisitOutcomes, validateVisitExplanation } from "./visitOutcome";
 
 type Db = PrismaClient | any;
 type TransactionDb = any;
@@ -341,21 +342,17 @@ export class LocationService {
       visitId: string;
       salespersonId: string;
       outcome?: string;
+      outcomes?: string[];
       notes?: string;
       followUpAt?: Date;
       noOrderReason?: string;
     } & CoordinateInput
   ) {
     validateCoordinateInput(input);
-    if (input.outcome === "no_order") {
-      if (!input.noOrderReason || !(NO_ORDER_REASONS as readonly string[]).includes(input.noOrderReason)) {
-        throw new LocationServiceError("no_order_reason_required", 400);
-      }
-      if (input.noOrderReason === "other" && !input.notes?.trim()) {
-        throw new LocationServiceError("no_order_note_required", 400);
-      }
-    }
-    const notes = input.outcome === "no_order" && input.noOrderReason
+    let selected: ReturnType<typeof normalizeVisitOutcomes>;
+    try { selected = normalizeVisitOutcomes(input); }
+    catch (error) { throw new LocationServiceError((error as Error).message, 400); }
+    const notes = input.noOrderReason
       ? [`No-order reason: ${NO_ORDER_REASON_LABELS[input.noOrderReason as keyof typeof NO_ORDER_REASON_LABELS] ?? input.noOrderReason}`, input.notes?.trim()].filter(Boolean).join(" · ")
       : input.notes?.trim() || null;
     return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -366,6 +363,8 @@ export class LocationService {
       throw new LocationServiceError("visit_not_found", 404);
     }
     if (visit.checkedOutAt) throw new LocationServiceError("visit_already_checked_out", 409);
+    try { validateVisitExplanation({ ...input, purpose: visit.purpose ?? "sales_call", outcomes: selected.outcomes }); }
+    catch (error) { throw new LocationServiceError((error as Error).message, 400); }
     const distance =
       visit.storeLatitudeSnapshot == null || visit.storeLongitudeSnapshot == null
         ? null
@@ -383,7 +382,9 @@ export class LocationService {
         checkoutDistanceMeters: distance,
         // The outcome is captured as the visit closes, so a visit carries what
         // it achieved rather than only where and when it happened.
-        ...(input.outcome ? { outcome: input.outcome as any } : {}),
+        outcome: selected.outcome as any,
+        outcomes: selected.outcomes,
+        noOrderReason: input.noOrderReason ?? null,
         ...(input.notes !== undefined || input.noOrderReason !== undefined ? { notes } : {}),
         ...(input.followUpAt !== undefined ? { followUpAt: input.followUpAt } : {}),
       },

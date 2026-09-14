@@ -13,7 +13,7 @@ function Freight({quote,reload}:{quote:Row;reload:()=>Promise<void>}) {
   const [error,setError]=useState("");const [busy,setBusy]=useState(false);
   return <details><summary>{quote.retailer?.name ?? "Retailer"} · Quote {quote.id}</summary><p>{quote.freightConfirmedByStaffId ? "Freight confirmed" : "Freight confirmation required"} · Expires {new Date(quote.expiresAt).toLocaleString()}</p><Breakdown value={quote.snapshot}/>
     <form onSubmit={async e=>{e.preventDefault();if(busy)return;setBusy(true);setError("");const data=Object.fromEntries(new FormData(e.currentTarget));try{await api.saveCommercialFreight(quote.id,{revision:quote.revision,freight:data});await reload();}catch(err){setError(String(err));}finally{setBusy(false);}}}>
-      <label>Freight owner<select name="entity" required>{quote.snapshot.entities.map((e:Row)=><option key={e.entity} value={e.entity}>{entityName(e.entity)}</option>)}</select></label>
+      <label>Freight owner<select name="entity" defaultValue="" required><option value="">Select freight company</option>{quote.snapshot.entities.map((e:Row)=><option key={e.entity} value={e.entity}>{entityName(e.entity)}</option>)}</select></label>
       <label>Final freight before GST<input name="amount" type="number" min="0" step="0.01" required/></label>
       <label>Freight GST %<input name="gstPercent" type="number" min="0" max="100" step="0.01" required/></label>
       <label>Recorded quintals<input name="recordedQuintals" type="number" min="0" step="0.01" required/></label>

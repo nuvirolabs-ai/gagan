@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AppState,
+  AppStateStatus,
   View,
   Text,
   FlatList,
@@ -9,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { repApi, ApiError } from "../api/repClient";
@@ -20,6 +23,7 @@ import ProductThumb from "../components/ProductThumb";
 import { SearchBar, ChipRow, QtyStepper, EmptyState } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 import { catalogGroups, selectedCatalogSku, type CatalogGroup } from "../lib/catalogSelection";
+import { canSubmitQuote, classifyQuoteRefresh } from "../lib/commercialQuoteState";
 
 const ALL = "All";
 
@@ -41,19 +45,77 @@ export default function RepCatalogScreen({ route, navigation }: any) {
   const [quote,setQuote]=useState<any>(null);
   const [quoteReady,setQuoteReady]=useState(false);
   const [quoteError,setQuoteError]=useState("");
+  const [refreshingQuote,setRefreshingQuote]=useState(false);
+  const quoteRef=useRef<any>(null);
+  const refreshInFlight=useRef(false);
+  const appState=useRef<AppStateStatus>(AppState.currentState);
+  const basketRef=useRef("");
   const basket=JSON.stringify(lines.map(l=>({variantId:l.variantId,qty:l.qty})));
-  useEffect(()=>{setReview(false);setQuote(null);setQuoteReady(false);},[basket,retailerId]);
-  const openReview=async()=>{setReview(true);setQuoteReady(false);setQuoteError("");
-    try{const r=await repApi.commercialQuote(retailerId,JSON.parse(basket));setQuote(r.quote);setQuoteReady(true);}
-    catch{setQuoteError("Unable to price this basket. Return to products and retry.");}
-  };
-  const refreshQuote=async()=>{
-    try {const r=await repApi.refreshCommercialQuote(quote.id);
-      if(r.quote.acceptedAt){Alert.alert("Order already placed","Check this retailer’s recent orders before starting another checkout.");return;}
-      if(new Date(r.quote.expiresAt).getTime()<=Date.now()){await openReview();Alert.alert("Quote expired","Review the fresh quote and ask the manager to confirm freight again.");return;}
-      setQuote(r.quote);
-    }catch{Alert.alert("Could not refresh quote","Your cart and quote are preserved. Retry when connected.");}
-  };
+  basketRef.current=basket;
+  const applyQuote=useCallback((nextQuote:any)=>{
+    quoteRef.current=nextQuote;
+    setQuote(nextQuote);
+    setQuoteReady(true);
+    setQuoteError("");
+  },[]);
+  useEffect(()=>{quoteRef.current=null;setReview(false);setQuote(null);setQuoteReady(false);setQuoteError("");},[basket,retailerId]);
+  const requestQuote=useCallback(async()=>{
+    const requestedBasket=basket;
+    quoteRef.current=null;
+    setQuote(null);
+    setQuoteReady(false);
+    setQuoteError("");
+    try{
+      const r=await repApi.commercialQuote(retailerId,JSON.parse(requestedBasket));
+      if(basketRef.current===requestedBasket) applyQuote(r.quote);
+    }
+    catch{if(basketRef.current===requestedBasket)setQuoteError("Unable to price this basket. Return to products and retry.");}
+  },[applyQuote,basket,retailerId]);
+  const openReview=useCallback(async()=>{setReview(true);await requestQuote();},[requestQuote]);
+  const refreshQuote=useCallback(async({silent=false}:{silent?:boolean}={})=>{
+    const currentQuote=quoteRef.current;
+    if(!currentQuote || refreshInFlight.current) return "noop";
+    refreshInFlight.current=true;
+    setRefreshingQuote(true);
+    try {
+      const r=await repApi.refreshCommercialQuote(currentQuote.id);
+      if(quoteRef.current?.id!==currentQuote.id) return "stale";
+      const classification=classifyQuoteRefresh(r.quote);
+      if(classification.kind==="accepted"){
+        applyQuote(r.quote);
+        if(!silent) Alert.alert("Order already placed","Check this retailer’s recent orders before starting another checkout.");
+        return "accepted";
+      }
+      if(classification.kind==="expired"){
+        quoteRef.current=null;
+        setQuote(null);
+        setQuoteReady(false);
+        void requestQuote();
+        if(!silent) Alert.alert("Quote expired","Review the fresh quote and ask the manager to confirm freight again.");
+        return "expired";
+      }
+      applyQuote(r.quote);
+      return "updated";
+    }catch{
+      if(!silent) Alert.alert("Could not refresh quote","Your cart and quote are preserved. Retry when connected.");
+      return "failed";
+    }finally{
+      refreshInFlight.current=false;
+      setRefreshingQuote(false);
+    }
+  },[applyQuote,requestQuote]);
+
+  useFocusEffect(useCallback(()=>{
+    if(review) void refreshQuote({silent:true});
+  },[refreshQuote,review]));
+  useEffect(()=>{
+    const subscription=AppState.addEventListener("change",(nextState)=>{
+      const wasAway=appState.current==="background" || appState.current==="inactive";
+      appState.current=nextState;
+      if(wasAway && nextState==="active" && review) void refreshQuote({silent:true});
+    });
+    return ()=>subscription.remove();
+  },[refreshQuote,review]);
 
   useEffect(() => {
     repApi
@@ -114,6 +176,9 @@ export default function RepCatalogScreen({ route, navigation }: any) {
     } catch (e) {
       if (e instanceof ApiError && e.body?.error === "idempotency_key_conflict") {
         Alert.alert("Check your previous order", "This checkout already belongs to another basket. Review this retailer's orders before submitting again.");
+      } else if (e instanceof ApiError && e.body?.error === "quote_changed_or_expired") {
+        await refreshQuote({silent:true});
+        Alert.alert("Quote updated","The manager's latest freight and total are now shown. Review the updated quote before placing the order.");
       } else if (e instanceof ApiError && (e.status === 402 || e.body?.error === "credit_blocked")) {
         Alert.alert(
           "Order needs review",
@@ -130,6 +195,8 @@ export default function RepCatalogScreen({ route, navigation }: any) {
   }, [lines, retailerId, retailerName, clearCart, navigation,quote]);
 
   const cartCount = lines.reduce((n, l) => n + l.qty, 0);
+  const canCheckout = canSubmitQuote({lineCount:lines.length,quoteReady,placing,quote:review ? quote : null});
+  const checkoutDisabled = placing || (review && !canCheckout);
 
   return (
     <View style={styles.screen}>
@@ -146,7 +213,19 @@ export default function RepCatalogScreen({ route, navigation }: any) {
         <TouchableOpacity accessibilityRole="button" style={{padding:16}} onPress={()=>setReview(false)} disabled={placing}><Text>Back to products</Text></TouchableOpacity>
         {!quoteReady && !quoteError ? <ActivityIndicator/>:null}
         {quoteError ? <Text>{quoteError}</Text>:null}
-        {quote ? <><CommercialBreakdown value={quote.snapshot}/><Text>Quote {quote.id}</Text><TouchableOpacity style={{padding:16}} accessibilityRole="button" disabled={placing} onPress={refreshQuote}><Text>Refresh manager freight</Text></TouchableOpacity></> : quoteReady ? <Text>Order total {inr(cartTotal)}</Text>:null}
+        {quote ? <>
+          <View style={styles.quoteStatus}>
+            <View style={styles.quoteStatusCopy}>
+              <Text style={styles.quoteStatusTitle}>{quote.acceptedAt ? "Order already placed" : quote.freightConfirmedByStaffId ? "Manager freight confirmed" : "Waiting for manager freight"}</Text>
+              <Text style={styles.quoteStatusBody}>{refreshingQuote ? "Checking the latest quote…" : "Check for the latest approved freight and total."}</Text>
+            </View>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh manager freight" style={styles.refreshButton} disabled={placing || refreshingQuote} onPress={()=>void refreshQuote()}>
+              {refreshingQuote ? <ActivityIndicator size="small" color={colors.onDark} /> : <Ionicons name="refresh-outline" size={16} color={colors.onDark} />}
+              <Text style={styles.refreshButtonText}>{refreshingQuote ? "Checking" : "Refresh"}</Text>
+            </TouchableOpacity>
+          </View>
+          <CommercialBreakdown value={quote.snapshot}/><Text style={styles.quoteId}>Quote {quote.id}</Text>
+        </> : quoteReady ? <Text>Order total {inr(cartTotal)}</Text>:null}
       </ScrollView> : <>
       <SearchBar value={query} onChange={setQuery} placeholder={t("common.search")} />
       <View style={{ marginTop: spacing.md, marginBottom: spacing.sm }}>
@@ -226,7 +305,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
             </Text>
             <Text style={styles.barValue}>{inr(quote ? Number(quote.snapshot.total):cartTotal)}</Text>
           </View>
-          <TouchableOpacity style={[styles.placeBtn,(placing || (review && (!quoteReady || (!!quote && !quote.freightConfirmedByStaffId)))) && {opacity:0.45}]} accessibilityState={{disabled:placing || (review && (!quoteReady || (!!quote && !quote.freightConfirmedByStaffId)))}} disabled={placing || (review && (!quoteReady || (!!quote && !quote.freightConfirmedByStaffId)))} onPress={review ? submit:openReview}>
+          <TouchableOpacity style={[styles.placeBtn,checkoutDisabled && {opacity:0.45}]} accessibilityState={{disabled:checkoutDisabled}} disabled={checkoutDisabled} onPress={review ? submit:openReview}>
             {placing ? (
               <ActivityIndicator color={colors.onDark} />
             ) : (
@@ -266,6 +345,31 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   bannerText: { color: colors.blueInk, fontWeight: "700", fontSize: 13.5 },
+  quoteStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  quoteStatusCopy: { flex: 1, minWidth: 0 },
+  quoteStatusTitle: { color: colors.ink, fontSize: 13, fontWeight: "700" },
+  quoteStatusBody: { color: colors.inkMuted, fontSize: 11.5, lineHeight: 16, marginTop: 3 },
+  refreshButton: {
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.sm,
+    backgroundColor: colors.greenDeep,
+  },
+  refreshButtonText: { color: colors.onDark, fontSize: 12.5, fontWeight: "700" },
+  quoteId: { color: colors.inkMuted, fontSize: 10.5 },
 
   card: {
     gap: spacing.md,

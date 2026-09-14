@@ -177,6 +177,103 @@ fail until the manager completes SKU configuration. Old invoices remain legacy
 and unattributed; aggregate reporting exposes that amount separately. No silent
 historical financial rewrite or proportional attribution is performed.
 
+### Hosted preflight legacy payment exception
+
+The new client database read-only preflight found one apparent payment-balance
+mismatch for payment `b2b0b8af-6b80-4009-9f84-680352ef5467`. The payment was
+created on 2026-08-31, before the Wave 1B commercial migration began on
+2026-09-14. It is a pending legacy payment with no `invoiceScopeId`, no
+`PaymentAllocation` rows, and `unallocatedAmount = 0`; its amount is 40,500.00.
+
+This is valid legacy semantics, not a Wave 1B allocation defect. The additive
+`20260914000200_commercial_flow` migration leaves the new commercial fields
+nullable, and the commercial payment service identifies the new entity-scoped
+model through `invoiceScopeId` and the confirmed Jain/Padam split. The legacy
+payment settlement path remains separate and must not be retroactively converted
+into invoice-scoped allocations. The corrected preflight therefore keeps this
+row in generic payment counts while applying the allocation balance invariant
+only to invoice-scoped Wave 1B payments. It reports legacy rows as
+`LEGACY_NOT_SUBJECT_TO_WAVE1B_ALLOCATION_INVARIANT`.
+
+The historical payment was not modified. The database result is
+**PASS WITH DOCUMENTED LEGACY PAYMENT EXCEPTION**. Historical totals remain
+**NOT FULLY COMPARABLE** because no independent before/after comparison dataset
+exists.
+
+### Hosted client-infrastructure acceptance continuation — 2026-09-14
+
+The client-infrastructure continuation used the exact prebuilt review APKs
+against `https://gagan-srat.onrender.com`; neither APK was rebuilt. The runtime
+health endpoints `/health`, `/health/live` and `/health/ready` each returned
+HTTP 200. The isolated Admin preview was
+`https://gagan-staging-admin-4ex61z0qi-signor-vales-projects.vercel.app/`,
+deployed from the local Admin review source at
+`dd418f2bc3358ba8c9a00ce3484344728ee65855` with the client API as its build
+target. Admin authentication and read-only commercial inspection succeeded via
+the supported session API; a separate physical browser/UI login was not
+claimed.
+
+The exact artifact checks were:
+
+| Artifact | Package | SHA-256 | Result |
+|---|---|---|---|
+| `/Users/tanutejas/Desktop/gagan-wave1b-retailer-clientinfra-77ec9b0.apk` | `com.gagan.retailer.review` | `3263e769977bddb37c604a684e3acd6c0f5ac3b9663363a27fc2e907d25dd5d9` | MATCHED |
+| `/Users/tanutejas/Desktop/gagan-wave1b-salesperson-clientinfra-77ec9b0.apk` | `com.gagan.sales.review` | `c49a6372cb3e1d4392bf24bed7ee3d14e7ef465964546a662c5c02442eb8f9fe` | MATCHED |
+
+Both artifacts contain the hosted client API and no local API endpoint. They
+were installed on the physical Moto E13 (`ZD2229Q3KB`).
+
+New fixtures were created only through supported Admin/import paths and are
+clearly marked `W1B-UAT-JAIN-SKU-20260914` and
+`W1B-UAT-PADAM-SKU-20260914`. The historical 11 variants with unknown
+ownership were not changed. The Jain fixture uses `jain_traders`, 5% GST and
+the configured Gold-tier quintal rate; the Padam fixture uses
+`padam_international`, 12% GST and the configured Gold-tier case rate. SAP
+material mappings and inventory were added only for these two new UAT
+variants through completed Admin Import Center jobs.
+
+The native Retailer and Salesperson clients both reached a genuine mixed
+Jain/Padam quote. The quote showed Padam goods of ₹2,800 (₹2,500 base + ₹300
+GST), Jain goods of ₹945 (₹900 base + ₹45 GST), and a manager-confirmed Jain
+freight charge of ₹120 + ₹6 GST. The resulting combined quote total was
+₹3,871. The backend read model confirmed two quote revisions with
+`freightConfirmedByStaffId` and zero commercial invoices. No order was
+submitted, so there is no valid combined invoice or payment record to test in
+this continuation.
+
+The native submission blocker is a client UI defect, not an authorization or
+pricing result. In the exact Retailer APK, `Refresh manager freight` is placed
+below the 720×1600 device viewport (measured bounds approximately
+`Rect(28,1569 - 692,1600)`), and the containing cart state did not scroll to
+it. The visible cart therefore remained at “Freight awaiting manager
+confirmation” with `Place order` disabled even though the hosted quote had
+manager-confirmed freight. In the exact Salesperson APK, the review screen
+also showed the mixed quote and disabled `Place order`, but no accessible
+refresh control was present in the native hierarchy. The APKs were not rebuilt
+because this acceptance checkpoint explicitly required using the exact
+approved artifacts.
+
+Consequently, hosted acceptance is classified as follows:
+
+| Check | Result | Evidence boundary |
+|---|---|---|
+| Native Retailer mixed quote | PASS | Installed exact APK displayed both entity lines, GST and quote total |
+| Native Salesperson mixed quote | PASS | Installed exact APK displayed both entity lines, GST and quote total |
+| Native Retailer order submission | BLOCKED | Refresh control unreachable; Place order remained disabled |
+| Native Salesperson order submission | BLOCKED | Freight remained unconfirmed in the client state; Place order remained disabled |
+| Admin order discovery/lifecycle | NOT RUN | No fresh order existed to discover |
+| Combined invoice | NOT RUN | No fresh order reached invoicing |
+| Invoice-specific payment split | NOT RUN | No fresh Wave 1B invoice existed |
+| R2 evidence workflow | NOT RUN | No fresh collection/invoice path was available |
+| SAP mock attribution | NOT RUN | No fresh commercial order reached the mock-SAP path |
+
+The historical payment `b2b0b8af-6b80-4009-9f84-680352ef5467` remains
+unchanged. No production, main, Dogkart or historical database mutation was
+performed during this continuation. The remaining blocker must be resolved by
+a future compatible client build or an approved exact-APK UI correction before
+hosted mixed-order, invoice, payment, R2 and mock-SAP acceptance can be
+completed.
+
 Before any future hosted rollout, validate real SKU/company/GST and freight setup,
 read-only data preflight, API/app compatibility and actual SAP legal/company
 mapping. Roll out backend and quote-capable apps before activating commercial SKU
@@ -198,6 +295,9 @@ production invoice validation require supplied configuration and later acceptanc
 no mappings/credentials were fabricated. Commercial Service Layer posting fails
 closed until its company contract is configured; mock attribution is tested.
 
-**Ready for Founder commercial-flow review: YES — local isolated Review scope.**
+**Ready for Founder commercial-flow review: YES — local isolated Review scope only.**
+**Hosted client-infrastructure acceptance: BLOCKED — exact approved APK native
+submission cannot reach the manager-freight refresh action, so no hosted order,
+invoice or payment acceptance is claimed.**
 Production, hosted staging, main, Dogkart, frozen tags and accepted APKs: untouched.
 No push or deployment. No Wave 2 started.

@@ -47,6 +47,13 @@ export default function RepCatalogScreen({ route, navigation }: any) {
     try{const r=await repApi.commercialQuote(retailerId,JSON.parse(basket));setQuote(r.quote);setQuoteReady(true);}
     catch{setQuoteError("Unable to price this basket. Return to products and retry.");}
   };
+  const refreshQuote=async()=>{
+    try {const r=await repApi.refreshCommercialQuote(quote.id);
+      if(r.quote.acceptedAt){Alert.alert("Order already placed","Check this retailer’s recent orders before starting another checkout.");return;}
+      if(new Date(r.quote.expiresAt).getTime()<=Date.now()){await openReview();Alert.alert("Quote expired","Review the fresh quote and ask the manager to confirm freight again.");return;}
+      setQuote(r.quote);
+    }catch{Alert.alert("Could not refresh quote","Your cart and quote are preserved. Retry when connected.");}
+  };
 
   useEffect(() => {
     repApi
@@ -139,7 +146,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
         <TouchableOpacity accessibilityRole="button" style={{padding:16}} onPress={()=>setReview(false)} disabled={placing}><Text>Back to products</Text></TouchableOpacity>
         {!quoteReady && !quoteError ? <ActivityIndicator/>:null}
         {quoteError ? <Text>{quoteError}</Text>:null}
-        {quote ? <><CommercialBreakdown value={quote.snapshot}/><Text>Quote {quote.id}</Text><TouchableOpacity style={{padding:16}} accessibilityRole="button" disabled={placing} onPress={()=>repApi.refreshCommercialQuote(quote.id).then(r=>setQuote(r.quote)).catch(()=>Alert.alert("Could not refresh quote"))}><Text>Refresh manager freight</Text></TouchableOpacity></> : quoteReady ? <Text>Order total {inr(cartTotal)}</Text>:null}
+        {quote ? <><CommercialBreakdown value={quote.snapshot}/><Text>Quote {quote.id}</Text><TouchableOpacity style={{padding:16}} accessibilityRole="button" disabled={placing} onPress={refreshQuote}><Text>Refresh manager freight</Text></TouchableOpacity></> : quoteReady ? <Text>Order total {inr(cartTotal)}</Text>:null}
       </ScrollView> : <>
       <SearchBar value={query} onChange={setQuery} placeholder={t("common.search")} />
       <View style={{ marginTop: spacing.md, marginBottom: spacing.sm }}>

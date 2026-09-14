@@ -25,11 +25,19 @@ export default function CartScreen({ navigation }: any) {
   const [quote,setQuote]=useState<any>(null);
   const [quoteReady,setQuoteReady]=useState(false);
   const [quoteError,setQuoteError]=useState("");
+  const [quoteAttempt,setQuoteAttempt]=useState(0);
   const basket=JSON.stringify(lines.map(l=>({variantId:l.variantId,qty:l.qty})));
   useEffect(()=>{let active=true;setQuoteReady(false);setQuote(null);setQuoteError("");
-    if(lines.length) api.commercialQuote(JSON.parse(basket)).then(r=>{if(active){setQuote(r.quote);setQuoteReady(true);}}).catch(()=>{if(active)setQuoteError("Unable to price this basket. Please reopen checkout to retry.");});
+    if(lines.length) api.commercialQuote(JSON.parse(basket)).then(r=>{if(active){setQuote(r.quote);setQuoteReady(true);}}).catch(()=>{if(active)setQuoteError("Unable to price this basket. Retry when connected.");});
     return ()=>{active=false;};
-  },[basket]);
+  },[basket,quoteAttempt]);
+  const refreshQuote=async()=>{
+    try {const r=await api.refreshCommercialQuote(quote.id);
+      if(r.quote.acceptedAt){Alert.alert("Order already placed","Open order history before starting another checkout.");return;}
+      if(new Date(r.quote.expiresAt).getTime()<=Date.now()){setQuoteAttempt(a=>a+1);Alert.alert("Quote expired","A fresh quote is being requested. The manager must confirm freight again.");return;}
+      setQuote(r.quote);
+    }catch{Alert.alert("Could not refresh quote","Your existing quote and cart are preserved. Retry when connected.");}
+  };
   const checkoutKey = useRef<string | null>(null);
   const submitting = useRef(false);
   const [credit, setCredit] = useState<any>(null);
@@ -139,9 +147,9 @@ export default function CartScreen({ navigation }: any) {
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: TAB_BAR_SPACE + 150 }}
         showsVerticalScrollIndicator={false}
       >
-        {quoteError ? <Text>{quoteError}</Text> : null}
+        {quoteError ? <><Text>{quoteError}</Text><TouchableOpacity accessibilityRole="button" style={{padding:16}} onPress={()=>setQuoteAttempt(a=>a+1)} disabled={placing}><Text>Retry pricing</Text></TouchableOpacity></> : null}
         {!quoteReady && !quoteError ? <ActivityIndicator accessibilityLabel="Pricing basket" /> : null}
-        {quote ? <><CommercialBreakdown value={quote.snapshot}/><Text>Quote {quote.id}</Text><TouchableOpacity accessibilityRole="button" style={{padding:16}} disabled={placing} onPress={()=>api.refreshCommercialQuote(quote.id).then(r=>setQuote(r.quote)).catch(()=>Alert.alert("Could not refresh quote"))}><Text>Refresh manager freight</Text></TouchableOpacity></> : null}
+        {quote ? <><CommercialBreakdown value={quote.snapshot}/><Text>Quote {quote.id}</Text><TouchableOpacity accessibilityRole="button" style={{padding:16}} disabled={placing} onPress={refreshQuote}><Text>Refresh manager freight</Text></TouchableOpacity></> : null}
         {staleNotice && (
           <TouchableOpacity style={styles.stale} onPress={dismissStaleNotice}>
             <Ionicons name="information-circle" size={16} color="#8A6A12" />

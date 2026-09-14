@@ -442,3 +442,104 @@ feature branch has not been deployed.
 **Native quote-reconciliation blocker: CLOSED.**
 **Hosted commercial order/invoice/payment continuation: PASS for the exercised
 scope, with Admin preview UI and R2 receipt submission explicitly not claimed.**
+
+### R2 native receipt acceptance continuation — 2026-09-15
+
+This continuation resolved the earlier persona ambiguity through the
+application's existing role model. A normal `salesperson` is not granted
+`collection.submit`; the supported collection persona is `field_collector`.
+The hosted staging identity **Field Ops UAT** has both `salesperson` and
+`field_collector` roles, and its effective permissions include
+`collection.submit`. This is a supported field persona, not a permission
+weakening or a new role. The source of truth is
+`rep/src/auth/staffCapabilities.ts`, `rep/src/screens/RepAccountScreen.tsx`,
+`rep/src/screens/StaffHomeScreen.tsx`, `rep/App.tsx`, and
+`backend/src/modules/identity/roleCatalog.ts`.
+
+For staging UAT only, the existing Field Ops UAT identity was assigned to the
+existing `Field Ops UAT Sharma` retailer through the supported Admin
+collection-assignment endpoint. This was a normal staging fixture mutation;
+no source code, historical payment, production data, or business contract
+was changed. Assignment id:
+`32aa23c3-ac8e-4dac-aade-6d661f4c0b54`.
+
+#### Native path exercised
+
+On Moto E13 `ZD2229Q3KB`, using the already authenticated hosted review APK,
+the following supported flow was exercised:
+
+`More` → `Collections` → horizontally reveal `Field Ops UAT Sharma` → enter
+amount `₹1` → choose `CASH` → attach the staging receipt
+`UAT-CASH-20260911-receipt.png` through the Android Documents picker → submit
+for Accounts.
+
+The attachment was visibly present in the native form before submission. The
+first submit and one clean retry both returned the native alert **“Could not
+submit / Something went wrong”**. A read-only refresh of hosted Admin
+`GET /admin/collections` after the retry still returned exactly one existing
+pending submission for `Field Ops UAT Sharma` (amount `₹3,120`, submitted
+2026-09-11, no evidence); no new UAT submission was created. Therefore this
+is not a successful receipt submission and no direct API or database shortcut
+was used to manufacture one.
+
+Persistent physical evidence is stored in the ignored
+`evidence/wave1b/r2-2026-09-15/` directory:
+
+- `field-ops-more-collections.png` — native More screen with Collections.
+- `collection-form-sharma.png` — selected assigned retailer.
+- `receipt-attached.png` — receipt attached through the native picker.
+- `retry-ready.png` — amount and attachment ready for the clean retry.
+- `retry-result.png` — hosted submission failure alert.
+
+#### R2 evidence classification
+
+| R2 checkpoint | Result | Evidence boundary |
+|---|---|---|
+| Supported native persona identified | PASS | Existing `field_collector` role and `collection.submit` capability |
+| Staging collection assignment | PASS | Supported Admin assignment for Field Ops UAT → Field Ops UAT Sharma |
+| Native collection form reachable | PASS | Moto E13 physical screen |
+| Native receipt selection/attachment | PASS | Android Documents picker and attached filename visible |
+| Native receipt submission | NOT PROVEN / HOSTED FAILURE | Two native attempts returned generic HTTP-500-style failure UX; no new Admin submission |
+| Private object write | NOT PROVEN | No collection record was created from the native attempts |
+| Signed/private retrieval | NOT RUN | No created evidence object was available to retrieve |
+| Unauthenticated direct access blocked | NOT RUN | No hosted object key or signed object was available |
+| Restart durability | NOT RUN | A successful hosted submission/object was a prerequisite |
+| Accounts confirmation | NOT RUN | No new UAT submission reached the Accounts queue |
+
+The source-level private storage contract and local protected-evidence tests
+remain valid evidence for the implementation, but they do not prove this
+hosted native R2 path. The exact underlying hosted exception could not be
+isolated from the generic client error with the tools available in this
+session; the remaining issue is therefore classified as a hosted
+submission/storage configuration or runtime failure pending server-log
+inspection. No provider credentials or storage configuration was changed.
+
+#### Admin visual boundary
+
+The isolated Admin preview remains protected by Vercel SSO in this environment
+(HTTP 302 to the Vercel SSO endpoint). Admin/API behavior is already accepted
+for the commercial flow, but **Admin visual UI review remains NOT CLAIMED**.
+No accepted Admin deployment was replaced.
+
+#### Updated hosted acceptance result
+
+| Check | Result | Evidence boundary |
+|---|---|---|
+| Hosted commercial order/invoice/payment flow | PASS | Previously accepted exact hosted APK/API/Admin evidence; not repeated here |
+| R2 supported persona and authorization | PASS | Existing Field Ops UAT `field_collector` capability and assignment |
+| R2 native receipt attachment | PASS | Physical Moto E13 evidence |
+| R2 native receipt submission | NOT PROVEN | Hosted submission failed twice and created no new collection |
+| R2 private storage/signed retrieval/restart durability | NOT PROVEN | Downstream of the failed hosted submission |
+| Admin visual UI | NOT CLAIMED | Vercel SSO blocked interactive visual review |
+| SAP mock attribution | PASS WITH BOUNDARY | Mock only; real SAP remains disconnected |
+
+**Hosted commercial flow: ACCEPTED for the previously exercised scope.**
+**R2 native receipt acceptance: OPEN — supported persona is confirmed, but
+hosted submission/storage proof is not.**
+**Ready for Founder hosted commercial review: NO — R2 native acceptance and
+Admin visual review remain unclosed.**
+
+No source files or backend business logic changed in this continuation. The
+only state mutation was the staging-only collection assignment documented
+above. Production, main, Dogkart, the historical payment, frozen tags and
+accepted APKs remain untouched.

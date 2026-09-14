@@ -1,5 +1,12 @@
 # Gagan master product improvement — verified implementation checkpoint
 
+**Wave 1B update (2026-09-14):** Company-aware commercial checkout, combined
+invoice and invoice-specific payment allocation are now implemented and locally
+accepted. See [the Wave 1B acceptance report](GAGAN_WAVE_1B_ACCEPTANCE.md).
+The assessment and unfinished-commercial statements below are historical Wave 1
+evidence, not a current Wave 1B status. The full master brief remains broader than
+Wave 1B; no Wave 2 or production-readiness claim is made.
+
 Date: 2026-09-14. **Full master brief: INCOMPLETE. Production-ready: NOT CLAIMED.**
 
 Engineering readiness estimate against the entire new brief: **55/100**. This

@@ -1,5 +1,13 @@
 # Gagan master audit and implementation matrix
 
+**2026-09-14 Wave 1B delta:** The commercial rows in the original matrix are
+superseded by [GAGAN_WAVE_1B_ACCEPTANCE.md](GAGAN_WAVE_1B_ACCEPTANCE.md): persisted
+company/rate/GST, authoritative two-app quotes, manager freight, immutable combined
+invoice, invoice-level explicit payments, outstanding and mock SAP attribution
+are implemented with database and native Review-app evidence. Original audit
+classifications below remain as the historical baseline; unrelated requirements
+have not been promoted or implemented in this wave.
+
 Source brief: `Astra Master Prompt — Gagan Product Audit & Completion.md`.
 This is the living Wave 1 matrix, not a completed product acceptance report.
 Date: 2026-09-14. Isolated branch: `codex/gagan-product-improvements-v1`.

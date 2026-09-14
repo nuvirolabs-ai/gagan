@@ -1,6 +1,26 @@
 # Gagan commercial implementation checkpoint
 
-This is a partial source checkpoint, not checkout or financial acceptance.
+## Current Wave 1B status — 2026-09-14
+
+Wave 1B is implemented and locally accepted on runtime source
+`4d0c672a48875466cd158663042b6bfe55b7fc75`. See
+[GAGAN_WAVE_1B_ACCEPTANCE.md](GAGAN_WAVE_1B_ACCEPTANCE.md) for the actual test,
+native-device, invoice/payment and artifact evidence. The binding allocation is
+invoice-specific: explicit Jain + Padam amounts, atomic balance recheck, durable
+replay identity, no proportional split, no cross-invoice or cross-entity spill.
+
+The backend calculator is now connected to persisted SKU/rate/GST configuration,
+manager-confirmed freight, both app quotes, order snapshots, delivered-weight
+invoice posting, entity-specific collections/payments, Admin and mock SAP.
+Hosted rollout, real legal/master-data configuration and real providers are not
+claimed. Review apps use a separate local environment; accepted apps are untouched.
+
+## Historical checkpoint retained below
+
+The following describes the earlier, superseded foundation-only checkpoint,
+not the current Wave 1B implementation:
+
+This was a partial source checkpoint, not checkout or financial acceptance.
 Worktree: `Gagan-product-improvements-v1`; branch:
 `codex/gagan-product-improvements-v1`, based on Field Ops commit `282864a`.
 Original worktrees, hosted services and original installed applications are unchanged.

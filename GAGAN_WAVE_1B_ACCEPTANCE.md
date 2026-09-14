@@ -301,3 +301,144 @@ submission cannot reach the manager-freight refresh action, so no hosted order,
 invoice or payment acceptance is claimed.**
 Production, hosted staging, main, Dogkart, frozen tags and accepted APKs: untouched.
 No push or deployment. No Wave 2 started.
+
+### Native quote-reconciliation correction and hosted UAT continuation — 2026-09-15
+
+The native blocker was corrected in the isolated client branch without changing
+the backend commercial contract or any business calculation. The exact fix is
+`76c7b3205756a449d4b6f48b0d10cc482da5f8` (`Fix native commercial quote
+reconciliation`). Both clients now read the latest quote revision when the
+checkout screen receives focus and when the app returns to the foreground. A
+visible, reachable `Refresh` action remains available. The clients preserve the
+fail-closed rule: an unconfirmed, expired, stale or failed quote cannot enable
+submission, and a server stale-revision response triggers a fresh quote read
+without bypassing manager approval.
+
+The old off-screen Retailer control is no longer the only way to reconcile the
+quote. On the physical 720×1600 Moto E13, the Retailer cart visibly changed from
+`Waiting for manager freight` / disabled `Place order` to `Manager freight
+confirmed`, `₹120.00 + GST 5.00% ₹6.00`, total `₹3,871`, and an enabled `Place
+order` after the app was backgrounded and returned to the foreground. The
+Salesperson checkout received the same hosted revision through the same focus /
+foreground path. The hosted quote read and freight confirmation used the
+existing authenticated Admin API contract; no database mutation was performed
+directly.
+
+#### Exact rebuilt hosted-review artifacts
+
+Both are standalone Release APKs built from this branch with
+`EXPO_PUBLIC_API_URL=https://gagan-srat.onrender.com`. The runtime endpoint was
+verified in the bundled configuration and both artifacts were installed with
+`adb install -r` on Moto E13 `ZD2229Q3KB` without uninstalling or wiping the
+previous review-app data.
+
+| Artifact | Package | Version / code | Size | SHA-256 | Result |
+|---|---|---:|---:|---|---|
+| `/Users/tanutejas/Desktop/gagan-wave1b-retailer-freight-refresh-76c7b32.apk` | `com.gagan.retailer.review` | 1.0.0 / 1 | 87,027,251 bytes | `959be069a1609998294768114de03a6d1fe0e90b1b5f3cd99aade04ac93ace75` | INSTALLED / HOSTED |
+| `/Users/tanutejas/Desktop/gagan-wave1b-salesperson-freight-refresh-76c7b32.apk` | `com.gagan.sales.review` | 1.0.0 / 1 | 87,937,421 bytes | `26f0a558c8644cb602ac5522c99a0648bacb5a3dde65688010637455f0708b4d` | INSTALLED / HOSTED |
+
+The release bundle scan found the required hosted endpoint and no local API
+endpoint used at runtime. A dormant development fallback string remains in the
+client source bundle as a non-release development default; it is not selected
+by the Release build configuration and the installed clients reached only the
+hosted API during this UAT.
+
+#### Exact hosted native golden paths
+
+| Check | Retailer | Salesperson |
+|---|---|---|
+| Native checkout | `com.gagan.retailer.review` | `com.gagan.sales.review` |
+| Fresh order | `GGN-00000076`, backend id `9e2aa8e8-7284-4e2c-b90c-ee3b4e8ddd19` | `GGN-00000075`, backend id `4f8ec119-c34e-4bb0-a09c-35d4e943a61c` |
+| Source attribution | `retailer` | `rep` / Salesperson |
+| Mixed lines | Jain + Padam UAT SKUs, one case each | Jain + Padam UAT SKUs, one case each |
+| Manager freight | Jain ₹120 + ₹6 GST; 0.60 quintals / 12.00 km context | Same |
+| Quote total | ₹3,871 | ₹3,871 |
+| Native submission | PASS — physical app controls | PASS — physical app controls |
+| Hosted lifecycle | API contract: confirmed → packed → out_for_delivery → delivered | API contract: confirmed → packed → out_for_delivery → delivered |
+| Same app after lifecycle | PASS — order history and details show Delivered | PASS — order detail shows Delivered |
+
+The isolated Admin preview remains Vercel-SSO protected in this environment and
+was not represented as visual Admin UI proof. The lifecycle actions above were
+performed through the authenticated hosted Admin API endpoints used by the
+Admin application, with normal order discovery before each action. This is
+hosted Admin/API workflow evidence, not a claim that the isolated Admin preview
+was interactively tested.
+
+#### Hosted commercial reconciliation
+
+The fresh Retailer order generated invoice `#11`, one combined invoice for
+`₹3,871`: Padam goods ₹2,500 + ₹300 GST = ₹2,800; Jain goods ₹900 + ₹45 GST =
+₹945; Jain freight ₹120 + ₹6 GST = ₹126. The invoice-specific balances before
+collection were Jain `₹1,071.00` and Padam `₹2,800.00`.
+
+An explicit invoice-scoped partial payment of `₹300.00` was recorded as Jain
+`₹100.00` + Padam `₹200.00`. The resulting balances were Jain `₹971.00` and
+Padam `₹2,600.00`. A second explicitly confirmed payment used exactly those
+remaining invoice-level balances; the invoice is now paid with Jain `₹0.00`,
+Padam `₹0.00`, total outstanding `₹0.00`.
+
+The same partial-payment idempotency key replayed safely with HTTP 200 and did
+not create another allocation. Reusing it with a changed amount/allocation
+returned `payment_idempotency_conflict`. Reusing it against the other fresh
+commercial invoice also returned the same conflict, with no cross-invoice
+settlement. Invoice `#10` (the Salesperson order) remains `open`, outstanding
+`₹3,871`, with zero allocations. No amount spilled between invoices or
+companies.
+
+#### Hosted mock-SAP boundary
+
+`/admin/sap/status` reported the configured `mock` connector enabled and the
+hosted material, pricing and stock sync records healthy. The UAT order’s
+commercial read model and outbox attribution retain the Jain/Padam material
+lines, company ownership, GST, freight and totals. Full mock-outbox completion
+was not claimed: the client customer remains unlinked to a SAP customer id, so
+the order/invoice outbox retains the existing reconciliation-required state.
+Real SAP was not connected.
+
+#### R2 / receipt evidence boundary
+
+The application’s private receipt-storage contract remains present in source,
+but a native receipt submission was **NOT RUN** in this continuation. The
+current hosted Salesperson UAT persona did not expose a collection-submit item
+in its normal More menu (`collection.submit` was not available), so no direct
+API or database shortcut was used to manufacture R2 proof. The existing R2
+implementation and its prior local tests remain separate evidence; this hosted
+quote/order continuation does not close the receipt-evidence acceptance item.
+
+#### Updated continuation result
+
+| Check | Result | Evidence boundary |
+|---|---|---|
+| Native Retailer quote reconciliation | PASS | Physical Moto E13, foreground return, final total and enabled action |
+| Native Salesperson quote reconciliation | PASS | Physical Moto E13, foreground return, final total and enabled action |
+| Native Retailer order submission | PASS | Exact rebuilt APK, physical controls, `GGN-00000076` |
+| Native Salesperson order submission | PASS | Exact rebuilt APK, physical controls, `GGN-00000075` |
+| Same Retailer APK delivered display | PASS | Native order history and order details |
+| Same Salesperson APK delivered display | PASS | Native order detail after pull-to-refresh |
+| Combined invoice | PASS | Hosted read model, invoice #11, three commercial lines |
+| Invoice-specific Jain/Padam split | PASS | Hosted Admin commercial payment contract and balances |
+| Duplicate / changed / cross-invoice replay | PASS | Idempotency replay and conflict responses |
+| R2 application receipt workflow | NOT RUN | Current UAT persona has no native collection-submit capability |
+| SAP mock attribution | PASS WITH BOUNDARY | Mock connector and UAT line attribution verified; customer linkage/outbox completion not claimed |
+
+Persistent screenshots for this continuation are under
+`/Users/tanutejas/Documents/Gagan-product-improvements-v1/evidence/wave1b/`:
+
+- `retailer-mixed-cart-waiting-76c7b32.png` — initial disabled quote state.
+- `retailer-quote-reconciled-76c7b32.png` — confirmed quote and enabled action.
+- `retailer-order-submitted-76c7b32.png` — native `GGN-00000076` submission.
+- `retailer-delivered-orders-76c7b32.png` and `retailer-delivered-detail-76c7b32.png` — same-app Delivered proof.
+- `salesperson-quote-reconciled-76c7b32.png` — confirmed Salesperson quote.
+- `salesperson-order-submitted-76c7b32.png` — native `GGN-00000075` submission.
+- `salesperson-delivered-top-76c7b32.png` and `salesperson-delivered-lower-76c7b32.png` — same-app Delivered and freight proof.
+
+The source tests remain green after the correction: Retailer mobile suite
+`74/74`, Salesperson mobile suite `133/133`; both mobile typechecks passed and
+both hosted-endpoint Android Release builds passed. No backend source or
+business calculation changed in `76c7b32`. No production, main, Dogkart,
+historical payment, frozen tag or accepted fallback APK was modified. The
+feature branch has not been deployed.
+
+**Native quote-reconciliation blocker: CLOSED.**
+**Hosted commercial order/invoice/payment continuation: PASS for the exercised
+scope, with Admin preview UI and R2 receipt submission explicitly not claimed.**

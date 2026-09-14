@@ -543,3 +543,104 @@ No source files or backend business logic changed in this continuation. The
 only state mutation was the staging-only collection assignment documented
 above. Production, main, Dogkart, the historical payment, frozen tags and
 accepted APKs remain untouched.
+
+### Final hosted R2 acceptance closure — 2026-09-15
+
+The hosted collection submission defect was subsequently diagnosed from the
+Gagan Render application logs. The native receipt request reached the API, but
+the global Express JSON parser rejected the base64 receipt body at 100 KB before
+authentication, collection validation, object storage, or database persistence.
+The log recorded `entity.too.large` for a 144,816-byte request against the
+102,400-byte parser limit. The focused backend correction scopes a bounded
+15 MB parser to `/rep/collections`, matching the existing receipt evidence
+contract. No commercial calculation, permission, storage-privacy, or database
+business rule changed.
+
+Backend fix source:
+`adfd8b58fe35d9980a973ffbedd0fb5d12200035`.
+
+The fix was deployed to the exact Gagan staging service as Render deployment
+`dep-dak569h594qs738dro3g` at
+`https://gagan-srat.onrender.com`. The accepted client quote-reconciliation
+source remains `76c7b3205756a449d4b6f48b0d10cc482da5f8`.
+
+Using the supported authenticated Field Ops UAT persona on Moto E13
+`ZD2229Q3KB`, exactly one native submission was performed through:
+
+`More` → `Collections` → `Field Ops UAT Sharma` → `₹1` → `CASH` → attach
+`UAT-CASH-20260911-receipt.png` → `Submit for Accounts`.
+
+The native app displayed the success state: **“Submitted — Accounts will verify
+this collection before it affects the ledger.”** The resulting record was:
+
+- CollectionSubmission: `167529b0-c149-48ee-8917-ba759b63563d`
+- Evidence ID: `1ce90c8a-cc63-47df-bbfe-71abf2663774`
+- Payment ID after Accounts confirmation: `63a321e9-47f2-4139-a3df-d41cbec52666`
+- Evidence: PNG, 108,471 bytes
+- Native receipt submission: PASS
+
+The normal authenticated application/Admin retrieval returned a short-lived
+signed R2 URL in memory. Retrieval returned HTTP 200 with the same 108,471-byte
+payload and matching checksum. Removing the signature parameters from that
+object URL returned HTTP 400 without receipt bytes, and unauthenticated
+application detail returned HTTP 401. The tested evidence object therefore
+remained private and was accessible only through the normal authenticated
+signed-retrieval path.
+
+Accounts confirmation was performed through the supported confirmation path.
+The first confirmation returned HTTP 200 with `idempotent: false`; one deliberate
+repeat returned HTTP 200 with `idempotent: true`, reused the same Payment ID,
+and did not create a second financial posting. The confirmed collection amount
+was ₹1, with ₹0 unallocated and the resulting outstanding balance ₹3,119.
+
+The exact Gagan staging API service was restarted after confirmation. Following
+restart, `/health`, `/health/live`, and `/health/ready` all returned HTTP 200;
+the same CollectionSubmission, Payment ID, Evidence ID, receipt checksum and
+signed retrieval remained available. This proves restart durability for the
+tested R2 object rather than Render-local-disk dependence.
+
+Persistent final evidence is stored under the ignored
+`evidence/wave1b/r2-2026-09-15/` directory:
+
+- `native-before-submit-final.png`
+- `native-submit-result-final.png`
+- `collection-record-final.json`
+- `accounts-confirmation-final.json`
+- `restart-durability-final.json`
+- `render-logs-entity-too-large.png`
+- `native-submit-failure-after-parser-retry.png`
+
+| Final hosted checkpoint | Result |
+|---|---|
+| Core commercial flow | PASS — retained from accepted checkpoint; not repeated |
+| Retailer mixed Jain/Padam | PASS — retained from accepted checkpoint; not repeated |
+| Salesperson mixed Jain/Padam | PASS — retained from accepted checkpoint; not repeated |
+| Manager freight reconciliation | PASS — retained from accepted checkpoint; not repeated |
+| Combined invoice | PASS — retained from accepted checkpoint; not repeated |
+| Invoice-specific Jain/Padam balances | PASS — retained from accepted checkpoint; not repeated |
+| Partial explicit allocation | PASS — retained from accepted checkpoint; not repeated |
+| Exact remaining payment | PASS — retained from accepted checkpoint; not repeated |
+| Second invoice untouched | PASS — retained from accepted checkpoint; not repeated |
+| Duplicate replay protection | PASS — retained from accepted checkpoint; not repeated |
+| Cross-invoice protection | PASS — retained from accepted checkpoint; not repeated |
+| Native collection submission | PASS |
+| CollectionSubmission | `167529b0-c149-48ee-8917-ba759b63563d` |
+| R2 object write | PASS |
+| Private object | PASS for tested evidence object |
+| Signed retrieval | PASS |
+| Unauthorized direct access blocked | PASS |
+| Accounts confirmation | PASS |
+| Duplicate confirmation/idempotency | PASS |
+| Restart durability | PASS |
+| Mock SAP | PASS WITH BOUNDARY — real SAP remains disconnected |
+| Admin visual preview | NOT CLAIMED — not a blocker |
+| Founder hosted commercial review | YES |
+| Production readiness | NO |
+
+**Wave 1B hosted acceptance: PASS.**
+**Ready for Founder hosted commercial review: YES.**
+**Ready for production: NO.**
+
+This closure preserves the earlier failed native attempts as diagnostic history;
+they were not rewritten as successes. No production, main, Dogkart, historical
+data, real SAP configuration, or approved APK was changed during the closure.

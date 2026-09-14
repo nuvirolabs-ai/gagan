@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from "react";
+import CommercialBreakdown from "../components/CommercialBreakdown";
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
@@ -77,7 +78,7 @@ export default function OrderDetailScreen({ route }: any) {
           <OrderTimeline status={order.status} />
         </Surface>
 
-        <Surface>
+        {order.commercialSnapshot ? <CommercialBreakdown value={order.commercialSnapshot}/> : <Surface>
           <SectionHeader title="Items" />
           {(order.items ?? []).map((item: any) => {
             const name = item.variant?.product?.name ?? "Product";
@@ -86,14 +87,14 @@ export default function OrderDetailScreen({ route }: any) {
             return <View key={item.id} style={styles.itemRow}><View style={{ flex: 1 }}><Text style={styles.itemName}>{name}</Text><Text style={styles.muted}>{pack || "Standard pack"} · Qty {item.qtyOrdered}</Text></View><View style={styles.itemRight}><Text style={styles.itemPrice}>{inr(lineTotal)}</Text><Text style={styles.muted}>{inr(Number(item.unitPrice))} each</Text></View></View>;
           })}
           <View style={styles.totalRow}><Text style={styles.totalLabel}>Order total</Text><Text style={styles.totalValue}>{inr(Number(order.orderTotal))}</Text></View>
-        </Surface>
+        </Surface>}
 
         <Surface>
           <SectionHeader title="Recorded progress" />
           {eventRows.map((event: any, index: number) => <View key={event.id} style={styles.eventRow}><View style={[styles.eventDot, index === eventRows.length - 1 && styles.eventDotCurrent]} /><View style={{ flex: 1 }}><Text style={styles.eventTitle}>{event.label}</Text><Text style={styles.muted}>{new Date(event.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</Text></View></View>)}
         </Surface>
 
-        {order.invoice ? <Surface><SectionHeader title="Invoice" /><View style={styles.invoiceRow}><Text style={styles.muted}>Invoice #{order.invoice.invoiceNumber}</Text><Text style={styles.totalValue}>{inr(Number(order.invoice.total))}</Text></View><Text style={styles.muted}>{order.invoice.outstandingAmount > 0 ? `${inr(Number(order.invoice.outstandingAmount))} outstanding` : "Settled"}</Text></Surface> : null}
+        {order.invoice ? <Surface><SectionHeader title="Invoice" /><View style={styles.invoiceRow}><Text style={styles.muted}>Invoice #{order.invoice.invoiceNumber}</Text><Text style={styles.totalValue}>{inr(Number(order.invoice.total))}</Text></View>{order.invoice.commercialSnapshot && <CommercialBreakdown value={order.invoice.commercialSnapshot}/>}<Text style={styles.muted}>{order.invoice.outstandingAmount > 0 ? `${inr(Number(order.invoice.outstandingAmount))} outstanding` : "Settled"}</Text></Surface> : null}
       </ScrollView>
     </AppScreen>
   );

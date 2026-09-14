@@ -51,8 +51,7 @@ export default function Catalog() {
     <div>
       <h1 className="page-title">Catalog</h1>
       <p className="page-sub">
-        SKUs and tier pricing. Prices are per case; the invoice rate per kg is derived from case
-        weight.
+        Legacy pricing is per case. For company-owned SKUs, use Commercial configuration to review the rate basis and GST explicitly.
       </p>
 
       {error && <div className="banner error">{error}</div>}
@@ -89,6 +88,7 @@ export default function Catalog() {
                       </td>
                       <td className="small">
                         {v.unitSize} × {v.unitsPerCase}
+                        {v.sellingEntity && <div><a href="/commercial">Edit company, rate basis & GST</a></div>}
                       </td>
                       <td className="right small muted">{caseWeight} kg</td>
                       {v.prices.map((pr: any) => {

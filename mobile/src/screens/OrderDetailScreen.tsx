@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from "react";
+import CommercialBreakdown from "../components/CommercialBreakdown";
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -109,7 +110,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
       )}
 
       <SectionTitle>{t("orders.items")}</SectionTitle>
-      <View style={styles.band}>
+      {order.commercialSnapshot ? <CommercialBreakdown value={order.commercialSnapshot}/> : <View style={styles.band}>
         {order.items.map((item: any, i: number) => {
           const short =
             item.weightDelivered != null &&
@@ -142,7 +143,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
             </View>
           );
         })}
-      </View>
+      </View>}
 
       <SectionTitle>{t("orders.payment")}</SectionTitle>
       <View style={styles.band}>
@@ -150,6 +151,8 @@ export default function OrderDetailScreen({ route, navigation }: any) {
           <Text style={styles.sumLabel}>{t("orders.orderedValue")}</Text>
           <Text style={styles.sumValue}>{inr(Number(order.orderTotal))}</Text>
         </View>
+        {invoice?.commercialSnapshot && <CommercialBreakdown value={invoice.commercialSnapshot}/>}
+        {invoice?.entityOutstanding && <Text style={styles.sumLabel}>This invoice outstanding · Jain ₹{invoice.entityOutstanding.jain} · Padam ₹{invoice.entityOutstanding.padam}</Text>}
         {invoice ? (
           <>
             <View style={styles.sumRow}>

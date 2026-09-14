@@ -14,3 +14,4 @@ test-results/
 .worktrees/
 # Local captures can contain identity/location screens; keep out of Git.
 /evidence/master-20260914/
+evidence/wave1b/

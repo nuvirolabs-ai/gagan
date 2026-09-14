@@ -1,4 +1,5 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import CommercialBreakdown from "../components/CommercialBreakdown";
 import {
   View,
   Text,
@@ -21,6 +22,14 @@ export default function CartScreen({ navigation }: any) {
   const { lines, updateQty, clear, total, reconcile, staleNotice, dismissStaleNotice } = useCart();
   const { t } = useLanguage();
   const [placing, setPlacing] = useState(false);
+  const [quote,setQuote]=useState<any>(null);
+  const [quoteReady,setQuoteReady]=useState(false);
+  const [quoteError,setQuoteError]=useState("");
+  const basket=JSON.stringify(lines.map(l=>({variantId:l.variantId,qty:l.qty})));
+  useEffect(()=>{let active=true;setQuoteReady(false);setQuote(null);setQuoteError("");
+    if(lines.length) api.commercialQuote(JSON.parse(basket)).then(r=>{if(active){setQuote(r.quote);setQuoteReady(true);}}).catch(()=>{if(active)setQuoteError("Unable to price this basket. Please reopen checkout to retry.");});
+    return ()=>{active=false;};
+  },[basket]);
   const checkoutKey = useRef<string | null>(null);
   const submitting = useRef(false);
   const [credit, setCredit] = useState<any>(null);
@@ -40,10 +49,10 @@ export default function CartScreen({ navigation }: any) {
     }, [])
   );
 
-  const payable = total;
-  const belowMin = total > 0 && total < (config.minOrderValue ?? 0);
+  const payable = quote ? Number(quote.snapshot.total) : total;
+  const belowMin = payable > 0 && payable < (config.minOrderValue ?? 0);
   const overCredit = credit != null && payable > credit.available;
-  const canCheckout = lines.length > 0 && !belowMin && !overCredit && !placing;
+  const canCheckout = lines.length > 0 && !belowMin && !overCredit && !placing && quoteReady && (!quote || !!quote.freightConfirmedByStaffId);
 
   const handleCheckout = async () => {
     if (submitting.current || !canCheckout) return;
@@ -72,7 +81,8 @@ export default function CartScreen({ navigation }: any) {
       checkoutKey.current ??= `checkout-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const res = await api.createOrder(
         freshLines.map((l) => ({ variantId: l.variantId, qty: l.qty })),
-        checkoutKey.current
+        checkoutKey.current,
+        quote ? {quoteId:quote.id,revision:quote.revision}:undefined
       );
       clear();
       checkoutKey.current = null;
@@ -129,6 +139,9 @@ export default function CartScreen({ navigation }: any) {
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: TAB_BAR_SPACE + 150 }}
         showsVerticalScrollIndicator={false}
       >
+        {quoteError ? <Text>{quoteError}</Text> : null}
+        {!quoteReady && !quoteError ? <ActivityIndicator accessibilityLabel="Pricing basket" /> : null}
+        {quote ? <><CommercialBreakdown value={quote.snapshot}/><Text>Quote {quote.id}</Text><TouchableOpacity accessibilityRole="button" style={{padding:16}} disabled={placing} onPress={()=>api.refreshCommercialQuote(quote.id).then(r=>setQuote(r.quote)).catch(()=>Alert.alert("Could not refresh quote"))}><Text>Refresh manager freight</Text></TouchableOpacity></> : null}
         {staleNotice && (
           <TouchableOpacity style={styles.stale} onPress={dismissStaleNotice}>
             <Ionicons name="information-circle" size={16} color="#8A6A12" />
@@ -146,7 +159,7 @@ export default function CartScreen({ navigation }: any) {
               <Text style={styles.linePack} numberOfLines={1}>
                 {l.packSize}
               </Text>
-              <Text style={styles.lineRate}>{inr(l.unitPrice)} / case</Text>
+              {!quote && <Text style={styles.lineRate}>{inr(l.unitPrice)} / case</Text>}
             </View>
             <View style={styles.lineRight}>
               <Text
@@ -155,15 +168,15 @@ export default function CartScreen({ navigation }: any) {
                 adjustsFontSizeToFit
                 minimumFontScale={0.7}
               >
-                {inr(l.unitPrice * l.qty)}
+                {quote ? "" : inr(l.unitPrice * l.qty)}
               </Text>
               <QtyStepper qty={l.qty} onChange={(next) => updateQty(l.variantId, next)} compact disabled={placing} />
             </View>
           </View>
         ))}
 
-        <SectionTitle>{t("cart.summary")}</SectionTitle>
-        <View style={styles.summary}>
+        {!quote && <SectionTitle>{t("cart.summary")}</SectionTitle>}
+        {!quote && <View style={styles.summary}>
           <View style={styles.sumRow}>
             <Text style={styles.sumLabel}>{t("cart.subtotal")}</Text>
             <Text style={styles.sumValue}>{inr(total)}</Text>
@@ -192,7 +205,7 @@ export default function CartScreen({ navigation }: any) {
               </Text>
             </View>
           ) : null}
-        </View>
+        </View>}
 
 
         {belowMin && (

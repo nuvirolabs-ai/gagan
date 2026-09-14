@@ -7,6 +7,7 @@ import Orders from "./pages/Orders";
 import Retailers from "./pages/Retailers";
 import Ledger from "./pages/Ledger";
 import Catalog from "./pages/Catalog";
+import Commercial from "./pages/Commercial";
 import Staff from "./pages/Staff";
 import StaffDetail from "./pages/StaffDetail";
 import Corrections from "./pages/Corrections";
@@ -82,6 +83,7 @@ const NAV: NavGroup[] = [
       { to: "/sales-organisation", label: "Organisation", permissions: ["org.view_all"] },
       { to: "/sales-leader", label: "Sales leader", permissions: ["performance.view_team"] },
       { to: "/catalog", label: "Catalog", permissions: ["staff.manage"] },
+      { to: "/commercial", label: "Commercial", permissions: ["staff.manage", "collection.confirm"] },
     ],
   },
   {
@@ -217,6 +219,7 @@ function Shell() {
           <Route path="/ledger" element={<Guard anyOf={["staff.manage"]}><Ledger /></Guard>} />
           <Route path="/ledger/:retailerId" element={<Guard anyOf={["staff.manage"]}><Ledger /></Guard>} />
           <Route path="/catalog" element={<Guard anyOf={["staff.manage"]}><Catalog /></Guard>} />
+          <Route path="/commercial" element={<Guard anyOf={["staff.manage", "collection.confirm"]}><Commercial /></Guard>} />
           <Route path="/staff" element={<Guard anyOf={["staff.manage"]}><Staff /></Guard>} />
           <Route path="/staff/:staffId" element={<Guard anyOf={["staff.manage"]}><StaffDetail /></Guard>} />
           <Route path="/corrections" element={<Guard anyOf={["financial.correct"]}><Corrections /></Guard>} />

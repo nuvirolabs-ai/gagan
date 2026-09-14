@@ -20,13 +20,15 @@ export function createRetailerApi(request: ApiRequest, store: SessionStore) {
     getHome: () => request("/home"),
     getCatalog: () => request("/catalog"),
     getProduct: (id: string) => request(`/products/${id}`),
-    createOrder: (items: { variantId: string; qty: number }[], idempotencyKey: string) =>
+    commercialQuote: (items: {variantId:string;qty:number}[]) => post("/commercial/quotes",{items}),
+    refreshCommercialQuote: (id:string) => request(`/commercial/quotes/${id}`),
+    createOrder: (items: { variantId: string; qty: number }[], idempotencyKey: string, commercial?:{quoteId:string;revision:number}) =>
       request(
         "/orders",
         {
           method: "POST",
           headers: { "Idempotency-Key": idempotencyKey },
-          body: JSON.stringify({ items }),
+          body: JSON.stringify({ items, ...(commercial ? {commercial}:{}) }),
         }
       ),
     getOrders: () => request("/orders"),

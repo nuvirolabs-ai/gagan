@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import { useRoute } from "@react-navigation/native";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -27,6 +27,16 @@ export default function StaffHomeScreen() {
   const [submissions, setSubmissions] = useState<CollectionSubmission[]>([]);
   const [selectedRetailerId, setSelectedRetailerId] = useState("");
   const [amount, setAmount] = useState("");
+  const [invoices,setInvoices]=useState<any[]>([]);
+  const [invoiceId,setInvoiceId]=useState("");
+  const [jain,setJain]=useState("");const [padam,setPadam]=useState("");
+  const [allocationConfirmed,setAllocationConfirmed]=useState(false);
+  const [invoicesReady,setInvoicesReady]=useState(false);
+  const collectionKey=useRef<string|null>(null);const submitting=useRef(false);
+  useEffect(()=>{let active=true;setInvoices([]);setInvoiceId("");setJain("");setPadam("");setAllocationConfirmed(false);setInvoicesReady(false);
+    if(selectedRetailerId)repApi.collectionInvoices(selectedRetailerId).then(r=>{if(active){setInvoices(r.invoices);setInvoicesReady(true);}}).catch(()=>{if(active)Alert.alert("Could not load invoice balances","Re-select the retailer to retry.");});
+    return ()=>{active=false;};
+  },[selectedRetailerId]);
   const [method, setMethod] = useState<(typeof methods)[number]>("cash");
   const [reference, setReference] = useState("");
   const [receipt, setReceipt] = useState<{ name: string; contentType: string; bodyBase64: string } | null>(null);
@@ -55,6 +65,8 @@ export default function StaffHomeScreen() {
   useEffect(() => { void load(); }, [load]);
 
   const submit = async () => {
+    if(submitting.current || !invoicesReady)return;
+    if(invoices.length && (!invoiceId || !allocationConfirmed)){Alert.alert("Confirm invoice allocation","Select the invoice and explicitly confirm its Jain and Padam amounts.");return;}
     const parsedAmount = Number(amount);
     if (!selectedRetailerId || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       Alert.alert("Add collection details", "Choose a retailer and enter a valid amount.");
@@ -64,15 +76,17 @@ export default function StaffHomeScreen() {
       Alert.alert("Reference required", "Add a receipt, cheque, bank, or UPI reference before submitting.");
       return;
     }
-    setSaving(true);
+    submitting.current=true;setSaving(true);
     try {
-      await repApi.submitCollection({ retailerId: selectedRetailerId, amount: parsedAmount, method, reference: reference.trim() || undefined, evidence: receipt ? { contentType: receipt.contentType, bodyBase64: receipt.bodyBase64 } : undefined, idempotencyKey: `mobile-${Date.now()}-${Math.random().toString(36).slice(2)}` });
+      collectionKey.current ??= `mobile-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      await repApi.submitCollection({ retailerId: selectedRetailerId, amount: parsedAmount, method, reference: reference.trim() || undefined, evidence: receipt ? { contentType: receipt.contentType, bodyBase64: receipt.bodyBase64 } : undefined, idempotencyKey: collectionKey.current,...(invoiceId?{invoiceScopeId:invoiceId,jainAmount:jain,padamAmount:padam}:{}) });
+      collectionKey.current=null;setAllocationConfirmed(false);
       setAmount(""); setReference(""); setReceipt(null);
       Alert.alert("Submitted", "Accounts will verify this collection before it affects the ledger.");
       await load();
     } catch (error) {
       Alert.alert("Could not submit", error instanceof Error ? error.message : "Try again.");
-    } finally { setSaving(false); }
+    } finally { submitting.current=false;setSaving(false); }
   };
 
   const pickReceipt = async () => {
@@ -115,7 +129,14 @@ export default function StaffHomeScreen() {
           <Text style={styles.label}>Retailer</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>{retailers.map((retailer) => <TouchableOpacity key={retailer.id} onPress={() => setSelectedRetailerId(retailer.id)} style={[styles.chip, selectedRetailerId === retailer.id && styles.chipActive]}><Text style={[styles.chipText, selectedRetailerId === retailer.id && styles.chipTextActive]}>{retailer.name}</Text></TouchableOpacity>)}</ScrollView>
           <Text style={styles.label}>Amount (₹)</Text>
-          <TextInput value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={colors.inkFaint} style={styles.input} />
+          {invoices.map(i=><TouchableOpacity key={i.id} disabled={saving} style={styles.attachment} onPress={()=>{setInvoiceId(i.id);setJain("");setPadam("");setAllocationConfirmed(false);}}><Text>Invoice #{i.invoiceNumber} {invoiceId===i.id?"· Selected":""} · Jain ₹{i.jain} · Padam ₹{i.padam}</Text></TouchableOpacity>)}
+          {invoiceId ? <>
+            <Text style={styles.label}>Jain allocation (this invoice)</Text><TextInput editable={!saving} value={jain} onChangeText={v=>{setJain(v);setAllocationConfirmed(false);}} keyboardType="decimal-pad" style={styles.input}/>
+            <Text style={styles.label}>Padam allocation (this invoice)</Text><TextInput editable={!saving} value={padam} onChangeText={v=>{setPadam(v);setAllocationConfirmed(false);}} keyboardType="decimal-pad" style={styles.input}/>
+            <TouchableOpacity disabled={saving} style={styles.attachment} onPress={()=>{const i=invoices.find(i=>i.id===invoiceId);setAmount(i.total);setJain(i.jain);setPadam(i.padam);setAllocationConfirmed(false);}}><Text>Prefill full invoice payment</Text></TouchableOpacity>
+            <TouchableOpacity disabled={saving} accessibilityRole="checkbox" accessibilityState={{checked:allocationConfirmed}} style={styles.attachment} onPress={()=>setAllocationConfirmed(!allocationConfirmed)}><Text>{allocationConfirmed?"Confirmed":"Tap to confirm"}: invoice and company allocation</Text></TouchableOpacity>
+          </> : null}
+          <TextInput value={amount} onChangeText={value=>{setAmount(value);setAllocationConfirmed(false);}} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={colors.inkFaint} style={styles.input} />
           <Text style={styles.label}>Method</Text>
           <View style={styles.methodRow}>{methods.map((value) => <TouchableOpacity key={value} onPress={() => setMethod(value)} style={[styles.method, method === value && styles.methodActive]}><Text style={[styles.methodText, method === value && styles.methodTextActive]}>{value.toUpperCase()}</Text></TouchableOpacity>)}</View>
           <TextInput value={reference} onChangeText={setReference} placeholder="Receipt / cheque / bank reference" placeholderTextColor={colors.inkFaint} style={styles.input} />

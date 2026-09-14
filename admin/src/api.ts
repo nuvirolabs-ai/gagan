@@ -99,6 +99,12 @@ const patch = (path: string, body: unknown) =>
 const remove = (path: string) => request(path, { method: "DELETE" });
 
 export const api = {
+  commercial:()=>request("/admin/commercial"),
+  deliveryQuote:(id:string,lines:unknown)=>post(`/admin/commercial/orders/${id}/delivery-quote`,{lines}),
+  saveCommercialSku:(id:string,body:unknown)=>request(`/admin/commercial/skus/${id}`,{method:"PUT",body:JSON.stringify(body)}),
+  saveCommercialFreight:(id:string,body:unknown)=>request(`/admin/commercial/quotes/${id}/freight`,{method:"PUT",body:JSON.stringify(body)}),
+  commercialBalances:(id:string)=>request(`/admin/commercial/invoices/${id}/balances`),
+  commercialPayment:(id:string,key:string,body:unknown)=>request(`/admin/commercial/invoices/${id}/payments`,{method:"POST",headers:{"Idempotency-Key":key},body:JSON.stringify(body)}),
   login: (email: string, password: string) =>
     request(
       "/admin/auth/login",

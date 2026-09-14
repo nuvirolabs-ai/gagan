@@ -61,19 +61,23 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
     createRecoveryPromise: (caseId: string, body: unknown) => post(`/rep/recovery/${caseId}/promises`, body),
     setRecoveryPromiseStatus: (promiseId: string, status: "kept" | "missed") => post(`/rep/recovery/promises/${promiseId}/status`, { status }),
     catalogFor: (id: string) => request(`/rep/retailers/${id}/catalog`),
-    createOrder: (retailerId: string, items: { variantId: string; qty: number }[], idempotencyKey: string) =>
+    commercialQuote: (retailerId:string,items:{variantId:string;qty:number}[]) => post("/rep/commercial/quotes",{retailerId,items}),
+    refreshCommercialQuote: (id:string) => request(`/rep/commercial/quotes/${id}`),
+    createOrder: (retailerId: string, items: { variantId: string; qty: number }[], idempotencyKey: string, commercial?:{quoteId:string;revision:number}) =>
       request(
         "/rep/orders",
         {
           method: "POST",
           headers: { "Idempotency-Key": idempotencyKey },
-          body: JSON.stringify({ retailerId, items }),
+          body: JSON.stringify({ retailerId, items, ...(commercial ? {commercial}:{}) }),
         }
       ),
     order: (id: string) => request(`/rep/orders/${id}`),
     collectionRetailers: () => request("/rep/collections/assigned-retailers"),
+    collectionInvoices:(retailerId:string)=>request(`/rep/collections/invoices/${retailerId}`),
     collectionSubmissions: () => request("/rep/collections"),
     submitCollection: (input: {
+      invoiceScopeId?:string;jainAmount?:string;padamAmount?:string;
       retailerId: string;
       amount: number;
       method: "cash" | "cheque" | "neft" | "upi";

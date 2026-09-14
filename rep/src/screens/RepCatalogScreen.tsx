@@ -3,6 +3,7 @@ import {
   View,
   Text,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
@@ -11,6 +12,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 
 import { repApi, ApiError } from "../api/repClient";
+import CommercialBreakdown from "../components/CommercialBreakdown";
 import { useRep } from "../context/RepContext";
 import { colors, radius, spacing, inr } from "../theme";
 import { haptic } from "../feedback/haptics";
@@ -35,6 +37,16 @@ export default function RepCatalogScreen({ route, navigation }: any) {
   const [placing, setPlacing] = useState(false);
   const checkoutKey = useRef<string | null>(null);
   const submitting = useRef(false);
+  const [review,setReview]=useState(false);
+  const [quote,setQuote]=useState<any>(null);
+  const [quoteReady,setQuoteReady]=useState(false);
+  const [quoteError,setQuoteError]=useState("");
+  const basket=JSON.stringify(lines.map(l=>({variantId:l.variantId,qty:l.qty})));
+  useEffect(()=>{setReview(false);setQuote(null);setQuoteReady(false);},[basket,retailerId]);
+  const openReview=async()=>{setReview(true);setQuoteReady(false);setQuoteError("");
+    try{const r=await repApi.commercialQuote(retailerId,JSON.parse(basket));setQuote(r.quote);setQuoteReady(true);}
+    catch{setQuoteError("Unable to price this basket. Return to products and retry.");}
+  };
 
   useEffect(() => {
     repApi
@@ -85,7 +97,8 @@ export default function RepCatalogScreen({ route, navigation }: any) {
       const res = await repApi.createOrder(
         retailerId,
         lines.map((l) => ({ variantId: l.variantId, qty: l.qty })),
-        checkoutKey.current
+        checkoutKey.current,
+        quote ? {quoteId:quote.id,revision:quote.revision}:undefined
       );
       clearCart();
       checkoutKey.current = null;
@@ -107,7 +120,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
       submitting.current = false;
       setPlacing(false);
     }
-  }, [lines, retailerId, retailerName, clearCart, navigation]);
+  }, [lines, retailerId, retailerName, clearCart, navigation,quote]);
 
   const cartCount = lines.reduce((n, l) => n + l.qty, 0);
 
@@ -122,6 +135,12 @@ export default function RepCatalogScreen({ route, navigation }: any) {
         </Text>
       </View>
 
+      {review ? <ScrollView contentContainerStyle={{padding:16,paddingBottom:160,gap:16}}>
+        <TouchableOpacity accessibilityRole="button" style={{padding:16}} onPress={()=>setReview(false)} disabled={placing}><Text>Back to products</Text></TouchableOpacity>
+        {!quoteReady && !quoteError ? <ActivityIndicator/>:null}
+        {quoteError ? <Text>{quoteError}</Text>:null}
+        {quote ? <><CommercialBreakdown value={quote.snapshot}/><Text>Quote {quote.id}</Text><TouchableOpacity style={{padding:16}} accessibilityRole="button" disabled={placing} onPress={()=>repApi.refreshCommercialQuote(quote.id).then(r=>setQuote(r.quote)).catch(()=>Alert.alert("Could not refresh quote"))}><Text>Refresh manager freight</Text></TouchableOpacity></> : quoteReady ? <Text>Order total {inr(cartTotal)}</Text>:null}
+      </ScrollView> : <>
       <SearchBar value={query} onChange={setQuery} placeholder={t("common.search")} />
       <View style={{ marginTop: spacing.md, marginBottom: spacing.sm }}>
         <ChipRow options={[ALL, ...categories]} value={category} onChange={setCategory} />
@@ -190,6 +209,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
         />
       )}
 
+      </>}
       {cartCount > 0 && (
         <View style={styles.bar}>
           <View style={{ flex: 1 }}>
@@ -197,14 +217,14 @@ export default function RepCatalogScreen({ route, navigation }: any) {
               {cartCount} case{cartCount > 1 ? "s" : ""} · {lines.length} line
               {lines.length > 1 ? "s" : ""}
             </Text>
-            <Text style={styles.barValue}>{inr(cartTotal)}</Text>
+            <Text style={styles.barValue}>{inr(quote ? Number(quote.snapshot.total):cartTotal)}</Text>
           </View>
-          <TouchableOpacity style={styles.placeBtn} disabled={placing} onPress={submit}>
+          <TouchableOpacity style={[styles.placeBtn,(placing || (review && (!quoteReady || (!!quote && !quote.freightConfirmedByStaffId)))) && {opacity:0.45}]} accessibilityState={{disabled:placing || (review && (!quoteReady || (!!quote && !quote.freightConfirmedByStaffId)))}} disabled={placing || (review && (!quoteReady || (!!quote && !quote.freightConfirmedByStaffId)))} onPress={review ? submit:openReview}>
             {placing ? (
               <ActivityIndicator color={colors.onDark} />
             ) : (
               <>
-                <Text style={styles.placeText}>{t("orders.place")}</Text>
+                <Text style={styles.placeText}>{review ? t("orders.place"):"Review order"}</Text>
                 <Ionicons name="arrow-forward" size={16} color={colors.onDark} />
               </>
             )}

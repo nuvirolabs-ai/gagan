@@ -211,7 +211,10 @@ describe("approving a proposal", () => {
       creditLimit: 0,
     });
     expect(result.retailer.id).toBe("retailer-9");
-    expect(prisma.retailerProposal.update.mock.calls[0][0].data).toMatchObject({
+    expect(prisma.retailerProposal.update.mock.calls[0][0]).toMatchObject({
+      where: { id: "proposal-1", status: "pending" }, data: { status: "approved" },
+    });
+    expect(prisma.retailerProposal.update.mock.calls[1][0].data).toMatchObject({
       status: "approved",
       reviewedByStaffId: "manager-1",
       retailerId: "retailer-9",

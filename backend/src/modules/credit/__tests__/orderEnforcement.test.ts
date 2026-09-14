@@ -13,6 +13,7 @@ const ids = {
   duplicateRetailer: `credit-duplicate-${run}`,
   overdueRetailer: `credit-overdue-${run}`,
   minimumOrderRetailer: `credit-minimum-order-${run}`,
+  integrityRetailer: `credit-integrity-${run}`,
   idempotencyRetailer: `credit-idempotency-${run}`,
   idempotencyConcurrentRetailer: `credit-idempotency-concurrent-${run}`,
   idempotencyOtherRetailer: `credit-idempotency-other-${run}`,
@@ -69,6 +70,7 @@ beforeAll(async () => {
     [ids.duplicateRetailer, `89${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "9")}`],
     [ids.overdueRetailer, `82${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "2")}`],
     [ids.minimumOrderRetailer, `83${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "3")}`],
+    [ids.integrityRetailer, `87${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "7")}`],
     [ids.idempotencyRetailer, `84${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "4")}`],
     [ids.idempotencyConcurrentRetailer, `85${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "5")}`],
     [ids.idempotencyOtherRetailer, `86${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "6")}`],
@@ -102,7 +104,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  const retailerIds = [ids.concurrentRetailer, ids.chainRetailer, ids.duplicateRetailer, ids.overdueRetailer, ids.minimumOrderRetailer, ids.idempotencyRetailer, ids.idempotencyConcurrentRetailer, ids.idempotencyOtherRetailer];
+  const retailerIds = Object.values(ids).filter(id => id !== ids.tier && id !== ids.product && id !== ids.variant);
   const orders = await prisma.order.findMany({ where: { retailerId: { in: retailerIds } }, select: { id: true } });
   const orderIds = orders.map((order) => order.id);
   await prisma.sapOutbox.deleteMany({ where: { referenceId: { in: orderIds } } });
@@ -132,6 +134,50 @@ afterAll(async () => {
 });
 
 describe("atomic order credit enforcement", () => {
+  it("checkout integrity: combines duplicate SKU rows and replays equivalent quantities", async () => {
+    const key = `integrity-normalized-${run}`;
+    const first = await createOrderForRetailer(ids.integrityRetailer,
+      [{ variantId: ids.variant, qty: 1 }, { variantId: ids.variant, qty: 1 }], "retailer", undefined, undefined, key);
+    expect(first.ok).toBe(true);
+    if (!first.ok) throw new Error(JSON.stringify(first.body));
+    expect(first.order.items).toHaveLength(1);
+    expect(first.order.items[0].qtyOrdered).toBe(2);
+    expect(Number(first.order.orderTotal)).toBe(20_000);
+    const replay = await createOrderForRetailer(ids.integrityRetailer,
+      [{ variantId: ids.variant, qty: 2 }], "retailer", undefined, undefined, key);
+    expect(replay).toMatchObject({ ok: true, order: { id: first.order.id } });
+  });
+
+  it("checkout integrity: changed quantities or salesperson attribution conflict on retry", async () => {
+    const key = `integrity-payload-${run}`;
+    const first = await createOrderForRetailer(ids.integrityRetailer,
+      [{ variantId: ids.variant, qty: 1 }], "rep", "rep-integrity-A", undefined, key);
+    expect(first.ok).toBe(true);
+    for (const [qty, origin, rep] of [[2, "rep", "rep-integrity-A"], [1, "rep", "rep-integrity-B"], [1, "retailer", undefined]] as const) {
+      const result = await createOrderForRetailer(ids.integrityRetailer,
+        [{ variantId: ids.variant, qty }], origin, rep, undefined, key);
+      expect(result).toMatchObject({ ok: false, status: 409, body: { error: "idempotency_key_conflict" } });
+    }
+    expect(await prisma.order.count({ where: { retailerId: ids.integrityRetailer, idempotencyKey: key } })).toBe(1);
+  });
+
+  it("checkout integrity: conflicting parallel retries accept exactly one request", async () => {
+    const key = `integrity-race-${run}`;
+    const results = await Promise.all([1, 2].map(qty => createOrderForRetailer(ids.integrityRetailer,
+      [{ variantId: ids.variant, qty }], "retailer", undefined, undefined, key)));
+    expect(results.filter(result => result.ok)).toHaveLength(1);
+    expect(results.find(result => !result.ok)).toMatchObject({ status: 409, body: { error: "idempotency_key_conflict" } });
+    expect(await prisma.order.count({ where: { retailerId: ids.integrityRetailer, idempotencyKey: key } })).toBe(1);
+  });
+
+  it("checkout integrity: invalid service-level quantities cannot create business work", async () => {
+    for (const items of [[], [{ variantId: ids.variant, qty: -1 }], [{ variantId: ids.variant, qty: 0.5 }],
+      [{ variantId: ids.variant, qty: 2_147_483_647 }, { variantId: ids.variant, qty: 1 }]]) {
+      expect(await createOrderForRetailer(ids.integrityRetailer, items, "retailer"))
+        .toMatchObject({ ok: false, status: 400, body: { error: "invalid_order_items" } });
+    }
+  });
+
   it("replays the same successful order for the same idempotency key", async () => {
     const create = createOrderForRetailer as any;
     const key = `checkout-${run}`;

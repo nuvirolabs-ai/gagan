@@ -16,6 +16,17 @@ export class ProposalError extends Error {
   }
 }
 
+/** The state predicate is evaluated by PostgreSQL after any competing writer
+ * commits. An earlier read of pending is not authority to overwrite a decision. */
+async function decidePending(tx: Db, id: string, data: Record<string, unknown>) {
+  try {
+    return await tx.retailerProposal.update({ where: { id, status: "pending" }, data });
+  } catch (error: any) {
+    if (error?.code === "P2025") throw new ProposalError("proposal_already_decided", 409);
+    throw error;
+  }
+}
+
 export interface SubmitProposalInput {
   submittedByStaffId: string;
   businessName: string;
@@ -292,9 +303,14 @@ export class RetailerProposalService {
       throw new ProposalError("proposal_not_found", 404);
     }
     if (proposal.status !== "pending") throw new ProposalError("proposal_already_decided", 409);
-    return this.prisma.retailerProposal.update({
-      where: { id: proposal.id },
-      data: { status: "withdrawn" },
+    return this.prisma.$transaction(async (tx: Db) => {
+      const updated = await decidePending(tx, proposal.id, { status: "withdrawn" });
+      await tx.auditEvent.create({ data: {
+        actorStaffId: input.salespersonId, action: "retailer_proposal.withdrawn",
+        subjectType: "retailer_proposal", subjectId: proposal.id,
+        metadata: { from: "pending", to: "withdrawn" },
+      } });
+      return updated;
     });
   }
 
@@ -337,6 +353,9 @@ export class RetailerProposalService {
     if (duplicate) throw new ProposalError("retailer_already_exists", 409);
 
     return this.prisma.$transaction(async (tx: Db) => {
+      // Claim the decision before creating its customer. A losing transaction
+      // cannot leave an approved customer behind a rejected/withdrawn proposal.
+      await decidePending(tx, proposal.id, { status: "approved" });
       const retailer = await tx.retailer.create({
         data: {
           name: proposal.businessName,
@@ -418,14 +437,11 @@ export class RetailerProposalService {
     }
 
     return this.prisma.$transaction(async (tx: Db) => {
-      const updated = await tx.retailerProposal.update({
-        where: { id: proposal.id },
-        data: {
+      const updated = await decidePending(tx, proposal.id, {
           status: "rejected",
           reviewedByStaffId: input.reviewerStaffId,
           reviewedAt: new Date(),
           rejectionReason: reason,
-        },
       });
       await tx.auditEvent.create({
         data: {

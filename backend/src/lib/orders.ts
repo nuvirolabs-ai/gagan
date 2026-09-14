@@ -14,6 +14,21 @@ export interface OrderLineInput {
   qty: number;
 }
 
+/** Canonical case quantities: one row per SKU, within the database Int range. */
+function normalizeItems(items: OrderLineInput[]): OrderLineInput[] | null {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  const quantities = new Map<string, number>();
+  for (const item of items) {
+    if (!item || typeof item.variantId !== "string" || !item.variantId.trim()
+      || !Number.isSafeInteger(item.qty) || item.qty <= 0) return null;
+    const quantity = (quantities.get(item.variantId) ?? 0) + item.qty;
+    if (quantity > 2_147_483_647) return null;
+    quantities.set(item.variantId, quantity);
+  }
+  return [...quantities].sort(([a], [b]) => a.localeCompare(b))
+    .map(([variantId, qty]) => ({ variantId, qty }));
+}
+
 export type CreateOrderResult =
   | {
       ok: true;
@@ -54,13 +69,25 @@ function externalReferenceFor(orderNo: number): string {
 async function replayExistingOrder(
   tx: Prisma.TransactionClient,
   retailerId: string,
-  idempotencyKey: string
+  idempotencyKey: string,
+  items: OrderLineInput[],
+  placedBy: "retailer" | "rep",
+  placedByRepId?: string
 ): Promise<CreateOrderResult | null> {
   const order = await tx.order.findUnique({
     where: { retailerId_idempotencyKey: { retailerId, idempotencyKey } },
     include: { items: true },
   });
   if (!order) return null;
+
+  // Accepted rows are the durable request identity, including legacy orders.
+  // Do not compare against today's price/master data on a lost-response retry.
+  const acceptedItems = normalizeItems(order.items.map(item => ({ variantId: item.variantId, qty: item.qtyOrdered })));
+  if (order.placedBy !== placedBy
+    || order.placedByRepId !== (placedBy === "rep" ? placedByRepId ?? null : null)
+    || JSON.stringify(acceptedItems) !== JSON.stringify(items)) {
+    return { ok: false, status: 409, body: { error: "idempotency_key_conflict" } };
+  }
 
   const [assessment, approvalRequest, dispatchAuthorization] = await Promise.all([
     tx.creditAssessment.findFirst({ where: { orderId: order.id }, orderBy: { createdAt: "desc" } }),
@@ -103,14 +130,18 @@ export async function createOrderForRetailer(
   placedByStaffId?: string,
   idempotencyKey?: string
 ): Promise<CreateOrderResult> {
+  const normalizedItems = normalizeItems(items);
+  if (!normalizedItems) return { ok: false, status: 400, body: { error: "invalid_order_items" } };
+  items = normalizedItems;
   return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT 1 FROM "Retailer" WHERE "id" = ${retailerId} FOR UPDATE`;
+    // Read only after acquiring the lock: a waiting request must see the latest
+    // tier/balance/credit state, not a snapshot fetched before another commit.
     const retailer = await tx.retailer.findUnique({ where: { id: retailerId } });
     if (!retailer) return { ok: false, status: 404, body: { error: "Retailer not found" } };
 
-    await tx.$queryRaw`SELECT 1 FROM "Retailer" WHERE "id" = ${retailerId} FOR UPDATE`;
-
     if (idempotencyKey) {
-      const replay = await replayExistingOrder(tx, retailerId, idempotencyKey);
+      const replay = await replayExistingOrder(tx, retailerId, idempotencyKey, items, placedBy, placedByRepId);
       if (replay) return replay;
     }
 
@@ -126,9 +157,9 @@ export async function createOrderForRetailer(
       return { ok: false, status: 503, body: { error: "credit_policy_unavailable" } };
     }
 
-    const tierPrice = new Map(priceList.map((price) => [price.variantId, Number(price.price)]));
-    const overridePrice = new Map(overrides.map((override) => [override.variantId, Number(override.price)]));
-    let orderTotal = 0;
+    const tierPrice = new Map(priceList.map((price) => [price.variantId, price.price]));
+    const overridePrice = new Map(overrides.map((override) => [override.variantId, override.price]));
+    let orderAmount = new Prisma.Decimal(0);
     const conversionById = new Map(variants.map(variant => [variant.id, variant.unitWeightKg.mul(variant.unitsPerCase)]));
     const lineItems: { variantId: string; qtyOrdered: number; unitPrice: number; caseWeightKgSnapshot: Prisma.Decimal }[] = [];
     for (const item of items) {
@@ -144,9 +175,13 @@ export async function createOrderForRetailer(
       if (!caseWeightKgSnapshot || !caseWeightKgSnapshot.isPositive()) {
         return { ok: false, status: 409, body: { error: "invalid_case_conversion", variantId: item.variantId } };
       }
-      orderTotal += unitPrice * item.qty;
-      lineItems.push({ variantId: item.variantId, qtyOrdered: item.qty, unitPrice, caseWeightKgSnapshot });
+      orderAmount = orderAmount.add(unitPrice.mul(item.qty));
+      lineItems.push({ variantId: item.variantId, qtyOrdered: item.qty, unitPrice: unitPrice.toNumber(), caseWeightKgSnapshot });
     }
+
+    // Persisted prices have two decimal places. Keep multiplication/addition
+    // decimal until the existing credit engine's numeric boundary.
+    const orderTotal = orderAmount.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP).toNumber();
 
     const minimumOrderValue = Number(appConfig?.minOrderValue ?? 0);
     if (minimumOrderValue > 0 && orderTotal < minimumOrderValue) {

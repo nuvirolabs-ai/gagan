@@ -42,8 +42,28 @@ function validateResolutions(
     ) {
       throw new InvoiceCreationError("invalid_delivered_weight");
     }
+    if (line.deliveredWeightKg !== undefined && new Prisma.Decimal(line.deliveredWeightKg).decimalPlaces() > 3) {
+      throw new InvoiceCreationError("invalid_delivered_weight_precision");
+    }
   }
   return byId;
+}
+
+/** A retry may recover an accepted invoice, never substitute another order or
+ * silently accept a different physical delivery. Compare immutable invoice
+ * lines, not a subsequently edited SKU/order master. */
+function verifiedReplay(existing: InvoiceResult, input: CreateInvoiceForDeliveryInput): InvoiceResult {
+  if (existing.orderId !== input.orderId) throw new InvoiceCreationError("invoice_replay_conflict");
+  const sourceLines = existing.lines.filter((line): line is typeof line & { orderItemId: string } => line.orderItemId != null);
+  const requested = validateResolutions(sourceLines.map(line => line.orderItemId), input.lines);
+  for (const line of sourceLines) {
+    const next = requested.get(line.orderItemId)!;
+    const weightMatches = line.deliveredWeightKg == null
+      ? next.deliveredWeightKg == null
+      : next.deliveredWeightKg != null && line.deliveredWeightKg.eq(next.deliveredWeightKg);
+    if (line.deliveredCases !== next.deliveredCases || !weightMatches) throw new InvoiceCreationError("invoice_replay_conflict");
+  }
+  return existing;
 }
 
 function isPrismaCode(error: unknown, code: string): boolean {
@@ -68,7 +88,7 @@ async function createOnce(input: CreateInvoiceForDeliveryInput): Promise<Invoice
       if (lockedOrders.length === 0) throw new InvoiceCreationError("order_not_found");
 
       const existing = await findExistingInvoice(tx, input);
-      if (existing) return existing;
+      if (existing) return verifiedReplay(existing, input);
 
       await tx.$queryRaw`
         SELECT "id"
@@ -244,7 +264,7 @@ export async function createInvoiceForDelivery(
     } catch (error) {
       if (isPrismaCode(error, "P2002")) {
         const existing = await findExistingInvoice(prisma, input);
-        if (existing) return existing;
+        if (existing) return verifiedReplay(existing, input);
       }
       if (isPrismaCode(error, "P2034") && attempt < MAX_SERIALIZATION_ATTEMPTS) {
         await waitBeforeRetry(attempt);

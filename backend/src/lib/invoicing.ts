@@ -24,8 +24,8 @@ type ItemForInvoice = {
   variant: { unitsPerCase: number; unitWeightKg: Prisma.Decimal };
 };
 
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
+function round2(n: Prisma.Decimal): number {
+  return n.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP).toNumber();
 }
 
 /**
@@ -39,15 +39,15 @@ function round2(n: number): number {
  */
 export function buildInvoice(items: ItemForInvoice[]): InvoiceBreakdown {
   const lines: InvoiceLine[] = items.map((item) => {
-    const unitPrice = Number(item.unitPrice);
+    const unitPrice = new Prisma.Decimal(item.unitPrice);
     // Legacy null rows retain the explicit pre-snapshot policy until invoicing;
     // accepted new lines never consult mutable master conversion again.
     const caseWeightKg = item.caseWeightKgSnapshot != null
-      ? Number(item.caseWeightKgSnapshot)
-      : Number(item.variant.unitWeightKg) * item.variant.unitsPerCase;
-    const pricePerKg = caseWeightKg > 0 ? unitPrice / caseWeightKg : 0;
+      ? new Prisma.Decimal(item.caseWeightKgSnapshot)
+      : item.variant.unitWeightKg.mul(item.variant.unitsPerCase);
+    const pricePerKg = caseWeightKg.gt(0) ? unitPrice.div(caseWeightKg) : new Prisma.Decimal(0);
 
-    if (item.weightDelivered != null && caseWeightKg > 0) {
+    if (item.weightDelivered != null && caseWeightKg.gt(0)) {
       const weight = Number(item.weightDelivered);
       return {
         orderItemId: item.id,
@@ -55,7 +55,7 @@ export function buildInvoice(items: ItemForInvoice[]): InvoiceBreakdown {
         pricePerKg: round2(pricePerKg),
         billedWeightKg: weight,
         billedCases: null,
-        lineTotal: round2(pricePerKg * weight),
+        lineTotal: round2(pricePerKg.mul(item.weightDelivered)),
       };
     }
 
@@ -66,7 +66,7 @@ export function buildInvoice(items: ItemForInvoice[]): InvoiceBreakdown {
         pricePerKg: round2(pricePerKg),
         billedWeightKg: null,
         billedCases: item.qtyDelivered,
-        lineTotal: round2(unitPrice * item.qtyDelivered),
+        lineTotal: round2(unitPrice.mul(item.qtyDelivered)),
       };
     }
 
@@ -76,9 +76,9 @@ export function buildInvoice(items: ItemForInvoice[]): InvoiceBreakdown {
       pricePerKg: round2(pricePerKg),
       billedWeightKg: null,
       billedCases: item.qtyOrdered,
-      lineTotal: round2(unitPrice * item.qtyOrdered),
+      lineTotal: round2(unitPrice.mul(item.qtyOrdered)),
     };
   });
 
-  return { lines, total: round2(lines.reduce((sum, l) => sum + l.lineTotal, 0)) };
+  return { lines, total: round2(lines.reduce((sum, l) => sum.add(l.lineTotal), new Prisma.Decimal(0))) };
 }

@@ -95,15 +95,15 @@ Exact release artifact built from this worktree and installed in place over
 from the embedded release bundle after the local launcher process was closed.
 
 - Online Today after reconnection, with the saved banner cleared:
-  `/tmp/gagan-wave2-1-evidence/06-moto-e13-reconnected-online.png`
+  `/Users/tanutejas/Documents/Gagan-wave2-1-evidence/06-moto-e13-reconnected-online.png`
 - Offline reopen after online population, airplane mode and force-stop:
-  `/tmp/gagan-wave2-1-evidence/04-moto-e13-airplane-reopen.png`
+  `/Users/tanutejas/Documents/Gagan-wave2-1-evidence/04-moto-e13-airplane-reopen.png`
 - Cold/standalone launch evidence:
-  `/tmp/gagan-wave2-1-evidence/01-moto-e13-launch.png`
+  `/Users/tanutejas/Documents/Gagan-wave2-1-evidence/01-moto-e13-launch.png`
 - Current Route screen:
-  `/tmp/gagan-wave2-1-evidence/08-moto-e13-route-screen.png`
+  `/Users/tanutejas/Documents/Gagan-wave2-1-evidence/08-moto-e13-route-screen.png`
 - More screen / existing outbox visibility:
-  `/tmp/gagan-wave2-1-evidence/07-moto-e13-more.png`
+  `/Users/tanutejas/Documents/Gagan-wave2-1-evidence/07-moto-e13-more.png`
 
 Observed offline screen: `Offline` and `You're offline. Showing your saved
 day from 9:46 am. Refresh when connected.`; the real Today content remained

@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -22,6 +21,7 @@ import {
   SectionTitle,
   Tag,
   inputStyle,
+  KeyboardSafeScrollView,
 } from "../components/ui";
 import { repApi } from "../api/repClient";
 import { colors, spacing } from "../theme";
@@ -134,7 +134,8 @@ export default function IssuesScreen({ route, navigation }: any) {
 
   return (
     <View style={styles.screen}>
-      <ScrollView
+      <KeyboardSafeScrollView
+        containerStyle={styles.screen}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         refreshControl={
@@ -238,7 +239,7 @@ export default function IssuesScreen({ route, navigation }: any) {
             ))
           )}
         </Card>
-      </ScrollView>
+      </KeyboardSafeScrollView>
     </View>
   );
 }

@@ -2,7 +2,6 @@ import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -23,6 +22,7 @@ import {
   Surface,
   Tag,
   inputStyle,
+  KeyboardSafeScrollView,
 } from "../components/ui";
 import { haptic } from "../feedback/haptics";
 import { repApi } from "../api/repClient";
@@ -161,7 +161,7 @@ export default function VisitScreen({ route, navigation }: any) {
 
   return (
     <AppScreen>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <KeyboardSafeScrollView contentContainerStyle={styles.content}>
         <FocusCard>
           <Text style={styles.title} numberOfLines={2}>
             {retailerName}
@@ -265,7 +265,7 @@ export default function VisitScreen({ route, navigation }: any) {
             />
           </Surface>
         ) : null}
-      </ScrollView>
+      </KeyboardSafeScrollView>
     </AppScreen>
   );
 }

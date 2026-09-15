@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
-  ScrollView,
   StyleSheet,
   Alert,
   Linking,
@@ -29,6 +28,7 @@ import {
   Surface,
   TextButton,
   TimelineEvent,
+  KeyboardSafeScrollView,
 } from "../components/ui";
 import ActivityComposer, { ACTIVITY_LABELS } from "../components/ActivityComposer";
 import { haptic } from "../feedback/haptics";
@@ -240,7 +240,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
 
   return (
     <AppScreen>
-      <ScrollView contentContainerStyle={styles.content}>
+      <KeyboardSafeScrollView contentContainerStyle={styles.content}>
         <View style={styles.head}>
           <InitialsBadge name={retailer.name} size={56} tone={credit.overdue > 0 ? "danger" : "green"} />
           <View style={{ flex: 1 }}>
@@ -556,7 +556,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
             ))
           )}
         </View>
-      </ScrollView>
+      </KeyboardSafeScrollView>
 
       {!visiting ? (
         <View style={styles.bar}>

@@ -4,7 +4,7 @@ import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, Touc
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { File } from "expo-file-system";
-import { ScreenHeader } from "../components/ui";
+import { KeyboardSafeScrollView, ScreenHeader } from "../components/ui";
 import { useRep } from "../context/RepContext";
 import { staffCapabilities } from "../auth/staffCapabilities";
 import { repApi } from "../api/repClient";
@@ -123,7 +123,7 @@ export default function StaffHomeScreen() {
   return (
     <View style={styles.screen}>
       <ScreenHeader title={t("tabs.work")} subtitle={`Hi ${staff?.name ?? ""}`} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <KeyboardSafeScrollView containerStyle={styles.screen} contentContainerStyle={styles.content}>
         {capabilities.canCollect ? <View style={styles.card}>
           <View style={styles.cardTitleRow}><View style={styles.icon}><Ionicons name="cash-outline" size={22} color={colors.green} /></View><View><Text style={styles.title}>{t("work.submitCollection")}</Text><Text style={styles.muted}>{t("work.accountsVerify")}</Text></View></View>
           <Text style={styles.label}>Retailer</Text>
@@ -152,7 +152,7 @@ export default function StaffHomeScreen() {
         </View> : null}
 
         {!capabilities.canCollect && !canConfirmCollections ? <View style={styles.card}><Text style={styles.title}>Your staff access is active</Text><Text style={styles.muted}>No operational workspace has been assigned yet. Ask your administrator if you need another role.</Text></View> : null}
-      </ScrollView>
+      </KeyboardSafeScrollView>
     </View>
   );
 }

@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -15,6 +14,7 @@ import { File } from "expo-file-system";
 
 import {
   Card,
+  DateField,
   Field,
   ListRow,
   OptionGrid,
@@ -23,10 +23,12 @@ import {
   SectionTitle,
   Tag,
   inputStyle,
+  KeyboardSafeScrollView,
 } from "../components/ui";
 import { repApi } from "../api/repClient";
 import { colors, inr, spacing } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
+import { expenseDatePayload, localDayKey, parseExpenseDate } from "./expenseDate";
 
 const CATEGORIES = [
   { value: "travel", label: "Travel" },
@@ -57,6 +59,7 @@ export default function ExpensesScreen() {
   const [category, setCategory] = useState("travel");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
+  const [expenseDate, setExpenseDate] = useState(localDayKey());
   const [receipt, setReceipt] = useState<{ name: string; contentType: string; bodyBase64: string } | null>(
     null
   );
@@ -103,10 +106,13 @@ export default function ExpensesScreen() {
     if (description.trim().length < 3) {
       return Alert.alert("Add a description", "Say what the expense was for.");
     }
+    if (!parseExpenseDate(expenseDate)) {
+      return Alert.alert("Check the date", "Choose a valid expense date.");
+    }
     setSaving(true);
     try {
       await repApi.submitExpense({
-        expenseDate: new Date().toISOString(),
+        expenseDate: expenseDatePayload(expenseDate),
         category,
         amount: value,
         description: description.trim(),
@@ -117,6 +123,7 @@ export default function ExpensesScreen() {
       setComposing(false);
       setAmount("");
       setDescription("");
+      setExpenseDate(localDayKey());
       setReceipt(null);
       await load();
       Alert.alert("Claim submitted", "Your manager will review this in the back office.");
@@ -137,7 +144,8 @@ export default function ExpensesScreen() {
 
   return (
     <View style={styles.screen}>
-      <ScrollView
+      <KeyboardSafeScrollView
+        containerStyle={styles.screen}
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
@@ -155,6 +163,7 @@ export default function ExpensesScreen() {
           {composing ? (
             <View style={{ gap: spacing.md }}>
               <SectionTitle title={t("expenses.new")} />
+              <DateField label="Expense date" value={expenseDate} onChange={setExpenseDate} />
               <Field label={t("expenses.category")}>
                 <OptionGrid options={CATEGORIES} value={category} onChange={setCategory} />
               </Field>
@@ -232,7 +241,7 @@ export default function ExpensesScreen() {
             ))
           )}
         </Card>
-      </ScrollView>
+      </KeyboardSafeScrollView>
     </View>
   );
 }

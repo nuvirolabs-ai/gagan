@@ -30,6 +30,7 @@ import {
   Surface,
   TaskRow,
   TextButton,
+  KeyboardSafeScrollView,
 } from "../components/ui";
 import { visibleAttentionItems } from "./attentionFeed";
 import { haptic } from "../feedback/haptics";
@@ -480,6 +481,7 @@ export default function TodayScreen({ navigation }: any) {
       {eodOpen && dayOpen ? (
         <Modal visible transparent animationType="slide" onRequestClose={() => setEodOpen(false)}>
           <View style={styles.sheetOverlay}>
+            <KeyboardSafeScrollView containerStyle={styles.sheetKeyboard} contentContainerStyle={styles.sheetScroll}>
             <View style={styles.eodSheet}>
               <View style={styles.between}><Text style={styles.sheetTitle}>End-of-day summary</Text><TextButton label="Close" onPress={() => setEodOpen(false)} /></View>
               <Text style={styles.sheetMessage}>Review your field day before sending the handoff.</Text>
@@ -488,6 +490,7 @@ export default function TodayScreen({ navigation }: any) {
               <TextInput value={managerNote} onChangeText={setManagerNote} placeholder="Add a short handoff note" placeholderTextColor={colors.inkFaint} multiline maxLength={1000} style={styles.noteInput} />
               <View style={styles.heroActions}><View style={{ flex: 1 }}><SecondaryButton label="Keep working" onPress={() => setEodOpen(false)} /></View><View style={{ flex: 1 }}><PrimaryButton label="End My Day" icon="checkmark-circle-outline" tone="danger" disabled={busy} onPress={() => void toggleDay(managerNote)} /></View></View>
             </View>
+            </KeyboardSafeScrollView>
           </View>
         </Modal>
       ) : null}
@@ -591,6 +594,8 @@ const styles = StyleSheet.create({
   sheetMessage: { color: colors.inkMuted, fontSize: 15.5, lineHeight: 22, textAlign: "center", maxWidth: 350 },
   sheetAmount: { color: colors.ink, fontSize: 16, fontWeight: "800", fontVariant: ["tabular-nums"] },
   eodSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: spacing.xl, gap: spacing.md },
+  sheetKeyboard: { flex: 1, justifyContent: "flex-end" },
+  sheetScroll: { flexGrow: 1, justifyContent: "flex-end" },
   noteLabel: { color: colors.ink, fontSize: 13, fontWeight: "700" },
   optional: { color: colors.inkFaint, fontWeight: "400" },
   noteInput: { minHeight: 78, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.md, color: colors.ink, textAlignVertical: "top", backgroundColor: colors.surfaceAlt },

@@ -3,7 +3,7 @@ import CommercialBreakdown from "../components/CommercialBreakdown";
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
-import { AppScreen, EmptyState, OrderTimeline, SectionHeader, StatusPill, Surface } from "../components/ui";
+import { AppScreen, EmptyState, OrderTimeline, PrimaryButton, SectionHeader, StatusPill, Surface } from "../components/ui";
 import { repApi } from "../api/repClient";
 import { formatOrderRef } from "../lib/orderRef";
 import { colors, inr, spacing } from "../theme";
@@ -41,7 +41,7 @@ function InternalCommercialStatus({ status }: { status: any }) {
   );
 }
 
-export default function OrderDetailScreen({ route }: any) {
+export default function OrderDetailScreen({ route, navigation }: any) {
   const orderId = route?.params?.orderId as string;
   const [data, setData] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -116,6 +116,13 @@ export default function OrderDetailScreen({ route }: any) {
         </Surface>
 
         {order.invoice ? <Surface><SectionHeader title="Invoice" /><View style={styles.invoiceRow}><Text style={styles.muted}>Invoice #{order.invoice.invoiceNumber}</Text><Text style={styles.totalValue}>{inr(Number(order.invoice.total))}</Text></View>{order.invoice.commercialSnapshot && <CommercialBreakdown value={order.invoice.commercialSnapshot}/>}<Text style={styles.muted}>{order.invoice.outstandingAmount > 0 ? `${inr(Number(order.invoice.outstandingAmount))} outstanding` : "Settled"}</Text></Surface> : null}
+
+        <PrimaryButton
+          label="Done · Next retailer"
+          icon="arrow-forward"
+          onPress={() => navigation.navigate("RepMain", { screen: "Retailers" })}
+        />
+        <Text style={styles.footer}>This view reflects the order accepted by Gagan. Reopen the retailer profile to review the same order later.</Text>
       </ScrollView>
     </AppScreen>
   );
@@ -147,4 +154,5 @@ const styles = StyleSheet.create({
   internalEventRow: { paddingVertical: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.separator },
   internalEventLabel: { color: colors.ink, fontSize: 13, fontWeight: "600" },
   internalAdvance: { color: colors.primary, fontSize: 13, fontWeight: "700", marginTop: spacing.sm },
+  footer: { color: colors.inkFaint, fontSize: 12, lineHeight: 17, textAlign: "center", marginBottom: spacing.md },
 });

@@ -16,6 +16,7 @@ import RepLoginScreen from "./src/screens/RepLoginScreen";
 import RepRetailersScreen from "./src/screens/RepRetailersScreen";
 import RepRetailerDetailScreen from "./src/screens/RepRetailerDetailScreen";
 import RepCatalogScreen from "./src/screens/RepCatalogScreen";
+import RepReviewOrderScreen from "./src/screens/RepReviewOrderScreen";
 import RepAccountScreen from "./src/screens/RepAccountScreen";
 import StaffHomeScreen from "./src/screens/StaffHomeScreen";
 import ApprovalsScreen from "./src/screens/ApprovalsScreen";
@@ -168,6 +169,11 @@ function RootNavigator() {
                 name="RepCatalog"
                 component={RepCatalogScreen}
                 options={{ title: t("orders.new"), headerBackTitle: t("common.back") }}
+              />
+              <Stack.Screen
+                name="RepReviewOrder"
+                component={RepReviewOrderScreen}
+                options={{ title: "Review order", headerBackTitle: t("common.back") }}
               />
               <Stack.Screen name="KycCapture" component={KycCaptureScreen} options={{ title: t("kyc.title"), headerBackTitle: t("retailer.title") }} />
               <Stack.Screen

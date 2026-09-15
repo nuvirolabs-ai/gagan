@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { openCreatedOrder } from "./sellingFlow";
+import { checkoutCommercialReference, openCreatedOrder } from "./sellingFlow";
 import { Alert, AppState, AppStateStatus, ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
@@ -133,7 +133,7 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
         retailerId,
         lines.map((line) => ({ variantId: line.variantId, qty: line.qty })),
         checkoutKey.current,
-        { quoteId: quote.id, revision: quote.revision },
+        checkoutCommercialReference(quote),
       );
       if (!result.order?.id) throw new Error("order_response_missing_id");
       clearCart();
@@ -200,12 +200,12 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
         <Surface style={styles.quoteSurface}>
           <View style={styles.quoteHeader}>
             <View style={styles.quoteCopy}>
-              <Text style={styles.quoteTitle}>{quote?.acceptedAt ? "Order already placed" : quote?.freightConfirmedByStaffId ? "Manager freight confirmed" : "Waiting for manager freight"}</Text>
-              <Text style={styles.muted}>{refreshingQuote ? "Checking the latest quote…" : "The backend quote is the source of truth for GST, freight and the final total."}</Text>
+              <Text style={styles.quoteTitle}>{quote?.acceptedAt ? "Order already placed" : quote?.freightConfirmedByStaffId ? "Manager freight confirmed" : quote ? "Waiting for manager freight" : quoteReady ? "Standard case pricing" : "Checking pricing"}</Text>
+              <Text style={styles.muted}>{refreshingQuote ? "Checking the latest quote…" : quoteReady && !quote ? "This basket uses existing case prices. The backend validates the final order total." : "The backend quote is the source of truth for GST, freight and the final total."}</Text>
             </View>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh manager freight" style={styles.refreshButton} disabled={!quote || placing || refreshingQuote} onPress={() => void refreshQuote()}>
+            {quote ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh manager freight" style={styles.refreshButton} disabled={placing || refreshingQuote} onPress={() => void refreshQuote()}>
               {refreshingQuote ? <ActivityIndicator size="small" color={colors.onDark} /> : <Text style={styles.refreshText}>Refresh</Text>}
-            </TouchableOpacity>
+            </TouchableOpacity> : null}
           </View>
           {!quoteReady && !quoteError ? <ActivityIndicator color={colors.blue} /> : null}
           {quoteError ? <Text style={styles.error}>{quoteError}</Text> : null}

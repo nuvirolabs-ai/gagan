@@ -420,6 +420,17 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
           </Surface>
         ) : null}
 
+        {staff?.permissions.includes("survey.respond") ? (
+          <Surface level={1}>
+            <SectionHeader title="Market survey" />
+            <Text style={styles.muted}>Capture this store's current view while you are here.</Text>
+            <TextButton
+              label="Open store surveys"
+              onPress={() => navigation.navigate("MarketSurveys", { retailerId: retailer.id, retailerName: retailer.name })}
+            />
+          </Surface>
+        ) : null}
+
         {capabilities.canLogActivity ? (
           <View>
             <SectionHeader

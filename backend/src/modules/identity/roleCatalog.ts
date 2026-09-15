@@ -36,6 +36,9 @@ export const Permissions = {
   // to the master is not.
   RETAILER_PROPOSE: "retailer.propose",
   RETAILER_PROPOSAL_REVIEW: "retailer.proposal_review",
+  SURVEY_RESPOND: "survey.respond",
+  SURVEY_MANAGE: "survey.manage",
+  SURVEY_RESPONSES_VIEW: "survey.responses_view",
   // Reading a team's performance, as opposed to your own.
   PERFORMANCE_VIEW_TEAM: "performance.view_team",
   // Reporting-line administration. ORG_VIEW_ALL lifts the reporting-scope
@@ -85,6 +88,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       Permissions.EXPENSE_SUBMIT,
       Permissions.ISSUE_RAISE,
       Permissions.RETAILER_PROPOSE,
+      Permissions.SURVEY_RESPOND,
     ],
   },
   {
@@ -105,6 +109,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       Permissions.EXPENSE_SUBMIT,
       Permissions.ISSUE_RAISE,
       Permissions.RETAILER_PROPOSE,
+      Permissions.SURVEY_RESPOND,
     ],
   },
   {
@@ -166,6 +171,8 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       Permissions.LOCATION_VIEW,
       Permissions.RETAILER_PROPOSAL_REVIEW,
       Permissions.PERFORMANCE_VIEW_TEAM,
+      Permissions.SURVEY_MANAGE,
+      Permissions.SURVEY_RESPONSES_VIEW,
     ],
   },
   {

@@ -61,6 +61,12 @@ export default function RepAccountScreen({ navigation }: any) {
       subtitle: "Product and scheme material",
       screen: "SalesKit",
     },
+    staff?.permissions.includes("survey.respond") && {
+      icon: "clipboard-outline",
+      label: "Market surveys",
+      subtitle: "Answer your manager's active questions",
+      screen: "MarketSurveys",
+    },
   ].filter(Boolean) as Array<{ icon: string; label: string; subtitle: string; screen: string }>;
 
   const grow = [

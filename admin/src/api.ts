@@ -352,6 +352,16 @@ export const api = {
   rejectRetailerProposal: (id: string, reason: string) =>
     post(`/admin/retailer-proposals/${id}/reject`, { reason }),
 
+  /* ----------------------------- market surveys ----------------------------- */
+  surveys: (status?: string) => request(`/admin/surveys${status ? `?status=${status}` : ""}`),
+  survey: (id: string) => request(`/admin/surveys/${id}`),
+  createSurvey: (body: unknown) => post("/admin/surveys", body),
+  updateSurvey: (id: string, body: unknown) => patch(`/admin/surveys/${id}`, body),
+  activateSurvey: (id: string) => post(`/admin/surveys/${id}/activate`),
+  closeSurvey: (id: string) => post(`/admin/surveys/${id}/close`),
+  surveyResponses: (id: string, respondentType?: string) => request(`/admin/surveys/${id}/responses${respondentType ? `?respondentType=${respondentType}` : ""}`),
+  surveySummary: (id: string) => request(`/admin/surveys/${id}/summary`),
+
   salesTargets: (salespersonId?: string) =>
     request(`/admin/field/targets${salespersonId ? `?salespersonId=${salespersonId}` : ""}`),
   setSalesTarget: (body: {

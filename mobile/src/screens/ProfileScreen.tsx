@@ -92,6 +92,12 @@ export default function ProfileScreen({ navigation }: any) {
       hint: `${data?.badges?.notifications ?? 0} unread`,
       onPress: () => Alert.alert(t("profile.notifications"), t("profile.notificationsComing")),
     },
+    {
+      icon: "clipboard-outline",
+      label: "Market surveys",
+      hint: "Answer active questions from Gagan",
+      onPress: () => navigation.navigate("MarketSurveys"),
+    },
   ];
 
   return (

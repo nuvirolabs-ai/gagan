@@ -67,6 +67,34 @@ enum IdentityRealm {
   admin
 }
 
+enum SurveyStatus {
+  draft
+  active
+  closed
+}
+
+enum SurveyAudience {
+  all_retailers
+  selected_retailers
+  all_salespersons
+  selected_salespersons
+}
+
+enum SurveyQuestionType {
+  single_choice
+  multiple_choice
+  yes_no
+  rating
+  number
+  text
+}
+
+enum SurveyRespondentType {
+  retailer
+  salesperson
+  salesperson_retailer
+}
+
 enum OrderStatus {
   placed
   confirmed
@@ -380,6 +408,9 @@ model Retailer {
   proposal                  RetailerProposal?
   fieldTasks                FieldTask[]
   serviceIssues             ServiceIssue[]
+  surveyAssignments         SurveyAssignment[]         @relation("SurveyAssignedRetailer")
+  surveyResponses           SurveyResponse[]           @relation("SurveyRespondentRetailer")
+  surveyContextResponses    SurveyResponse[]           @relation("SurveyResponseContextRetailer")
   contacts                  RetailerContact[]
   sapAccounts               RetailerSapAccount[]
   createdAt                 DateTime                   @default(now())
@@ -533,6 +564,9 @@ model StaffUser {
   salesTargets               SalesTarget[]      @relation("SalespersonTargets")
   retailerProposalsSubmitted RetailerProposal[] @relation("RetailerProposalsSubmitted")
   retailerProposalsReviewed  RetailerProposal[] @relation("RetailerProposalsReviewed")
+  surveysCreated             Survey[]           @relation("SurveyCreatedBy")
+  surveyAssignments          SurveyAssignment[] @relation("SurveyAssignedSalesperson")
+  surveyResponses            SurveyResponse[]   @relation("SurveyRespondentStaff")
   createdAt                  DateTime           @default(now())
   updatedAt                  DateTime           @updatedAt
 
@@ -750,6 +784,128 @@ model AuditEvent {
 
   @@index([actorStaffId, createdAt])
   @@index([subjectType, subjectId, createdAt])
+}
+
+/// Reusable, identified market research. A submitted response is final: the
+/// respondent key and idempotency key both have durable database protection so
+/// a retry cannot create a second answer set.
+model Survey {
+  id               String             @id @default(uuid())
+  title            String
+  description      String?
+  status           SurveyStatus       @default(draft)
+  audience         SurveyAudience     @default(all_retailers)
+  startsAt         DateTime?
+  endsAt           DateTime?
+  createdByStaffId String
+  createdByStaff   StaffUser          @relation("SurveyCreatedBy", fields: [createdByStaffId], references: [id], onDelete: Restrict)
+  activatedAt      DateTime?
+  closedAt         DateTime?
+  questions        SurveyQuestion[]
+  assignments      SurveyAssignment[]
+  responses        SurveyResponse[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([status, startsAt, endsAt])
+  @@index([createdByStaffId, createdAt])
+}
+
+model SurveyQuestion {
+  id        String             @id @default(uuid())
+  surveyId  String
+  survey    Survey             @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  position  Int
+  prompt    String
+  type      SurveyQuestionType
+  required  Boolean            @default(false)
+  minValue  Decimal?           @db.Decimal(14, 4)
+  maxValue  Decimal?           @db.Decimal(14, 4)
+  maxLength Int?
+  options   SurveyOption[]
+  answers   SurveyAnswer[]
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@index([surveyId, position])
+}
+
+model SurveyOption {
+  id          String               @id @default(uuid())
+  questionId  String
+  question    SurveyQuestion       @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  label       String
+  value       String?
+  position    Int
+  answerLinks SurveyAnswerOption[]
+  createdAt   DateTime             @default(now())
+
+  @@index([questionId, position])
+}
+
+model SurveyAssignment {
+  id            String         @id @default(uuid())
+  surveyId      String
+  survey        Survey         @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  audience      SurveyAudience
+  retailerId    String?
+  retailer      Retailer?      @relation("SurveyAssignedRetailer", fields: [retailerId], references: [id], onDelete: Cascade)
+  salespersonId String?
+  salesperson   StaffUser?     @relation("SurveyAssignedSalesperson", fields: [salespersonId], references: [id], onDelete: Cascade)
+  createdAt     DateTime       @default(now())
+
+  @@unique([surveyId, retailerId])
+  @@unique([surveyId, salespersonId])
+  @@index([surveyId, audience])
+}
+
+model SurveyResponse {
+  id                   String               @id @default(uuid())
+  surveyId             String
+  survey               Survey               @relation(fields: [surveyId], references: [id], onDelete: Restrict)
+  respondentType       SurveyRespondentType
+  respondentKey        String
+  respondentStaffId    String?
+  respondentStaff      StaffUser?           @relation("SurveyRespondentStaff", fields: [respondentStaffId], references: [id], onDelete: Restrict)
+  respondentRetailerId String?
+  respondentRetailer   Retailer?            @relation("SurveyRespondentRetailer", fields: [respondentRetailerId], references: [id], onDelete: Restrict)
+  contextRetailerId    String?
+  contextRetailer      Retailer?            @relation("SurveyResponseContextRetailer", fields: [contextRetailerId], references: [id], onDelete: Restrict)
+  idempotencyKey       String
+  requestFingerprint   String
+  answers              SurveyAnswer[]
+  submittedAt          DateTime             @default(now())
+  createdAt            DateTime             @default(now())
+
+  @@unique([surveyId, respondentKey])
+  @@unique([surveyId, idempotencyKey])
+  @@index([surveyId, submittedAt])
+  @@index([respondentStaffId, submittedAt])
+  @@index([respondentRetailerId, submittedAt])
+}
+
+model SurveyAnswer {
+  id              String               @id @default(uuid())
+  responseId      String
+  response        SurveyResponse       @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  questionId      String
+  question        SurveyQuestion       @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  valueText       String?
+  valueNumber     Decimal?             @db.Decimal(14, 4)
+  selectedOptions SurveyAnswerOption[]
+
+  @@unique([responseId, questionId])
+  @@index([questionId])
+}
+
+model SurveyAnswerOption {
+  answerId String
+  optionId String
+  answer   SurveyAnswer @relation(fields: [answerId], references: [id], onDelete: Cascade)
+  option   SurveyOption @relation(fields: [optionId], references: [id], onDelete: Restrict)
+
+  @@id([answerId, optionId])
+  @@index([optionId])
 }
 
 /// Durable, preview-first record for Admin data imports. The normalized rows

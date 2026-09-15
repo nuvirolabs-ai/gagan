@@ -229,5 +229,10 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
           origin ? `?latitude=${origin.latitude}&longitude=${origin.longitude}` : ""
         }`
       ),
+
+    /* -------------------------------- market surveys ------------------------------- */
+    surveys: (retailerId?: string) => request(`/rep/surveys${retailerId ? `?retailerId=${retailerId}` : ""}`),
+    survey: (id: string, retailerId?: string) => request(`/rep/surveys/${id}${retailerId ? `?retailerId=${retailerId}` : ""}`),
+    submitSurvey: (id: string, body: { idempotencyKey: string; retailerId?: string; answers: Array<{ questionId: string; optionIds?: string[]; value?: string | number | boolean | null }> }) => post(`/rep/surveys/${id}/responses`, body),
   };
 }

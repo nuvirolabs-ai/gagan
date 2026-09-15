@@ -45,5 +45,9 @@ export function createRetailerApi(request: ApiRequest, store: SessionStore) {
     captureLocation: (body: { latitude: number; longitude: number; accuracyMeters: number; devicePlatform?: string }) => post("/location/capture", body),
     verifyLocation: (body: { latitude: number; longitude: number; accuracyMeters: number; devicePlatform?: string }) => post("/location/verify", body),
     requestLocationChange: (reason: string) => post("/location/change-request", { reason }),
+    surveys: () => request("/surveys"),
+    survey: (id: string) => request(`/surveys/${id}`),
+    submitSurvey: (id: string, body: { idempotencyKey: string; answers: Array<{ questionId: string; optionIds?: string[]; value?: string | number | boolean | null }> }) =>
+      post(`/surveys/${id}/responses`, body),
   };
 }

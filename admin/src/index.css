@@ -185,6 +185,29 @@ tr:last-child td { border-bottom: none; }
 .work-clear { margin-top: 8px; }
 .empty-state.quiet { padding: 22px; text-align: left; }
 
+.survey-layout { display: grid; grid-template-columns: minmax(260px, 0.32fr) minmax(0, 0.68fr); gap: 14px; align-items: start; }
+.survey-list { padding: 0; overflow: hidden; }
+.survey-list-row { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; text-align: left; border-radius: 0; background: var(--surface); color: var(--ink); border-bottom: 1px solid var(--border); }
+.survey-list-row:last-child { border-bottom: none; }
+.survey-list-row:hover, .survey-list-row.selected { background: #faf8f2; }
+.survey-list-row strong, .survey-list-row small { display: block; }
+.survey-list-row small { margin-top: 4px; color: var(--ink-muted); font-size: 12px; }
+.survey-workspace { min-width: 0; }
+.assignment-box, .question-builder, .survey-preview { background: #faf8f2; border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin: 12px 0; }
+.assignment-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 14px; }
+.check-row { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--ink); }
+.check-row input { width: auto; margin-top: 2px; }
+.check-row small { display: block; color: var(--ink-muted); margin-top: 2px; }
+.inline-check { margin: 10px 0; }
+.option-editor { display: grid; gap: 7px; margin-top: 10px; }
+.option-editor .row input { flex: 1; }
+.preview-question { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.preview-question:last-child { border-bottom: none; }
+.preview-question span { color: var(--ink-muted); font-size: 12px; white-space: nowrap; }
+.summary-row { display: grid; gap: 4px; padding: 11px 0; border-top: 1px solid var(--border); }
+.summary-row span { color: var(--ink-muted); font-size: 13px; }
+@media (max-width: 900px) { .survey-layout { grid-template-columns: 1fr; } .assignment-grid { grid-template-columns: 1fr; } }
+
 .metric-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

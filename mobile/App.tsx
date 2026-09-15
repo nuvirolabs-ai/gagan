@@ -26,6 +26,7 @@ import DeliveryTrackingScreen from "./src/screens/DeliveryTrackingScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import StoreLocationScreen from "./src/screens/StoreLocationScreen";
 import LanguageSelectionScreen from "./src/screens/LanguageSelectionScreen";
+import MarketSurveysScreen from "./src/screens/MarketSurveysScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -111,6 +112,7 @@ function RootNavigator() {
             options={{ title: t("delivery.title"), headerBackTitle: t("common.back") }}
           />
           <Stack.Screen name="StoreLocation" component={StoreLocationScreen} options={{ title: t("location.title"), headerBackTitle: t("tabs.account") }} />
+          <Stack.Screen name="MarketSurveys" component={MarketSurveysScreen} options={{ title: "Market surveys", headerBackTitle: t("tabs.account") }} />
         </>
       )}
     </Stack.Navigator>

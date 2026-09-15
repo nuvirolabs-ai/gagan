@@ -30,6 +30,7 @@ import SalesLeader from "./pages/SalesLeader";
 import SalesOrganisation from "./pages/SalesOrganisation";
 import RetailerApprovals from "./pages/RetailerApprovals";
 import ImportCenter from "./pages/ImportCenter";
+import MarketSurveys from "./pages/MarketSurveys";
 
 type NavItem = { to: string; label: string; permissions: string[] };
 type NavGroup = { id: string; label: string; items: NavItem[] };
@@ -71,6 +72,7 @@ const NAV: NavGroup[] = [
       { to: "/approvals", label: "Approvals", permissions: ["approval.second_invoice", "approval.third_invoice", "legal.decide"] },
       { to: "/collections", label: "Collections", permissions: ["collection.confirm"] },
       { to: "/credit-reviews", label: "Credit reviews", permissions: ["credit.rating_confirm"] },
+      { to: "/market-surveys", label: "Market surveys", permissions: ["survey.manage"] },
     ],
   },
   {
@@ -211,6 +213,7 @@ function Shell() {
           <Route path="/approvals" element={<Guard anyOf={["approval.second_invoice", "approval.third_invoice", "legal.decide"]}><Approvals /></Guard>} />
           <Route path="/collections" element={<Guard anyOf={["collection.confirm"]}><Collections /></Guard>} />
           <Route path="/credit-reviews" element={<Guard anyOf={["credit.rating_confirm"]}><CreditReviews /></Guard>} />
+          <Route path="/market-surveys" element={<Guard anyOf={["survey.manage"]}><MarketSurveys /></Guard>} />
           <Route path="/kyc" element={<Guard anyOf={["kyc.view", "kyc.review"]}><Kyc /></Guard>} />
           <Route path="/recovery" element={<Guard anyOf={["recovery.view", "recovery.update"]}><Recovery /></Guard>} />
           <Route path="/legal" element={<Guard anyOf={["staff.manage", "legal.decide"]}><Legal /></Guard>} />

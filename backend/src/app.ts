@@ -33,6 +33,7 @@ import {
 } from "./modules/customers/proposalRoutes";
 import { createOrgRouter } from "./modules/org/orgRoutes";
 import { createFounderRouter } from "./modules/founder/founderRouter";
+import { createSurveyRouter } from "./modules/surveys/surveyRoutes";
 import { defaultRouteService } from "./modules/field/routeService";
 import { prisma } from "./lib/prisma";
 import { createRatingRouter } from "./modules/credit/ratingRoutes";
@@ -211,6 +212,12 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/admin", createSalesLeaderRouter({ authenticate: requireAdminIdentity }));
   app.use("/admin", createRetailerProposalAdminRouter({ authenticate: requireAdminIdentity }));
   app.use("/admin", createOrgRouter({ authenticate: requireAdminIdentity }));
+  app.use(
+    createSurveyRouter({
+      adminAuthenticate: requireAdminIdentity,
+      staffAuthenticate: createRequireSession("staff", lazyIdentitySessionService),
+    })
+  );
   app.use("/founder", createFounderRouter());
   app.use("/admin", adminOrderRoutes);
   app.use("/admin", adminRetailerRoutes);

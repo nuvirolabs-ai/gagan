@@ -1,4 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { currentSellingVisit, type SellingVisit } from "./sellingFlow";
+import { staffCapabilities } from "../auth/staffCapabilities";
 import {
   View,
   Text,
@@ -13,7 +17,7 @@ import { repApi } from "../api/repClient";
 import { useRep } from "../context/RepContext";
 import { colors, radius, spacing, inr } from "../theme";
 import ProductThumb from "../components/ProductThumb";
-import { SearchBar, ChipRow, QtyStepper, EmptyState } from "../components/ui";
+import { SearchBar, ChipRow, QtyStepper, EmptyState, SecondaryButton } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 import { catalogGroups, selectedCatalogSku, type CatalogGroup } from "../lib/catalogSelection";
 
@@ -21,7 +25,25 @@ const ALL = "All";
 
 export default function RepCatalogScreen({ route, navigation }: any) {
   const { retailerId, retailerName } = route.params;
-  const { lines, addLine, updateQty, cartTotal } = useRep();
+  const { lines, addLine, updateQty, cartTotal, staff } = useRep();
+  const insets = useSafeAreaInsets();
+  const [sellingVisit, setSellingVisit] = useState<SellingVisit | null>(null);
+  const canLogActivity = staffCapabilities(staff?.permissions ?? []).canLogActivity;
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    setSellingVisit(null);
+    if (canLogActivity) {
+      void Promise.all([repApi.visits(), repApi.customerActivities(retailerId), repApi.retailer(retailerId)])
+        .then(([visits, activities, retailer]) => {
+          if (active) setSellingVisit(currentSellingVisit({
+            visits: visits.visits ?? [], activities: activities.activities ?? [],
+            orders: retailer.recentOrders ?? [], retailerId, staffId: staff?.id,
+            visitId: route.params?.visitId,
+          }));
+        }).catch(() => { if (active) setSellingVisit(null); });
+    }
+    return () => { active = false; };
+  }, [retailerId, route.params?.visitId, staff?.id, canLogActivity]));
   const { t } = useLanguage();
 
   const [products, setProducts] = useState<CatalogGroup[]>([]);
@@ -97,7 +119,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
         <FlatList
           data={rows}
           keyExtractor={(r) => r.id}
-          contentContainerStyle={{ padding: spacing.lg, paddingBottom: cartCount > 0 ? 140 : 40 }}
+          contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.lg }}
           ListEmptyComponent={<EmptyState icon="magnify" title={t("common.search")} />}
           renderItem={({ item }) => {
             const product = item;
@@ -152,6 +174,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
         />
       )}
 
+      {(cartCount > 0 || sellingVisit) && <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
       {cartCount > 0 && (
         <View style={styles.bar}>
           <View style={{ flex: 1 }}>
@@ -167,6 +190,10 @@ export default function RepCatalogScreen({ route, navigation }: any) {
           </TouchableOpacity>
         </View>
       )}
+      {sellingVisit ? <SecondaryButton label="NOT ORDERING" onPress={() => navigation.navigate("Visit", {
+        visitId: sellingVisit.id, retailerId, retailerName, composeActivity: true,
+      })} /> : null}
+      </View>}
     </View>
   );
 }
@@ -254,21 +281,18 @@ const styles = StyleSheet.create({
   override: { fontSize: 10, color: colors.blue, fontWeight: "700", marginTop: 3 },
 
   bar: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: spacing.xxl,
+    paddingBottom: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
   barLabel: { fontSize: 11.5, color: colors.inkMuted },
+  footer: { backgroundColor: colors.surface, paddingHorizontal: spacing.md, gap: spacing.sm },
   barValue: { fontSize: 19, fontWeight: "700", color: colors.ink },
   placeBtn: {
     flexDirection: "row",

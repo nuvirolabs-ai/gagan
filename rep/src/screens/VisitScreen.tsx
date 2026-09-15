@@ -74,7 +74,7 @@ export default function VisitScreen({ route, navigation }: any) {
   const [visit, setVisit] = useState<any | null>(null);
   const [activities, setActivities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [composing, setComposing] = useState(false);
+  const [composing, setComposing] = useState(Boolean(route.params?.composeActivity));
   const [outcomes, setOutcomes] = useState<string[]>([]);
   const [noOrderReason, setNoOrderReason] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
@@ -96,9 +96,13 @@ export default function VisitScreen({ route, navigation }: any) {
 
   useFocusEffect(
     useCallback(() => {
+      if (route.params?.composeActivity) {
+        setComposing(true);
+        navigation.setParams({ composeActivity: false });
+      }
       setLoading(true);
       load().finally(() => setLoading(false));
-    }, [load])
+    }, [load, navigation, route.params?.composeActivity])
   );
 
   const checkOut = async () => {
@@ -158,6 +162,7 @@ export default function VisitScreen({ route, navigation }: any) {
 
   const verification = visit ? VERIFICATION_COPY[visit.verificationStatus] : undefined;
   const closed = Boolean(visit?.checkedOutAt);
+  const canRecord = Boolean(visit && !closed && visit.retailerId === retailerId);
 
   return (
     <AppScreen>
@@ -207,7 +212,7 @@ export default function VisitScreen({ route, navigation }: any) {
               />
             ))
           )}
-          {!closed ? (
+          {canRecord ? (
             composing ? (
               <ActivityComposer
                 retailerId={retailerId}
@@ -228,7 +233,7 @@ export default function VisitScreen({ route, navigation }: any) {
           ) : null}
         </Surface>
 
-        {!closed ? (
+        {canRecord ? (
           <Surface>
             <SectionTitle title={t("visit.outcome")} />
             <Text style={styles.muted}>Select everything that happened during this visit.</Text>

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { openCreatedOrder } from "./sellingFlow";
 import { Alert, AppState, AppStateStatus, ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
@@ -138,12 +139,9 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
       clearCart();
       checkoutKey.current = null;
       haptic("success");
-      const openOrder = () => navigation.replace("OrderDetail", { orderId: result.order.id });
-      if (result.approvalRequest) {
+      openCreatedOrder(result, (screen, params) => navigation.replace(screen, params), openOrder => {
         Alert.alert("Order sent for approval", "❤️ Sales Order Sent for Approval", [{ text: "View order", onPress: openOrder }], { cancelable: false });
-      } else {
-        openOrder();
-      }
+      });
     } catch (error) {
       if (error instanceof ApiError && error.body?.error === "idempotency_key_conflict") {
         Alert.alert("Check your previous order", "This checkout already belongs to another basket. Review this retailer's orders before submitting again.");

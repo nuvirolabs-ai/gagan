@@ -52,3 +52,9 @@ export function monthCells(cursor: Date): Array<string | null> {
     return day < 1 || day > count ? null : `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   });
 }
+
+/** Explicit seven-cell rows avoid percentage rounding wrapping a day to the next week. */
+export function calendarWeeks(cells: Array<string | null>): Array<Array<string | null>> {
+  return Array.from({ length: Math.ceil(cells.length / 7) }, (_, index) =>
+    Array.from({ length: 7 }, (_, column) => cells[index * 7 + column] ?? null));
+}

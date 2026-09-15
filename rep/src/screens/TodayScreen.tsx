@@ -332,6 +332,31 @@ export default function TodayScreen({ navigation }: any) {
       <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.blue} />}>
         {error ? <OfflineBanner title={t("today.offline")} body={error || t("today.offlineBody")} /> : null}
 
+        <Surface style={styles.salesSurface}>
+          <View style={styles.salesHeading}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.eyebrow}>TODAY’S SALES</Text>
+              <Text style={styles.salesValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>{inr(safeCount(metrics.orderValue))}</Text>
+            </View>
+            <View style={styles.salesContext}>
+              <Text style={styles.contextLabel}>{target ? "MONTH TARGET" : "TARGET"}</Text>
+              <Text style={[styles.contextValue, !target && styles.contextValueQuiet]}>{target ? `${completion}%` : "—"}</Text>
+            </View>
+          </View>
+          {target ? (
+            <>
+              <View style={styles.targetGrid}>
+                <TargetBlock label={target.label || "Monthly sales"} value={`${targetActual} / ${targetTotal}`} detail={targetProgressDetail} pct={completion} />
+                <View style={styles.targetDivider} />
+                <TargetBlock label={safeCount(target.remaining) > 0 ? "To go" : "Target"} value={safeCount(target.remaining) > 0 ? (target.unit === "currency" ? inr(safeCount(target.remaining)) : String(safeCount(target.remaining))) : "Done"} detail={safeCount(target.remaining) > 0 ? (target.periodStart && target.periodEnd ? `${new Date(target.periodStart).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} — ${new Date(target.periodEnd).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}` : "Configured target period") : "Target reached"} pct={safeCount(target.remaining) > 0 ? Math.max(0, 100 - completion) : 100} pctLabel={safeCount(target.remaining) > 0 ? `${Math.max(0, 100 - completion)}% left` : "Done"} />
+              </View>
+              <MilestoneRail completion={completion} />
+            </>
+          ) : (
+            <View style={styles.targetUnavailable}><Ionicons name="flag-outline" size={18} color={colors.inkMuted} /><Text style={styles.caption}>No target has been configured for this period.</Text></View>
+          )}
+        </Surface>
+
         {!dayClosed && nextStop ? (
           <View style={styles.hero}>
             <View style={styles.heroTop}>
@@ -389,31 +414,6 @@ export default function TodayScreen({ navigation }: any) {
             />
           </FocusCard>
         ) : null}
-
-        <Surface style={styles.salesSurface}>
-          <View style={styles.salesHeading}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.eyebrow}>TODAY’S SALES</Text>
-              <Text style={styles.salesValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>{inr(safeCount(metrics.orderValue))}</Text>
-            </View>
-            <View style={styles.salesContext}>
-              <Text style={styles.contextLabel}>{target ? "MONTH TARGET" : "TARGET"}</Text>
-              <Text style={[styles.contextValue, !target && styles.contextValueQuiet]}>{target ? `${completion}%` : "—"}</Text>
-            </View>
-          </View>
-          {target ? (
-            <>
-              <View style={styles.targetGrid}>
-                <TargetBlock label={target.label || "Monthly sales"} value={`${targetActual} / ${targetTotal}`} detail={targetProgressDetail} pct={completion} />
-                <View style={styles.targetDivider} />
-                <TargetBlock label={safeCount(target.remaining) > 0 ? "To go" : "Target"} value={safeCount(target.remaining) > 0 ? (target.unit === "currency" ? inr(safeCount(target.remaining)) : String(safeCount(target.remaining))) : "Done"} detail={safeCount(target.remaining) > 0 ? (target.periodStart && target.periodEnd ? `${new Date(target.periodStart).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} — ${new Date(target.periodEnd).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}` : "Configured target period") : "Target reached"} pct={safeCount(target.remaining) > 0 ? Math.max(0, 100 - completion) : 100} pctLabel={safeCount(target.remaining) > 0 ? `${Math.max(0, 100 - completion)}% left` : "Done"} />
-              </View>
-              <MilestoneRail completion={completion} />
-            </>
-          ) : (
-            <View style={styles.targetUnavailable}><Ionicons name="flag-outline" size={18} color={colors.inkMuted} /><Text style={styles.caption}>No target has been configured for this period.</Text></View>
-          )}
-        </Surface>
 
         <View style={styles.metricStrip}>
             <View style={styles.metricCell}><Text style={styles.metricValue}>{safeCount(metrics.visits)}</Text><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.metricLabel}>Visits</Text></View>

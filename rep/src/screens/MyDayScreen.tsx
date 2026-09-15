@@ -37,14 +37,6 @@ const LEAVE_TYPES = [
   { value: "other", label: "Other" },
 ];
 
-const MARK_TONE: Record<string, "green" | "gold" | "danger" | "neutral"> = {
-  present: "green",
-  leave: "gold",
-  absent: "danger",
-  holiday: "neutral",
-  not_due: "neutral",
-};
-
 const LEAVE_STATUS_TONE: Record<string, "green" | "gold" | "danger" | "neutral"> = {
   approved: "green",
   pending: "gold",
@@ -220,55 +212,6 @@ export default function MyDayScreen() {
             <Text style={styles.legendText}>○ Absent / not marked</Text>
           </View>
           <Text style={styles.muted}>{worked} day{worked === 1 ? "" : "s"} present in this month. Tap a date to use it as the leave start date.</Text>
-        </Card>
-
-        <Card>
-          <SectionTitle title={t("myday.attendance")} />
-          <Text style={styles.muted}>
-            {worked} day{worked === 1 ? "" : "s"} present in the last {days.length} days.
-          </Text>
-          {days.slice(0, 30).map((day, index) => (
-            <ListRow
-              key={day.date}
-              first={index === 0}
-              title={new Date(`${day.date}T00:00:00Z`).toLocaleDateString("en-IN", {
-                weekday: "short",
-                day: "numeric",
-                month: "short",
-              })}
-              subtitle={
-                day.startedAt
-                  ? `${new Date(day.startedAt).toLocaleTimeString("en-IN", {
-                      hour: "numeric",
-                      minute: "2-digit",
-                    })}${
-                      day.endedAt
-                        ? ` – ${new Date(day.endedAt).toLocaleTimeString("en-IN", {
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })}`
-                        : " · still running"
-                    }`
-                  : undefined
-              }
-              right={
-                <Tag
-                  label={
-                    day.mark === "present"
-                      ? t("myday.present")
-                      : day.mark === "leave"
-                        ? t("myday.onLeave")
-                        : day.mark === "holiday"
-                          ? t("myday.holiday")
-                          : day.mark === "not_due"
-                            ? "—"
-                            : t("myday.absent")
-                  }
-                  tone={MARK_TONE[day.mark] ?? "neutral"}
-                />
-              }
-            />
-          ))}
         </Card>
 
         <Card>

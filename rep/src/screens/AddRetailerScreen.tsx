@@ -3,12 +3,8 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -24,6 +20,7 @@ import { captureForegroundLocation } from "../location/deviceLocation";
 import { useRep } from "../context/RepContext";
 import { colors, control, radius, spacing } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
+import { KeyboardSafeScrollView } from "../components/ui";
 
 const DRAFT_KEY = "gagan.new-retailer.v2-1.draft";
 const STEPS = ["Business", "Address & Delivery", "Commercial", "Identity & Review"] as const;
@@ -121,7 +118,6 @@ export default function AddRetailerScreen() {
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<FieldKey, string>>>({});
   const [location, setLocation] = useState<{ latitude: number; longitude: number; accuracyMeters: number } | null>(null);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const update = (key: keyof Draft, value: string) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -151,19 +147,6 @@ export default function AddRetailerScreen() {
     return () => clearTimeout(timer);
   }, [form]);
 
-  // Android 15+ keeps edge-to-edge content at the full window height, so the
-  // native adjustResize flag alone does not protect the last form action from
-  // the IME. The form owns this one keyboard-only content inset; it is not a
-  // tab-bar inset and is zero as soon as the keyboard is dismissed.
-  useEffect(() => {
-    if (Platform.OS !== "android") return;
-    const show = Keyboard.addListener("keyboardDidShow", ({ endCoordinates }) => setKeyboardHeight(endCoordinates.height));
-    const hide = Keyboard.addListener("keyboardDidHide", () => setKeyboardHeight(0));
-    return () => {
-      show.remove();
-      hide.remove();
-    };
-  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -441,16 +424,14 @@ export default function AddRetailerScreen() {
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={colors.primary} /></View>;
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView contentContainerStyle={[styles.content, keyboardHeight > 0 && { paddingBottom: keyboardHeight + spacing.xl }]} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={colors.primary} />}>
+    <KeyboardSafeScrollView containerStyle={styles.screen} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={colors.primary} />}>
         <View style={styles.header}><Text style={styles.kicker}>CUSTOMER MASTER</Text><Text style={styles.title}>New retailer</Text><Text style={styles.subtitle}>Submit a complete store profile for manager review. Approval creates one canonical retailer.</Text></View>
         <View style={styles.stepper}>{STEPS.map((label, index) => <Pressable key={label} accessibilityRole="button" accessibilityState={{ selected: index === step }} onPress={() => index <= step && setStep(index)} style={styles.step}><View style={[styles.stepDot, index <= step && styles.stepDotActive]}><Text style={[styles.stepNumber, index <= step && styles.stepNumberActive]}>{index + 1}</Text></View><Text style={[styles.stepLabel, index === step && styles.stepLabelActive]}>{label}</Text></Pressable>)}</View>
         {error ? <View style={styles.errorBanner}><Ionicons name="alert-circle-outline" size={18} color={colors.danger} /><Text style={styles.errorBannerText}>{error}</Text></View> : null}
         <View style={styles.formSurface}><Text style={styles.formHeading}>{STEPS[step]}</Text><Text style={styles.formProgress}>Step {step + 1} of {STEPS.length}</Text>{stepContent}</View>
         <View style={styles.navigation}>{step > 0 ? <Pressable accessibilityRole="button" onPress={() => { setError(""); setStep((current) => current - 1); }} style={styles.backButton}><Text style={styles.backText}>Back</Text></Pressable> : <View />}{step < STEPS.length - 1 ? <Pressable accessibilityRole="button" onPress={() => { const issue = validateStep(step); if (issue) setError(issue); else { setError(""); setStep((current) => current + 1); } }} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}><Text style={styles.primaryText}>Continue</Text><Ionicons name="arrow-forward" size={18} color={colors.onDark} /></Pressable> : <Pressable accessibilityRole="button" disabled={saving} onPress={() => void submit()} style={({ pressed }) => [styles.primaryButton, saving && styles.disabled, pressed && styles.pressed]}><Text style={styles.primaryText}>{saving ? "Sending…" : "Send for review"}</Text><Ionicons name="paper-plane-outline" size={18} color={colors.onDark} /></Pressable>}</View>
         <View style={styles.requests}><Text style={styles.sectionTitle}>My requests</Text>{proposals.length === 0 ? <Text style={styles.fieldHint}>Submitted stores and their review status will appear here.</Text> : proposals.map((proposal) => <View key={proposal.id} style={styles.requestRow}><View style={styles.requestIcon}><Ionicons name="storefront-outline" size={18} color={colors.primary} /></View><View style={styles.requestMain}><Text style={styles.requestName}>{proposal.businessName}</Text><Text style={styles.fieldHint} numberOfLines={1}>{proposal.deliveryCity ?? proposal.shopAddress}</Text></View><View style={[styles.status, STATUS_TONE[proposal.status] ?? STATUS_TONE.pending]}><Text style={[styles.statusText, { color: (STATUS_TONE[proposal.status] ?? STATUS_TONE.pending).color }]}>{proposal.status}</Text></View>{proposal.status === "pending" ? <Pressable disabled={withdrawing === proposal.id} onPress={() => void withdraw(proposal.id)}><Text style={[styles.remove, withdrawing === proposal.id && { opacity: 0.45 }]}>{withdrawing === proposal.id ? "Withdrawing…" : "Withdraw"}</Text></Pressable> : null}</View>)}</View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardSafeScrollView>
   );
 }
 

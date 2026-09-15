@@ -7,8 +7,6 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -18,6 +16,7 @@ import { otpErrorCode } from "../auth/otpErrors";
 import { colors, radius, spacing } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
 import type { TranslationKey } from "../i18n/translations";
+import { KeyboardSafeScrollView } from "../components/ui";
 
 function loginAlertMessage(
   error: unknown,
@@ -72,11 +71,8 @@ export default function RepLoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <View style={styles.inner}>
+    <KeyboardSafeScrollView containerStyle={styles.screen} contentContainerStyle={styles.inner}>
+      <View>
         <Text style={styles.logo}>GAGAN</Text>
         <Text style={styles.tagline}>NUTRITION. DELIVERED.</Text>
         <View style={styles.roleChip}>
@@ -137,7 +133,7 @@ export default function RepLoginScreen() {
           </>
         )}
       </View>
-    </KeyboardAvoidingView>
+    </KeyboardSafeScrollView>
   );
 }
 

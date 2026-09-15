@@ -4,7 +4,6 @@ import {
   Alert,
   Linking,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -23,6 +22,7 @@ import {
   SecondaryButton,
   Tag,
   inputStyle,
+  KeyboardSafeScrollView,
 } from "../components/ui";
 import { repApi, REP_API_BASE_URL } from "../api/repClient";
 import { useRep } from "../context/RepContext";
@@ -175,7 +175,8 @@ export default function RouteScreen({ navigation }: any) {
 
   return (
     <AppScreen>
-      <ScrollView
+      <KeyboardSafeScrollView
+        containerStyle={styles.screen}
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
@@ -298,7 +299,7 @@ export default function RouteScreen({ navigation }: any) {
             ) : null}
           </View>
         ))}
-      </ScrollView>
+      </KeyboardSafeScrollView>
     </AppScreen>
   );
 }

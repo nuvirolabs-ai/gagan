@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -15,6 +14,7 @@ import { useFocusEffect } from "@react-navigation/native";
 
 import {
   Card,
+  DateField,
   Field,
   ListRow,
   OptionGrid,
@@ -23,8 +23,8 @@ import {
   SectionTitle,
   Tag,
   inputStyle,
+  KeyboardSafeScrollView,
 } from "../components/ui";
-import DatePickerModal from "../components/DatePickerModal";
 import { formatIsoDay, isoDay as isoDayValue, monthGrid, monthStart, parseIsoDay, shiftMonth } from "../components/dateHelpers";
 import { repApi } from "../api/repClient";
 import { colors, spacing } from "../theme";
@@ -79,7 +79,6 @@ export default function MyDayScreen() {
   const [fromDate, setFromDate] = useState(isoDay(new Date()));
   const [toDate, setToDate] = useState(isoDay(new Date()));
   const [month, setMonth] = useState(() => monthStart(new Date()));
-  const [datePicker, setDatePicker] = useState<"from" | "to" | null>(null);
   const [leaveType, setLeaveType] = useState("casual");
   const [reason, setReason] = useState("");
 
@@ -168,7 +167,8 @@ export default function MyDayScreen() {
 
   return (
     <View style={styles.screen}>
-      <ScrollView
+      <KeyboardSafeScrollView
+        containerStyle={styles.screen}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         refreshControl={
@@ -303,12 +303,8 @@ export default function MyDayScreen() {
           )}
           {composing ? (
             <View style={{ gap: spacing.md, marginTop: spacing.md }}>
-              <Field label={t("myday.leaveFrom")} hint="YYYY-MM-DD">
-                <Pressable style={styles.dateInput} onPress={() => setDatePicker("from")}><Text style={styles.dateInputText}>{formatIsoDay(fromDate, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</Text><Ionicons name="calendar-outline" size={18} color={colors.primary} /></Pressable>
-              </Field>
-              <Field label={t("myday.leaveTo")} hint="YYYY-MM-DD">
-                <Pressable style={styles.dateInput} onPress={() => setDatePicker("to")}><Text style={styles.dateInputText}>{formatIsoDay(toDate, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</Text><Ionicons name="calendar-outline" size={18} color={colors.primary} /></Pressable>
-              </Field>
+              <DateField label={t("myday.leaveFrom")} value={fromDate} onChange={setFromDate} />
+              <DateField label={t("myday.leaveTo")} value={toDate} onChange={setToDate} minDate={fromDate} />
               <Field label={t("myday.leave")}>
                 <OptionGrid options={LEAVE_TYPES} value={leaveType} onChange={setLeaveType} />
               </Field>
@@ -343,14 +339,7 @@ export default function MyDayScreen() {
             />
           )}
         </Card>
-      </ScrollView>
-      <DatePickerModal
-        visible={datePicker !== null}
-        value={datePicker === "to" ? toDate : fromDate}
-        title={datePicker === "to" ? "Leave ends" : "Leave starts"}
-        onChange={(value) => datePicker === "to" ? setToDate(value) : setFromDate(value)}
-        onClose={() => setDatePicker(null)}
-      />
+      </KeyboardSafeScrollView>
     </View>
   );
 }
@@ -375,6 +364,4 @@ const styles = StyleSheet.create({
   dayNumberMarked: { color: colors.ink },
   legend: { flexDirection: "row", gap: spacing.md, marginTop: spacing.sm, flexWrap: "wrap" },
   legendText: { color: colors.inkMuted, fontSize: 10.5 },
-  dateInput: { minHeight: 48, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceAlt, paddingHorizontal: spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  dateInputText: { color: colors.ink, fontSize: 14, fontWeight: "600" },
 });

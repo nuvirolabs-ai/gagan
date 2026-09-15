@@ -1,5 +1,5 @@
-import React from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Keyboard, KeyboardAvoidingView, Platform, Dimensions, View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, type ScrollViewProps, type ViewStyle } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { colors, control, FILTER_ROW_HEIGHT, radius, spacing } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -28,6 +28,7 @@ export {
   TimelineEvent,
   useHeaderPaddingTop,
 } from "./companion";
+export { DateField } from "./DateField";
 
 /** Title bar for tab screens, which have no native header. */
 export function ScreenHeader({
@@ -73,6 +74,102 @@ export function SearchBar({
         clearButtonMode="while-editing"
       />
     </View>
+  );
+}
+
+/**
+ * Shared keyboard contract for field forms. Android keeps the window full
+ * height and gives this ScrollView one measured IME inset; iOS delegates to
+ * the native KeyboardAvoidingView padding behavior. Screens should use this
+ * wrapper instead of adding their own keyboard-height padding.
+ */
+export function KeyboardSafeScrollView({
+  children,
+  containerStyle,
+  keyboardVerticalOffset = 0,
+  contentContainerStyle,
+  onFocus: userOnFocus,
+  onScroll: userOnScroll,
+  ...props
+}: ScrollViewProps & { containerStyle?: ViewStyle; keyboardVerticalOffset?: number }) {
+  const keyboardActionClearance = 104;
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const scrollViewRef = useRef<ScrollView | null>(null);
+  const keyboardTopRef = useRef<number | null>(null);
+  const scrollOffsetRef = useRef(0);
+
+  const scrollFocusedInputIntoView = useCallback((input: unknown) => {
+    if (Platform.OS !== "android" || input == null || keyboardTopRef.current == null) return;
+    const nativeInput = input as { measureInWindow?: (callback: (x: number, y: number, width: number, height: number) => void) => void };
+    if (typeof nativeInput.measureInWindow !== "function") return;
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        nativeInput.measureInWindow?.((_x, y, _width, height) => {
+          const keyboardTop = keyboardTopRef.current;
+          if (keyboardTop == null) return;
+          const safeBottom = keyboardTop - spacing.lg - keyboardActionClearance;
+          const overlap = y + height - safeBottom;
+          if (overlap > 0) scrollViewRef.current?.scrollTo({ y: scrollOffsetRef.current + overlap, animated: true });
+        });
+      }, 45);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return undefined;
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const onShow = (event: { endCoordinates?: { height?: number; screenY?: number } }) => {
+      const height = Math.max(0, event.endCoordinates?.height ?? 0);
+      keyboardTopRef.current = event.endCoordinates?.screenY ?? Dimensions.get("window").height - height;
+      setKeyboardHeight(height);
+      scrollFocusedInputIntoView(TextInput.State.currentlyFocusedInput());
+    };
+    const onHide = () => {
+      keyboardTopRef.current = null;
+      setKeyboardHeight(0);
+    };
+    const showSubscription = Keyboard.addListener(showEvent, onShow);
+    const hideSubscription = Keyboard.addListener(hideEvent, onHide);
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [scrollFocusedInputIntoView]);
+
+  const handleFocus = useCallback((event: any) => {
+    userOnFocus?.(event);
+    scrollFocusedInputIntoView(TextInput.State.currentlyFocusedInput() ?? event?.nativeEvent?.target);
+  }, [scrollFocusedInputIntoView, userOnFocus]);
+
+  const handleScroll = useCallback((event: any) => {
+    scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+    userOnScroll?.(event);
+  }, [userOnScroll]);
+
+  const androidKeyboardInset = Platform.OS === "android" && keyboardHeight > 0 ? keyboardHeight + spacing.lg : 0;
+  const flattenedContentStyle = StyleSheet.flatten(contentContainerStyle) ?? {};
+  const resolvedContentStyle = androidKeyboardInset
+    ? { ...flattenedContentStyle, paddingBottom: Number(flattenedContentStyle.paddingBottom ?? 0) + androidKeyboardInset }
+    : contentContainerStyle;
+
+  return (
+    <KeyboardAvoidingView
+      style={[s.keyboardContainer, containerStyle]}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={keyboardVerticalOffset}
+    >
+      <ScrollView
+        ref={scrollViewRef}
+        {...props}
+        onFocus={handleFocus}
+        onScroll={handleScroll}
+        contentContainerStyle={resolvedContentStyle}
+        keyboardShouldPersistTaps={props.keyboardShouldPersistTaps ?? "handled"}
+      >
+        {children}
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -552,6 +649,7 @@ export const inputStyle = {
 };
 
 const s = StyleSheet.create({
+  keyboardContainer: { flex: 1 },
   header: {
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.md,

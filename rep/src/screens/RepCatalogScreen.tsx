@@ -183,7 +183,17 @@ export default function RepCatalogScreen({ route, navigation }: any) {
       clearCart();
       checkoutKey.current = null;
       haptic("success");
-      navigation.replace("OrderDetail", { orderId: res.order.id });
+      const openOrder = () => navigation.replace("OrderDetail", { orderId: res.order.id });
+      if (res.approvalRequest) {
+        Alert.alert(
+          "Order sent for approval",
+          "❤️ Sales Order Sent for Approval",
+          [{ text: "View order", onPress: openOrder }],
+          { cancelable: false },
+        );
+      } else {
+        openOrder();
+      }
     } catch (e) {
       if (e instanceof ApiError && e.body?.error === "idempotency_key_conflict") {
         Alert.alert("Check your previous order", "This checkout already belongs to another basket. Review this retailer's orders before submitting again.");

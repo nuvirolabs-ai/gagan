@@ -1,6 +1,6 @@
 # Gagan Client-UAT Release Candidate v1
 
-Status: SOURCE READY / HOSTED STAGING NOT VERIFIED / APKs NOT BUILT
+Status: SOURCE READY / HOSTED STAGING NOT VERIFIED / REPLACEMENT SALESPERSON APK BUILT / PHYSICAL UAT PARTIAL
 
 This manifest records the consolidated Gagan source checkpoint prepared for
 the next client-UAT APK task. It is not a production release, a hosted
@@ -218,9 +218,9 @@ convention and is intentionally not applied in this no-build task.
 - existing Retailer app still requires later physical backward-compatibility
   and privacy verification.
 
-APKs built in this task: `NO`.
+APKs built at the earlier consolidated-RC checkpoint: `NO`.
 
-Physical Android UAT in this task: `NOT RUN`.
+Physical Android UAT at the earlier consolidated-RC checkpoint: `NOT RUN`.
 
 ## Deployment and safety boundary
 
@@ -241,3 +241,98 @@ hostname, attached PostgreSQL, migration ledger and recoverable backup. Only
 after those gates pass should this branch be pushed and a controlled staging
 deployment considered. The next task may then build the Salesperson review
 APK from the exact final RC SHA; this task intentionally built neither APK.
+
+## Replacement Salesperson review APK and physical UAT (2026-09-16)
+
+This section records the subsequent replacement-APK build worktree and device
+evidence. It does not alter the consolidated RC source checkpoint above and
+does not claim hosted deployment acceptance.
+
+Build worktree/branch:
+
+`/Users/tanutejas/Documents/Gagan-client-uat-ux-apk-v1`
+
+`codex/gagan-client-uat-ux-apk-v1`
+
+UX source used for the application code:
+
+`207aac67dfc542ac5c36dae65d659f7ea8f8e0e9`
+
+That source is the verified UX-reconciliation checkpoint descended from the
+consolidated RC `aeaf31f6b7f2e39d6f50a8c2d2cb94f8bdcea25a`. The only source
+changes after that checkpoint are the guarded hosted review build profile in
+`rep/app.config.js` and `rep/eas.json`; no Backend, Admin, Retailer, Prisma,
+or migration files changed.
+
+APK:
+
+- path: `/Users/tanutejas/Desktop/gagan-salesperson-client-uat-ux-207aac6.apk`;
+- package: `com.gagan.sales.review`;
+- label: `Gagan Sales Review`;
+- version: `1.0.2`;
+- Android versionCode: `3`;
+- build/profile commit: `0a259dfff389364cc41a87fd772f417fcad4c922`;
+- size: `87985217` bytes;
+- SHA-256: `26395e51b24f6cf6669b129d9f93bbf67eda0963e525f4d1fdd7609112fbf767`;
+- API target: `https://gagan-srat.onrender.com`;
+- forbidden API string checks: `gagan-staging-api.onrender.com`, localhost and
+  loopback targets absent;
+- standalone release: PASS;
+- installed on Moto E13 `ZD2229Q3KB`: PASS;
+- launch/session restore: PASS;
+- old review APK from `dc62182f61e224edd9bcafa8ed85f8c0ee089e78`: SUPERSEDED,
+  preserved;
+- Retailer APK: unchanged and not superseded.
+
+Physical evidence:
+
+- Home, More, Outlets, Retailer Detail, Reports/Timeline, Reports/Performance,
+  and Order Detail: PASS;
+- My Day attendance calendar: PASS;
+- Leave From calendar and To calendar: PASS;
+- Expense date calendar: PASS;
+- Add Store keyboard and scroll-to-Continue: PASS;
+- Expense keyboard and scroll-to-submit: PASS;
+- Service Issue list, detail, create form, keyboard and visible action: PASS;
+- catalogue add, increment, decrement and delete controls: PASS;
+- quote-aware Review Order screen: PASS;
+- internal Commercial Status presentation on canonical Order Detail:
+  `Sales Order Created` visible: PASS;
+- Today offline cached state after force-stop: PASS;
+- reconnect after network restoration and relaunch: PASS;
+- bottom navigation, back navigation, scrolling and sticky actions: PASS;
+- crash check after the run: no `FATAL EXCEPTION`, `AndroidRuntime` or
+  `ReactNativeJS` fatal output observed; package remained foreground after
+  relaunch: PASS.
+
+Evidence screenshots:
+
+- [Home](/Users/tanutejas/Desktop/gagan-sales-review-home-final-207aac6.png)
+- [offline cached Home](/Users/tanutejas/Desktop/gagan-sales-review-home-offline-207aac6.png)
+- [My Day calendar](/Users/tanutejas/Desktop/gagan-sales-review-myday-207aac6.png)
+- [Leave From calendar](/Users/tanutejas/Desktop/gagan-sales-review-leave-from-calendar-207aac6.png)
+- [Leave To calendar](/Users/tanutejas/Desktop/gagan-sales-review-leave-to-calendar-207aac6.png)
+- [Expense calendar](/Users/tanutejas/Desktop/gagan-sales-review-expense-calendar-207aac6.png)
+- [Add Store keyboard](/Users/tanutejas/Desktop/gagan-sales-review-add-store-keyboard-207aac6.png)
+- [Add Store keyboard with Continue reachable](/Users/tanutejas/Desktop/gagan-sales-review-add-store-keyboard-cta-207aac6.png)
+- [Issue keyboard](/Users/tanutejas/Desktop/gagan-sales-review-issue-keyboard-207aac6.png)
+- [Catalogue quantity controls](/Users/tanutejas/Desktop/gagan-sales-review-catalog-quantity-207aac6.png)
+- [Review Order](/Users/tanutejas/Desktop/gagan-sales-review-order-review-207aac6.png)
+- [Order Detail and internal status](/Users/tanutejas/Desktop/gagan-sales-review-order-detail-207aac6.png)
+- [Reports Performance](/Users/tanutejas/Desktop/gagan-sales-review-performance-207aac6.png)
+- [More](/Users/tanutejas/Desktop/gagan-sales-review-more-207aac6.png)
+
+Data-dependent physical blocks:
+
+- route/Start Visit: `BLOCKED` — the authenticated hosted persona was off
+  duty and the device displayed `No route today` / `No route has been
+  published for today`; no route was fabricated;
+- full native order submission: `BLOCKED` — the device reached Review Order,
+  but the real backend quote displayed `Waiting for manager freight`, so the
+  order was not submitted through an unapproved bypass;
+- Market Survey response flow: `BLOCKED` — no visible active survey or
+  survey-response entry was available for this authenticated persona;
+- EOD action: `BLOCKED` — the persona was already off duty and no EOD action
+  was exposed in the tested state;
+- Login form keyboard: `NOT RUN` — the existing authenticated session was
+  preserved; search and all available editable form keyboards were tested.

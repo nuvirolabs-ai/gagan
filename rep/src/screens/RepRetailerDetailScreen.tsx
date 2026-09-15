@@ -58,6 +58,8 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   const [composing, setComposing] = useState(false);
   const [loading, setLoading] = useState(true);
   const autoStartAttempted = useRef(false);
+  const checkInPending = useRef(false);
+  const [checkingIn, setCheckingIn] = useState(false);
 
   const load = useCallback(async () => {
     const [retailerData, locationData, visitData, activityData, baselineData, opportunityData, todayData, schemeData] = await Promise.all([
@@ -105,9 +107,12 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
       !data ||
       location?.status !== "VERIFIED" ||
       activeVisit ||
-      autoStartAttempted.current
+      autoStartAttempted.current ||
+      checkInPending.current
     ) return;
     autoStartAttempted.current = true;
+    checkInPending.current = true;
+    setCheckingIn(true);
     void captureForegroundLocation().then(async (reading) => {
       if (reading.kind !== "captured") {
         Alert.alert("Location needed", reading.kind === "permission_denied" ? "Allow location while using the app to start this visit." : reading.message);
@@ -115,13 +120,19 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
       }
       try {
         const result = await repApi.checkIn(retailerId, reading);
+        if (!result.visit?.id) throw new Error("visit_response_missing_id");
         haptic("medium");
         setActiveVisit(result.visit);
-        navigation.navigate("Visit", { visitId: result.visit.id, retailerId, retailerName: data.retailer.name });
+        setActiveRetailer(retailerId);
+        navigation.navigate("RepCatalog", { visitId: result.visit.id, retailerId, retailerName: data.retailer.name });
       } catch {
         Alert.alert("Couldn't start visit", "Try again when you're online.");
       }
-    });
+    }).catch(() => Alert.alert("Couldn't start visit", "Try again when you're online."))
+      .finally(() => {
+        checkInPending.current = false;
+        setCheckingIn(false);
+      });
   }, [activeVisit, data, location?.status, navigation, retailerId, route.params?.startVisit]);
 
   if (loading) {
@@ -156,7 +167,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
 
   const startOrder = () => {
     setActiveRetailer(retailer.id);
-    navigation.navigate("RepCatalog", { retailerId: retailer.id, retailerName: retailer.name });
+    navigation.navigate("RepCatalog", { retailerId: retailer.id, retailerName: retailer.name, visitId: activeVisit?.id });
   };
 
   const captureStoreLocation = async (mode: "capture" | "verify") => {
@@ -192,23 +203,31 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   };
 
   const checkIn = async () => {
-    const reading = await captureForegroundLocation();
-    if (reading.kind !== "captured") {
-      haptic("warning");
-      return Alert.alert(
-        "Location needed",
-        reading.kind === "permission_denied"
-          ? "Allow location while using the app to check in."
-          : reading.message
-      );
-    }
+    if (checkInPending.current) return;
+    checkInPending.current = true;
+    setCheckingIn(true);
     try {
+      const reading = await captureForegroundLocation();
+      if (reading.kind !== "captured") {
+        haptic("warning");
+        return Alert.alert(
+          "Location needed",
+          reading.kind === "permission_denied"
+            ? "Allow location while using the app to check in."
+            : reading.message
+        );
+      }
       const result = await repApi.checkIn(retailer.id, reading);
+      if (!result.visit?.id) throw new Error("visit_response_missing_id");
       haptic("medium");
       setActiveVisit(result.visit);
-      openVisit(result.visit);
+      setActiveRetailer(retailer.id);
+      navigation.navigate("RepCatalog", { retailerId: retailer.id, retailerName: retailer.name, visitId: result.visit.id });
     } catch {
       Alert.alert("Couldn't check in", "Try again when you're online.");
+    } finally {
+      checkInPending.current = false;
+      setCheckingIn(false);
     }
   };
 
@@ -266,17 +285,6 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
               <Text style={styles.moneyLabel}>{t("profile.outstanding")}</Text>
               <Text style={styles.moneyValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                 {inr(credit.outstanding)}
-              </Text>
-            </View>
-            <View style={styles.moneyCell}>
-              <Text style={styles.moneyLabel}>{t("profile.availableCredit")}</Text>
-              <Text
-                style={[styles.moneyValue, { color: blocked ? colors.danger : colors.primary }]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.7}
-              >
-                {inr(credit.available)}
               </Text>
             </View>
           </View>
@@ -386,7 +394,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
         ) : (
           <View style={{ gap: spacing.sm }}>
             {location?.status === "VERIFIED" ? (
-              <PrimaryButton label={t("retailer.checkIn")} icon="locate-outline" onPress={() => void checkIn()} />
+              <PrimaryButton label={checkingIn ? "Checking in…" : t("retailer.checkIn")} disabled={checkingIn} icon="locate-outline" onPress={() => void checkIn()} />
             ) : (
               <PrimaryButton
                 label={location?.status === "CAPTURED" ? t("retailer.verifyStore") : t("retailer.setStore")}

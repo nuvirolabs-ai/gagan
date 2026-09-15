@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Keyboard, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { formatDateOnly, isDateWithinBounds, localDayKey, monthCells, monthLabel, parseDateOnly } from "../dateOnly";
+import { calendarWeeks, formatDateOnly, isDateWithinBounds, localDayKey, monthCells, monthLabel, parseDateOnly } from "../dateOnly";
 import { colors, control, elevation, radius, spacing } from "../theme";
 
 export type DateFieldProps = {
@@ -106,7 +106,8 @@ export function DateField({ label, value, onChange, minDate, maxDate, disabled =
               {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => <Text key={`${day}-${index}`} style={styles.weekLabel}>{day}</Text>)}
             </View>
             <View style={styles.calendarGrid}>
-              {cells.map((day, index) => {
+              {calendarWeeks(cells).map((week, weekIndex) => <View key={weekIndex} style={styles.weekRow}>
+              {week.map((day, index) => {
                 if (!day) return <View key={`empty-${index}`} style={styles.calendarDay} />;
                 const unavailable = !isDateWithinBounds(day, minDate, maxDate);
                 const isSelected = day === value;
@@ -123,7 +124,7 @@ export function DateField({ label, value, onChange, minDate, maxDate, disabled =
                     <Text style={[styles.dayText, isSelected && styles.selectedDayText, unavailable && styles.unavailableText]}>{Number(day.slice(-2))}</Text>
                   </Pressable>
                 );
-              })}
+              })}</View>)}
             </View>
           </Pressable>
         </Pressable>
@@ -153,8 +154,8 @@ const styles = StyleSheet.create({
   monthTitle: { color: colors.ink, fontSize: 16, fontWeight: "700" },
   weekRow: { flexDirection: "row", marginBottom: spacing.xs },
   weekLabel: { flex: 1, textAlign: "center", color: colors.inkFaint, fontSize: 11, fontWeight: "800" },
-  calendarGrid: { flexDirection: "row", flexWrap: "wrap" },
-  calendarDay: { width: `${100 / 7}%`, minHeight: 46, alignItems: "center", justifyContent: "center", borderRadius: radius.md },
+  calendarGrid: {},
+  calendarDay: { flex: 1, minWidth: 0, minHeight: 46, alignItems: "center", justifyContent: "center", borderRadius: radius.md },
   selectedDay: { backgroundColor: colors.blue },
   unavailableDay: { opacity: 0.36 },
   dayText: { color: colors.ink, fontSize: 14 },

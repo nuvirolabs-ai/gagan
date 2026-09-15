@@ -65,6 +65,15 @@ No backend or hosted business-state mutation was used for source acceptance.
 
 ## Physical acceptance
 
+Physical checkout found an existing reconciliation defect: quoteFor legitimately returns
+null for wholly legacy/unconfigured SKU baskets (backend/modules/commercial/service.ts).
+The accepted Review Order code dereferenced quote.id despite canSubmitQuote explicitly
+allowing a successfully loaded null quote. The phone reproduced a generic error before
+the order request. V2 now omits optional commercial metadata for that existing backend
+path and labels it Standard case pricing. Configured commercial baskets still require
+the same manager-confirmed quote/revision. No backend rule changed.
+Two additional tests cover null quotes and exact quote identity/revision (174 total).
+
 Pending replacement build/install. Source tests do not prove Android rendering or hosted
 check-in/order completion. Missing hosted route, location or freight preconditions must be
 reported BLOCKED, never bypassed. Existing APKs and base apps remain protected.

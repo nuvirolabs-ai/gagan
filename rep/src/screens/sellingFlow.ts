@@ -8,6 +8,11 @@ export type SellingVisit = {
   outcomes?: string[];
 };
 
+/** Legacy SKU baskets explicitly return quote:null; the canonical order API prices them. */
+export function checkoutCommercialReference(quote: { id: string; revision: number } | null) {
+  return quote ? { quoteId: quote.id, revision: quote.revision } : undefined;
+}
+
 /** The API owns visits and outcomes; missing completion reads must fail closed. */
 export function currentSellingVisit(input: {
   visits: SellingVisit[];

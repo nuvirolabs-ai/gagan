@@ -1,7 +1,7 @@
 # Salesperson Wave 2.1 — Operational Read Cache Audit
 
-**Date:** 2026-09-15  
-**Source:** `codex/gagan-wave2-1-operational-cache-v1` at `7f86f8f4e4d4a57c1b6b1ff210485ff583536029`  
+**Date:** 2026-09-15
+**Source:** `codex/gagan-wave2-1-operational-cache-v1` at `7f86f8f4e4d4a57c1b6b1ff210485ff583536029`
 **Mode:** source and current-contract audit before implementation
 
 ## Scope and non-goals

@@ -1,9 +1,10 @@
 # Gagan Wave 2.1 — Operational Read Cache Acceptance
 
-**Date:** 2026-09-15  
-**Feature branch:** `codex/gagan-wave2-1-operational-cache-v1`  
-**Parent checkpoint:** `7f86f8f4e4d4a57c1b6b1ff210485ff583536029`  
-**Environment:** existing hosted staging API configured in the Salesperson release build  
+**Date:** 2026-09-15
+**Feature branch:** `codex/gagan-wave2-1-operational-cache-v1`
+**Parent checkpoint:** `7f86f8f4e4d4a57c1b6b1ff210485ff583536029`
+**Implementation checkpoint:** `b6d2d233f2747cdb6a4db623b62088508e90ae72`
+**Environment:** existing hosted staging API configured in the Salesperson release build
 **Device:** Moto E13, `ZD2229Q3KB`
 
 ## Result boundary
@@ -66,7 +67,7 @@ closed to the existing error/empty state.
   and failure-mode coverage.
 - `SALESPERSON_WAVE2_1_OPERATIONAL_CACHE_AUDIT.md` — pre-implementation audit.
 
-**Backend changed:** NO  
+**Backend changed:** NO
 **Prisma migrations:** NONE
 
 ## Automated acceptance
@@ -78,7 +79,7 @@ Salesperson suite and focused cache tests:
 148 tests passed
 ```
 
-Salesperson strict typecheck: PASS  
+Salesperson strict typecheck: PASS
 `git diff --check`: PASS
 
 Covered explicitly: online Today/Route population, transient fallback,
@@ -128,6 +129,7 @@ so no business data was mutated to manufacture that proof.
 |---|---|
 | APK source tree | `/Users/tanutejas/Documents/Gagan-wave2-1-operational-cache-v1/rep` |
 | Build output | `/Users/tanutejas/Documents/Gagan-wave2-1-operational-cache-v1/rep/android/app/build/outputs/apk/release/app-release.apk` |
+| Review copy | `/Users/tanutejas/Desktop/gagan-salesperson-wave2-1-operational-cache-b6d2d23.apk` |
 | Package | `com.gagan.sales` |
 | Version | `1.0.0` / versionCode `1` |
 | Embedded API | `https://gagan-staging-api.onrender.com` |

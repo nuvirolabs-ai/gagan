@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import { describe, expect, it, vi } from "vitest";
-import { currentSellingVisit, openCreatedOrder } from "../sellingFlow";
+import { checkoutCommercialReference, currentSellingVisit, openCreatedOrder } from "../sellingFlow";
 import { calendarWeeks, monthCells } from "../../dateOnly";
 import { readFileSync } from "node:fs";
 
@@ -9,6 +9,13 @@ const input = { visits: [visit], retailerId: "store-a", staffId: "staff-a", acti
 const source = (name: string) => readFileSync(new URL("../" + name, import.meta.url), "utf8");
 
 describe("selling continuation", () => {
+  it("submits backend-approved legacy baskets without a fabricated quote", () => {
+    expect(checkoutCommercialReference(null)).toBeUndefined();
+  });
+  it("preserves exact commercial quote identity and revision", () => {
+    expect(checkoutCommercialReference({ id: "quote-a", revision: 3 }))
+      .toEqual({ quoteId: "quote-a", revision: 3 });
+  });
   it("allows a server-confirmed open visit without inventing route context", () => {
     expect(currentSellingVisit(input)).toEqual(visit);
   });

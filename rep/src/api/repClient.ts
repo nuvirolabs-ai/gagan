@@ -11,6 +11,10 @@ const BASE_URL = resolveApiBaseUrl(
   Platform.OS as ApiPlatform
 );
 
+// Read caches include the API origin so a local/dev response can never be
+// presented as though it came from hosted staging (or another environment).
+export const REP_API_BASE_URL = BASE_URL;
+
 let onUnauthorized: (() => void) | null = null;
 export const setRepUnauthorizedHandler = (handler: (() => void) | null) => {
   onUnauthorized = handler;

@@ -10,7 +10,7 @@ import React, {
 import { AppState, Platform } from "react-native";
 import * as Location from "expo-location";
 
-import { repApi, accountReplayApi } from "../api/repClient";
+import { repApi, accountReplayApi, REP_API_BASE_URL } from "../api/repClient";
 import { createOutbox, type Outbox } from "../offline/outbox";
 import type { OutboxSummary } from "../offline/outboxDomain";
 import {
@@ -21,7 +21,12 @@ import {
 import { useRep } from "./RepContext";
 import { staffCapabilities } from "../auth/staffCapabilities";
 import { createSingleFlight } from "../performance/singleFlight";
-import { isOfflineTransportError } from "../offline/networkErrors";
+import { isOfflineTransportError, isOperationalReadFallbackError } from "../offline/networkErrors";
+import {
+  createOperationalReadCache,
+  isOperationalTodayPayload,
+  loadOperationalRead,
+} from "../offline/operationalReadCache";
 
 export interface TrackingState {
   tracking: boolean;
@@ -75,8 +80,12 @@ const EMPTY_SUMMARY: OutboxSummary = { pending: 0, failed: 0, synced: 0 };
  * Turns a transport failure into something a salesperson standing in a shop can
  * act on. Anything the server actually said is passed through unchanged.
  */
-function offlineMessage(error: unknown): string {
-  return isOfflineTransportError(error)
+function offlineMessage(error: unknown, cachedAt?: number): string {
+  if (cachedAt != null) {
+    const captured = new Date(cachedAt).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
+    return `You're offline. Showing your saved day from ${captured}. Refresh when connected.`;
+  }
+  return isOfflineTransportError(error) || isOperationalReadFallbackError(error)
     ? "You're offline. Your day will load as soon as you have a connection."
     : error instanceof Error ? error.message : "Could not load your day.";
 }
@@ -98,6 +107,8 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const refreshGate = useRef(createSingleFlight());
+  const currentStaffId = useRef<string | null>(staff?.id ?? null);
+  currentStaffId.current = staff?.id ?? null;
 
   const lastReading = useRef<TrackerReading | null>(null);
   const queue = useMemo<Outbox | null>(() => {
@@ -112,6 +123,16 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
   },[staff?.id]);
   const currentQueue=useRef(queue);
   currentQueue.current=queue;
+
+  const operationalCache = useMemo(() => {
+    if (!staff?.id) return null;
+    const accountId = staff.id;
+    return createOperationalReadCache({
+      accountId,
+      apiOrigin: REP_API_BASE_URL,
+      isCurrentAccount: () => currentStaffId.current === accountId,
+    });
+  }, [staff?.id]);
 
   const flushOutbox = useCallback<FieldContextValue["flushOutbox"]>(async (options) => {
     if(!queue) return;
@@ -135,7 +156,14 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
     await refreshGate.current(async () => {
       setLoading(true);
       try {
-        const payload = await repApi.today();
+        const result = await loadOperationalRead<any>({
+          kind: "today",
+          cache: operationalCache!,
+          load: () => repApi.today(),
+          validate: isOperationalTodayPayload,
+          isFallbackError: isOperationalReadFallbackError,
+        });
+        const payload = result.value;
         if(currentQueue.current!==queue) return;
         setToday(payload);
         setTracking(payload.tracking ?? null);
@@ -146,7 +174,7 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
             return [...current, ...earned.filter((event) => !seen.has(event.id))];
           });
         }
-        setError(null);
+        setError(result.source === "cache" ? offlineMessage(new Error("offline"), result.capturedAt) : null);
       } catch (err) {
         // A failed refresh must not wipe the last good day the salesperson saw,
         // and a dropped connection should read like one rather than like a
@@ -156,7 +184,7 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       }
     });
-  }, [enabled, queue]);
+  }, [enabled, operationalCache, queue]);
 
   useEffect(() => {
     if (!enabled) {

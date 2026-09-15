@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -17,13 +17,20 @@ import {
   Card,
   EmptyState,
   Field,
+  OfflineBanner,
   PrimaryButton,
   ProgressTrack,
   SecondaryButton,
   Tag,
   inputStyle,
 } from "../components/ui";
-import { repApi } from "../api/repClient";
+import { repApi, REP_API_BASE_URL } from "../api/repClient";
+import { useRep } from "../context/RepContext";
+import { isOperationalReadFallbackError } from "../offline/networkErrors";
+import {
+  createOperationalReadCache,
+  isOperationalRoutePayload,
+} from "../offline/operationalReadCache";
 import { colors, radius, spacing } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
 
@@ -66,20 +73,57 @@ export function openDirections(retailer: {
 
 export default function RouteScreen({ navigation }: any) {
   const { t } = useLanguage();
+  const { staff } = useRep();
   const [route, setRoute] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [skippingStopId, setSkippingStopId] = useState<string | null>(null);
   const [skipReason, setSkipReason] = useState("");
+  const currentStaffId = useRef<string | null>(staff?.id ?? null);
+  currentStaffId.current = staff?.id ?? null;
+
+  const operationalCache = useMemo(() => {
+    if (!staff?.id) return null;
+    const accountId = staff.id;
+    return createOperationalReadCache({
+      accountId,
+      apiOrigin: REP_API_BASE_URL,
+      isCurrentAccount: () => currentStaffId.current === accountId,
+    });
+  }, [staff?.id]);
 
   const load = useCallback(async () => {
+    const accountId = currentStaffId.current;
+    if (!accountId) return;
     try {
       const response = await repApi.route();
+      if (currentStaffId.current !== accountId) return;
+      if (!response || typeof response !== "object" || Array.isArray(response) || !("route" in response)) {
+        throw new Error("Could not load this route.");
+      }
+      if (response.route !== null && !isOperationalRoutePayload(response.route)) {
+        throw new Error("Could not load this route.");
+      }
       setRoute(response.route);
-    } catch {
+      setError(null);
+      if (response.route === null) await operationalCache?.clear("route");
+      else await operationalCache?.save("route", response.route);
+    } catch (failure) {
+      if (currentStaffId.current !== accountId) return;
+      if (operationalCache && isOperationalReadFallbackError(failure)) {
+        const cached = await operationalCache.read("route");
+        if (cached && currentStaffId.current === accountId) {
+          setRoute(cached.payload);
+          const captured = new Date(cached.capturedAt).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
+          setError(`You're offline. Showing your saved route from ${captured}. Refresh when connected.`);
+          return;
+        }
+      }
       setRoute(null);
+      setError(failure instanceof Error ? failure.message : "Could not load this route.");
     }
-  }, []);
+  }, [operationalCache]);
 
   useFocusEffect(
     useCallback(() => {
@@ -123,7 +167,7 @@ export default function RouteScreen({ navigation }: any) {
         <EmptyState
           icon="map-marker-path"
           title={t("route.emptyTitle")}
-          body={t("today.noRoutePublished")}
+          body={error ?? t("today.noRoutePublished")}
         />
       </AppScreen>
     );
@@ -145,6 +189,7 @@ export default function RouteScreen({ navigation }: any) {
           />
         }
       >
+        {error ? <OfflineBanner title="Saved route view" body={error} /> : null}
         <Card>
           <Text style={styles.title}>{route.name ?? t("route.title")}</Text>
           <Text style={styles.muted}>

@@ -12,3 +12,13 @@ export function isOfflineTransportError(error: unknown): boolean {
   const raw = error instanceof Error ? error.message : String(error ?? "");
   return /network request failed|failed to fetch|load failed|unknownhostexception|unable to resolve host|dns(?: resolution| lookup)?(?: failed| error)|connection (?:refused|reset|timed out)|network is unreachable|no route to host|(?:request|connection) timed out/i.test(raw);
 }
+
+/**
+ * A read-only operational screen may use a bounded snapshot for a dropped
+ * connection or a server outage. HTTP authentication, permission and business
+ * responses remain authoritative failures and must never be masked by cache.
+ */
+export function isOperationalReadFallbackError(error: unknown): boolean {
+  if (error instanceof SessionFetchError) return error.status >= 500 && error.status <= 599;
+  return isOfflineTransportError(error);
+}

@@ -4,6 +4,7 @@ import type { CreditPolicy } from "../credit/policy";
 import { buildCreditSnapshot } from "../credit/snapshotBuilder";
 import { prisma } from "../../lib/prisma";
 import { enqueueSalesOrder } from "../../lib/sap/outbox";
+import { internalStatusForOrder } from "../commercialStatus/statusService";
 
 export class ApprovalServiceError extends Error {
   constructor(public code: string, public status: number, public details?: unknown) {
@@ -45,7 +46,7 @@ export class ApprovalService {
     const canResolveDispute = permissions.includes("approval.third_invoice");
     const canResolveEscalatedDispute = permissions.includes("legal.decide");
     const recent = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    return prisma.approvalRequest.findMany({
+    const requests = await prisma.approvalRequest.findMany({
       where: {
         OR: [
           {
@@ -73,6 +74,10 @@ export class ApprovalService {
       },
       orderBy: [{ deadlineAt: "asc" }, { createdAt: "asc" }],
     });
+    return Promise.all(requests.map(async (request) => ({
+      ...request,
+      commercialStatus: request.order ? await internalStatusForOrder(request.order.id) : null,
+    })));
   }
 
   async detail(id: string, permissions: string[]) {
@@ -96,7 +101,10 @@ export class ApprovalService {
         permission: request.requiredPermission,
       });
     }
-    return request;
+    return {
+      ...request,
+      commercialStatus: request.order ? await internalStatusForOrder(request.order.id) : null,
+    };
   }
 
   async decide(id: string, input: ApprovalDecisionInput) {

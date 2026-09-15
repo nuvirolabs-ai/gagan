@@ -50,6 +50,12 @@ export const Permissions = {
   // company OS is not the same privilege as reading the executive layer.
   FOUNDER_VIEW: "founder.view",
   FOUNDER_DECIDE: "founder.decide",
+  COMMERCIAL_STATUS_VIEW: "commercial.status.view",
+  COMMERCIAL_RATE_APPROVAL_REQUEST: "commercial.rate_approval.request",
+  COMMERCIAL_ORDER_APPROVAL_REQUEST: "commercial.order_approval.request",
+  COMMERCIAL_ORDER_HOLD_MANAGE: "commercial.order_hold.manage",
+  COMMERCIAL_ADVANCE_VIEW: "commercial.advance.view",
+  COMMERCIAL_ADVANCE_CONFIRM: "commercial.advance.confirm",
 } as const;
 
 export type PermissionName = (typeof Permissions)[keyof typeof Permissions];
@@ -89,6 +95,9 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       Permissions.ISSUE_RAISE,
       Permissions.RETAILER_PROPOSE,
       Permissions.SURVEY_RESPOND,
+      Permissions.COMMERCIAL_STATUS_VIEW,
+      Permissions.COMMERCIAL_RATE_APPROVAL_REQUEST,
+      Permissions.COMMERCIAL_ORDER_APPROVAL_REQUEST,
     ],
   },
   {
@@ -120,7 +129,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
   {
     name: "sales_coordinator",
     description: "Approves second invoices and acts only through explicit delegation.",
-    permissions: [Permissions.APPROVAL_SECOND_INVOICE],
+    permissions: [Permissions.APPROVAL_SECOND_INVOICE, Permissions.COMMERCIAL_STATUS_VIEW],
   },
   {
     name: "credit_team_lead",
@@ -138,7 +147,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
   {
     name: "accounts",
     description: "Confirms verified collections before financial posting.",
-    permissions: [Permissions.COLLECTION_CONFIRM, Permissions.FINANCIAL_CORRECT, Permissions.KYC_VIEW, Permissions.RECOVERY_VIEW],
+    permissions: [Permissions.COLLECTION_CONFIRM, Permissions.FINANCIAL_CORRECT, Permissions.KYC_VIEW, Permissions.RECOVERY_VIEW, Permissions.COMMERCIAL_STATUS_VIEW, Permissions.COMMERCIAL_ADVANCE_VIEW, Permissions.COMMERCIAL_ADVANCE_CONFIRM],
   },
   {
     name: "dispatch",
@@ -173,6 +182,8 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       Permissions.PERFORMANCE_VIEW_TEAM,
       Permissions.SURVEY_MANAGE,
       Permissions.SURVEY_RESPONSES_VIEW,
+      Permissions.COMMERCIAL_STATUS_VIEW,
+      Permissions.COMMERCIAL_ORDER_HOLD_MANAGE,
     ],
   },
   {

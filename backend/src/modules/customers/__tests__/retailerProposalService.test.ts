@@ -16,6 +16,10 @@ function fakePrisma(overrides: Record<string, any> = {}) {
       findUnique: vi.fn().mockResolvedValue({ status: "active", salesRepId: "rep-1" }),
     },
     retailer: { findFirst: vi.fn().mockResolvedValue(null), create: vi.fn() },
+    commercialStatusEvent: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockImplementation(async ({ data }: any) => ({ id: "commercial-event-1", ...data })),
+    },
     retailerLocation: { create: vi.fn() },
     retailerProposal: {
       findFirst: vi.fn().mockResolvedValue(null),

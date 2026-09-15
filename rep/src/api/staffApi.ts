@@ -73,6 +73,10 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
         }
       ),
     order: (id: string) => request(`/rep/orders/${id}`),
+    commercialStatusOrder: (id: string) => request(`/rep/commercial-status/orders/${id}`),
+    commercialStatusRetailer: (id: string) => request(`/rep/commercial-status/retailers/${id}`),
+    requestRateApproval: (quoteId: string, reason?: string, reference?: string) => post(`/rep/commercial-status/quotes/${quoteId}/rate-approval`, { reason, reference }),
+    requestOrderApproval: (orderId: string) => post(`/rep/commercial-status/orders/${orderId}/order-approval`),
     collectionRetailers: () => request("/rep/collections/assigned-retailers"),
     collectionInvoices:(retailerId:string)=>request(`/rep/collections/invoices/${retailerId}`),
     collectionSubmissions: () => request("/rep/collections"),

@@ -517,6 +517,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
                     {new Date(o.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} · {o.items.length}{" "}
                     item{o.items.length > 1 ? "s" : ""}
                   </Text>
+                  {o.commercialStatus?.currentLabel ? <Text style={styles.internalStatus}>{o.commercialStatus.currentLabel}</Text> : null}
                 </View>
                 <View style={{ alignItems: "flex-end", gap: 4 }}>
                   <Text style={styles.lineValue}>{inr(Number(o.orderTotal))}</Text>
@@ -595,6 +596,7 @@ const styles = StyleSheet.create({
   visitTime: { fontSize: 15, color: colors.ink },
   actions: { flexDirection: "row", gap: spacing.sm },
   muted: { fontSize: 13, color: colors.textSecondary, lineHeight: 18 },
+  internalStatus: { fontSize: 11.5, color: colors.blueInk, fontWeight: "600", marginTop: 3 },
   line: {
     flexDirection: "row",
     alignItems: "center",

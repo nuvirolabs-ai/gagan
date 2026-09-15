@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
-import { requireAdmin } from "../../lib/adminAuth";
+import { AdminRequest, requireAdmin } from "../../lib/adminAuth";
 import { ageAllRetailers } from "../../lib/ageing";
 import { financialLedgerFor } from "../../modules/finance/financialQueries";
 import { financialSummaryFor } from "../../modules/finance/financialSummary";
@@ -10,6 +10,8 @@ import {
   settleSucceededPayment,
 } from "../../modules/payments/paymentService";
 import { nextQuarterlyCheckpoint } from "../../modules/credit/reviewSchedule";
+import { CommercialStatusCode } from "@prisma/client";
+import { internalStatusForRetailer, recordCommercialStatusEvent } from "../../modules/commercialStatus/statusService";
 
 const router = Router();
 router.use(requireAdmin);
@@ -20,7 +22,11 @@ router.get("/retailers", async (_req, res) => {
     orderBy: { name: "asc" },
   });
   const summary = await Promise.all(retailers.map(async (r) => {
-    const financial = (await financialSummaryFor(prisma, r.id))!;
+    const [financialResult, commercialStatus] = await Promise.all([
+      financialSummaryFor(prisma, r.id),
+      internalStatusForRetailer(r.id),
+    ]);
+    const financial = financialResult!;
     return {
       id: r.id,
       name: r.name,
@@ -33,22 +39,23 @@ router.get("/retailers", async (_req, res) => {
       overdueAmount: financial.overdue,
       available: financial.availableCredit,
       financialSummary: financial,
+      commercialStatus,
     };
   }));
   res.json({ retailers: summary });
 });
 
 router.get("/retailers/:id", async (req, res) => {
-  const retailer = await prisma.retailer.findUnique({
+  const [retailer, commercialStatus] = await Promise.all([prisma.retailer.findUnique({
     where: { id: req.params.id },
     include: {
       tier: true,
       salesRep: true,
       priceOverrides: { include: { variant: { include: { product: true } } } },
     },
-  });
+  }), internalStatusForRetailer(req.params.id)]);
   if (!retailer) return res.status(404).json({ error: "Retailer not found" });
-  res.json({ retailer });
+  res.json({ retailer, commercialStatus });
 });
 
 const createSchema = z.object({
@@ -60,7 +67,7 @@ const createSchema = z.object({
   salesRepId: z.string().optional(),
 });
 
-router.post("/retailers", async (req, res) => {
+router.post("/retailers", async (req: AdminRequest, res) => {
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
@@ -77,6 +84,13 @@ router.post("/retailers", async (req, res) => {
     const nextReviewAt = nextQuarterlyCheckpoint(created.createdAt);
     await tx.creditProfile.create({
       data: { retailerId: created.id, rating: "N", accountCreatedAt: created.createdAt, nextReviewAt },
+    });
+    await recordCommercialStatusEvent(tx, {
+      code: CommercialStatusCode.ACCOUNT_OPENED,
+      retailerId: created.id,
+      actorStaffId: req.staffAuth?.staffId ?? null,
+      metadata: { source: "admin_retailer_creation", lifecycle: created.status },
+      idempotencyKey: `account-opened:${created.id}`,
     });
     return created;
   });

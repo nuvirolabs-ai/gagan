@@ -6,6 +6,8 @@ import { EvidencePurpose } from "@prisma/client";
 import { isWithinScope } from "../field/fieldDomain";
 import { normalizeIndianPhone } from "../identity/otpService";
 import { encryptPii, maskAadhaar } from "../../platform/security/pii";
+import { CommercialStatusCode } from "@prisma/client";
+import { recordCommercialStatusEvent } from "../commercialStatus/statusService";
 
 type Db = PrismaClient | any;
 
@@ -370,6 +372,23 @@ export class RetailerProposalService {
           overdueAmount: 0,
           salesRepId: proposal.submittedBy?.salesRepId ?? null,
         },
+      });
+
+      // The account-opened milestone belongs to admission into the canonical
+      // retailer master, not to proposal submission. Keep it in the same
+      // transaction so a reviewer can never see an opened-account event for a
+      // retailer that was not actually admitted.
+      await recordCommercialStatusEvent(tx, {
+        code: CommercialStatusCode.ACCOUNT_OPENED,
+        retailerId: retailer.id,
+        actorStaffId: input.reviewerStaffId,
+        metadata: {
+          source: "retailer_proposal_approval",
+          proposalId: proposal.id,
+          submittedBy: proposal.submittedByStaffId,
+          lifecycle: "pending_kyc",
+        },
+        idempotencyKey: `account-opened:${retailer.id}`,
       });
 
       // A coordinate taken at the storefront is captured, not verified: the

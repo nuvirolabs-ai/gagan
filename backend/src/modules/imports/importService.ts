@@ -6,6 +6,8 @@ import { nextQuarterlyCheckpoint } from "../credit/reviewSchedule";
 import { upsertInventorySnapshot } from "../inventory/inventoryService";
 import { IMPORT_DEFINITIONS, IMPORT_TYPES, type ImportMode, type ImportType } from "./importDefinitions";
 import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, parseImportFile, rowsToCsv, type RawImportRow } from "./importParser";
+import { CommercialStatusCode } from "@prisma/client";
+import { recordCommercialStatusEvent } from "../commercialStatus/statusService";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 type JsonObject = Record<string, unknown>;
@@ -288,6 +290,13 @@ async function applyRow(db: Db, type: ImportType, row: PreparedRow, mode: Import
       const created = await tx.retailer.create({ data: { ...data, phone: String(resolved.phone) } });
       await tx.retailerLocation.create({ data: { retailerId: created.id, status: "NOT_SET", source: "MIGRATION", locationVersion: 0 } });
       await tx.creditProfile.create({ data: { retailerId: created.id, rating: "N", accountCreatedAt: created.createdAt, nextReviewAt: nextQuarterlyCheckpoint(created.createdAt) } });
+      await recordCommercialStatusEvent(tx, {
+        code: CommercialStatusCode.ACCOUNT_OPENED,
+        retailerId: created.id,
+        actorStaffId,
+        metadata: { source: "admin_import", importJobId: jobId, lifecycle: created.status },
+        idempotencyKey: `account-opened:${created.id}`,
+      });
       return { row: created, action: "created" as const };
     });
     await audit(db, actorStaffId, jobId, "Retailer", result.row.id, "import.retailer_applied", mode);

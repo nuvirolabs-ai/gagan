@@ -104,6 +104,17 @@ enum OrderStatus {
   rejected
 }
 
+/// Internal commercial language, separate from canonical operational states.
+enum CommercialStatusCode {
+  ACCOUNT_OPENED
+  RATE_APPROVAL_SENT
+  SALES_ORDER_APPROVAL_SENT
+  SALES_ORDER_CREATED
+  SALES_ORDER_ON_HOLD
+  SALES_ORDER_HOLD_RELEASED
+  ADVANCE_PAYMENT_RECEIVED
+}
+
 enum PlacedBy {
   retailer
   rep
@@ -408,6 +419,7 @@ model Retailer {
   proposal                  RetailerProposal?
   fieldTasks                FieldTask[]
   serviceIssues             ServiceIssue[]
+  commercialStatusEvents    CommercialStatusEvent[]
   surveyAssignments         SurveyAssignment[]         @relation("SurveyAssignedRetailer")
   surveyResponses           SurveyResponse[]           @relation("SurveyRespondentRetailer")
   surveyContextResponses    SurveyResponse[]           @relation("SurveyResponseContextRetailer")
@@ -527,6 +539,8 @@ model SalesRep {
 model StaffUser {
   freightQuotes CommercialQuote[]
   commercialPayments Payment[] @relation("CommercialPaymentConfirmer")
+  commercialStatusEvents CommercialStatusEvent[] @relation("CommercialStatusActor")
+  commercialHolds Order[] @relation("CommercialHoldActor")
   id          String      @id @default(uuid())
   name        String
   phone       String      @unique
@@ -1096,6 +1110,7 @@ model CommercialQuote {
   freightConfirmedByStaffId String?
   freightConfirmedBy StaffUser? @relation(fields:[freightConfirmedByStaffId],references:[id],onDelete:NoAction,onUpdate:NoAction)
   order Order?
+  commercialStatusEvents CommercialStatusEvent[]
   expiresAt DateTime
   acceptedAt DateTime?
   createdAt DateTime @default(now())
@@ -1172,6 +1187,11 @@ model Order {
   sapLastSyncedAt           DateTime?
   sapErrorCode              String?
   sapErrorMessage           String?
+  isOnHold                  Boolean                    @default(false)
+  holdReason                String?
+  heldAt                    DateTime?
+  heldByStaffId             String?
+  heldBy                    StaffUser?                 @relation("CommercialHoldActor", fields: [heldByStaffId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   items                     OrderItem[]
   delivery                  Delivery?
   invoice                   Invoice?
@@ -1182,10 +1202,37 @@ model Order {
   creditDecisionComparisons CreditDecisionComparison[]
   customerActivities        CustomerActivity[]
   serviceIssues             ServiceIssue[]
+  commercialStatusEvents    CommercialStatusEvent[]
   createdAt                 DateTime                   @default(now())
 
   @@unique([retailerId, idempotencyKey])
   @@index([sapSyncStatus, createdAt])
+}
+
+/// Immutable internal commercial timeline. Retailer routes never select or
+/// serialize this model; staff/admin routes use it as their shared read model.
+model CommercialStatusEvent {
+  id                String               @id @default(uuid())
+  code              CommercialStatusCode
+  retailerId        String
+  retailer          Retailer             @relation(fields: [retailerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  orderId           String?
+  order             Order?               @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  commercialQuoteId String?
+  commercialQuote   CommercialQuote?     @relation(fields: [commercialQuoteId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  actorStaffId      String?
+  actorStaff        StaffUser?           @relation("CommercialStatusActor", fields: [actorStaffId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  reason            String?
+  amount            Decimal?             @db.Decimal(14, 2)
+  reference         String?
+  metadata          Json?
+  idempotencyKey    String?              @unique
+  createdAt         DateTime             @default(now())
+
+  @@index([retailerId, createdAt])
+  @@index([orderId, createdAt])
+  @@index([commercialQuoteId, createdAt])
+  @@index([code, createdAt])
 }
 
 model OrderItem {

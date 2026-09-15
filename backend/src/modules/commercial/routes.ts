@@ -9,6 +9,7 @@ import { Permissions } from "../identity/roleCatalog";
 import { quoteFor, setFreight, CommercialError, invoiceBalances, snapshot,quoteDelivery } from "./service";
 import { postInvoicePayment } from "./payment";
 import { PaymentSettlementError } from "../payments/paymentService";
+import { internalStatusForQuote } from "../commercialStatus/statusService";
 
 const items=z.array(z.object({variantId:z.string().min(1),qty:z.number().int().positive()})).min(1).max(200);
 const money=z.string().regex(/^\d+(\.\d{1,2})?$/).refine(s=>Number(s)<=9999999999.99);
@@ -50,7 +51,10 @@ router.get("/admin/commercial",requireAdminIdentity,async(req:AdminRequest,res)=
     prisma.commercialQuote.findMany({where:{acceptedAt:null,expiresAt:{gt:new Date()}},orderBy:{createdAt:"desc"},take:50,include:{retailer:{select:{id:true,name:true}}}}),
     prisma.invoice.findMany({where:{commercialSnapshot:{not: Prisma.DbNull}},orderBy:{createdAt:"desc"},take:100,include:{retailer:{select:{id:true,name:true}},order:{select:{orderNo:true}},lines:true,allocations:{include:{payment:true}}}}),
   ]);
-  res.json({variants,tiers,prices,quotes,invoices:invoices.filter(i=>i.commercialSnapshot!==null)});
+  res.json({variants,tiers,prices,quotes:await Promise.all(quotes.map(async quote=>({
+    ...quote,
+    commercialStatus: await internalStatusForQuote(quote.id),
+  }))),invoices:invoices.filter(i=>i.commercialSnapshot!==null)});
 });
 router.get("/admin/commercial/retailers/:id/outstanding",requireAdminIdentity,async(req:AdminRequest,res)=>{
   if(!req.staffAuth!.permissions.some(p=>p===Permissions.STAFF_MANAGE || p===Permissions.COLLECTION_CONFIRM)) return res.status(403).json({error:"permission_required"});

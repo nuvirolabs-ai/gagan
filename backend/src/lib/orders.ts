@@ -9,6 +9,8 @@ import { resolveRolloutDecision } from "../modules/credit/rollout";
 import { prisma } from "./prisma";
 import { enqueueSalesOrder } from "./sap/outbox";
 import { InventoryValidationError, validateOrderInventory } from "../modules/inventory/inventoryService";
+import { recordCommercialStatusEvent } from "../modules/commercialStatus/statusService";
+import { CommercialStatusCode } from "@prisma/client";
 
 export interface OrderLineInput {
   variantId: string;
@@ -299,6 +301,18 @@ export async function createOrderForRetailer(
       data: { sapExternalReference: externalReferenceFor(order.orderNo) },
       include: { items: true },
     });
+    await recordCommercialStatusEvent(tx, {
+      code: CommercialStatusCode.SALES_ORDER_CREATED,
+      retailerId,
+      orderId: orderWithIdentity.id,
+      actorStaffId: placedBy === "rep" ? placedByStaffId ?? null : null,
+      metadata: {
+        placedBy,
+        orderNo: orderWithIdentity.orderNo,
+        canonicalOrderStatus: orderWithIdentity.status,
+      },
+      idempotencyKey: `sales-order-created:${orderWithIdentity.id}`,
+    });
     const assessment = await tx.creditAssessment.create({
       data: {
         retailerId,
@@ -353,6 +367,20 @@ export async function createOrderForRetailer(
             reasons: effectiveDecision.reasons,
           }),
         },
+      });
+      await recordCommercialStatusEvent(tx, {
+        code: CommercialStatusCode.SALES_ORDER_APPROVAL_SENT,
+        retailerId,
+        orderId: orderWithIdentity.id,
+        actorStaffId: placedBy === "rep" ? placedByStaffId ?? null : null,
+        reason: effectiveDecision.reasons.join(","),
+        metadata: {
+          approvalStatus: request.status,
+          approvalRequestId: request.id,
+          approvalType: request.approvalType,
+          requiredPermission: request.requiredPermission,
+        },
+        idempotencyKey: `order-approval:${request.id}`,
       });
       return { ok: true, order: orderWithIdentity, decision: effectiveDecision, approvalRequest: request };
     }

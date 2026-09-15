@@ -3,6 +3,8 @@ import { recomputeOverdue } from "../../lib/ageing";
 import { prisma } from "../../lib/prisma";
 import { buildFifoAllocations } from "./allocationService";
 import { invoiceBalances } from "../commercial/service";
+import { CommercialStatusCode } from "@prisma/client";
+import { recordCommercialStatusEvent } from "../commercialStatus/statusService";
 
 export interface SettleSucceededPaymentInput {
   paymentId: string;
@@ -221,6 +223,22 @@ async function settleOnce(
         data: { currentBalance: balanceAfter },
       });
       await recomputeOverdue(tx, payment.retailerId, input.occurredAt);
+
+      // This is a presentation milestone derived from the canonical, already
+      // settled payment. It is not a second financial record or balance.
+      await recordCommercialStatusEvent(tx, {
+        code: CommercialStatusCode.ADVANCE_PAYMENT_RECEIVED,
+        retailerId: payment.retailerId,
+        actorStaffId: input.allowAdvanceCredit?.actorStaffId ?? payment.confirmedByStaffId,
+        amount: payment.amount,
+        reference: payment.confirmedReference ?? payment.providerRef,
+        metadata: {
+          paymentId: payment.id,
+          invoiceScopeId: payment.invoiceScopeId,
+          paymentStatus: "succeeded",
+        },
+        idempotencyKey: `advance-payment:${payment.id}`,
+      });
 
       return {
         paymentId: payment.id,

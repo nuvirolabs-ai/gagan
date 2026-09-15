@@ -12,6 +12,7 @@ export function Breakdown({value}:{value:Row}) {
 function Freight({quote,reload}:{quote:Row;reload:()=>Promise<void>}) {
   const [error,setError]=useState("");const [busy,setBusy]=useState(false);
   return <details><summary>{quote.retailer?.name ?? "Retailer"} · Quote {quote.id}</summary><p>{quote.freightConfirmedByStaffId ? "Freight confirmed" : "Freight confirmation required"} · Expires {new Date(quote.expiresAt).toLocaleString()}</p><Breakdown value={quote.snapshot}/>
+    {quote.commercialStatus?.currentLabel ? <div className="internal-status-detail"><strong>{quote.commercialStatus.currentLabel}</strong>{(quote.commercialStatus.timeline ?? []).slice(-3).map((event:Row)=><span key={event.id}>{event.label} · {new Date(event.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}{event.actor?.name ? ` · ${event.actor.name}` : ""}</span>)}</div> : null}
     <form onSubmit={async e=>{e.preventDefault();if(busy)return;setBusy(true);setError("");const data=Object.fromEntries(new FormData(e.currentTarget));try{await api.saveCommercialFreight(quote.id,{revision:quote.revision,freight:data});await reload();}catch(err){setError(String(err));}finally{setBusy(false);}}}>
       <label>Freight owner<select name="entity" defaultValue="" required><option value="">Select freight company</option>{quote.snapshot.entities.map((e:Row)=><option key={e.entity} value={e.entity}>{entityName(e.entity)}</option>)}</select></label>
       <label>Final freight before GST<input name="amount" type="number" min="0" step="0.01" required/></label>

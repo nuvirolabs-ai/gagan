@@ -172,6 +172,7 @@ export default function Retailers() {
                   <td>
                     <div style={{ fontWeight: 600 }}>{r.name}</div>
                     <div className="muted small">{r.phone}</div>
+                    {r.commercialStatus?.currentLabel ? <div className="muted small internal-status-inline">{r.commercialStatus.currentLabel}</div> : null}
                   </td>
                   <td>
                     <select

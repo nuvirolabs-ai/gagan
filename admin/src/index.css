@@ -829,6 +829,14 @@ tr:last-child td { border-bottom: 0; }
 .stage-rail button.active .stage-count { color: #fff; background: var(--oi-blue); }
 .stage-rail button span:not(.stage-count) { overflow: hidden; font-size: 10px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .stage-rail button small { grid-column: 2; margin-top: 2px; color: var(--oi-subtle); font: 9px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.internal-status-rail { display: flex; flex-wrap: wrap; gap: 6px; margin: -7px 0 17px; padding: 2px 0; }
+.internal-status-rail button { min-height: 29px; padding: 5px 10px; border: 1px solid var(--oi-line); border-radius: 999px; color: var(--oi-muted); background: var(--oi-paper); font-size: 10px; font-weight: 650; transition: background 160ms ease, color 160ms ease, border-color 160ms ease; }
+.internal-status-rail button:hover, .internal-status-rail button.selected { border-color: rgba(10,132,255,.28); color: var(--oi-blue); background: var(--oi-blue-soft); }
+.internal-status-inline { margin-top: 3px; color: var(--oi-blue); }
+.internal-status-detail { display: grid; gap: 5px; margin: 12px 0 18px; padding: 11px 13px; border: 1px solid rgba(10,132,255,.18); border-radius: 11px; background: var(--oi-blue-soft); color: var(--oi-ink); font-size: 12px; }
+.internal-status-detail > strong { font-size: 13px; }
+.internal-status-detail > span { color: var(--oi-muted); font-size: 11px; }
+.internal-status-timeline { display: grid; gap: 3px; margin-top: 4px; color: var(--oi-muted); font-size: 10px; }
 .queue-summary { display: grid; grid-template-columns: .95fr 1fr .8fr 1fr 2.1fr; gap: 1px; margin-bottom: 22px; overflow: hidden; border: 1px solid var(--oi-line); border-radius: 15px; background: var(--oi-line); box-shadow: var(--oi-shadow); }
 .queue-summary > div { min-width: 0; padding: 14px 15px; background: var(--oi-paper); }
 .queue-summary > div > span { display: block; color: var(--oi-muted); font: 9px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; text-transform: uppercase; }

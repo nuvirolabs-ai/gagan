@@ -178,6 +178,10 @@ export const api = {
   approve: (id: string) => post(`/admin/orders/${id}/approve`),
   reject: (id: string) => post(`/admin/orders/${id}/reject`),
   pack: (id: string) => post(`/admin/orders/${id}/pack`),
+  commercialStatuses: (code?: string) => request(`/admin/commercial-status/orders${code ? `?code=${encodeURIComponent(code)}` : ""}`),
+  commercialStatus: (id: string) => request(`/admin/commercial-status/orders/${id}`),
+  holdOrder: (id: string, reason: string, idempotencyKey?: string) => request(`/admin/commercial-status/orders/${id}/hold`, { method: "POST", headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined, body: JSON.stringify({ reason }) }),
+  releaseOrderHold: (id: string, reason?: string, idempotencyKey?: string) => request(`/admin/commercial-status/orders/${id}/release-hold`, { method: "POST", headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined, body: JSON.stringify({ reason }) }),
   assign: (id: string, routeId: string, deliverySlot?: string) =>
     post(`/admin/dispatch/${id}/assign`, { routeId, deliverySlot }),
   capturePod: (

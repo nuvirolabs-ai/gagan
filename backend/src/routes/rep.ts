@@ -18,6 +18,7 @@ import {
   createRequireSession,
   type IdentityAuthedRequest,
 } from "../modules/identity/sessionAuth";
+import { internalStatusForOrder } from "../modules/commercialStatus/statusService";
 
 const router = Router();
 
@@ -166,6 +167,10 @@ router.get("/retailers/:id", requireRep, async (req: RepRequest, res) => {
 
   const limit = financialSummary?.creditLimit ?? Number(retailer.creditLimit);
   const balance = financialSummary?.creditUsed ?? Number(retailer.currentBalance);
+  const recentOrders = await Promise.all(orders.map(async (order) => ({
+    ...order,
+    commercialStatus: await internalStatusForOrder(order.id),
+  })));
 
   res.json({
     retailer: {
@@ -185,7 +190,7 @@ router.get("/retailers/:id", requireRep, async (req: RepRequest, res) => {
       utilisationPct: limit > 0 ? Math.round((balance / limit) * 100) : 0,
     },
     financialSummary,
-    recentOrders: orders,
+    recentOrders,
     recentLedger: entries,
   });
 });
@@ -275,7 +280,7 @@ router.get("/orders/:id", requireRep, async (req: RepRequest, res) => {
     orderBy: { createdAt: "asc" },
     select: { id: true, action: true, metadata: true, createdAt: true },
   });
-  res.json({ order, events });
+  res.json({ order, events, commercialStatus: await internalStatusForOrder(order.id) });
 });
 
 const repOrderSchema = z.object({

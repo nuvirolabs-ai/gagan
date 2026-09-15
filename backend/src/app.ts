@@ -38,6 +38,7 @@ import { defaultRouteService } from "./modules/field/routeService";
 import { prisma } from "./lib/prisma";
 import { createRatingRouter } from "./modules/credit/ratingRoutes";
 import { createCreditRolloutRouter } from "./modules/credit/rolloutRoutes";
+import commercialStatusRoutes from "./modules/commercialStatus/routes";
 import { createRequireSession } from "./modules/identity/sessionAuth";
 import { lazyIdentitySessionService } from "./modules/identity/sessionRuntime";
 import authRoutes from "./routes/auth";
@@ -106,6 +107,10 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(ledgerRoutes);
   app.use(deliveryRoutes);
   app.use(paymentRoutes);
+  // Internal commercial statuses are staff/admin-only. This is deliberately
+  // mounted outside the retailer-facing routes so the fields cannot leak via
+  // the public customer API.
+  app.use(commercialStatusRoutes);
 
   // Composition root for the visit/day-plan seam: checking in at a store also
   // settles that store's planned route stop, without the location module

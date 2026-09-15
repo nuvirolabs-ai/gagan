@@ -46,6 +46,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
   const [quoteReady,setQuoteReady]=useState(false);
   const [quoteError,setQuoteError]=useState("");
   const [refreshingQuote,setRefreshingQuote]=useState(false);
+  const [rateApprovalSubmitting,setRateApprovalSubmitting]=useState(false);
   const quoteRef=useRef<any>(null);
   const refreshInFlight=useRef(false);
   const appState=useRef<AppStateStatus>(AppState.currentState);
@@ -104,6 +105,16 @@ export default function RepCatalogScreen({ route, navigation }: any) {
       setRefreshingQuote(false);
     }
   },[applyQuote,requestQuote]);
+  const sendRateForApproval=useCallback(async()=>{
+    if(!quote?.id || rateApprovalSubmitting) return;
+    setRateApprovalSubmitting(true);
+    try {
+      await repApi.requestRateApproval(quote.id);
+      Alert.alert("Rate sent for approval", "🍓 Rate Sent for Approval");
+    } catch (error) {
+      Alert.alert("Could not send rate", error instanceof Error ? error.message : "Please retry when connected.");
+    } finally { setRateApprovalSubmitting(false); }
+  },[quote,rateApprovalSubmitting]);
 
   useFocusEffect(useCallback(()=>{
     if(review) void refreshQuote({silent:true});
@@ -224,7 +235,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
               <Text style={styles.refreshButtonText}>{refreshingQuote ? "Checking" : "Refresh"}</Text>
             </TouchableOpacity>
           </View>
-          <CommercialBreakdown value={quote.snapshot}/><Text style={styles.quoteId}>Quote {quote.id}</Text>
+          <CommercialBreakdown value={quote.snapshot}/><TouchableOpacity accessibilityRole="button" style={styles.rateApprovalButton} disabled={rateApprovalSubmitting || !!quote.acceptedAt} onPress={()=>void sendRateForApproval()}><Text style={styles.rateApprovalButtonText}>{rateApprovalSubmitting ? "Sending…" : "Send rate for approval"}</Text></TouchableOpacity><Text style={styles.quoteId}>Quote {quote.id}</Text>
         </> : quoteReady ? <Text>Order total {inr(cartTotal)}</Text>:null}
       </ScrollView> : <>
       <SearchBar value={query} onChange={setQuery} placeholder={t("common.search")} />
@@ -370,6 +381,8 @@ const styles = StyleSheet.create({
   },
   refreshButtonText: { color: colors.onDark, fontSize: 12.5, fontWeight: "700" },
   quoteId: { color: colors.inkMuted, fontSize: 10.5 },
+  rateApprovalButton: { alignSelf: "flex-start", minHeight: 42, justifyContent: "center", paddingHorizontal: spacing.lg, borderRadius: radius.md, backgroundColor: colors.navy },
+  rateApprovalButtonText: { color: colors.onDark, fontSize: 13, fontWeight: "700" },
 
   card: {
     gap: spacing.md,

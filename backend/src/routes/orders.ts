@@ -8,6 +8,32 @@ import { invoiceBalances } from "../modules/commercial/service";
 
 const router = Router();
 
+/**
+ * Internal commercial events/holds are staff-only. Keep the customer DTO
+ * explicit so adding a new internal scalar to Order cannot accidentally leak
+ * it through a broad Prisma spread.
+ */
+export function retailerOrderView(order: any) {
+  const {
+    isOnHold: _isOnHold,
+    holdReason: _holdReason,
+    heldAt: _heldAt,
+    heldByStaffId: _heldByStaffId,
+    commercialStatusEvents: _commercialStatusEvents,
+    ...publicOrder
+  } = order;
+  return publicOrder;
+}
+
+/**
+ * The retailer checkout only needs the customer-facing order. Credit
+ * decisions, approval requests and dispatch authorizations belong to the
+ * protected staff/Admin workflow and must not cross this API boundary.
+ */
+export function retailerOrderCreatedResponse(result: { order: any }) {
+  return { order: retailerOrderView(result.order) };
+}
+
 const createOrderSchema = z.object({
   commercial: z.object({quoteId:z.string(),revision:z.number().int().positive()}).optional(),
   items: z
@@ -26,12 +52,7 @@ router.post("/orders", requireAuth, createRateLimiter({ name: "retailer-order", 
   const result = await createOrderForRetailer(req.retailerId!, parsed.data.items, "retailer", undefined, undefined, idempotencyKey,parsed.data.commercial);
   if (!result.ok) return res.status(result.status).json(result.body);
 
-  res.status(201).json({
-    order: result.order,
-    creditDecision: result.decision,
-    approvalRequest: result.approvalRequest ?? null,
-    dispatchAuthorization: result.dispatchAuthorization ?? null,
-  });
+  res.status(201).json(retailerOrderCreatedResponse(result));
 });
 
 router.get("/orders", requireAuth, async (req: AuthedRequest, res) => {
@@ -40,7 +61,7 @@ router.get("/orders", requireAuth, async (req: AuthedRequest, res) => {
     include: { items: { include: { variant: { include: { product: true } } } }, delivery: true },
     orderBy: { createdAt: "desc" },
   });
-  res.json({ orders });
+  res.json({ orders: orders.map(retailerOrderView) });
 });
 
 router.get("/orders/:id", requireAuth, async (req: AuthedRequest, res) => {
@@ -63,7 +84,7 @@ router.get("/orders/:id", requireAuth, async (req: AuthedRequest, res) => {
 
   res.json({
     order: {
-      ...order,
+      ...retailerOrderView(order),
       ledgerEntries: undefined,
       invoice: invoice
         ? {

@@ -22,6 +22,25 @@ function eventLabel(action: string) {
   return STATUS_LABELS[status] ?? status.replace(/_/g, " ");
 }
 
+function InternalCommercialStatus({ status }: { status: any }) {
+  if (!status) return null;
+  return (
+    <Surface>
+      <SectionHeader title="Internal commercial status" />
+      <Text style={styles.internalCurrent}>{status.currentLabel ?? "No internal status recorded"}</Text>
+      {status.isOnHold && status.holdReason ? <Text style={styles.internalReason}>Reason: {status.holdReason}</Text> : null}
+      <Text style={styles.internalKicker}>INTERNAL JOURNEY</Text>
+      {(status.timeline ?? []).map((event: any) => (
+        <View key={event.id} style={styles.internalEventRow}>
+          <Text style={styles.internalEventLabel}>{event.label}</Text>
+          <Text style={styles.muted}>{new Date(event.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}{event.actor?.name ? ` · ${event.actor.name}` : ""}</Text>
+        </View>
+      ))}
+      {status.latestAdvancePayment ? <Text style={styles.internalAdvance}>{status.latestAdvancePayment.label} · {inr(status.latestAdvancePayment.amount ?? 0)}</Text> : null}
+    </Surface>
+  );
+}
+
 export default function OrderDetailScreen({ route }: any) {
   const orderId = route?.params?.orderId as string;
   const [data, setData] = useState<any | null>(null);
@@ -78,6 +97,8 @@ export default function OrderDetailScreen({ route }: any) {
           <OrderTimeline status={order.status} />
         </Surface>
 
+        <InternalCommercialStatus status={data.commercialStatus} />
+
         {order.commercialSnapshot ? <CommercialBreakdown value={order.commercialSnapshot}/> : <Surface>
           <SectionHeader title="Items" />
           {(order.items ?? []).map((item: any) => {
@@ -120,4 +141,10 @@ const styles = StyleSheet.create({
   eventDotCurrent: { backgroundColor: colors.primary },
   eventTitle: { color: colors.ink, fontSize: 14, fontWeight: "600" },
   invoiceRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  internalCurrent: { color: colors.ink, fontSize: 16, lineHeight: 22, fontWeight: "700", marginBottom: spacing.sm },
+  internalKicker: { color: colors.inkMuted, fontSize: 10, fontWeight: "700", letterSpacing: 1, marginTop: spacing.md, marginBottom: spacing.xs },
+  internalReason: { color: colors.inkMuted, fontSize: 13, lineHeight: 18 },
+  internalEventRow: { paddingVertical: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.separator },
+  internalEventLabel: { color: colors.ink, fontSize: 13, fontWeight: "600" },
+  internalAdvance: { color: colors.primary, fontSize: 13, fontWeight: "700", marginTop: spacing.sm },
 });

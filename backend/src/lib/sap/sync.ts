@@ -3,6 +3,8 @@ import { prisma } from "../prisma";
 import { getSapConnector } from "./index";
 import { nextQuarterlyCheckpoint } from "../../modules/credit/reviewSchedule";
 import { upsertInventorySnapshot } from "../../modules/inventory/inventoryService";
+import { CommercialStatusCode } from "@prisma/client";
+import { recordCommercialStatusEvent } from "../../modules/commercialStatus/statusService";
 
 export interface SyncOutcome {
   entity: SapEntity;
@@ -110,6 +112,12 @@ export function syncCustomers() {
           const nextReviewAt = nextQuarterlyCheckpoint(retailer.createdAt);
           await tx.creditProfile.create({
             data: { retailerId: retailer.id, rating: "N", accountCreatedAt: retailer.createdAt, nextReviewAt },
+          });
+          await recordCommercialStatusEvent(tx, {
+            code: CommercialStatusCode.ACCOUNT_OPENED,
+            retailerId: retailer.id,
+            metadata: { source: "sap_customer_sync", sapCustomerId: row.sapCustomerId },
+            idempotencyKey: `account-opened:${retailer.id}`,
           });
         });
         created++;

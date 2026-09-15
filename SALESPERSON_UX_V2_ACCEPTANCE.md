@@ -74,6 +74,89 @@ path and labels it Standard case pricing. Configured commercial baskets still re
 the same manager-confirmed quote/revision. No backend rule changed.
 Two additional tests cover null quotes and exact quote identity/revision (174 total).
 
-Pending replacement build/install. Source tests do not prove Android rendering or hosted
-check-in/order completion. Missing hosted route, location or freight preconditions must be
-reported BLOCKED, never bypassed. Existing APKs and base apps remain protected.
+The initial pre-build status above is retained as history. Final device results follow.
+
+## Final checkpoint — 16 September 2026
+
+- UX branch: codex/gagan-salesperson-ux-refinement-v2.
+- UX source: 966e082a13bff5c454d6b8c6bfe62cf227405337 (clean, pushed).
+- Build branch: codex/gagan-salesperson-ux-v2-apk.
+- Exact APK build source: 7f34e204af5db77e56254285dad3a50e0bab79a0.
+- Build branch differs from UX runtime only in app.config.js and eas.json.
+- Package/label: com.gagan.sales.review / Gagan Sales Review.
+- Version: 1.0.3 / versionCode 4.
+- Standalone release: YES; embedded JS bundle; no Metro or local API runtime required.
+- API: https://gagan-srat.onrender.com.
+- APK: /Users/tanutejas/Desktop/gagan-salesperson-ux-v2-966e082.apk.
+- SHA-256: 159f75561e5301f206dce353eb18587bb565b48d20d7df7160bbca0a44bfc3ea.
+- Size: 87,987,957 bytes.
+- Signing certificate SHA-256: fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c.
+  Existing compatible review/debug certificate; not production signing.
+- Moto E13 ZD2229Q3KB: installed with replace, no uninstall or data clear.
+- Final source/build suites: 31 files / 174 tests PASS; typecheck PASS; diff check PASS.
+- Release build PASS. Final runtime source tree matches the pushed UX source.
+- Bundle contains gagan-srat; old staging hostname and known local API endpoints absent.
+
+The earlier V2 APK gagan-salesperson-ux-v2-3a82ee5.apk is retained as failed-checkout
+diagnostic history, not the final review artifact. The original accepted version 1.0.2 APK
+gagan-salesperson-client-uat-ux-207aac6.apk is unchanged (SHA-256
+26395e51b24f6cf6669b129d9f93bbf67eda0963e525f4d1fdd7609112fbf767).
+Both V2 installs used code 4; Android accepted the signed replacement without downgrade
+flags, uninstall or clearing data.
+
+### Physical evidence matrix
+
+Final artifact evidence directory:
+/Users/tanutejas/Desktop/gagan-salesperson-ux-v2-evidence-966e082
+
+| Scenario | Result / exact limit | Screenshot |
+|---|---|---|
+| Session restoration | PASS, existing salesperson restored | home.png |
+| Home order | PASS: Sales, no-next-visit fallback, attention, metrics | home.png |
+| Assigned Next Visit hero | BLOCKED: current identity off duty, no assigned next visit | home.png |
+| Profile credit removal | PASS: outstanding retained, available-credit instrument absent | profile.png |
+| Catalogue / Review | PASS: one existing full-stock Toor Dal case for Kaveri | review-order.png |
+| Canonical order submission | PASS: exactly one UI submission after the fix created GGN-00000083, ₹3,120, qty 1 | order-created-83.png |
+| Success immediately opens detail | PASS: retailer, items, quantities, prices, total and Placed state visible | order-created-83.png |
+| Commercial Status | PASS for canonical Sales Order Created event on the new order | order-created-83.png |
+| Approval acknowledgement | PASS unit/source; physical approval path NOT RUN (this order required none) | — |
+| Done / Next Retailer | PASS: button returned to Retailers | order-done-next.png, next-retailer.png |
+| My Day | PASS: calendar immediately followed by Leave, no vertical attendance list | my-day.png |
+| Today offline / force-stop | PASS: persisted saved-day banner and data after network-off relaunch | home-offline-force-stop.png |
+| Reconnect + manual refresh | PASS: banner cleared, sales updated to ₹6,240 reflecting order 83 | home-reconnected.png |
+| Check-in → Catalogue timing | BLOCKED: no legitimate active UAT visit; no false GPS check-in created | — |
+| NOT ORDERING positive action | BLOCKED on same active-visit precondition; unit/source coverage PASS | — |
+| NOT ORDERING negative state | PASS: absent from no-active-visit catalogue | initial V2 catalog-no-active-visit.png |
+| Account isolation | Existing full automated tests PASS; physical account switch NOT RUN | — |
+| Market Survey | Source unchanged; assignment/permission-based physical submission NOT RUN | — |
+
+Calendar/keyboard evidence was captured before the final checkout-only correction, on the
+same V2 calendar/form runtime (unchanged in the final APK):
+/Users/tanutejas/Desktop/gagan-salesperson-ux-v2-evidence-3a82ee5
+
+- leave-from-calendar.png / leave-to-calendar.png: seven columns, lower-bound dates disabled.
+- leave-selected-dates.png: From 23 September and To 24 September retained exactly.
+- expense-calendar.png: Wednesday 16 and Saturday 5 aligned correctly; selecting 5 returned
+  Sat, 5 Sept, 2026 to the form.
+- add-store-keyboard.png: Continue visible immediately above the keyboard after scrolling.
+- No leave/expense/onboarding submission was made; the form was cancelled/left.
+- Visit keyboard was not tested without a valid active visit.
+- legacy-checkout-failure.png records the reproduced pre-fix generic failure. It is not
+  rewritten as a freight blocker: it was a client null-quote dereference before API posting.
+
+### Safety and remaining acceptance
+
+Backend/Admin/Retailer/Prisma/migrations unchanged; 39 migrations. No deployment.
+Production, main, frozen tags, Dogkart and real SAP untouched.
+Protected package update timestamps unchanged:
+com.gagan.sales 2026-09-15 09:46:04;
+com.gagan.retailer 2026-09-13 12:03:24;
+com.gagan.retailer.review 2026-09-15 22:54:12.
+Wi-Fi and mobile data restored to their initial enabled states.
+No FATAL EXCEPTION/JavascriptException match in the final bounded 1,500-line log sample;
+this is not a claim about every historical device log.
+
+SOURCE/BUILD: PASS.
+PHYSICAL UX: PARTIAL, with active-visit check-in/NOT ORDERING acceptance BLOCKED.
+READY TO RESUME FINAL CLIENT-UAT: YES, using the final APK and a legitimate active UAT visit.
+No full physical acceptance or production readiness claimed.

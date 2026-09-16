@@ -44,6 +44,18 @@ describe("Jain/Padam sales-order routing policy", () => {
     });
   });
 
+  it.each([
+    ["below five bags", 2, 2, "jain_traders"],
+    ["at five bags", 2, 3, "padam_international"],
+  ])("treats Khade Anaj and other dal as one eligible threshold: %s", (_name, khade, other, expected) => {
+    const plan = resolveSalesOrderAllocation({
+      destinationCity: "Bhopal",
+      lines: [line("khade-anaj", "OTHER", khade), line("other-dal", "OTHER", other)],
+    });
+    expect(plan.eligibleContributionBags).toBe((khade + other).toFixed(3));
+    expect(plan.lines.map((entry) => entry.entity)).toEqual([expected, expected]);
+  });
+
   it("supports the only approved weight-based Instant Mix exception", () => {
     const plan = resolveSalesOrderAllocation({
       destinationCity: "Bhopal",

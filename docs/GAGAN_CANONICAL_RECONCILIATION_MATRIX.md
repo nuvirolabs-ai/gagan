@@ -1,6 +1,6 @@
 # Gagan Canonical Product Reconciliation Matrix
 
-**Checkpoint:** `codex/gagan-canonical-product-v1` @ `9133147db817133783adc0c4cc625e07f82fead9`
+**Checkpoint:** `codex/gagan-canonical-product-v1` @ `29f78925af7f5d281e1d8f6b693547c332f49cf2`
 (created from the verified Salesperson-canonical source at
 `388cbbfc51bde57ed05b1144c5b31c4b0e09fb3d`)
 
@@ -28,7 +28,7 @@ Protected references remain unchanged:
 
 | Path | Branch | HEAD | State | Component / recovery value | Decision |
 |---|---|---|---|---|---|
-| `GAGAN/CURRENT/SOURCE` | `codex/gagan-canonical-product-v1` | `9133147db817133783adc0c4cc625e07f82fead9` | Clean | Whole-product active source | **ACTIVE CANONICAL** |
+| `GAGAN/CURRENT/SOURCE` | `codex/gagan-canonical-product-v1` | `29f78925af7f5d281e1d8f6b693547c332f49cf2` | Clean | Whole-product active source | **ACTIVE CANONICAL** |
 | `ARCHIVE/WORKTREES-AND-REPOS/Gagan-CURRENT-checkout` | `codex/gagan-current` | `df707fafe6902bd37927a9b18b2d232bd1614ec1` | Dirty: two tracked UI files modified | Main repository, all refs, dirty local UI experiments | **ARCHIVED — PATCH AND SNAPSHOTS PRESERVED** |
 | `ARCHIVE/WORKTREES-AND-REPOS/gagan-history-20260916.bundle` | all inventoried refs | all refs | Verified bundle | Branch/tag recovery for retired worktrees | **RECOVERY CHECKPOINT** |
 | `Gagan-salesperson-canonical-v1` | `codex/gagan-salesperson-canonical-v1` | `388cbbfc51bde57ed05b1144c5b31c4b0e09fb3d` | Clean before retirement | Prior canonical Salesperson worktree; same source checkpoint | **ALREADY RECONCILED; BRANCH REF PRESERVED** |
@@ -61,7 +61,7 @@ not restored merely to make the branch history look complete.
 | Backend | Descends from Wave 1B and includes current field/cache/survey/commercial-status contracts | Keep current source; no backend redeploy in cleanup |
 | Admin | Includes current Admin source plus accepted auth and survey-permission ancestry | Keep current source; no alternate Admin branch merge |
 | Salesperson | Uses the frozen baseline-compatible recovered runtime and canonical release guard | Preserve `gagan-salesperson-baseline-v1`; no template rewrite |
-| Retailer | Current `mobile/` source is present and a fresh hosted-review APK was built from `9133147` | Keep the traceable artifact under `CURRENT/BUILDS/Retailer`; archive the prior APK |
+| Retailer | Current `mobile/` source is present and a fresh hosted-review APK was built from `29f7892` | Keep the traceable artifact under `CURRENT/BUILDS/Retailer`; archive the prior APK |
 | Market Survey | Reconciled Wave 2 line and later permission/navigation fixes are ancestors of the current source | Keep current line; do not add obsolete routes or alter hosted audiences |
 | Wave 2.1 cache | `Today` cache, force-stop persistence, reconnect, and account isolation are ancestors of current source | Keep current implementation; physical Route acceptance remains a separate claim |
 | Wave 1B commercial | Protected tag and descendant source preserve pricing, GST, freight, invoices, payments, R2, and idempotency | No commercial changes |

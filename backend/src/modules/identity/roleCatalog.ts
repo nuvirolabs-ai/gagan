@@ -60,6 +60,14 @@ export const Permissions = {
 
 export type PermissionName = (typeof Permissions)[keyof typeof Permissions];
 
+// The hosted Admin acceptance needs these two permissions only. Keep this
+// narrow scope separate from the global platform_admin catalog so the source
+// catalog remains authoritative for other role-sync operations.
+export const PLATFORM_ADMIN_SURVEY_PERMISSIONS = [
+  Permissions.SURVEY_MANAGE,
+  Permissions.SURVEY_RESPONSES_VIEW,
+] as const satisfies readonly PermissionName[];
+
 const FOUNDER_ONLY: PermissionName[] = [Permissions.FOUNDER_VIEW, Permissions.FOUNDER_DECIDE];
 
 function operationalPermissions(): PermissionName[] {

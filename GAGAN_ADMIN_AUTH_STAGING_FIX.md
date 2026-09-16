@@ -28,13 +28,19 @@ business records. Dry-run is default. Applying requires an explicit matching
 ROLE_SYNC_EXPECTED_DB_HOST; do not log connection strings or credentials.
 
 After the pinned fix is deployed, inspect the exact account, database identity,
-migration count and runtime revision. Then use:
+migration count and runtime revision. For this hosted acceptance, use the
+explicitly scoped command:
 
-`node dist/modules/identity/syncRolePermissionsCli.js platform_admin --dry-run`
+`node dist/modules/identity/syncRolePermissionsCli.js platform_admin --scope=platform-admin-survey --dry-run`
 
-Review every missing relationship before applying the same command with --apply
-and the expected database host guard. Record the exact additions and repeat the
-dry-run to prove idempotency. Do not synchronize other roles in this task.
+The scoped command can propose only `survey.manage` and
+`survey.responses_view`; it must never propose `data.import` or
+`survey.respond`. Review the exact missing list before applying the same
+scoped command with `--apply` and the expected database host guard. Record the
+exact additions and repeat the scoped dry-run to prove idempotency. Do not
+synchronize other roles in this task. The unscoped command remains available
+for other full-role catalog reconciliations and is not authorized for this
+hosted acceptance.
 
 ## Local verification
 
@@ -42,9 +48,10 @@ All 39 migrations applied to a fresh disposable local PostgreSQL database.
 Initial unconfigured and unseeded runs failed for missing local test prerequisites;
 no assertions were weakened. With fixtures and local-only JWT, refresh and PII
 configuration, the backend suite passed 911 tests before the additional real
-login/refresh/me/logout integration test was added. Final full run: 912 tests in
-133 files passed, including actual database-backed login, refresh, current /me
-permissions and logout revocation. Backend typecheck and build passed.
+login/refresh/me/logout integration test was added. Final full run: 914 tests in
+133 files passed, including the scoped role-sync regressions and actual
+database-backed login, refresh, current /me permissions and logout revocation.
+Backend typecheck and build passed.
 Admin: 55 tests in 21 files passed; typecheck, lint and build passed. Admin runtime
 source is unchanged: changes there are tests only, so no new preview is needed.
 No migration files changed. No APK builds.

@@ -29,6 +29,20 @@ describe("market survey answer contract", () => {
     expect(isSurveyActorAllowed(SurveyAudience.selected_retailers, assignments, { kind: "staff", id: "staff-2" })).toBe(false);
   });
 
+  it("keeps retailer-only surveys out of the general salesperson list", () => {
+    const retailerOnly = [
+      { audience: SurveyAudience.selected_retailers, retailerId: "retailer-1", salespersonId: null },
+    ];
+    const salespersonOnly = [
+      { audience: SurveyAudience.selected_salespersons, retailerId: null, salespersonId: "staff-1" },
+    ];
+
+    expect(isSurveyActorAllowed(SurveyAudience.selected_retailers, retailerOnly, { kind: "staff", id: "staff-1" })).toBe(false);
+    expect(isSurveyActorAllowed(SurveyAudience.selected_retailers, retailerOnly, { kind: "staff", id: "staff-1", contextRetailerId: "retailer-1" })).toBe(true);
+    expect(isSurveyActorAllowed(SurveyAudience.selected_salespersons, salespersonOnly, { kind: "staff", id: "staff-1" })).toBe(true);
+    expect(isSurveyActorAllowed(SurveyAudience.selected_salespersons, salespersonOnly, { kind: "staff", id: "staff-1", contextRetailerId: "retailer-1" })).toBe(false);
+  });
+
   it("normalizes every V1 answer type and preserves option identity", () => {
     const result = service.normalizeAnswers(survey, [
       { questionId: "choice", optionIds: ["fast"] },

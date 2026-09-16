@@ -21,6 +21,7 @@ import {
   useHeaderPaddingTop,
 } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
+import { marketSurveysEntry } from "../navigation/marketSurveyNavigation";
 
 export default function RepAccountScreen({ navigation }: any) {
   const { staff, rep, logout } = useRep();
@@ -61,12 +62,7 @@ export default function RepAccountScreen({ navigation }: any) {
       subtitle: "Product and scheme material",
       screen: "SalesKit",
     },
-    staff?.permissions.includes("survey.respond") && {
-      icon: "clipboard-outline",
-      label: "Market surveys",
-      subtitle: "Answer your manager's active questions",
-      screen: "MarketSurveys",
-    },
+    marketSurveysEntry(staff?.permissions ?? []),
   ].filter(Boolean) as Array<{ icon: string; label: string; subtitle: string; screen: string }>;
 
   const grow = [

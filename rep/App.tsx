@@ -38,6 +38,7 @@ import { staffCapabilities } from "./src/auth/staffCapabilities";
 import LanguageSelectionScreen from "./src/screens/LanguageSelectionScreen";
 import SalesKitScreen from "./src/screens/SalesKitScreen";
 import MarketSurveysScreen from "./src/screens/MarketSurveysScreen";
+import { canOpenMarketSurveys, MARKET_SURVEY_LABEL, MARKET_SURVEY_ROUTE } from "./src/navigation/marketSurveyNavigation";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -215,8 +216,8 @@ function RootNavigator() {
           {capabilities.canRunFieldDay && (
             <Stack.Screen name="SalesKit" component={SalesKitScreen} options={{ title: "Sales Kit", headerBackTitle: t("tabs.more") }} />
           )}
-          {staff?.permissions.includes("survey.respond") && (
-            <Stack.Screen name="MarketSurveys" component={MarketSurveysScreen} options={{ title: "Market surveys", headerBackTitle: t("tabs.more") }} />
+          {canOpenMarketSurveys(staff?.permissions ?? []) && (
+            <Stack.Screen name={MARKET_SURVEY_ROUTE} component={MarketSurveysScreen} options={{ title: MARKET_SURVEY_LABEL, headerBackTitle: t("tabs.more") }} />
           )}
           {capabilities.canSeeCustomerMap && (
             <Stack.Screen

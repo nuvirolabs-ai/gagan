@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { PLATFORM_ADMIN_SURVEY_PERMISSIONS } from "./roleCatalog";
+import { PLATFORM_ADMIN_SURVEY_PERMISSIONS, STAFF_SURVEY_RESPOND_PERMISSIONS } from "./roleCatalog";
 import { syncRolePermissions, type RoleSyncOptions } from "./roleSync";
 
 async function main() {
@@ -15,17 +15,20 @@ async function main() {
     scopes.length > 1 ||
     unknown.length > 0
   ) {
-    throw new Error("Specify catalog role, optional --scope=platform-admin-survey, and --dry-run or --apply");
+    throw new Error("Specify catalog role, optional --scope=platform-admin-survey|staff-survey-respond, and --dry-run or --apply");
   }
 
   const mode = modes[0] ?? "--dry-run";
   const scope = scopes[0]?.slice("--scope=".length);
   let options: RoleSyncOptions = {};
   if (scope !== undefined) {
-    if (scope !== "platform-admin-survey" || role !== "platform_admin") {
-      throw new Error("The platform-admin-survey scope is valid only for platform_admin");
+    if (scope === "platform-admin-survey" && role === "platform_admin") {
+      options = { permissionNames: PLATFORM_ADMIN_SURVEY_PERMISSIONS };
+    } else if (scope === "staff-survey-respond" && (role === "salesperson" || role === "field_collector")) {
+      options = { permissionNames: STAFF_SURVEY_RESPOND_PERMISSIONS };
+    } else {
+      throw new Error("The requested role-sync scope is not valid for the selected catalog role");
     }
-    options = { permissionNames: PLATFORM_ADMIN_SURVEY_PERMISSIONS };
   }
 
   const url = new URL(process.env.DATABASE_URL ?? "");

@@ -68,6 +68,12 @@ export const PLATFORM_ADMIN_SURVEY_PERMISSIONS = [
   Permissions.SURVEY_RESPONSES_VIEW,
 ] as const satisfies readonly PermissionName[];
 
+// Narrow additive repair for staff roles whose hosted role-permission rows
+// predate Market Surveys. This must not be confused with a full role seed.
+export const STAFF_SURVEY_RESPOND_PERMISSIONS = [
+  Permissions.SURVEY_RESPOND,
+] as const satisfies readonly PermissionName[];
+
 const FOUNDER_ONLY: PermissionName[] = [Permissions.FOUNDER_VIEW, Permissions.FOUNDER_DECIDE];
 
 function operationalPermissions(): PermissionName[] {

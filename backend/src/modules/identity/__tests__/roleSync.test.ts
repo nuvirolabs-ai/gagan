@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "@prisma/client";
-import { PLATFORM_ADMIN_SURVEY_PERMISSIONS, ROLE_DEFINITIONS, Permissions } from "../roleCatalog";
+import { PLATFORM_ADMIN_SURVEY_PERMISSIONS, ROLE_DEFINITIONS, Permissions, STAFF_SURVEY_RESPOND_PERMISSIONS } from "../roleCatalog";
 import { syncRolePermissions } from "../roleSync";
 
 describe("additive catalog role synchronization", () => {
@@ -17,6 +17,12 @@ describe("additive catalog role synchronization", () => {
     const salesperson = ROLE_DEFINITIONS.find((role) => role.name === "salesperson")!;
     expect(salesperson.permissions).not.toContain(Permissions.SURVEY_MANAGE);
     expect(salesperson.permissions).not.toContain(Permissions.SURVEY_RESPONSES_VIEW);
+  });
+
+  it("defines the staff repair as only survey.respond", () => {
+    expect(STAFF_SURVEY_RESPOND_PERMISSIONS).toEqual([Permissions.SURVEY_RESPOND]);
+    expect(ROLE_DEFINITIONS.find((role) => role.name === "salesperson")?.permissions).toContain(Permissions.SURVEY_RESPOND);
+    expect(ROLE_DEFINITIONS.find((role) => role.name === "field_collector")?.permissions).toContain(Permissions.SURVEY_RESPOND);
   });
 
   it("scoped dry-run proposes exactly the two Survey permissions and no unrelated permissions", async () => {

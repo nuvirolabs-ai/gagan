@@ -14,6 +14,7 @@ const NONE = {
   canRaiseIssues: false,
   canSeeCustomerMap: false,
   canProposeRetailers: false,
+  canRespondToSurveys: false,
 };
 
 describe("role-aware staff shell", () => {
@@ -27,6 +28,7 @@ describe("role-aware staff shell", () => {
     expect(staffCapabilities(["approval.second_invoice"])).toMatchObject({ canApprove: true });
     expect(staffCapabilities(["legal.decide"])).toMatchObject({ canApprove: true });
     expect(staffCapabilities(["credit.rating_confirm"])).toMatchObject({ canReviewRatings: true });
+    expect(staffCapabilities(["survey.respond"])).toMatchObject({ canRespondToSurveys: true });
   });
 
   it("opens the field day only for the permissions that back it", () => {
@@ -66,5 +68,10 @@ describe("role-aware staff shell", () => {
     });
     // A salesperson still approves nothing.
     expect(salesperson.canApprove).toBe(false);
+  });
+
+  it("keeps Market Surveys navigation permission-aware", () => {
+    expect(staffCapabilities([]).canRespondToSurveys).toBe(false);
+    expect(staffCapabilities(["survey.respond"]).canRespondToSurveys).toBe(true);
   });
 });

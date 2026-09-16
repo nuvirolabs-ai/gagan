@@ -14,6 +14,7 @@ export const StaffPermissions = {
   ISSUE_RAISE: "issue.raise",
   LOCATION_VIEW: "location.view",
   RETAILER_PROPOSE: "retailer.propose",
+  SURVEY_RESPOND: "survey.respond",
 } as const;
 
 export function staffCapabilities(permissions: string[]) {
@@ -39,5 +40,8 @@ export function staffCapabilities(permissions: string[]) {
     canRaiseIssues: granted.has(StaffPermissions.ISSUE_RAISE),
     canSeeCustomerMap: granted.has(StaffPermissions.LOCATION_VIEW),
     canProposeRetailers: granted.has(StaffPermissions.RETAILER_PROPOSE),
+    // Market Surveys is a permission-backed destination. Keep the navigation
+    // entry and the stack route behind the same server-issued capability.
+    canRespondToSurveys: granted.has(StaffPermissions.SURVEY_RESPOND),
   };
 }

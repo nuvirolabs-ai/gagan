@@ -380,6 +380,9 @@ model Retailer {
   id                        String                     @id @default(uuid())
   name                      String
   shopAddress               String
+  /// Explicit destination city used by the Jain/Padam routing policy. This is
+  /// never inferred from shopAddress; null means routing is not configured.
+  deliveryCity              String?
   phone                     String                     @unique
   status                    RetailerLifecycle          @default(pending_kyc)
   tierId                    String
@@ -1085,6 +1088,13 @@ model Product {
 model Variant {
   sellingEntity      String?
   gstPercent         Decimal?            @db.Decimal(5, 2)
+  /// Explicit routing classification. Null preserves legacy static/ungrouped
+  /// catalog behavior until a SKU is deliberately configured for routing.
+  routingClass       String?
+  /// Approved ordered-case contribution to the five-bag threshold. Laxmi may
+  /// remain null; Instant Mix may remain null only for the documented weight
+  /// exception or an unresolved mixed-unit review.
+  routingBagEquivalent Decimal?          @db.Decimal(12, 3)
   id                 String              @id @default(uuid())
   productId          String
   product            Product             @relation(fields: [productId], references: [id])

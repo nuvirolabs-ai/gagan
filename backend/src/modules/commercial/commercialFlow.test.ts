@@ -40,6 +40,29 @@ async function deliver(o:any) {
  return createInvoiceForDelivery({orderId:o.id,idempotencyKey:randomUUID(),occurredAt:new Date(),lines:o.items.map((i:any)=>({orderItemId:i.id,deliveredCases:i.qtyOrdered}))});
 }
 describe("Wave 1B authoritative commercial lifecycle",()=>{
+ it("uses the explicit Jain/Padam routing plan before the existing quote calculator",async()=>{
+  await prisma.retailer.update({where:{id:retailer},data:{deliveryCity:"Bhopal"}});
+  await prisma.variant.update({where:{id:variants[0]},data:{sellingEntity:null,routingClass:"LAXMI_TOOR",routingBagEquivalent:null}});
+  await prisma.variant.update({where:{id:variants[1]},data:{sellingEntity:null,routingClass:"OTHER",routingBagEquivalent:"1"}});
+  try {
+   const q=await quoteFor(retailer,[{variantId:variants[0],qty:1},{variantId:variants[1],qty:5}]);
+   expect(q).not.toBeNull();
+   expect(snapshot(q!.snapshot)!.routing).toMatchObject({destination:"OUTSIDE_INDORE",eligibleContributionBags:"5.000"});
+   expect(Object.fromEntries(snapshot(q!.snapshot)!.lines.map(line=>[line.variantId,line.entity]))).toEqual({
+    [variants[0]]:"jain_traders",[variants[1]]:"padam_international",
+   });
+   expect(snapshot(q!.snapshot)!.routing!.lines.find(line=>line.variantId===variants[1])!.reason).toBe("ELIGIBLE_THRESHOLD_GTE_5_BAGS");
+   const ready=await setFreight(q!.id,q!.revision,{entity:"padam_international",amount:"100",gstPercent:"18",recordedQuintals:"1.5",recordedKilometres:"12"},staff);
+   const created=await order(ready);
+   expect(snapshot(created.commercialSnapshot)!.routing).toEqual(snapshot(ready.snapshot)!.routing);
+   const invoice=await deliver(created);
+   expect(snapshot(invoice.commercialSnapshot)!.routing).toEqual(snapshot(ready.snapshot)!.routing);
+  } finally {
+   await prisma.retailer.update({where:{id:retailer},data:{deliveryCity:null}});
+   await prisma.variant.update({where:{id:variants[0]},data:{sellingEntity:"jain_traders",routingClass:null,routingBagEquivalent:null}});
+   await prisma.variant.update({where:{id:variants[1]},data:{sellingEntity:"padam_international",routingClass:null,routingBagEquivalent:null}});
+  }
+ });
  it.each([[0],[1],[0,1],[0,1,2]])("accepts single/mixed entities and multiple packs: %j",async(...indexes)=>{
   const q=await quote(indexes.map(i=>variants[i]));const o=await order(q);
   expect(Number(o.orderTotal)).toBe(Number(snapshot(q.snapshot)!.total));

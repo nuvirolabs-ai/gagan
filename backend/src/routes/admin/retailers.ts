@@ -32,6 +32,7 @@ router.get("/retailers", async (_req, res) => {
       name: r.name,
       phone: r.phone,
       shopAddress: r.shopAddress,
+      deliveryCity: r.deliveryCity,
       tier: { id: r.tier.id, name: r.tier.name },
       salesRep: r.salesRep ? { id: r.salesRep.id, name: r.salesRep.name } : null,
       creditLimit: financial.creditLimit,
@@ -62,6 +63,7 @@ const createSchema = z.object({
   name: z.string().min(1),
   phone: z.string().min(10).max(15),
   shopAddress: z.string().min(1),
+  deliveryCity: z.string().trim().min(2).max(120).optional(),
   tierId: z.string(),
   creditLimit: z.number().min(0).default(0),
   salesRepId: z.string().optional(),
@@ -109,6 +111,15 @@ router.post("/retailers/:id/tier", async (req, res) => {
     data: { tierId: parsed.data.tierId },
     include: { tier: true },
   });
+  res.json({ retailer });
+});
+
+// Routing geography is explicit operational data. It is intentionally kept
+// separate from shopAddress so the quote engine never parses free text.
+router.post("/retailers/:id/delivery-city", async (req, res) => {
+  const parsed = z.object({ deliveryCity: z.string().trim().min(2).max(120) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid delivery city" });
+  const retailer = await prisma.retailer.update({ where: { id: req.params.id }, data: { deliveryCity: parsed.data.deliveryCity } });
   res.json({ retailer });
 });
 

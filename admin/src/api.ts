@@ -194,6 +194,7 @@ export const api = {
   retailer: (id: string) => request(`/admin/retailers/${id}`),
   createRetailer: (data: unknown) => post("/admin/retailers", data),
   setTier: (id: string, tierId: string) => post(`/admin/retailers/${id}/tier`, { tierId }),
+  setDeliveryCity: (id: string, deliveryCity: string) => post(`/admin/retailers/${id}/delivery-city`, { deliveryCity }),
   setCreditLimit: (id: string, creditLimit: number) =>
     post(`/admin/retailers/${id}/credit-limit`, { creditLimit }),
   setPriceOverride: (id: string, variantId: string, price: number) =>

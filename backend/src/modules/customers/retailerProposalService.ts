@@ -362,6 +362,7 @@ export class RetailerProposalService {
         data: {
           name: proposal.businessName,
           shopAddress: proposal.shopAddress,
+          deliveryCity: proposal.deliveryCity?.trim() || null,
           phone: proposal.phone,
           tierId,
           // Approval admits the store to the master; KYC still gates credit

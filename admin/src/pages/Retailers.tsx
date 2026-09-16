@@ -9,7 +9,7 @@ export default function Retailers() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ name: "", phone: "", shopAddress: "", tierId: "", creditLimit: "" });
+  const [form, setForm] = useState({ name: "", phone: "", shopAddress: "", deliveryCity: "", tierId: "", creditLimit: "" });
 
   const load = async () => {
     setLoading(true);
@@ -56,6 +56,22 @@ export default function Retailers() {
     }
   };
 
+  const changeDeliveryCity = async (r: any) => {
+    const input = window.prompt(`Verified delivery city for ${r.name}`, r.deliveryCity ?? "");
+    if (input == null) return;
+    if (input.trim().length < 2) {
+      setError("Delivery city is required for routed commercial quotes");
+      return;
+    }
+    try {
+      await api.setDeliveryCity(r.id, input.trim());
+      setNotice(`Delivery city for ${r.name} updated`);
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update delivery city");
+    }
+  };
+
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -63,12 +79,13 @@ export default function Retailers() {
         name: form.name,
         phone: form.phone,
         shopAddress: form.shopAddress,
+        ...(form.deliveryCity.trim() ? { deliveryCity: form.deliveryCity.trim() } : {}),
         tierId: form.tierId || tiers[0]?.id,
         creditLimit: Number(form.creditLimit) || 0,
       });
       setNotice(`${form.name} onboarded — they can sign in with ${form.phone}`);
       setCreating(false);
-      setForm({ name: "", phone: "", shopAddress: "", tierId: "", creditLimit: "" });
+      setForm({ name: "", phone: "", shopAddress: "", deliveryCity: "", tierId: "", creditLimit: "" });
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create retailer");
@@ -136,6 +153,14 @@ export default function Retailers() {
               </select>
             </div>
             <div className="field">
+              <label>Delivery city (routing input)</label>
+              <input
+                value={form.deliveryCity}
+                placeholder="Use the verified destination city"
+                onChange={(e) => setForm({ ...form, deliveryCity: e.target.value })}
+              />
+            </div>
+            <div className="field">
               <label>Credit limit</label>
               <input
                 type="number"
@@ -172,6 +197,7 @@ export default function Retailers() {
                   <td>
                     <div style={{ fontWeight: 600 }}>{r.name}</div>
                     <div className="muted small">{r.phone}</div>
+                    <div className="muted small">Delivery: {r.deliveryCity ?? "Not configured"}</div>
                     {r.commercialStatus?.currentLabel ? <div className="muted small internal-status-inline">{r.commercialStatus.currentLabel}</div> : null}
                   </td>
                   <td>
@@ -203,6 +229,9 @@ export default function Retailers() {
                     <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                       <button className="sm secondary" onClick={() => changeLimit(r)}>
                         Limit
+                      </button>
+                      <button className="sm secondary" onClick={() => changeDeliveryCity(r)}>
+                        City
                       </button>
                       <Link to={`/ledger/${r.id}`}>
                         <button className="sm secondary">Ledger</button>

@@ -15,6 +15,8 @@ const items=z.array(z.object({variantId:z.string().min(1),qty:z.number().int().p
 const money=z.string().regex(/^\d+(\.\d{1,2})?$/).refine(s=>Number(s)<=9999999999.99);
 const gst=money.refine(s=>Number(s)<=100);
 const entity=z.enum(["jain_traders","padam_international"]);
+const routingClass=z.enum(["LAXMI_TOOR","INSTANT_MIX","OTHER"]);
+const routingBags=z.string().regex(/^\d+(\.\d{1,3})?$/).refine(s=>Number(s)<=999999999.999);
 const payment=z.object({invoiceId:z.string(),amount:money,jainAmount:money,padamAmount:money,method:z.enum(["cash","bank_transfer","upi","cheque"]),reference:z.string().trim().min(1).max(200),confirmed:z.literal(true)});
 const router=Router();
 router.post("/admin/commercial/orders/:id/delivery-quote",requireAdmin,async(req,res)=>{
@@ -67,9 +69,43 @@ router.get("/admin/commercial/retailers/:id/outstanding",requireAdminIdentity,as
   res.json({retailerId:req.params.id,...totals,usage:"reporting_only"});
 });
 router.put("/admin/commercial/skus/:id",requireAdmin,async(req:AdminRequest,res)=>{
-  const body=z.object({sellingEntity:entity,gstPercent:gst,tierId:z.string(),rate:money,rateBasis:z.enum(["case","quintal"])}).parse(req.body);
+  const body=z.object({
+    // Legacy static ownership remains available for old catalog rows. When a
+    // routing class is configured, the quote engine is authoritative for the
+    // actual company assigned to the line.
+    sellingEntity:entity.nullable().optional(),
+    gstPercent:gst,
+    tierId:z.string(),
+    rate:money,
+    rateBasis:z.enum(["case","quintal"]),
+    routingClass:routingClass.nullable().optional(),
+    routingBagEquivalent:routingBags.nullable().optional(),
+  }).transform(value=>({
+    ...value,
+    sellingEntity:value.sellingEntity ?? null,
+    routingClass:value.routingClass ?? null,
+    routingBagEquivalent:value.routingBagEquivalent ?? null,
+  })).superRefine((value,ctx)=>{
+    if (value.routingClass === "OTHER" && (!value.routingBagEquivalent || Number(value.routingBagEquivalent) <= 0)) {
+      ctx.addIssue({code:z.ZodIssueCode.custom,path:["routingBagEquivalent"],message:"OTHER requires a positive approved bag equivalent"});
+    }
+    if (value.routingClass === "LAXMI_TOOR" && value.routingBagEquivalent !== null) {
+      ctx.addIssue({code:z.ZodIssueCode.custom,path:["routingBagEquivalent"],message:"LAXMI_TOOR does not use a bag equivalent"});
+    }
+    if (!value.routingClass && value.routingBagEquivalent !== null) {
+      ctx.addIssue({code:z.ZodIssueCode.custom,path:["routingClass"],message:"Routing class is required for a bag equivalent"});
+    }
+    if (!value.sellingEntity && !value.routingClass) {
+      ctx.addIssue({code:z.ZodIssueCode.custom,path:["sellingEntity"],message:"Choose a legacy company or configure a routing class"});
+    }
+  }).parse({
+    ...req.body,
+    sellingEntity: req.body.sellingEntity || null,
+    routingClass: req.body.routingClass || null,
+    routingBagEquivalent: req.body.routingBagEquivalent || null,
+  });
   const result=await prisma.$transaction(async tx=>{
-    const variant=await tx.variant.update({where:{id:req.params.id},data:{sellingEntity:body.sellingEntity,gstPercent:body.gstPercent}});
+    const variant=await tx.variant.update({where:{id:req.params.id},data:{sellingEntity:body.sellingEntity,gstPercent:body.gstPercent,routingClass:body.routingClass,routingBagEquivalent:body.routingBagEquivalent}});
     await tx.priceList.upsert({where:{tierId_variantId:{tierId:body.tierId,variantId:variant.id}},update:{price:body.rate,rateBasis:body.rateBasis},create:{tierId:body.tierId,variantId:variant.id,productId:variant.productId,price:body.rate,rateBasis:body.rateBasis}});
     await tx.auditEvent.create({data:{actorStaffId:req.staffAuth!.staffId,action:"commercial.sku_configured",subjectType:"variant",subjectId:variant.id,metadata:body}});
     return variant;
@@ -95,7 +131,7 @@ router.post("/admin/commercial/invoices/:id/payments",requireAdminIdentity,async
 });
 router.use((error:unknown,_req:Request,res:Response,next:NextFunction)=>{
   if(error instanceof z.ZodError) return res.status(400).json({error:"invalid_commercial_input",details:error.flatten()});
-  if(error instanceof CommercialError) return res.status(error.status).json({error:error.code});
+  if(error instanceof CommercialError) return res.status(error.status).json({error:error.code,...(error.details ? {details:error.details} : {})});
   if(error instanceof PaymentSettlementError) return res.status(409).json({error:error.code});
   next(error);
 });

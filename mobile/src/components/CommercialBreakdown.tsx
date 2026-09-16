@@ -8,6 +8,11 @@ export default function CommercialBreakdown({value}:{value:any}) {
   if (!value) return null;
   return <View style={styles.panel}>
     <Text style={styles.heading}>Commercial breakdown</Text>
+    {value.routing ? <View style={styles.routing}>
+      <Text style={styles.heading}>Routing · {value.routing.destination === "INDORE_CITY" ? "Indore City" : "Outside Indore"}</Text>
+      <Text style={styles.text}>{value.routing.explanation}</Text>
+      <Text style={styles.text}>Eligible threshold contribution: {value.routing.eligibleContributionBags} bags</Text>
+    </View> : null}
     {value.lines.map((line:any)=><View key={line.variantId} style={styles.line}>
       <Text style={styles.heading}>{line.productName ?? line.variantId}</Text>
       <Text style={styles.text}>{line.pack} · {entityName(line.entity)}</Text>
@@ -28,6 +33,7 @@ export default function CommercialBreakdown({value}:{value:any}) {
 const styles=StyleSheet.create({
  panel:{padding:16,gap:10,backgroundColor:colors.surface,borderRadius:16},
  line:{paddingVertical:12,gap:6,borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:colors.border},
+ routing:{padding:10,gap:4,backgroundColor:colors.bg,borderRadius:10},
  heading:{color:colors.ink,fontSize:16,fontWeight:"600"},
  text:{color:colors.inkMuted,fontSize:14,lineHeight:21},
 });

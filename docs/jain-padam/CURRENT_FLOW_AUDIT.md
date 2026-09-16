@@ -50,10 +50,10 @@ inventory or SAP boundaries.
 | Question | Current source evidence | Classification | Remaining risk |
 |---|---|---|---|
 | Where is the seller selected? | `backend/src/modules/commercial/routing.ts` resolves each line; `service.ts` passes the resolved entity to `calculateCommercialQuote`. | IMPLEMENTED | Hosted/runtime proof is still pending. |
-| What is the routing input? | `quoteFor` reads the authenticated retailer and `Retailer.deliveryCity`; each `Variant` supplies `routingClass` and optional `routingBagEquivalent`. | PARTIAL | `deliveryCity` is explicit text, not a verified canonical geography model. |
-| Does delivery city participate? | `normalizeCity` evaluates the explicit value before threshold work. It never parses `shopAddress` or GPS. | IMPLEMENTED for exact `Indore`/`Indore City`; PARTIAL for broader geography | Unknown/conflicting geography is not yet backed by an approved mapping. |
+| What is the routing input? | `quoteFor` reads the authenticated retailer and `Retailer.deliveryCity`; each `Variant` supplies `routingClass`, authoritative case weight, and explicit `routingBagEquivalent` where required. | IMPLEMENTED | Hosted data still needs a controlled UAT readiness check. |
+| Does delivery city participate? | `normalizeCity` evaluates the explicit value before threshold work. It never parses `shopAddress` or GPS. | IMPLEMENTED for exact case-normalized `Indore`/`Indore City`; all other non-empty canonical city values are outside Indore | Missing city remains blocked; controlled hosted fixtures still need verification. |
 | Is Laxmi excluded from the threshold? | `routing.ts` assigns `LAXMI_TOOR` to Jain and contributes `null`. | IMPLEMENTED | Correct metadata must exist on the SKU. |
-| Is the remaining quantity aggregated? | Lines are normalized and sorted in `normalizedLines`; `routing.ts` sums decimal contributions before applying `< 5` / `>= 5`. | IMPLEMENTED | Mapping/conversion readiness is data-dependent. |
+| Is the remaining quantity aggregated? | Lines are normalized and sorted in `normalizedLines`; `routing.ts` sums explicit BAG/non-BAG contributions and exact Instant Mix `orderedKg / 5` before applying `< 5` / `>= 5`. | IMPLEMENTED | Product-master configuration remains data-dependent. |
 | Are duplicate cart rows safe? | `normalizedLines` combines quantities by stable `variantId`; routing sorts stable IDs. | IMPLEMENTED | Must remain covered in final regression. |
 | Is the route deterministic? | Pure resolver, explicit policy version, sorted lines and decimal arithmetic. | IMPLEMENTED | No separate persisted digest field; the plan is embedded in the snapshot. |
 | Does review use server output? | `CommercialBreakdown` renders `quote.snapshot`; the clients do not calculate the threshold. | IMPLEMENTED | Exact candidate builds are installed and identified locally; hosted catalog/data and workflow proof are pending. |
@@ -70,8 +70,9 @@ The current source contains the smallest intended routing implementation:
   adds only `Retailer.deliveryCity`, `Variant.routingClass` and
   `Variant.routingBagEquivalent` plus validation checks. It does not backfill
   existing data.
-- `backend/src/modules/commercial/routing.ts` implements the pure policy and
-  the fail-closed `ROUTING_POLICY_UNRESOLVED` result.
+- `backend/src/modules/commercial/routing.ts` implements the pure policy,
+  exact Instant Mix KG ÷ 5 conversion, and data-readiness errors for missing
+  or contradictory master data.
 - `backend/src/modules/commercial/service.ts` invokes the router only when at
   least one selected SKU has routing metadata, preserving the legacy
   unconfigured-cart compatibility mode.
@@ -84,15 +85,10 @@ The current source contains the smallest intended routing implementation:
 
 ## Known unresolved or external gates
 
-1. Instant Mix mixed-unit aggregation is intentionally fail-closed pending
-   one approved KG/bag policy.
-2. The source currently treats any non-empty non-Indore `deliveryCity` as
-   outside Indore. A canonical approved geography table/boundary is not in
-   the supplied sources; this is not a safe basis for a full live release.
-3. Current staging data mappings and entity-specific dispatch readiness have
+1. Current staging data mappings and entity-specific dispatch readiness have
    not been verified against the authorized Gagan database in this run.
-4. The exact authorized Render account/service is not accessible from the
+2. The exact authorized Render account/service is not accessible from the
    current Chrome session, so hosted deployment and hosted ledger/recovery
    verification are not yet run.
-5. Exact routing APKs are built and installed on the Moto E13; workflow-level
+3. Exact routing APKs are built and installed on the Moto E13; workflow-level
    physical acceptance is still pending hosted catalog/data readiness.

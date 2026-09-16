@@ -10,11 +10,11 @@ seed rows prove production readiness.
 |---|---|---|---|
 | Stable variant/product ID | `Variant.id` / `Product.id` | Always | IMPLEMENTED in schema |
 | Routing class | `Variant.routingClass` | Always for a dynamically routed cart | Additive field; actual catalog coverage not yet verified |
-| Bag contribution | `Variant.routingBagEquivalent` | Positive for `OTHER`; optional only for the documented Instant Mix exception | Additive field; approved production values not yet verified |
-| Ordering UOM / precision | `unitSize`, `unit`, `unitsPerCase`, integer cart quantity | Existing order validation and weight calculation | Existing contract; exact threshold conversion remains BD-03 |
+| Bag contribution | `Variant.routingBagEquivalent` | Positive explicit value for `OTHER` (use `1.000` for approved BAG); not used for Instant Mix | Additive field; controlled production/UAT values still need verification |
+| Ordering UOM / precision | `unitSize`, `unit`, `unitsPerCase`, integer cart quantity | Existing order validation; BAG uses 1:1 and Instant Mix uses exact ordered KG ÷ 5 | Existing contract; non-BAG OTHER rows still require explicit contribution metadata |
 | Commercial seller/GST | `sellingEntity`, `gstPercent` and existing price tables | Required after routing | Existing engine; per-entity readiness must be checked |
 | Price basis | `PriceList` / `PriceOverride` `rateBasis` | Required for the accepted commercial quote | Existing Wave 1B contract |
-| Case weight | `unitWeightKg × unitsPerCase` | Existing commercial/invoice/SAP snapshot; only used for the approved Instant Mix exception | Existing contract; not a bag conversion |
+| Case weight | `unitWeightKg × unitsPerCase` | Existing commercial/invoice/SAP snapshot and exact Instant Mix `orderedKg / 5` routing conversion | Existing contract; authoritative weight must be positive |
 | Visibility/active state | Existing product/variant flags | Saleability | Must be checked in the staging catalog |
 | Dispatch/company mapping | Existing seller/warehouse relationships | Required for accepted order operations | Must be checked before hosted mutation |
 
@@ -36,9 +36,9 @@ must be verified before hosted UAT:
 | Area | Status | Reason |
 |---|---|---|
 | Source schema/data path | READY FOR LOCAL REHEARSAL | Migration is additive and validated in the prior source checkpoint. |
-| Routing unit tests | READY | Pure policy cases and fail-closed cases are present. |
+| Routing unit tests | READY | Pure policy cases cover exact Instant Mix conversion and boundaries. |
 | Existing commercial formulas | PRESERVED | Wave 1B calculator remains downstream. |
 | Actual hosted catalog mapping | NOT VERIFIED | Authorized Render/DB access is not available in current browser session. |
 | Approved city mapping | NOT VERIFIED | No canonical geography dataset in supplied sources. |
-| Instant Mix mixed-unit policy | BLOCKED | BD-01 is unresolved. |
+| Instant Mix mixed-unit policy | RESOLVED FOR APPROVED CASES | 5 KG = 1 routing bag; exact ordered KG ÷ 5 is aggregated with eligible BAG products. |
 | Entity-specific SAP posting | NOT APPLICABLE TO THIS RELEASE | Real SAP remains disconnected; mock/outbox attribution only. |

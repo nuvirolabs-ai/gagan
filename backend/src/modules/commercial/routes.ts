@@ -92,6 +92,9 @@ router.put("/admin/commercial/skus/:id",requireAdmin,async(req:AdminRequest,res)
     if (value.routingClass === "LAXMI_TOOR" && value.routingBagEquivalent !== null) {
       ctx.addIssue({code:z.ZodIssueCode.custom,path:["routingBagEquivalent"],message:"LAXMI_TOOR does not use a bag equivalent"});
     }
+    if (value.routingClass === "INSTANT_MIX" && value.routingBagEquivalent !== null) {
+      ctx.addIssue({code:z.ZodIssueCode.custom,path:["routingBagEquivalent"],message:"INSTANT_MIX uses the fixed ordered KG ÷ 5 conversion; leave bag equivalent blank"});
+    }
     if (!value.routingClass && value.routingBagEquivalent !== null) {
       ctx.addIssue({code:z.ZodIssueCode.custom,path:["routingClass"],message:"Routing class is required for a bag equivalent"});
     }

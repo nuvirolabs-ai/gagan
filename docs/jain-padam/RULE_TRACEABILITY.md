@@ -14,15 +14,16 @@ are in `BUSINESS_DECISIONS.md`.
 | 5 | Khade Anaj/OTHER Dal participates in one aggregate when classified `OTHER`; no special per-line threshold. | `routingClass: OTHER` contract | Named Khade/OTHER aggregate cases | Requires authoritative SKU mapping. |
 | 6 | Aggregate reaches five, so all eligible OTHER lines move to Padam. | Same | Named aggregate boundary cases | Requires authoritative SKU mapping. |
 | 7 | Exact approved `Indore`/`Indore City` destination overrides threshold and routes all lines to Jain. | `normalizeCity` first decision | Indore override tests | Broader city-boundary approval remains open. |
-| 8 | Laxmi plus authoritatively weighted Instant Mix below 5 KG routes Jain only when no other ambiguous mixed-unit line exists. | `laxmiInstantException` | Instant Mix exception tests | Exact/above-five and other mixed units remain blocked. |
-| 9 | Instant Mix with other bag products uses the threshold principle only when an approved bag equivalent exists; otherwise returns `ROUTING_POLICY_UNRESOLVED`. | Fail-closed branch | Unresolved policy tests | BD-01 required for unconfigured combinations. |
-| 10 | Laxmi never contributes to the threshold and is always Jain. | `positiveContribution` + entity branch | Laxmi-only/large Laxmi tests | Requires stable `LAXMI_TOOR` metadata. |
+| 8 | Instant Mix uses the approved exact conversion `orderedKg / 5`; Laxmi remains Jain and is excluded from the aggregate. | `contributionForLine` with `INSTANT_MIX_KG_DIV_5` | 3/10/24/25 KG boundary tests and Laxmi mixed cases | Missing/invalid authoritative weight remains a data-readiness error. |
+| 9 | Instant Mix may be combined with BAG/eligible products; exact decimal contributions are aggregated with the same five-bag threshold. | `contributionForLine` + aggregate threshold | 3 KG + 3 bags, 10 KG + 3 bags, and multi-line cases | No manual Instant Mix override or inferred non-BAG conversion. |
+| 10 | Laxmi never contributes to the threshold and is always Jain. | `contributionForLine` + entity branch | Laxmi-only/large Laxmi tests | Requires stable `LAXMI_TOOR` metadata. |
 | Final priority | Indore → Laxmi separate → remaining aggregate → one or two entity groups in the existing combined commercial contract. | `resolveSalesOrderAllocation` | Routing matrix | Full status also needs data, hosted and physical gates. |
 
 ## Engineering safeguards
 
 - Cart quantities are normalized by stable SKU ID before routing.
-- Decimal arithmetic is used for threshold contributions.
+- Decimal arithmetic is used for threshold contributions, including exact
+  Instant Mix KG ÷ 5 results without pre-threshold rounding.
 - No client-supplied seller, threshold or price is trusted by the backend.
 - Quote snapshot and accepted order snapshot carry the resolved lines and
   explanation so future master-data changes cannot reroute history.

@@ -11,7 +11,7 @@ execution evidence is recorded. `BLOCKED` and `NOT_RUN` are not passes.
 |---|---|---|---|
 | Indore override | R01–R03 | Pure resolver + backend quote | Unit/integration evidence exists; hosted/device pending |
 | Bag threshold | R04–R20 | Below/exact/above five, aggregate, duplicate lines, decimal boundary | Local routing tests exist; catalog conversion readiness pending |
-| Instant Mix | R21–R24 | Documented `<5 KG` exception; unresolved structured error elsewhere | Local fail-closed tests; BD-01 blocks full completion |
+| Instant Mix | R21–R24 | Exact `orderedKg / 5` conversion; 3/10/24/25 KG boundaries; aggregation with BAG products; Laxmi exclusion | Local unit tests added; hosted catalog and device proof pending |
 | Input validation | R25–R28 | Empty/invalid/large/deterministic/tampered input | Existing validation and routing tests; final full rerun pending |
 | Data/geography | D01–D12 | Stable IDs, mapping errors, destination change, historical snapshot | Source contract documented; approved hosted data not verified |
 | Quote/commit | Q01–Q19 | One authoritative quote, freshness, idempotency, atomic persistence | Existing Wave 1B + routing tests; final candidate/hosted proof pending |
@@ -37,5 +37,6 @@ execution evidence is recorded. `BLOCKED` and `NOT_RUN` are not passes.
 2. The Moto E13 has the exact routing review artifacts installed and the
    Salesperson source identity is visible in-app; workflow-level acceptance
    remains pending hosted catalog/data readiness.
-3. BD-01 (Instant Mix mixed units), BD-02 canonical geography and BD-03
-   production bag mapping are not fully resolved in supplied source.
+3. Controlled hosted routing data still needs to be configured and verified:
+   approved Indore/outside-Indore city values, Laxmi/Instant Mix/OTHER SKU
+   classes, explicit BAG equivalents, prices, GST, and entity readiness.

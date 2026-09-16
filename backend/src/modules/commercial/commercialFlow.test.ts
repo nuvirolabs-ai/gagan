@@ -71,6 +71,24 @@ describe("Wave 1B authoritative commercial lifecycle",()=>{
    await prisma.variant.update({where:{id:variants[1]},data:{sellingEntity:"padam_international",routingClass:null,routingBagEquivalent:null}});
   }
  });
+ it("persists the fixed Instant Mix conversion in the authoritative quote snapshot",async()=>{
+  await prisma.retailer.update({where:{id:retailer},data:{deliveryCity:"Bhopal"}});
+  await prisma.variant.update({where:{id:variants[2]},data:{unitSize:"3kg",unitsPerCase:1,unitWeightKg:3,sellingEntity:null,routingClass:"INSTANT_MIX",routingBagEquivalent:null}});
+  await prisma.variant.update({where:{id:variants[1]},data:{sellingEntity:null,routingClass:"OTHER",routingBagEquivalent:"1"}});
+  try {
+   const q=await quoteFor(retailer,[{variantId:variants[2],qty:1},{variantId:variants[1],qty:3}]);
+   expect(q).not.toBeNull();
+   const routing=snapshot(q!.snapshot)!.routing!;
+   expect(routing.eligibleContributionBags).toBe("3.600");
+   expect(routing.lines.find(line=>line.variantId===variants[2])).toMatchObject({
+    contributionBasis:"INSTANT_MIX_KG_DIV_5",orderedKg:"3.000",contributionBags:"0.600",entity:"jain_traders",
+   });
+   expect(routing.lines.find(line=>line.variantId===variants[1])?.entity).toBe("jain_traders");
+  } finally {
+   await prisma.variant.update({where:{id:variants[2]},data:{unitSize:"5kg",unitsPerCase:6,unitWeightKg:5,sellingEntity:"jain_traders",routingClass:null,routingBagEquivalent:null}});
+   await prisma.variant.update({where:{id:variants[1]},data:{sellingEntity:"padam_international",routingClass:null,routingBagEquivalent:null}});
+  }
+ });
  it.each([[0],[1],[0,1],[0,1,2]])("accepts single/mixed entities and multiple packs: %j",async(...indexes)=>{
   const q=await quote(indexes.map(i=>variants[i]));const o=await order(q);
   expect(Number(o.orderTotal)).toBe(Number(snapshot(q.snapshot)!.total));

@@ -58,7 +58,8 @@ export default function Commercial() {
       <label>SKU<select name="variantId">{data.variants.map((v:Row)=><option key={v.id} value={v.id}>{v.product.name} · {v.unitSize} × {v.unitsPerCase} · {v.sellingEntity?entityName(v.sellingEntity):"Not configured"}</option>)}</select></label>
       <label>Legacy company (used only when routing is not configured)<select name="sellingEntity"><option value="">Dynamic routing chooses company</option><option value="jain_traders">Jain Traders</option><option value="padam_international">Padam International</option></select></label>
       <label>Routing class<select name="routingClass"><option value="">Not configured</option><option value="LAXMI_TOOR">Laxmi Toor Dal</option><option value="INSTANT_MIX">Instant Mix</option><option value="OTHER">Other eligible product</option></select></label>
-      <label>Approved bag contribution per ordered case<input name="routingBagEquivalent" type="number" min="0" step="0.001" placeholder="Required for Other; optional approved Instant Mix mapping"/></label>
+      <label>Approved routing-bag equivalent per ordered case<input name="routingBagEquivalent" type="number" min="0" step="0.001" placeholder="Use 1 for BAG; required for OTHER; leave blank for Instant Mix"/></label>
+      <p className="small muted">Instant Mix uses the approved fixed conversion of ordered KG ÷ 5; it does not use a manually entered bag equivalent.</p>
       <label>Tier<select name="tierId">{data.tiers.map((t:Row)=><option value={t.id} key={t.id}>{t.name}</option>)}</select></label>
       <label>Quoted rate (GST excluded)<input name="rate" type="number" min="0" step="0.01" required/></label>
       <label>Rate basis<select name="rateBasis"><option value="case">Per case</option><option value="quintal">Per quintal</option></select></label>

@@ -4,12 +4,16 @@ module.exports = ({ config }) => {
     if (process.env.EXPO_PUBLIC_API_URL !== "https://gagan-srat.onrender.com") {
       throw new Error("Hosted review profile requires the client-owned staging API");
     }
+    const reviewVersionCode = Number(process.env.GAGAN_REVIEW_VERSION_CODE);
+    const versionCode = Number.isInteger(reviewVersionCode) && reviewVersionCode > 0
+      ? reviewVersionCode
+      : 2;
     return {
       ...config,
       name: "Gagan Retailer Review",
-      version: "1.0.1",
+      version: process.env.GAGAN_REVIEW_VERSION_NAME || "1.0.1",
       scheme: "gaganretailerreview",
-      android: { ...config.android, package: `${config.android.package}.review`, versionCode: 2 },
+      android: { ...config.android, package: `${config.android.package}.review`, versionCode },
       ios: { ...config.ios, bundleIdentifier: `${config.ios.bundleIdentifier}.review` },
     };
   }

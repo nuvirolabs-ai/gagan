@@ -9,9 +9,8 @@ module.exports = ({ config }) => {
   }
   if (stagingReview && ![
     "https://gagan-srat.onrender.com",
-    "https://gagan-staging-api.onrender.com",
   ].includes(apiUrl)) {
-    throw new Error("Staging review profile requires an approved Gagan staging API");
+    throw new Error("Staging review profile requires the client-owned Gagan staging API");
   }
   const reviewVersionCode = Number(process.env.GAGAN_REVIEW_VERSION_CODE);
   const versionCode = Number.isInteger(reviewVersionCode) && reviewVersionCode > 0

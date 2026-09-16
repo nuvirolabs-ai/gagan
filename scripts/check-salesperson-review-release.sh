@@ -7,7 +7,7 @@ set -euo pipefail
 
 branch=$(git branch --show-current)
 case "$branch" in
-  codex/gagan-canonical-product-v1|codex/gagan-salesperson-canonical-v1)
+  codex/gagan-canonical-product-v1|codex/gagan-salesperson-canonical-v1|codex/gagan-jain-padam-routing-v1|codex/gagan-jain-padam-dynamic-routing-v1)
     ;;
   *)
   echo "wrong branch: $branch" >&2
@@ -26,6 +26,13 @@ if ! rg -q 'https://gagan-srat\.onrender\.com' rep/eas.json; then
   echo "approved review API is not present in rep/eas.json" >&2
   exit 1
 fi
+
+for active_config in rep/eas.json mobile/eas.json admin/vercel.json admin/.env.example admin/vite.config.ts; do
+  if rg -q 'https://gagan-staging-api\.onrender\.com' "$active_config"; then
+    echo "forbidden alternate API is present in active release config: $active_config" >&2
+    exit 1
+  fi
+done
 
 if git show-ref --verify --quiet refs/tags/gagan-salesperson-baseline-v1; then
   baseline_tag=$(git rev-parse refs/tags/gagan-salesperson-baseline-v1^{} 2>/dev/null)

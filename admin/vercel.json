@@ -5,7 +5,7 @@
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
   "build": {
     "env": {
-      "VITE_API_URL": "https://gagan-staging-api.onrender.com"
+      "VITE_API_URL": "https://gagan-srat.onrender.com"
     }
   }
 }

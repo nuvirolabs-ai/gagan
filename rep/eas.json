@@ -6,7 +6,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://gagan-staging-api.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://gagan-srat.onrender.com"
       }
     },
     "review": {

@@ -9,7 +9,7 @@ export default defineConfig({
       // Keep local Admin testing pointed at the hosted staging API without
       // requiring the staging backend to allow arbitrary localhost origins.
       "/api": {
-        target: "https://gagan-staging-api.onrender.com",
+        target: "https://gagan-srat.onrender.com",
         changeOrigin: true,
         secure: true,
         rewrite: (path) => path.replace(/^\/api/, ""),

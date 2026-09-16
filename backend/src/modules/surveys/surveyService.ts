@@ -433,10 +433,10 @@ export class SurveyService {
 
   async activate(surveyId: string, actorStaffId: string) {
     const survey = await this.prisma.$transaction(async (tx) => {
-      const current = await tx.survey.findUnique({ where: { id: surveyId }, include: { questions: { include: { options: true } } } });
+      const current = await tx.survey.findUnique({ where: { id: surveyId }, include: { questions: { include: { options: true } }, assignments: true } });
       if (!current) throw new SurveyError("survey_not_found", 404);
       if (current.status !== SurveyStatus.draft) throw new SurveyError("survey_not_draft");
-      validateDefinition({ title: current.title, description: current.description ?? undefined, audience: current.audience, startsAt: current.startsAt ?? undefined, endsAt: current.endsAt ?? undefined, questions: current.questions.map((question) => ({ prompt: question.prompt, type: question.type, required: question.required, minValue: question.minValue == null ? undefined : Number(question.minValue), maxValue: question.maxValue == null ? undefined : Number(question.maxValue), maxLength: question.maxLength ?? undefined, options: question.options.map((option) => ({ label: option.label, value: option.value ?? undefined })) })) });
+      validateDefinition({ title: current.title, description: current.description ?? undefined, audience: current.audience, startsAt: current.startsAt ?? undefined, endsAt: current.endsAt ?? undefined, retailerIds: current.assignments.map((assignment) => assignment.retailerId).filter((id): id is string => Boolean(id)), salespersonIds: current.assignments.map((assignment) => assignment.salespersonId).filter((id): id is string => Boolean(id)), questions: current.questions.map((question) => ({ prompt: question.prompt, type: question.type, required: question.required, minValue: question.minValue == null ? undefined : Number(question.minValue), maxValue: question.maxValue == null ? undefined : Number(question.maxValue), maxLength: question.maxLength ?? undefined, options: question.options.map((option) => ({ label: option.label, value: option.value ?? undefined })) })) });
       const updated = await tx.survey.update({ where: { id: surveyId }, data: { status: SurveyStatus.active, activatedAt: new Date() }, include: SURVEY_INCLUDE });
       await tx.auditEvent.create({ data: { actorStaffId, action: "SURVEY_ACTIVATED", subjectType: "survey", subjectId: surveyId, metadata: { status: SurveyStatus.active } } });
       return updated;

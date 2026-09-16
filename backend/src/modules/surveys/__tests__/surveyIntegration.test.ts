@@ -18,7 +18,8 @@ const service = new SurveyService(prisma);
 const definition: SurveyDefinitionInput = {
   title: `Market survey ${ids.survey}`,
   description: "Local UAT survey",
-  audience: SurveyAudience.all_retailers,
+  audience: SurveyAudience.selected_retailers,
+  retailerIds: [ids.retailer],
   questions: [
     {
       prompt: "How was product availability?",

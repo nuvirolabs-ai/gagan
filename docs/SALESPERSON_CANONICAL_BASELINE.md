@@ -1,7 +1,9 @@
 # Gagan Salesperson Canonical Baseline
 
-Status: recovery candidate; promote only after the recorded physical checks
-pass.
+Status: canonical recovery checkpoint; use only with the traceable review
+artifact and the recovery matrix in this directory. Route/check-in/order
+physical acceptance and physical second-account isolation remain explicitly
+blocked by missing controlled device preconditions.
 
 ## Canonical source
 
@@ -26,10 +28,17 @@ contract was imported.
 - Every artifact requires a source SHA, build version, API target, certificate
   fingerprint, hash, and physical-device result
 - More → Account includes a read-only source/version/API label
+- The first post-fix versionCode 6 build was rejected because its native
+  version was 1.0.6 while its embedded JavaScript still reported the prior
+  1.0.5/549b9f7 identity. The replacement was rebuilt from a fresh checkout
+  with a cleared Expo export cache.
 
-The current review APK is the only artifact to use for this baseline after it
-is built and verified. Older artifacts remain rollback/history until the
-archive index records their disposition.
+The current review APK is
+`/Users/tanutejas/Desktop/gagan-salesperson-canonical-v1-b5b92ed-v2.apk`
+(SHA-256
+`876627642a1fff1b9b3b0ddf0d0f197e28e52bf810c4c9f13087b8fe95975ba7`). It is
+the only artifact to use for this baseline. Older artifacts remain rollback /
+history in the dated archive and are not build inputs.
 
 ## Required regression gate
 
@@ -40,8 +49,10 @@ Run from a clean pinned commit:
    recovery changes `rep/` and review build configuration only.
 3. `git diff --check`.
 4. Release APK package/API/source identity verification.
-5. Moto E13 checks for keyboard/forms, calendars, Home/My Day, order review,
-   offline/reconnect, Survey navigation/context, and account isolation.
+5. Moto E13 checks for keyboard/forms, calendars, Home/My Day, Survey
+   navigation/context, and available offline/reconnect evidence. Do not
+   promote active-visit/order/account-isolation checks without their legitimate
+   controlled preconditions.
 
 ## Retired build paths
 

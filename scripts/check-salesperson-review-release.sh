@@ -23,6 +23,14 @@ if ! rg -q 'https://gagan-srat\.onrender\.com' rep/eas.json; then
   exit 1
 fi
 
+if git show-ref --verify --quiet refs/tags/gagan-salesperson-baseline-v1; then
+  baseline_tag=$(git rev-parse refs/tags/gagan-salesperson-baseline-v1^{} 2>/dev/null)
+  if ! git merge-base --is-ancestor "$baseline_tag" HEAD; then
+    echo "source does not descend from gagan-salesperson-baseline-v1" >&2
+    exit 1
+  fi
+fi
+
 echo "Salesperson review release guard: PASS"
 echo "branch=$branch"
 echo "source=$(git rev-parse HEAD)"

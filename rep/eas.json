@@ -8,6 +8,16 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://gagan-staging-api.onrender.com"
       }
+    },
+    "review": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://gagan-srat.onrender.com",
+        "GAGAN_STAGING_REVIEW": "1"
+      }
     }
   }
 }

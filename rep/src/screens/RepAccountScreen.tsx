@@ -22,6 +22,7 @@ import {
 } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 import { marketSurveysEntry } from "../navigation/marketSurveyNavigation";
+import { buildApiLabel, buildInfo } from "../buildInfo";
 
 export default function RepAccountScreen({ navigation }: any) {
   const { staff, rep, logout } = useRep();
@@ -200,6 +201,16 @@ export default function RepAccountScreen({ navigation }: any) {
             <TextButton label={t("account.logout")} onPress={confirmLogout} />
           </Surface>
         </View>
+
+        <View style={styles.buildInfo} accessibilityLabel="Review build identity">
+          <Text style={styles.buildLabel}>Review build</Text>
+          <Text style={styles.buildValue} selectable>
+            {buildInfo.sourceSha === "unpublished"
+              ? "Unpublished local build"
+              : `${buildInfo.version} · ${buildInfo.sourceSha.slice(0, 12)}`}
+          </Text>
+          <Text style={styles.buildMeta}>{buildInfo.channel} · {buildApiLabel(buildInfo.api)}</Text>
+        </View>
       </ScrollView>
     </AppScreen>
   );
@@ -217,4 +228,8 @@ const styles = StyleSheet.create({
   langLabel: { fontSize: 15, fontWeight: "600", color: colors.ink, marginBottom: spacing.sm },
   langRow: { flexDirection: "row", gap: spacing.sm },
   note: { fontSize: 13, color: colors.textSecondary, lineHeight: 18, marginTop: spacing.md },
+  buildInfo: { paddingHorizontal: spacing.xs, paddingBottom: spacing.sm, gap: 2 },
+  buildLabel: { fontSize: 11, fontWeight: "700", color: colors.textSecondary, letterSpacing: 0.5, textTransform: "uppercase" },
+  buildValue: { fontSize: 12, color: colors.ink, fontWeight: "600" },
+  buildMeta: { fontSize: 11, color: colors.textSecondary },
 });

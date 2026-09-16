@@ -1,8 +1,8 @@
 # Jain / Padam dynamic routing — current flow audit
 
-**Audited source:** `codex/gagan-jain-padam-dynamic-routing-v1` at
-`7d0ded2c13343733243b716f15c467f96afc2939` (clean; equals the remote branch
-at audit time).
+**Audited source:** `codex/gagan-jain-padam-routing-v1` at
+`595ca729e414b7387c0d534ba97dc162f175bff0` (clean; exact pushed local
+acceptance checkpoint).
 
 **Business source:** the byte-preserved DOCX in
 `/Users/tanutejas/Documents/GAGAN/CURRENT/DOCS/Commercial/SOURCES/`.
@@ -56,8 +56,8 @@ inventory or SAP boundaries.
 | Is the remaining quantity aggregated? | Lines are normalized and sorted in `normalizedLines`; `routing.ts` sums decimal contributions before applying `< 5` / `>= 5`. | IMPLEMENTED | Mapping/conversion readiness is data-dependent. |
 | Are duplicate cart rows safe? | `normalizedLines` combines quantities by stable `variantId`; routing sorts stable IDs. | IMPLEMENTED | Must remain covered in final regression. |
 | Is the route deterministic? | Pure resolver, explicit policy version, sorted lines and decimal arithmetic. | IMPLEMENTED | No separate persisted digest field; the plan is embedded in the snapshot. |
-| Does review use server output? | `CommercialBreakdown` renders `quote.snapshot`; the clients do not calculate the threshold. | IMPLEMENTED | Physical final-artifact proof is pending. |
-| Does commit use the reviewed route? | `createOrderForRetailer` locks and validates the quote, copies accepted commercial lines/snapshot, then persists the order. | IMPLEMENTED | Hosted and final APK proof are pending. |
+| Does review use server output? | `CommercialBreakdown` renders `quote.snapshot`; the clients do not calculate the threshold. | IMPLEMENTED | Exact candidate builds are installed and identified locally; hosted catalog/data and workflow proof are pending. |
+| Does commit use the reviewed route? | `createOrderForRetailer` locks and validates the quote, copies accepted commercial lines/snapshot, then persists the order. | IMPLEMENTED | Exact candidate builds are installed; hosted and full workflow proof are pending. |
 | Are historical decisions preserved? | Order, item, invoice and invoice-line commercial snapshots are retained; existing Wave 1B tests cover master edits. | IMPLEMENTED | Legacy rows without routing metadata remain legacy; this must be explicit in Admin/reporting. |
 | How are mixed carts represented? | One parent customer order/combined invoice with per-line entity attribution, as in Wave 1B. | IMPLEMENTED | Real SAP entity-specific posting remains disconnected. |
 | What does SAP assume? | Existing one-order payload carries the commercial snapshot; real SAP is not connected and mock/outbox is the test boundary. | PARTIAL / INTEGRATION BOUNDARY | No new real-SAP child-order contract is authorized. |
@@ -94,5 +94,5 @@ The current source contains the smallest intended routing implementation:
 4. The exact authorized Render account/service is not accessible from the
    current Chrome session, so hosted deployment and hosted ledger/recovery
    verification are not yet run.
-5. Final routing APKs and physical Moto E13 acceptance are not yet run for
-   this candidate.
+5. Exact routing APKs are built and installed on the Moto E13; workflow-level
+   physical acceptance is still pending hosted catalog/data readiness.

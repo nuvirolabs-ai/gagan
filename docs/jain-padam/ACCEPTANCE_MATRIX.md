@@ -21,9 +21,9 @@ execution evidence is recorded. `BLOCKED` and `NOT_RUN` are not passes.
 
 | ID range | Surface | Required result | Current status |
 |---|---|---|---|
-| U01–U06 | Retailer/Salesperson review and cart retention | Backend groups/requote/errors with no client routing engine | Final APK not built for this candidate |
-| U07–U09 | Dates, keyboard, Home/My Day, safe area | Accepted Salesperson UX remains present | Prior same-source evidence only; final artifact pending |
-| U10 | Surveys | Navigation/capability/context preserved; no survey mutation | Prior same-source evidence; final artifact pending |
+| U01–U06 | Retailer/Salesperson review and cart retention | Backend groups/requote/errors with no client routing engine | Exact candidate APKs built and installed; workflow acceptance pending hosted data |
+| U07–U09 | Dates, keyboard, Home/My Day, safe area | Accepted Salesperson UX remains present | Exact Salesperson candidate launched on Moto E13; broader workflow evidence pending |
+| U10 | Surveys | Navigation/capability/context preserved; no survey mutation | Exact Salesperson candidate contains Market Survey entry; hosted permission/context acceptance pending |
 | U11–U14 | Admin/history/navigation/content | Stored snapshot and actions remain accurate | Hosted Admin/device proof pending |
 | O01–O08 | Offline/session/cache | No stale/fabricated route; account isolation | Prior source tests; final artifact/hosted proof pending |
 | H01–H13 | Auth/host/release | Exact service, DB, CORS, cookies, logs and pinned source | Render access/recovery gate pending |
@@ -34,7 +34,8 @@ execution evidence is recorded. `BLOCKED` and `NOT_RUN` are not passes.
 1. The current browser session is authorized for Dogkart, not the target Gagan
    Render service; hosted topology, recovery and migration ledger cannot yet
    be verified safely.
-2. The Moto E13 device has not yet been re-verified against a newly built
-   routing artifact.
+2. The Moto E13 has the exact routing review artifacts installed and the
+   Salesperson source identity is visible in-app; workflow-level acceptance
+   remains pending hosted catalog/data readiness.
 3. BD-01 (Instant Mix mixed units), BD-02 canonical geography and BD-03
    production bag mapping are not fully resolved in supplied source.

@@ -47,6 +47,14 @@ describe("admin auth context", () => {
     expect(screen.getByText("financial.correct")).toBeInTheDocument();
   });
 
+  it("requires login for an invalid or expired refresh session", async () => {
+    vi.mocked(api.refresh).mockRejectedValue(new Error("refresh_expired"));
+    render(<AuthProvider><Probe /></AuthProvider>);
+    expect(await screen.findByText("Signed out")).toBeInTheDocument();
+    expect(api.me).not.toHaveBeenCalled();
+    expect(clearAccessToken).toHaveBeenCalled();
+  });
+
   it("revokes the server session before clearing in-memory access", async () => {
     render(<AuthProvider><Probe /></AuthProvider>);
     await screen.findByText("Ops Admin");

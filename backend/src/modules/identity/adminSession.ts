@@ -13,6 +13,9 @@ export function adminRefreshCookieConfig(
     // downgraded to an insecure browser cookie merely because it is not live
     // production.
     secure: environment === "production" || environment === "staging",
+    // Hosted Admin and API are cross-site. Retain HttpOnly, Secure, exact
+    // CORS and the refresh route's custom CSRF header; keep local HTTP strict.
+    sameSite: environment === "production" || environment === "staging" ? "none" : "strict",
     path: "/admin/auth",
     csrfHeader: { name: "x-gagan-client", value: "admin-web" },
   };

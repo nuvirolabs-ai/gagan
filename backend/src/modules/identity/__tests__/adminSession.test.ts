@@ -1,9 +1,18 @@
 import express from "express";
 import request from "supertest";
 import { describe, expect, it } from "vitest";
-import { sendAdminSession } from "../adminSession";
+import { adminRefreshCookieConfig, sendAdminSession } from "../adminSession";
 
 describe("admin session response", () => {
+  it("allows hosted cross-site refresh without weakening local cookie defaults", () => {
+    for (const environment of ["staging", "production"]) {
+      expect(adminRefreshCookieConfig(environment)).toMatchObject({
+        secure: true, sameSite: "none", path: "/admin/auth",
+        csrfHeader: { name: "x-gagan-client", value: "admin-web" },
+      });
+    }
+    expect(adminRefreshCookieConfig("development")).toMatchObject({ secure: false, sameSite: "strict" });
+  });
   it("keeps the refresh token out of JavaScript-visible response data", async () => {
     const now = new Date("2026-08-20T10:00:00.000Z");
     const app = express();
@@ -43,5 +52,8 @@ describe("admin session response", () => {
     expect(response.headers["set-cookie"][0]).toContain("gagan_admin_refresh=");
     expect(response.headers["set-cookie"][0]).toContain("HttpOnly");
     expect(response.headers["set-cookie"][0]).toContain("Secure");
+    expect(response.headers["set-cookie"][0]).toContain("SameSite=None");
+    expect(response.headers["set-cookie"][0]).toContain("Path=/admin/auth");
+    expect(response.headers["set-cookie"][0]).not.toContain("Domain=");
   });
 });

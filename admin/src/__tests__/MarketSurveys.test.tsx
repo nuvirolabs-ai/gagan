@@ -45,4 +45,18 @@ describe("Market Survey builder", () => {
       salespersonIds: ["staff-1"],
     })));
   });
+
+  it("returns a saved draft to review so it can be activated", async () => {
+    vi.mocked(api.surveys).mockResolvedValueOnce({ surveys: [{ id: "survey-1", title: "UAT", status: "draft", audience: "selected_retailers" }] });
+    vi.mocked(api.survey).mockResolvedValue({ survey: { id: "survey-1", title: "UAT", status: "draft", audience: "selected_retailers", questions: [], assignments: [] } });
+
+    render(<MarketSurveys />);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /UAT/ })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /UAT/ }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save draft" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Review draft" }));
+
+    expect(screen.getByRole("button", { name: "Activate" })).toBeInTheDocument();
+  });
 });

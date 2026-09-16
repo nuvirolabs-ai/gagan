@@ -85,6 +85,10 @@ variants. No hosted database was written.
 
 For local rehearsal, use a newly created disposable PostgreSQL database and
 retain the dry-run JSON, input checksum, batch summary, and database dump
-outside Git. For hosted staging, take an approved recovery point and perform
-the migration/data preflight before setting the staging apply guard. No
-hosted write was performed for this checkpoint.
+outside Git. The seeded/import rehearsal dump for this checkpoint is
+`/Users/tanutejas/Documents/GAGAN/ARCHIVE/catalogue-source/20260917-local-uat/gagan_catalogue_regression_test_20260917.dump`
+(SHA-256
+`3bbbb86e64080aa141e5cdaea9b929c1b33630385accc48b626337ce100a1670`). For
+hosted staging, take an approved recovery point and perform the migration/data
+preflight before setting the staging apply guard. No hosted write was
+performed for this checkpoint.

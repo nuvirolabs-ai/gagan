@@ -22,6 +22,7 @@ export interface GroupableVariant {
   pricePerKg?: number | null;
   caseWeightKg?: number;
   availability?: unknown;
+  imageUrl?: string | null;
 }
 
 export interface GroupableProduct {

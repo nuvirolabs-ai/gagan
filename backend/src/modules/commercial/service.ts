@@ -36,11 +36,14 @@ export async function quoteFor(retailerId: string, input: {variantId:string;qty:
     const retailer = await tx.retailer.findUniqueOrThrow({where:{id:retailerId}});
     const ids = items.map(i=>i.variantId);
     const [variants, prices, overrides] = await Promise.all([
-      tx.variant.findMany({where:{id:{in:ids}},include:{product:true}}),
+      tx.variant.findMany({
+        where: { id: { in: ids }, catalogStatus: "active", product: { catalogStatus: "active" } },
+        include: { product: true },
+      }),
       tx.priceList.findMany({where:{tierId:retailer.tierId,variantId:{in:ids}}}),
       tx.priceOverride.findMany({where:{retailerId,variantId:{in:ids}}}),
     ]);
-    if (variants.length !== ids.length) throw new CommercialError("unknown_sku",400);
+    if (variants.length !== ids.length) throw new CommercialError("catalog_item_not_orderable",409);
     // Unconfigured legacy carts retain their established case-price contract.
     // A routed SKU explicitly opts the cart into the new policy. A stored
     // proposal delivery city alone must not break an older static commercial

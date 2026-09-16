@@ -110,7 +110,7 @@ export default function ProductDetailScreen({ route, navigation }: any) {
           <ProductThumb
             name={product.name}
             category={product.category}
-            imageUrl={product.imageUrl}
+            imageUrl={selected?.imageUrl ?? product.imageUrl}
             size={168}
           />
         </View>

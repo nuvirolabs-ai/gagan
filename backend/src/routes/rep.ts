@@ -201,7 +201,11 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
   if (!retailer) return res.status(404).json({ error: "Retailer not found" });
 
   const [products, priceList, overrides, inventory] = await Promise.all([
-    prisma.product.findMany({ include: { variants: true }, orderBy: { createdAt: "asc" } }),
+    prisma.product.findMany({
+      where: { catalogStatus: "active", variants: { some: { catalogStatus: "active" } } },
+      include: { variants: { where: { catalogStatus: "active" } } },
+      orderBy: { createdAt: "asc" },
+    }),
     prisma.priceList.findMany({ where: { tierId: retailer.tierId } }),
     prisma.priceOverride.findMany({ where: { retailerId: retailer.id } }),
     prisma.inventorySnapshot.findMany({ where: { warehouseCode: DEFAULT_WAREHOUSE_CODE } }),
@@ -225,6 +229,7 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
       const price=rate===null?null:rateBasis==="quintal"?Math.round(rate*caseWeightKg)/100:rate;
       return {
         id: v.id,
+        imageUrl: publicMediaUrl(req, v.imageUrl ?? product.imageUrl),
         unitSize: v.unitSize,
         unit: v.unit,
         unitsPerCase: v.unitsPerCase,

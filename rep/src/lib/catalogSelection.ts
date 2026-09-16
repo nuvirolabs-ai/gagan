@@ -2,6 +2,7 @@ export interface CatalogSku {
   id: string; unitSize: string; unitsPerCase: number; price: number | null;
   pricePerKg?: number | null; isOverride?: boolean;
   availability?: { status?: string; available?: number | null };
+  imageUrl?: string | null;
 }
 export interface CatalogGroup {
   id: string; name: string; category: string; imageUrl?: string | null; skus: CatalogSku[];

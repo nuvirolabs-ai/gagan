@@ -131,7 +131,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
                 <ProductThumb
                   name={product.name}
                   category={product.category}
-                  imageUrl={product.imageUrl}
+                  imageUrl={variant.imageUrl ?? product.imageUrl}
                   size={72}
                 />
                 <View style={{ flex: 1, minWidth: 0 }}>

@@ -954,6 +954,27 @@ model ImportJob {
   @@index([status, createdAt])
 }
 
+/// Durable identity and summary for the real-catalogue importer. The source
+/// checksum is the batch identity; no catalogue row is matched by display
+/// name alone and a repeat run reuses the same technical source keys.
+model CatalogImportBatch {
+  id             String   @id @default(uuid())
+  batchKey       String   @unique
+  sourceFileName String
+  sourceSha256   String
+  sourceVersion  String
+  targetLabel    String
+  mode           String
+  status         String   @default("dry_run")
+  summary        Json?
+  createdByStaffId String?
+  createdAt      DateTime @default(now())
+  completedAt    DateTime?
+
+  @@index([sourceSha256, sourceVersion])
+  @@index([status, createdAt])
+}
+
 model Notification {
   id         String   @id @default(uuid())
   retailerId String
@@ -1072,6 +1093,8 @@ model AppConfig {
 }
 
 model Product {
+  catalogKey         String?              @unique
+  catalogStatus      String               @default("active")
   id                 String              @id @default(uuid())
   name               String
   category           String
@@ -1086,6 +1109,9 @@ model Product {
 // A variant is one sellable case: `unitSize` x `unitsPerCase` (e.g. "1 kg" x 30).
 // PriceList.price is the price of the whole case.
 model Variant {
+  catalogKey         String?              @unique
+  catalogStatus      String               @default("active")
+  imageUrl           String?
   sellingEntity      String?
   gstPercent         Decimal?            @db.Decimal(5, 2)
   /// Explicit routing classification. Null preserves legacy static/ungrouped

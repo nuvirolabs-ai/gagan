@@ -24,12 +24,13 @@ function priceResolver(
   };
 }
 
-function shapeVariant(v: any, resolve: ReturnType<typeof priceResolver>, inventory?: any) {
+function shapeVariant(v: any, resolve: ReturnType<typeof priceResolver>, inventory?: any, req?: AuthedRequest) {
   const { price:rate, isOverride,rateBasis } = resolve(v.id);
   const caseWeightKg = Number(v.unitWeightKg) * v.unitsPerCase;
   const price=rate===null?null:rateBasis==="quintal"?Math.round(rate*caseWeightKg)/100:rate;
   return {
     id: v.id,
+    imageUrl: req ? publicMediaUrl(req, v.imageUrl) : v.imageUrl,
     unitSize: v.unitSize,
     unit: v.unit,
     unitsPerCase: v.unitsPerCase,
@@ -59,7 +60,11 @@ router.get("/catalog", requireAuth, async (req: AuthedRequest, res) => {
   if (!retailer) return res.status(404).json({ error: "Retailer not found" });
 
   const [products, priceList, overrides, config, inventory] = await Promise.all([
-    prisma.product.findMany({ include: { variants: true }, orderBy: { createdAt: "asc" } }),
+    prisma.product.findMany({
+      where: { catalogStatus: "active", variants: { some: { catalogStatus: "active" } } },
+      include: { variants: { where: { catalogStatus: "active" } } },
+      orderBy: { createdAt: "asc" },
+    }),
     prisma.priceList.findMany({ where: { tierId: retailer.tierId } }),
     prisma.priceOverride.findMany({ where: { retailerId: retailer.id } }),
     prisma.appConfig.findUnique({ where: { id: "singleton" } }),
@@ -75,7 +80,7 @@ router.get("/catalog", requireAuth, async (req: AuthedRequest, res) => {
     category: product.category,
     imageUrl: publicMediaUrl(req, product.imageUrl),
     description: product.description,
-    variants: product.variants.map((v) => shapeVariant(v, resolve, product.sapMaterialId ? inventoryByMaterial.get(product.sapMaterialId) : undefined)),
+    variants: product.variants.map((v) => shapeVariant(v, resolve, product.sapMaterialId ? inventoryByMaterial.get(product.sapMaterialId) : undefined, req)),
   }));
 
   const categories = [...new Set(products.map((p) => p.category))].sort();
@@ -93,7 +98,7 @@ router.get("/catalog", requireAuth, async (req: AuthedRequest, res) => {
       description: product.description,
       sapMaterialId: product.sapMaterialId,
       variants: product.variants.map((v) =>
-        shapeVariant(v, resolve, product.sapMaterialId ? inventoryByMaterial.get(product.sapMaterialId) : undefined)
+        shapeVariant(v, resolve, product.sapMaterialId ? inventoryByMaterial.get(product.sapMaterialId) : undefined, req)
       ),
     }))
   );
@@ -120,8 +125,8 @@ router.get("/catalog", requireAuth, async (req: AuthedRequest, res) => {
  */
 router.get("/products/:id", requireAuth, async (req: AuthedRequest, res) => {
   const product = await prisma.product.findUnique({
-    where: { id: req.params.id },
-    include: { variants: true },
+    where: { id: req.params.id, catalogStatus: "active" },
+    include: { variants: { where: { catalogStatus: "active" } } },
   });
   if (!product) return res.status(404).json({ error: "Product not found" });
 
@@ -131,8 +136,8 @@ router.get("/products/:id", requireAuth, async (req: AuthedRequest, res) => {
   // Siblings are the other pack sizes the ERP calls the same material.
   const siblings = product.sapMaterialId
     ? await prisma.product.findMany({
-        where: { sapMaterialId: product.sapMaterialId, category: product.category },
-        include: { variants: true },
+        where: { sapMaterialId: product.sapMaterialId, category: product.category, catalogStatus: "active", variants: { some: { catalogStatus: "active" } } },
+        include: { variants: { where: { catalogStatus: "active" } } },
         orderBy: { createdAt: "asc" },
       })
     : [product];
@@ -158,7 +163,7 @@ router.get("/products/:id", requireAuth, async (req: AuthedRequest, res) => {
       description: member.description,
       sapMaterialId: member.sapMaterialId,
       variants: member.variants.map((v) =>
-        shapeVariant(v, resolve, member.sapMaterialId ? inventoryByMaterial.get(member.sapMaterialId) : undefined)
+        shapeVariant(v, resolve, member.sapMaterialId ? inventoryByMaterial.get(member.sapMaterialId) : undefined, req)
       ),
     }))
   );

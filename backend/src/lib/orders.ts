@@ -165,8 +165,18 @@ export async function createOrderForRetailer(
       tx.priceOverride.findMany({ where: { retailerId, variantId: { in: variantIds } } }),
       tx.creditPolicyVersion.findFirst({ where: { active: true }, orderBy: { version: "desc" } }),
       tx.appConfig.findUnique({ where: { id: "singleton" } }),
-      tx.variant.findMany({ where: { id: { in: variantIds } }, select: { id: true, unitsPerCase: true, unitWeightKg: true, sellingEntity:true } }),
+      tx.variant.findMany({
+        where: {
+          id: { in: variantIds },
+          catalogStatus: "active",
+          product: { catalogStatus: "active" },
+        },
+        select: { id: true, unitsPerCase: true, unitWeightKg: true, sellingEntity:true },
+      }),
     ]);
+    if (variants.length !== variantIds.length) {
+      return { ok: false, status: 409, body: { error: "catalog_item_not_orderable" } };
+    }
     if (!policyRecord) {
       return { ok: false, status: 503, body: { error: "credit_policy_unavailable" } };
     }

@@ -24,6 +24,7 @@ export interface Sku {
   unitsPerCase: number;
   price: number | null;
   availability?: { status?: string; available?: number | null } | null;
+  imageUrl?: string | null;
 }
 
 export interface ProductGroupLike {
@@ -86,7 +87,7 @@ export default function ProductGroupCard({
         <ProductThumb
           name={group.name}
           category={group.category}
-          imageUrl={group.imageUrl}
+          imageUrl={selected?.imageUrl ?? group.imageUrl}
           size={thumb}
         />
         <View style={{ flex: 1, minWidth: 0 }}>

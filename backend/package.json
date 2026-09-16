@@ -24,7 +24,8 @@
     "seed:staging-hierarchy": "ts-node --transpile-only scripts/seedStagingHierarchy.ts",
     "seed:field-uat": "ts-node --transpile-only scripts/seedFieldUat.ts",
     "seed:sales-visual-uat": "ts-node --transpile-only scripts/seedSalesVisualUat.ts",
-    "seed:founder-uat": "ts-node --transpile-only scripts/seedFounderUat.ts"
+    "seed:founder-uat": "ts-node --transpile-only scripts/seedFounderUat.ts",
+    "catalogue:real": "ts-node --transpile-only scripts/realCatalogueImport.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1115.0",

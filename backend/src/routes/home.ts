@@ -44,7 +44,11 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
         include: { items: { include: { variant: { include: { product: true } } } } },
       }),
       prisma.priceList.findMany({ where: { tierId: retailer.tierId } }),
-      prisma.product.findMany({ include: { variants: true }, orderBy: { createdAt: "asc" } }),
+      prisma.product.findMany({
+        where: { catalogStatus: "active", variants: { some: { catalogStatus: "active" } } },
+        include: { variants: { where: { catalogStatus: "active" } } },
+        orderBy: { createdAt: "asc" },
+      }),
     ]);
 
   const overrides = await prisma.priceOverride.findMany({ where: { retailerId: retailer.id } });
@@ -64,7 +68,7 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
       variantId: v.id,
       name: product.name,
       category: product.category,
-      imageUrl: publicMediaUrl(req, product.imageUrl),
+      imageUrl: publicMediaUrl(req, v.imageUrl ?? product.imageUrl),
       unitSize: v.unitSize,
       unitsPerCase: v.unitsPerCase,
       casePrice: overrideByVariant.get(v.id) ?? priceByVariant.get(v.id) ?? null,
@@ -88,6 +92,7 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
         unit: v.unit,
         unitsPerCase: v.unitsPerCase,
         caseWeightKg: Number(v.unitWeightKg) * v.unitsPerCase,
+        imageUrl: publicMediaUrl(req, v.imageUrl ?? product.imageUrl),
         price: Number(overrideByVariant.get(v.id) ?? priceByVariant.get(v.id) ?? 0) || null,
         isOverride: overrideByVariant.get(v.id) != null,
       })),

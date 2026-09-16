@@ -1,14 +1,20 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
+import { publicMediaUrl } from "../../lib/media";
 import { requireAdmin } from "../../lib/adminAuth";
 
 const router = Router();
 router.use(requireAdmin);
 
-router.get("/products", async (_req, res) => {
+router.get("/products", async (req, res) => {
+  const includeInactive = req.query.view === "all";
   const [products, tiers, priceList] = await Promise.all([
-    prisma.product.findMany({ include: { variants: true }, orderBy: { createdAt: "asc" } }),
+    prisma.product.findMany({
+      ...(includeInactive ? {} : { where: { catalogStatus: "active", variants: { some: { catalogStatus: "active" } } } }),
+      include: { variants: includeInactive ? true : { where: { catalogStatus: "active" } } },
+      orderBy: { createdAt: "asc" },
+    }),
     prisma.tier.findMany({ orderBy: { name: "asc" } }),
     prisma.priceList.findMany(),
   ]);
@@ -20,12 +26,17 @@ router.get("/products", async (_req, res) => {
     tiers,
     products: products.map((p) => ({
       id: p.id,
+      catalogKey: p.catalogKey,
+      catalogStatus: p.catalogStatus,
       name: p.name,
       category: p.category,
-      imageUrl: p.imageUrl,
+      imageUrl: publicMediaUrl(req, p.imageUrl),
       description: p.description,
       variants: p.variants.map((v) => ({
         id: v.id,
+        catalogKey: v.catalogKey,
+        catalogStatus: v.catalogStatus,
+        imageUrl: publicMediaUrl(req, v.imageUrl),
         unitSize: v.unitSize,
         unit: v.unit,
         unitsPerCase: v.unitsPerCase,

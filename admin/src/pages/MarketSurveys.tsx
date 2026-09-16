@@ -153,7 +153,7 @@ export default function MarketSurveys() {
     } catch (err) { setError(explain(err, `Could not ${action} the survey`)); }
   };
 
-  const updateQuestion = (index: number, patch: Partial<QuestionDraft>) => setDraft((current) => current && ({ ...current, questions: current.questions.map((question, i) => i === index ? { ...question, ...patch, options: patch.type && !["single_choice", "multiple_choice"].includes(patch.type) ? [] : question.options } : question) }));
+  const updateQuestion = (index: number, patch: Partial<QuestionDraft>) => setDraft((current) => current && ({ ...current, questions: current.questions.map((question, i) => i === index ? { ...question, ...patch, options: patch.options ?? (patch.type && !["single_choice", "multiple_choice"].includes(patch.type) ? [] : question.options) } : question) }));
   const addQuestion = () => setDraft((current) => current && ({ ...current, questions: [...current.questions, { ...EMPTY_QUESTION }] }));
   const removeQuestion = (index: number) => setDraft((current) => current && ({ ...current, questions: current.questions.filter((_, i) => i !== index) }));
   const moveQuestion = (index: number, direction: -1 | 1) => setDraft((current) => {

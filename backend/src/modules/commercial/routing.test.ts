@@ -20,6 +20,16 @@ describe("Jain/Padam sales-order routing policy", () => {
     expect(plan.lines.map((entry) => entry.reason)).toEqual(["INDORE_CITY_OVERRIDE", "INDORE_CITY_OVERRIDE"]);
   });
 
+  it("routes a 20-bag Indore basket to Jain before evaluating the threshold", () => {
+    const plan = resolveSalesOrderAllocation({
+      destinationCity: "Indore",
+      lines: [line("rice", "OTHER", 8), line("dal", "OTHER", 7), line("sugar", "OTHER", 5)],
+    });
+    expect(plan.eligibleContributionBags).toBe("0.000");
+    expect(plan.lines).toHaveLength(3);
+    expect(plan.lines.every((entry) => entry.entity === "jain_traders")).toBe(true);
+  });
+
   it.each([
     ["Laxmi only", [line("laxmi", "LAXMI_TOOR")], ["jain_traders"]],
     ["Laxmi plus four eligible bags", [line("laxmi", "LAXMI_TOOR"), line("other", "OTHER", 4)], ["jain_traders", "jain_traders"]],
@@ -42,6 +52,15 @@ describe("Jain/Padam sales-order routing policy", () => {
       rice: "padam_international",
       dal: "padam_international",
     });
+  });
+
+  it("keeps ten Laxmi bags Jain while four eligible bags keep the whole order Jain", () => {
+    const plan = resolveSalesOrderAllocation({
+      destinationCity: "Bhopal",
+      lines: [line("laxmi", "LAXMI_TOOR", 10), line("other", "OTHER", 4)],
+    });
+    expect(plan.eligibleContributionBags).toBe("4.000");
+    expect(plan.lines.map((entry) => entry.entity)).toEqual(["jain_traders", "jain_traders"]);
   });
 
   it.each([

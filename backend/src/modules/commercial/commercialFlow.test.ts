@@ -53,10 +53,18 @@ describe("Wave 1B authoritative commercial lifecycle",()=>{
    });
    expect(snapshot(q!.snapshot)!.routing!.lines.find(line=>line.variantId===variants[1])!.reason).toBe("ELIGIBLE_THRESHOLD_GTE_5_BAGS");
    const ready=await setFreight(q!.id,q!.revision,{entity:"padam_international",amount:"100",gstPercent:"18",recordedQuintals:"1.5",recordedKilometres:"12"},staff);
-   const created=await order(ready);
+   const orderKey=randomUUID();
+   const created=await order(ready,orderKey);
+   const replayed=await order(ready,orderKey);
+   expect(replayed.id).toBe(created.id);
    expect(snapshot(created.commercialSnapshot)!.routing).toEqual(snapshot(ready.snapshot)!.routing);
    const invoice=await deliver(created);
    expect(snapshot(invoice.commercialSnapshot)!.routing).toEqual(snapshot(ready.snapshot)!.routing);
+   const acceptedRouting=snapshot(created.commercialSnapshot)!.routing;
+   await prisma.retailer.update({where:{id:retailer},data:{deliveryCity:"Indore"}});
+   await prisma.variant.update({where:{id:variants[1]},data:{routingClass:"OTHER",routingBagEquivalent:"1",sellingEntity:null}});
+   const historic=await prisma.order.findUniqueOrThrow({where:{id:created.id}});
+   expect(snapshot(historic.commercialSnapshot)!.routing).toEqual(acceptedRouting);
   } finally {
    await prisma.retailer.update({where:{id:retailer},data:{deliveryCity:null}});
    await prisma.variant.update({where:{id:variants[0]},data:{sellingEntity:"jain_traders",routingClass:null,routingBagEquivalent:null}});

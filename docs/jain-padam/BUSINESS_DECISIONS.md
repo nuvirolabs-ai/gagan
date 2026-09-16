@@ -26,14 +26,15 @@ weight remains a data-readiness error, not a guessed conversion.
 
 ## BD-02 — Indore City membership
 
-**Status: RESOLVED — exact canonical city values.**
+**Status: RESOLVED AND ACCEPTED — exact canonical city values.**
 
 The implementation accepts the canonical city value `Indore` or `Indore City`
 (case-normalized and whitespace-normalized) as the all-Jain override. Every
 other non-empty canonical city is outside Indore for this policy. It does not
 use an address substring, GPS, district, suburb, nearby city, or billing city.
-An absent city remains a required destination error. The hosted gate still
-needs a clearly labelled UAT retailer with one of the approved values.
+An absent city remains a required destination error. The dedicated Kaveri UAT
+retailer was reviewed with both exact values on the native Salesperson flow;
+its original `Pune` value was restored and verified afterward.
 
 ## BD-03 — bag/pack conversion
 
@@ -50,12 +51,14 @@ Unconfigured or invalid rows remain blocked with a data-readiness error.
 
 ## BD-04 — entity commercial readiness
 
-**Status: VERIFY BEFORE HOSTED UAT.**
+**Status: VERIFIED FOR CONTROLLED STAGING ACCEPTANCE.**
 
 The existing quote engine still requires entity-specific seller, price and
-GST readiness after routing. Dispatch/warehouse and external SAP readiness
-remain existing contract boundaries. No fallback to the wrong company is
-allowed if a resolved entity lacks an approved mapping.
+GST readiness after routing. Orders `GGN-00000086` and `GGN-00000087` proved
+the controlled Jain/Padam seller, price, GST, freight and combined-invoice path
+in Admin and both native clients. Dispatch/warehouse and external SAP
+readiness remain existing contract boundaries. No fallback to the wrong
+company is allowed if a resolved entity lacks an approved mapping.
 
 ## Engineering decisions (not business approvals)
 

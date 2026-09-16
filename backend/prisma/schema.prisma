@@ -966,12 +966,19 @@ model CatalogImportBatch {
   targetLabel    String
   mode           String
   status         String   @default("dry_run")
+  approvalId       String?
+  approvalRevision Int?
+  approvalSha256   String?
+  approvalSource   String?
+  approvalScope    Json?
+  imageMappingRevision String?
   summary        Json?
   createdByStaffId String?
   createdAt      DateTime @default(now())
   completedAt    DateTime?
 
   @@index([sourceSha256, sourceVersion])
+  @@index([sourceVersion, approvalRevision])
   @@index([status, createdAt])
 }
 
@@ -1094,6 +1101,7 @@ model AppConfig {
 
 model Product {
   catalogKey         String?              @unique
+  internalCode       String?              @unique
   catalogStatus      String               @default("active")
   id                 String              @id @default(uuid())
   name               String
@@ -1110,8 +1118,10 @@ model Product {
 // PriceList.price is the price of the whole case.
 model Variant {
   catalogKey         String?              @unique
+  internalCode       String?              @unique
   catalogStatus      String               @default("active")
   imageUrl           String?
+  hsnCode            String?
   sellingEntity      String?
   gstPercent         Decimal?            @db.Decimal(5, 2)
   /// Explicit routing classification. Null preserves legacy static/ungrouped

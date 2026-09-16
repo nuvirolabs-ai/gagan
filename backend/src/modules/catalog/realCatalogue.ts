@@ -18,8 +18,84 @@ export type DriveImageEntry = {
 export type RealCatalogueImage = {
   status: "matched" | "ambiguous" | "missing";
   candidates: DriveImageEntry[];
+  selectedDriveFileId?: string | null;
   /** Root-relative path served by the existing private application asset. */
   assetPath: string | null;
+};
+
+export type RealCataloguePriceDecision = {
+  tierId: string;
+  rate: string;
+  rateBasis: "case" | "quintal";
+  /** The current commercial engine expects rates before GST. */
+  gstIncluded: boolean;
+};
+
+export type RealCatalogueInventoryDecision = {
+  /** This is an approved external mapping, never an internal code. */
+  sapMaterialId: string;
+  warehouseCode: string;
+  evidence: string;
+};
+
+export type RealCatalogueDecisionRecord = {
+  /** The source-manifest key is immutable and is the approval lookup key. */
+  variantKey: string;
+  productCatalogKey?: string;
+  variantCatalogKey?: string;
+  productInternalCode?: string;
+  variantInternalCode?: string;
+  hsnCode?: string;
+  gstPercent?: string | number;
+  ordering?: {
+    unit?: "kg";
+    unitsPerCase?: number;
+    unitWeightKg?: string | number;
+    caseWeightKg?: string | number;
+    masterContainer?: "BAG" | "BOX";
+  };
+  priceLists?: RealCataloguePriceDecision[];
+  inventory?: RealCatalogueInventoryDecision;
+  routing?: {
+    routingClass: "LAXMI_TOOR" | "INSTANT_MIX" | "OTHER";
+    routingBagEquivalent?: string | number | null;
+    /** Static sellingEntity is allowed only for a legacy, non-routed row. */
+    sellingEntity?: "jain_traders" | "padam_international" | null;
+  };
+  image?: {
+    driveFileId: string;
+    mappingRevision: string;
+    evidence?: string;
+    /** Existing private application asset prepared from the selected source. */
+    assetPath?: string;
+  };
+};
+
+export type RealCatalogueRetirementCandidate = {
+  productId: string;
+  expectedName: string;
+  expectedSapMaterialId: string | null;
+  variantIds: string[];
+  reason: string;
+};
+
+export type RealCatalogueDecisions = {
+  schemaVersion: 1;
+  approval: {
+    approvalId: string;
+    revision: number;
+    approvedBy: string;
+    approvedAt: string;
+    scope: string;
+    source: {
+      workbookSha256: string;
+      sourceVersion: string;
+      imageIndexSha256?: string;
+    };
+  };
+  imageMappingRevision: string;
+  records: RealCatalogueDecisionRecord[];
+  retireCandidates?: RealCatalogueRetirementCandidate[];
 };
 
 export type RealCatalogueRecord = {
@@ -36,6 +112,19 @@ export type RealCatalogueRecord = {
   };
   productKey: string;
   variantKey: string;
+  /** Approved target identities; source keys remain available for replay. */
+  catalogProductKey?: string | null;
+  catalogVariantKey?: string | null;
+  productInternalCode?: string | null;
+  variantInternalCode?: string | null;
+  hsnCode?: string | null;
+  gstPercent?: string | null;
+  sellingEntity?: "jain_traders" | "padam_international" | null;
+  priceLists?: RealCataloguePriceDecision[];
+  inventoryMapping?: RealCatalogueInventoryDecision | null;
+  imageMappingRevision?: string | null;
+  approvalId?: string | null;
+  approvalRevision?: number | null;
   productName: string;
   category: string;
   unitSize: string;
@@ -43,6 +132,7 @@ export type RealCatalogueRecord = {
   unitsPerCase: number | null;
   unitWeightKg: string | null;
   caseWeightKg: string | null;
+  conversionSource?: "sku_name" | "packing_size_and_master_bag" | "approved_decision" | null;
   pricePerQuintal: string;
   priceBasis: "quintal";
   masterContainer: "BAG" | "BOX" | null;
@@ -70,6 +160,7 @@ export type RealCatalogueManifest = {
     driveFolderUrl: string;
     folderCount: number;
     fileCount: number;
+    indexSha256?: string;
   };
   records: RealCatalogueRecord[];
 };
@@ -84,9 +175,38 @@ export type RealCatalogueApplySummary = {
   blockedRows: number;
   skippedRows: number;
   preservedStatuses: number;
+  phase?: "import" | "promote";
+  approvalRevision?: number;
+  approvalSha256?: string;
+  pendingReviewRows?: number;
+  retiredProducts?: number;
+  retiredVariants?: number;
+};
+
+type RealCatalogueApprovalMetadata = {
+  approvalId: string;
+  approvalRevision: number;
+  approvalSha256: string;
+  imageMappingRevision: string;
+  scope: string;
+};
+
+export type RealCatalogueTargetIdentity = {
+  serviceName: string;
+  serviceId: string;
+  hostname: string;
+  databaseName: string;
+  schema: string;
 };
 
 const DRIVE_FOLDER_URL = "https://drive.google.com/drive/folders/1JJMyEPQSVtWstUaovGZCFMgpllnTg92e";
+export const REAL_CATALOGUE_STAGING_TARGET: RealCatalogueTargetIdentity = {
+  serviceName: "gagan-api",
+  serviceId: "srv-dak1ppu1egvs7397s9c0",
+  hostname: "https://gagan-srat.onrender.com",
+  databaseName: "gagan_staging_9ftt",
+  schema: "public",
+};
 const HEADER = [
   "S.NO",
   "TYPE OF ITEM",
@@ -153,6 +273,37 @@ function parseSku(skuName: string) {
   };
 }
 
+function parseWeight(value: string) {
+  const match = identity(value).match(/^([0-9]+(?:\.[0-9]+)?)\s*(KG|KGS|GM|G)$/);
+  if (!match) return null;
+  const weightKg = new Prisma.Decimal(match[1]).mul(/^(GM|G)$/.test(match[2]) ? "0.001" : "1");
+  if (!weightKg.isFinite() || !weightKg.isPositive()) return null;
+  return weightKg;
+}
+
+/**
+ * A failed SKU-name pattern is not enough to infer a case. The workbook has a
+ * narrow, explicit fallback: a 30 KG packing size in a 30KG BAG is one
+ * sellable 30 KG bag. Other boxes, mixed packs and unequal master sizes stay
+ * unresolved for owner review.
+ */
+function deriveConversion(source: RealCatalogueRecord["source"]) {
+  const fromName = parseSku(source.skuName);
+  if (fromName) return { ...fromName, conversionSource: "sku_name" as const };
+  const packWeight = parseWeight(source.packingSize);
+  const master = parseMaster(source.masterBagBoxSize);
+  if (packWeight && master?.container === "BAG" && packWeight.eq(master.weightKg)) {
+    return {
+      label: clean(source.skuName),
+      unitWeightKg: packWeight.toString(),
+      unitsPerCase: 1,
+      caseWeightKg: packWeight.toString(),
+      conversionSource: "packing_size_and_master_bag" as const,
+    };
+  }
+  return null;
+}
+
 function parseMaster(master: string) {
   const match = identity(master).match(/^([0-9]+(?:\.[0-9]+)?)\s*(KG|KGS)\s*(BAG|BOX)$/);
   if (!match) return null;
@@ -163,6 +314,34 @@ function displayProductName(brand: string, label: string) {
   const humanBrand = titleCase(brand);
   const humanLabel = titleCase(label);
   return identity(humanLabel).startsWith(identity(brand)) ? humanLabel : `${humanBrand} ${humanLabel}`;
+}
+
+function decimalText(value: string | number, field: string, options: { positive?: boolean; maxPlaces?: number } = {}) {
+  const text = clean(value);
+  if (!/^\d+(?:\.\d+)?$/.test(text)) throw new Error(`invalid_decision_${field}`);
+  const result = new Prisma.Decimal(text);
+  if (!result.isFinite() || (options.positive && !result.isPositive())) throw new Error(`invalid_decision_${field}`);
+  if (options.maxPlaces !== undefined && result.decimalPlaces() > options.maxPlaces) throw new Error(`invalid_decision_${field}_precision`);
+  return result.toString();
+}
+
+function readinessBlockersFor(record: RealCatalogueRecord) {
+  const blockers: string[] = [];
+  if (!record.productInternalCode || !record.variantInternalCode) blockers.push("stable_internal_catalogue_identity_requires_approval");
+  if (record.gstPercent === null || record.gstPercent === undefined) blockers.push("gst_percent_requires_approval");
+  if (!record.inventoryMapping) blockers.push("inventory_mapping_requires_approval");
+  if (!record.priceLists?.length) blockers.push("price_tier_requires_approval");
+  if (record.priceLists?.some((price) => price.gstIncluded)) blockers.push("price_gst_basis_incompatible_with_current_engine");
+  if (record.unitsPerCase === null || record.unitWeightKg === null || record.caseWeightKg === null) blockers.push("case_conversion_requires_approval");
+  if (!record.routingClass) blockers.push("routing_class_requires_approval");
+  if (record.routingClass && record.sellingEntity) blockers.push("dynamic_routing_cannot_have_static_selling_entity");
+  if (record.routingClass === "OTHER" && (!record.routingBagEquivalent || new Prisma.Decimal(record.routingBagEquivalent).isZero())) {
+    blockers.push("approved_routing_bag_equivalent_requires_review");
+  }
+  if (record.routingClass === "INSTANT_MIX" && record.routingBagEquivalent !== null) blockers.push("instant_mix_fixed_conversion_conflict");
+  if (record.image.status !== "matched") blockers.push(record.image.status === "ambiguous" ? "image_mapping_ambiguous" : "image_missing");
+  else if (!record.image.assetPath) blockers.push("image_asset_not_prepared");
+  return blockers;
 }
 
 function sourceRow(row: unknown[], rowNumber: number) {
@@ -193,7 +372,7 @@ function imageCandidates(source: RealCatalogueRecord["source"], imageIndex: Driv
 }
 
 function deriveRecord(source: RealCatalogueRecord["source"], sourceRows: number[], imageIndex: DriveImageEntry[]): RealCatalogueRecord {
-  const parsed = parseSku(source.skuName);
+  const parsed = deriveConversion(source);
   const master = parseMaster(source.masterBagBoxSize);
   const label = parsed?.label || clean(source.skuName);
   const productIdentity = [source.brandName, source.groupName, label].map(identity).join("|");
@@ -215,16 +394,7 @@ function deriveRecord(source: RealCatalogueRecord["source"], sourceRows: number[
     candidates,
     assetPath: imageStatus === "matched" ? `/catalog-images/real/${variantKey.slice("real-catalogue:variant:".length)}.jpg` : null,
   };
-  const readinessBlockers = [
-    "stable_sku_or_sap_code_missing_from_source",
-    "gst_percent_missing_from_source",
-    "inventory_mapping_missing_from_source",
-    "price_tier_missing_from_source",
-  ];
-  if (!parsed) readinessBlockers.push("case_conversion_missing_from_source");
-  if (routingClass === "OTHER" && !routingBagEquivalent) readinessBlockers.push("approved_routing_bag_equivalent_requires_review");
-  if (imageStatus !== "matched") readinessBlockers.push(imageStatus === "ambiguous" ? "image_mapping_ambiguous" : "image_missing");
-  return {
+  const record: RealCatalogueRecord = {
     sourceRows,
     source,
     productKey,
@@ -236,15 +406,19 @@ function deriveRecord(source: RealCatalogueRecord["source"], sourceRows: number[
     unitsPerCase: parsed?.unitsPerCase ?? null,
     unitWeightKg: parsed?.unitWeightKg ?? null,
     caseWeightKg: parsed?.caseWeightKg ?? null,
+    conversionSource: parsed?.conversionSource ?? null,
     pricePerQuintal: source.pricePerQuintal,
     priceBasis: "quintal",
     masterContainer: master?.container ?? null,
     routingClass,
     routingBagEquivalent,
     image,
-    readinessBlockers,
-    catalogStatus: readinessBlockers.length ? "pending_review" : "active",
+    readinessBlockers: [],
+    catalogStatus: "pending_review",
   };
+  record.readinessBlockers = readinessBlockersFor(record);
+  record.catalogStatus = record.readinessBlockers.length ? "pending_review" : "active";
+  return record;
 }
 
 export function buildRealCatalogueManifest(
@@ -315,23 +489,330 @@ export function readImageIndex(filePath?: string): DriveImageEntry[] {
   });
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function requireString(value: unknown, field: string) {
+  if (typeof value !== "string" || !value.trim()) throw new Error(`invalid_decisions_${field}`);
+  return value.trim();
+}
+
+function requirePositiveInteger(value: unknown, field: string) {
+  if (!Number.isSafeInteger(value) || (value as number) <= 0) throw new Error(`invalid_decisions_${field}`);
+  return value as number;
+}
+
+function assertKeys(value: Record<string, unknown>, allowed: string[], field: string) {
+  for (const key of Object.keys(value)) if (!allowed.includes(key)) throw new Error(`invalid_decisions_${field}_${key}`);
+}
+
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (isRecord(value)) return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonical(value[key])]));
+  return value;
+}
+
+export function realCatalogueDecisionsSha256(decisions: RealCatalogueDecisions) {
+  return digest(JSON.stringify(canonical(decisions)));
+}
+
+function normalizeDecisionRecord(value: unknown, index: number): RealCatalogueDecisionRecord {
+  if (!isRecord(value)) throw new Error(`invalid_decisions_records_${index}`);
+  assertKeys(value, [
+    "variantKey", "productCatalogKey", "variantCatalogKey", "productInternalCode", "variantInternalCode",
+    "hsnCode", "gstPercent", "ordering", "priceLists", "inventory", "routing", "image",
+  ], `record_${index}`);
+  const result: RealCatalogueDecisionRecord = { variantKey: requireString(value.variantKey, `records_${index}_variantKey`) };
+  for (const key of ["productCatalogKey", "variantCatalogKey", "productInternalCode", "variantInternalCode", "hsnCode"] as const) {
+    if (value[key] !== undefined) result[key] = requireString(value[key], `records_${index}_${key}`);
+  }
+  if (value.gstPercent !== undefined) {
+    const gst = new Prisma.Decimal(decimalText(value.gstPercent as string | number, `records_${index}_gstPercent`, { maxPlaces: 2 }));
+    if (gst.gt(100)) throw new Error(`invalid_decisions_records_${index}_gstPercent`);
+    result.gstPercent = gst.toString();
+  }
+  if (value.ordering !== undefined) {
+    if (!isRecord(value.ordering)) throw new Error(`invalid_decisions_records_${index}_ordering`);
+    assertKeys(value.ordering, ["unit", "unitsPerCase", "unitWeightKg", "caseWeightKg", "masterContainer"], `record_${index}_ordering`);
+    const ordering: NonNullable<RealCatalogueDecisionRecord["ordering"]> = {};
+    if (value.ordering.unit !== undefined) {
+      if (value.ordering.unit !== "kg") throw new Error(`invalid_decisions_records_${index}_ordering_unit`);
+      ordering.unit = "kg";
+    }
+    if (value.ordering.unitsPerCase !== undefined) ordering.unitsPerCase = requirePositiveInteger(value.ordering.unitsPerCase, `records_${index}_unitsPerCase`);
+    if (value.ordering.unitWeightKg !== undefined) ordering.unitWeightKg = decimalText(value.ordering.unitWeightKg as string | number, `records_${index}_unitWeightKg`, { positive: true, maxPlaces: 3 });
+    if (value.ordering.caseWeightKg !== undefined) ordering.caseWeightKg = decimalText(value.ordering.caseWeightKg as string | number, `records_${index}_caseWeightKg`, { positive: true, maxPlaces: 3 });
+    if (value.ordering.masterContainer !== undefined) {
+      if (value.ordering.masterContainer !== "BAG" && value.ordering.masterContainer !== "BOX") throw new Error(`invalid_decisions_records_${index}_masterContainer`);
+      ordering.masterContainer = value.ordering.masterContainer;
+    }
+    if (ordering.unitsPerCase !== undefined && ordering.unitWeightKg !== undefined && ordering.caseWeightKg !== undefined) {
+      if (!new Prisma.Decimal(ordering.unitWeightKg).mul(ordering.unitsPerCase).eq(ordering.caseWeightKg)) throw new Error(`invalid_decisions_records_${index}_conversion_mismatch`);
+    }
+    result.ordering = ordering;
+  }
+  if (value.priceLists !== undefined) {
+    if (!Array.isArray(value.priceLists) || value.priceLists.length === 0) throw new Error(`invalid_decisions_records_${index}_priceLists`);
+    const priceLists = value.priceLists.map((entry, priceIndex) => {
+      if (!isRecord(entry)) throw new Error(`invalid_decisions_records_${index}_price_${priceIndex}`);
+      assertKeys(entry, ["tierId", "rate", "rateBasis", "gstIncluded"], `record_${index}_price_${priceIndex}`);
+      if (entry.rateBasis !== "case" && entry.rateBasis !== "quintal") throw new Error(`invalid_decisions_records_${index}_priceBasis_${priceIndex}`);
+      if (typeof entry.gstIncluded !== "boolean") throw new Error(`invalid_decisions_records_${index}_gstBasis_${priceIndex}`);
+      return {
+        tierId: requireString(entry.tierId, `records_${index}_price_${priceIndex}_tierId`),
+        rate: decimalText(entry.rate as string | number, `records_${index}_price_${priceIndex}_rate`, { positive: true, maxPlaces: 2 }),
+        rateBasis: entry.rateBasis,
+        gstIncluded: entry.gstIncluded,
+      } satisfies RealCataloguePriceDecision;
+    });
+    if (new Set(priceLists.map((price) => price.tierId)).size !== priceLists.length) throw new Error(`invalid_decisions_records_${index}_duplicate_tier`);
+    result.priceLists = priceLists;
+  }
+  if (value.inventory !== undefined) {
+    if (!isRecord(value.inventory)) throw new Error(`invalid_decisions_records_${index}_inventory`);
+    assertKeys(value.inventory, ["sapMaterialId", "warehouseCode", "evidence"], `record_${index}_inventory`);
+    result.inventory = {
+      sapMaterialId: requireString(value.inventory.sapMaterialId, `records_${index}_inventory_sapMaterialId`),
+      warehouseCode: requireString(value.inventory.warehouseCode, `records_${index}_inventory_warehouseCode`),
+      evidence: requireString(value.inventory.evidence, `records_${index}_inventory_evidence`),
+    };
+  }
+  if (value.routing !== undefined) {
+    if (!isRecord(value.routing)) throw new Error(`invalid_decisions_records_${index}_routing`);
+    assertKeys(value.routing, ["routingClass", "routingBagEquivalent", "sellingEntity"], `record_${index}_routing`);
+    if (value.routing.routingClass !== "LAXMI_TOOR" && value.routing.routingClass !== "INSTANT_MIX" && value.routing.routingClass !== "OTHER") throw new Error(`invalid_decisions_records_${index}_routingClass`);
+    const routing: NonNullable<RealCatalogueDecisionRecord["routing"]> = { routingClass: value.routing.routingClass };
+    if (value.routing.routingBagEquivalent !== undefined) routing.routingBagEquivalent = value.routing.routingBagEquivalent === null ? null : decimalText(value.routing.routingBagEquivalent as string | number, `records_${index}_routingBagEquivalent`, { positive: true, maxPlaces: 3 });
+    if (value.routing.sellingEntity !== undefined) {
+      if (value.routing.sellingEntity !== null && value.routing.sellingEntity !== "jain_traders" && value.routing.sellingEntity !== "padam_international") throw new Error(`invalid_decisions_records_${index}_sellingEntity`);
+      routing.sellingEntity = value.routing.sellingEntity;
+    }
+    if (routing.routingClass === "LAXMI_TOOR" && routing.routingBagEquivalent !== undefined && routing.routingBagEquivalent !== null) throw new Error(`invalid_decisions_records_${index}_laxmi_conversion`);
+    if (routing.routingClass === "INSTANT_MIX" && routing.routingBagEquivalent !== undefined && routing.routingBagEquivalent !== null) throw new Error(`invalid_decisions_records_${index}_instant_mix_conversion`);
+    if (routing.routingClass !== undefined && routing.sellingEntity) throw new Error(`invalid_decisions_records_${index}_dynamic_sellingEntity`);
+    if (routing.routingClass === "OTHER" && routing.routingBagEquivalent !== undefined && routing.routingBagEquivalent !== null && new Prisma.Decimal(routing.routingBagEquivalent).isZero()) throw new Error(`invalid_decisions_records_${index}_other_conversion`);
+    result.routing = routing;
+  }
+  if (value.image !== undefined) {
+    if (!isRecord(value.image)) throw new Error(`invalid_decisions_records_${index}_image`);
+    assertKeys(value.image, ["driveFileId", "mappingRevision", "evidence", "assetPath"], `record_${index}_image`);
+    result.image = {
+      driveFileId: requireString(value.image.driveFileId, `records_${index}_image_driveFileId`),
+      mappingRevision: requireString(value.image.mappingRevision, `records_${index}_image_mappingRevision`),
+      ...(value.image.evidence === undefined ? {} : { evidence: requireString(value.image.evidence, `records_${index}_image_evidence`) }),
+      ...(value.image.assetPath === undefined ? {} : { assetPath: requireString(value.image.assetPath, `records_${index}_image_assetPath`) }),
+    };
+  }
+  return result;
+}
+
+export function validateRealCatalogueDecisions(manifest: RealCatalogueManifest, input: unknown): RealCatalogueDecisions {
+  if (!isRecord(input)) throw new Error("invalid_decisions_file");
+  assertKeys(input, ["schemaVersion", "approval", "imageMappingRevision", "records", "retireCandidates"], "root");
+  if (input.schemaVersion !== 1) throw new Error("unsupported_decisions_schema");
+  if (!isRecord(input.approval)) throw new Error("invalid_decisions_approval");
+  assertKeys(input.approval, ["approvalId", "revision", "approvedBy", "approvedAt", "scope", "source"], "approval");
+  if (!isRecord(input.approval.source)) throw new Error("invalid_decisions_approval_source");
+  assertKeys(input.approval.source, ["workbookSha256", "sourceVersion", "imageIndexSha256"], "approval_source");
+  if (input.approval.source.workbookSha256 !== manifest.source.sha256 || input.approval.source.sourceVersion !== manifest.source.version) throw new Error("decisions_source_does_not_match_manifest");
+  if (input.approval.source.imageIndexSha256 !== undefined && input.approval.source.imageIndexSha256 !== manifest.imageSource.indexSha256) throw new Error("decisions_image_index_does_not_match_manifest");
+  const approvalDate = new Date(requireString(input.approval.approvedAt, "approval_approvedAt"));
+  if (Number.isNaN(approvalDate.getTime())) throw new Error("invalid_decisions_approvedAt");
+  const revision = requirePositiveInteger(input.approval.revision, "approval_revision");
+  const imageMappingRevision = requireString(input.imageMappingRevision, "imageMappingRevision");
+  if (!Array.isArray(input.records)) throw new Error("invalid_decisions_records");
+  const records = input.records.map(normalizeDecisionRecord);
+  if (new Set(records.map((record) => record.variantKey)).size !== records.length) throw new Error("duplicate_decisions_variantKey");
+  const manifestByKey = new Map(manifest.records.map((record) => [record.variantKey, record]));
+  for (const record of records) {
+    const source = manifestByKey.get(record.variantKey);
+    if (!source) throw new Error(`decision_variant_not_in_manifest_${record.variantKey}`);
+    if (record.priceLists) {
+      const sourceRateText = clean(source.source.pricePerQuintal).replace(/[₹,\s]/g, "");
+      if (!/^\d+(?:\.\d+)?$/.test(sourceRateText)) throw new Error(`source_price_invalid_${record.variantKey}`);
+      const sourceRate = new Prisma.Decimal(sourceRateText);
+      for (const [priceIndex, price] of record.priceLists.entries()) {
+        // The workbook explicitly supplies a quintal rate. A reviewed
+        // decision may select its target tier, but it may not silently alter
+        // that supplied amount when retaining the quintal basis.
+        if (price.rateBasis === "quintal" && !new Prisma.Decimal(price.rate).eq(sourceRate)) {
+          throw new Error(`decision_price_does_not_match_source_${record.variantKey}_${priceIndex}`);
+        }
+      }
+    }
+    if (record.image) {
+      if (!source.image.candidates.some((candidate) => candidate.driveFileId === record.image!.driveFileId)) throw new Error(`decision_image_not_a_candidate_${record.variantKey}`);
+      if (record.image.assetPath !== undefined) {
+        const expectedAssetPath = `/catalog-images/real/${source.variantKey.replace(/^real-catalogue:variant:/, "")}.jpg`;
+        if (record.image.assetPath !== expectedAssetPath) throw new Error(`decision_image_asset_path_invalid_${record.variantKey}`);
+      }
+    }
+  }
+  const retirement = input.retireCandidates;
+  if (retirement !== undefined) {
+    if (!Array.isArray(retirement)) throw new Error("invalid_decisions_retireCandidates");
+    const retirementProductIds = new Set<string>();
+    const retirementVariantIds = new Set<string>();
+    for (const [index, candidate] of retirement.entries()) {
+      if (!isRecord(candidate)) throw new Error(`invalid_decisions_retire_${index}`);
+      assertKeys(candidate, ["productId", "expectedName", "expectedSapMaterialId", "variantIds", "reason"], `retire_${index}`);
+      if (!Array.isArray(candidate.variantIds) || candidate.variantIds.length === 0 || candidate.variantIds.some((id) => typeof id !== "string" || !id)) throw new Error(`invalid_decisions_retire_${index}_variantIds`);
+      requireString(candidate.productId, `retire_${index}_productId`);
+      requireString(candidate.expectedName, `retire_${index}_expectedName`);
+      if (candidate.expectedSapMaterialId !== null && candidate.expectedSapMaterialId !== undefined) requireString(candidate.expectedSapMaterialId, `retire_${index}_expectedSapMaterialId`);
+      requireString(candidate.reason, `retire_${index}_reason`);
+      if (retirementProductIds.has(candidate.productId as string)) throw new Error(`invalid_decisions_retire_${index}_duplicate_product`);
+      retirementProductIds.add(candidate.productId as string);
+      for (const variantId of candidate.variantIds as string[]) {
+        if (retirementVariantIds.has(variantId)) throw new Error(`invalid_decisions_retire_${index}_duplicate_variant`);
+        retirementVariantIds.add(variantId);
+      }
+    }
+  }
+  return {
+    schemaVersion: 1,
+    approval: {
+      approvalId: requireString(input.approval.approvalId, "approval_approvalId"),
+      revision,
+      approvedBy: requireString(input.approval.approvedBy, "approval_approvedBy"),
+      approvedAt: approvalDate.toISOString(),
+      scope: requireString(input.approval.scope, "approval_scope"),
+      source: {
+        workbookSha256: manifest.source.sha256,
+        sourceVersion: manifest.source.version,
+        ...(input.approval.source.imageIndexSha256 === undefined ? {} : { imageIndexSha256: requireString(input.approval.source.imageIndexSha256, "approval_source_imageIndexSha256") }),
+      },
+    },
+    imageMappingRevision,
+    records,
+    ...(retirement === undefined ? {} : {
+      retireCandidates: (retirement as Array<Record<string, unknown>>).map((candidate) => ({
+        productId: candidate.productId as string,
+        expectedName: candidate.expectedName as string,
+        expectedSapMaterialId: candidate.expectedSapMaterialId === undefined ? null : candidate.expectedSapMaterialId as string | null,
+        variantIds: candidate.variantIds as string[],
+        reason: candidate.reason as string,
+      })),
+    }),
+  };
+}
+
+function targetCatalogKey(record: RealCatalogueRecord, kind: "product" | "variant") {
+  return kind === "product" ? record.catalogProductKey ?? record.productKey : record.catalogVariantKey ?? record.variantKey;
+}
+
+export function resolveRealCatalogueDecisions(manifest: RealCatalogueManifest, input: unknown): { manifest: RealCatalogueManifest; decisions: RealCatalogueDecisions; approvalSha256: string } {
+  const decisions = validateRealCatalogueDecisions(manifest, input);
+  const byVariant = new Map(decisions.records.map((record) => [record.variantKey, record]));
+  const records = manifest.records.map((source) => {
+    const decision = byVariant.get(source.variantKey);
+    if (!decision) return { ...source, readinessBlockers: readinessBlockersFor(source), catalogStatus: "pending_review" as const };
+    const ordering = decision.ordering;
+    const conversion = {
+      unitsPerCase: ordering?.unitsPerCase ?? source.unitsPerCase,
+      unitWeightKg: ordering?.unitWeightKg === undefined ? source.unitWeightKg : decimalText(ordering.unitWeightKg, `records_${source.variantKey}_unitWeightKg`, { positive: true, maxPlaces: 3 }),
+      caseWeightKg: ordering?.caseWeightKg === undefined ? source.caseWeightKg : decimalText(ordering.caseWeightKg, `records_${source.variantKey}_caseWeightKg`, { positive: true, maxPlaces: 3 }),
+    };
+    if (conversion.unitsPerCase !== null && conversion.unitWeightKg !== null && conversion.caseWeightKg !== null && !new Prisma.Decimal(conversion.unitWeightKg).mul(conversion.unitsPerCase).eq(conversion.caseWeightKg)) throw new Error(`decision_conversion_mismatch_${source.variantKey}`);
+    const routing = decision.routing;
+    const imageDecision = decision.image;
+    const catalogVariantKey = decision.variantCatalogKey ?? source.variantKey;
+    const image = imageDecision
+      ? {
+          status: "matched" as const,
+          candidates: source.image.candidates,
+          selectedDriveFileId: imageDecision.driveFileId,
+          assetPath: imageDecision.assetPath ?? source.image.assetPath ?? null,
+        }
+      : { ...source.image };
+    const record: RealCatalogueRecord = {
+      ...source,
+      catalogProductKey: decision.productCatalogKey ?? source.catalogProductKey ?? null,
+      catalogVariantKey,
+      productInternalCode: decision.productInternalCode ?? source.productInternalCode ?? null,
+      variantInternalCode: decision.variantInternalCode ?? source.variantInternalCode ?? null,
+      hsnCode: decision.hsnCode ?? source.hsnCode ?? null,
+      gstPercent: decision.gstPercent === undefined ? source.gstPercent ?? null : decimalText(decision.gstPercent, `records_${source.variantKey}_gstPercent`, { maxPlaces: 2 }),
+      sellingEntity: routing?.sellingEntity === undefined ? source.sellingEntity ?? null : routing.sellingEntity,
+      priceLists: decision.priceLists ?? source.priceLists ?? [],
+      inventoryMapping: decision.inventory ?? source.inventoryMapping ?? null,
+      unitsPerCase: conversion.unitsPerCase,
+      unitWeightKg: conversion.unitWeightKg,
+      caseWeightKg: conversion.caseWeightKg,
+      conversionSource: ordering && (ordering.unitsPerCase !== undefined || ordering.unitWeightKg !== undefined || ordering.caseWeightKg !== undefined || ordering.masterContainer !== undefined)
+        ? "approved_decision"
+        : source.conversionSource,
+      masterContainer: ordering?.masterContainer ?? source.masterContainer,
+      routingClass: routing?.routingClass ?? source.routingClass,
+      routingBagEquivalent: routing?.routingBagEquivalent === undefined
+        ? source.routingBagEquivalent
+        : routing.routingBagEquivalent === null
+          ? null
+          : decimalText(routing.routingBagEquivalent, `records_${source.variantKey}_routingBagEquivalent`, { positive: true, maxPlaces: 3 }),
+      image,
+      imageMappingRevision: imageDecision?.mappingRevision ?? source.imageMappingRevision ?? null,
+      approvalId: decisions.approval.approvalId,
+      approvalRevision: decisions.approval.revision,
+      readinessBlockers: [],
+      catalogStatus: "pending_review",
+    };
+    record.readinessBlockers = readinessBlockersFor(record);
+    record.catalogStatus = record.readinessBlockers.length ? "pending_review" : "active";
+    return record;
+  });
+  const seenProductKeys = new Set<string>();
+  const seenVariantKeys = new Set<string>();
+  for (const record of records) {
+    const productKey = targetCatalogKey(record, "product");
+    const variantKey = targetCatalogKey(record, "variant");
+    if (seenProductKeys.has(productKey) && record.productInternalCode) {
+      const prior = records.find((candidate) => targetCatalogKey(candidate, "product") === productKey && candidate !== record);
+      if (prior && prior.productInternalCode !== record.productInternalCode) throw new Error(`conflicting_product_identity_decision_${productKey}`);
+    }
+    if (seenVariantKeys.has(variantKey)) throw new Error(`duplicate_variant_identity_decision_${variantKey}`);
+    seenProductKeys.add(productKey);
+    seenVariantKeys.add(variantKey);
+  }
+  const resolved: RealCatalogueManifest = { ...manifest, records };
+  return { manifest: resolved, decisions, approvalSha256: realCatalogueDecisionsSha256(decisions) };
+}
+
 function json(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
-export function assertRealCatalogueTarget(databaseUrl: string, targetLabel: string) {
+function sourceImportBatchKey(manifest: RealCatalogueManifest, approval?: RealCatalogueApprovalMetadata) {
+  if (!approval) return manifest.source.batchKey;
+  return `${manifest.source.batchKey}:configuration:${approval.approvalId}:r${approval.approvalRevision}:${approval.approvalSha256}:${approval.imageMappingRevision}`;
+}
+
+export function assertRealCatalogueTarget(databaseUrl: string, targetLabel: string, identity: Partial<RealCatalogueTargetIdentity> = {}) {
+  if (!databaseUrl) throw new Error("catalogue_database_url_missing");
   const url = new URL(databaseUrl);
-  const databaseName = url.pathname.replace(/^\//, "");
+  const databaseName = decodeURIComponent(url.pathname.replace(/^\//, ""));
   if (targetLabel === "disposable-local") {
     if (url.hostname !== "localhost" && url.hostname !== "127.0.0.1") throw new Error("disposable_target_must_be_local");
     return;
   }
   if (targetLabel !== "gagan-staging") throw new Error("catalogue_target_not_allowlisted");
   if (!process.env.REAL_CATALOGUE_ALLOW_STAGING) throw new Error("explicit_staging_guard_required");
-  if (!databaseName.startsWith("gagan_staging_")) throw new Error("staging_database_identity_guard_failed");
+  const supplied = {
+    serviceName: identity.serviceName ?? process.env.REAL_CATALOGUE_SERVICE_NAME,
+    serviceId: identity.serviceId ?? process.env.REAL_CATALOGUE_SERVICE_ID,
+    hostname: identity.hostname ?? process.env.REAL_CATALOGUE_HOSTNAME,
+    databaseName: identity.databaseName ?? process.env.REAL_CATALOGUE_DATABASE,
+    schema: identity.schema ?? process.env.REAL_CATALOGUE_SCHEMA,
+  };
+  const actualSchema = url.searchParams.get("schema") ?? "public";
+  if (databaseName !== REAL_CATALOGUE_STAGING_TARGET.databaseName || actualSchema !== REAL_CATALOGUE_STAGING_TARGET.schema) throw new Error("staging_database_identity_guard_failed");
+  for (const key of ["serviceName", "serviceId", "hostname", "databaseName", "schema"] as const) {
+    if (supplied[key] !== REAL_CATALOGUE_STAGING_TARGET[key]) throw new Error("staging_target_identity_guard_failed");
+  }
 }
 
 function summaryFor(manifest: RealCatalogueManifest, values: Partial<RealCatalogueApplySummary> = {}) {
+  const pendingReviewRows = manifest.records.filter((record) => record.catalogStatus !== "active").length;
   return {
     sourceSha256: manifest.source.sha256,
     batchKey: manifest.source.batchKey,
@@ -342,6 +823,8 @@ function summaryFor(manifest: RealCatalogueManifest, values: Partial<RealCatalog
     blockedRows: manifest.records.filter((record) => record.unitsPerCase === null || record.unitWeightKg === null).length,
     skippedRows: manifest.records.filter((record) => record.unitsPerCase === null || record.unitWeightKg === null).length,
     preservedStatuses: 0,
+    phase: "import" as const,
+    pendingReviewRows,
     ...values,
   } satisfies RealCatalogueApplySummary;
 }
@@ -355,30 +838,41 @@ function summaryFor(manifest: RealCatalogueManifest, values: Partial<RealCatalog
 export async function applyRealCatalogueManifest(
   database: PrismaClient,
   manifest: RealCatalogueManifest,
-  input: { actorStaffId: string; targetLabel: string },
+  input: {
+    actorStaffId: string;
+    targetLabel: string;
+    targetIdentity?: Partial<RealCatalogueTargetIdentity>;
+    approval?: RealCatalogueApprovalMetadata;
+  },
 ) {
-  assertRealCatalogueTarget(process.env.DATABASE_URL ?? "", input.targetLabel);
-  if (input.targetLabel === "gagan-staging" && manifest.records.some((record) => record.catalogStatus !== "active")) {
-    throw new Error("real_catalogue_not_ready_for_staging");
-  }
+  assertRealCatalogueTarget(process.env.DATABASE_URL ?? "", input.targetLabel, input.targetIdentity);
+  const batchKey = sourceImportBatchKey(manifest, input.approval);
   return database.$transaction(async (tx) => {
-    const existing = await tx.catalogImportBatch.findUnique({ where: { batchKey: manifest.source.batchKey } });
+    const existing = await tx.catalogImportBatch.findUnique({ where: { batchKey } });
     if (existing?.status === "completed" || existing?.status === "completed_with_errors") {
       return (existing.summary as unknown as RealCatalogueApplySummary) ?? summaryFor(manifest);
     }
     const batch = existing ?? await tx.catalogImportBatch.create({
       data: {
-        batchKey: manifest.source.batchKey,
+        batchKey,
         sourceFileName: manifest.source.fileName,
         sourceSha256: manifest.source.sha256,
         sourceVersion: manifest.source.version,
         targetLabel: input.targetLabel,
-        mode: "apply",
+        mode: "source_import",
         status: "dry_run",
         createdByStaffId: input.actorStaffId,
+        ...(input.approval ? {
+          approvalId: input.approval.approvalId,
+          approvalRevision: input.approval.approvalRevision,
+          approvalSha256: input.approval.approvalSha256,
+          approvalSource: "reviewed_decisions_file",
+          approvalScope: json(input.approval.scope),
+          imageMappingRevision: input.approval.imageMappingRevision,
+        } : {}),
       },
     });
-    await tx.catalogImportBatch.update({ where: { id: batch.id }, data: { status: "applying", summary: json(summaryFor(manifest)) } });
+    await tx.catalogImportBatch.update({ where: { id: batch.id }, data: { status: "applying", summary: json(summaryFor(manifest, { batchKey })) } });
 
     let createdProducts = 0;
     let updatedProducts = 0;
@@ -391,13 +885,23 @@ export async function applyRealCatalogueManifest(
         blockedRows += 1;
         continue;
       }
-      const product = await tx.product.findUnique({ where: { catalogKey: record.productKey } });
-      const productStatus = product?.catalogStatus ?? record.catalogStatus;
+      const productKey = targetCatalogKey(record, "product");
+      const variantKey = targetCatalogKey(record, "variant");
+      let product = await tx.product.findUnique({ where: { catalogKey: productKey } });
+      if (product && productKey !== record.productKey) {
+        const sourceProduct = await tx.product.findUnique({ where: { catalogKey: record.productKey } });
+        if (sourceProduct && sourceProduct.id !== product.id) throw new Error(`catalogue_product_identity_conflict_${record.variantKey}`);
+      }
+      if (!product && productKey !== record.productKey) product = await tx.product.findUnique({ where: { catalogKey: record.productKey } });
+      // Source import is never promotion. New identities remain pending even
+      // when a reviewed manifest is used to preview the next configuration;
+      // an existing lifecycle status is preserved for safe repeat imports.
+      const productStatus = product?.catalogStatus ?? "pending_review";
       if (product?.catalogStatus) preservedStatuses += 1;
       const productData = {
         name: record.productName,
         category: record.category,
-        catalogKey: record.productKey,
+        catalogKey: productKey,
         catalogStatus: productStatus,
         ...(record.image.assetPath && !product?.imageUrl ? { imageUrl: record.image.assetPath } : {}),
       };
@@ -406,12 +910,17 @@ export async function applyRealCatalogueManifest(
         : await tx.product.create({ data: productData });
       if (product) updatedProducts += 1; else createdProducts += 1;
 
-      const variant = await tx.variant.findUnique({ where: { catalogKey: record.variantKey } });
-      const variantStatus = variant?.catalogStatus ?? record.catalogStatus;
+      let variant = await tx.variant.findUnique({ where: { catalogKey: variantKey } });
+      if (variant && variantKey !== record.variantKey) {
+        const sourceVariant = await tx.variant.findUnique({ where: { catalogKey: record.variantKey } });
+        if (sourceVariant && sourceVariant.id !== variant.id) throw new Error(`catalogue_variant_identity_conflict_${record.variantKey}`);
+      }
+      if (!variant && variantKey !== record.variantKey) variant = await tx.variant.findUnique({ where: { catalogKey: record.variantKey } });
+      const variantStatus = variant?.catalogStatus ?? "pending_review";
       if (variant?.catalogStatus) preservedStatuses += 1;
       const variantData = {
         productId: target.id,
-        catalogKey: record.variantKey,
+        catalogKey: variantKey,
         catalogStatus: variantStatus,
         unitSize: record.unitSize,
         unit: record.unit,
@@ -432,11 +941,178 @@ export async function applyRealCatalogueManifest(
         createdVariants += 1;
       }
     }
-    const result = summaryFor(manifest, { createdProducts, updatedProducts, createdVariants, updatedVariants, blockedRows, preservedStatuses });
+    const result = summaryFor(manifest, { batchKey, createdProducts, updatedProducts, createdVariants, updatedVariants, blockedRows, preservedStatuses });
     await tx.catalogImportBatch.update({
       where: { id: batch.id },
       data: { status: blockedRows ? "completed_with_errors" : "completed", completedAt: new Date(), summary: json(result) },
     });
+    return result;
+  }, { timeout: 120_000, maxWait: 10_000 });
+}
+
+/**
+ * Promote an already imported source batch only after an explicit, validated
+ * approval file resolves every readiness blocker. This is intentionally a
+ * separate transaction from source import: importing a workbook never makes
+ * a row orderable, and promotion never creates a second catalogue identity.
+ */
+export async function promoteRealCatalogueManifest(
+  database: PrismaClient,
+  manifest: RealCatalogueManifest,
+  input: {
+    actorStaffId: string;
+    targetLabel: string;
+    decisions: unknown;
+    targetIdentity?: Partial<RealCatalogueTargetIdentity>;
+  },
+) {
+  assertRealCatalogueTarget(process.env.DATABASE_URL ?? "", input.targetLabel, input.targetIdentity);
+  const resolved = resolveRealCatalogueDecisions(manifest, input.decisions);
+  const notReady = resolved.manifest.records.filter((record) => record.readinessBlockers.length > 0);
+  if (notReady.length) {
+    throw new Error(`real_catalogue_not_ready_${notReady.length}_rows`);
+  }
+  const approvalSha256 = resolved.approvalSha256;
+  const batchKey = `${manifest.source.batchKey}:promotion:${resolved.decisions.approval.approvalId}:r${resolved.decisions.approval.revision}:${approvalSha256}`;
+  return database.$transaction(async (tx) => {
+    const prior = await tx.catalogImportBatch.findFirst({
+      where: {
+        sourceSha256: manifest.source.sha256,
+        sourceVersion: manifest.source.version,
+        mode: "promotion",
+        approvalRevision: resolved.decisions.approval.revision,
+      },
+    });
+    if (prior && (prior.approvalSha256 !== approvalSha256 || prior.imageMappingRevision !== resolved.decisions.imageMappingRevision)) {
+      throw new Error("catalogue_approval_revision_conflict");
+    }
+    if (prior?.status === "completed" || prior?.status === "completed_with_errors") {
+      return (prior.summary as unknown as RealCatalogueApplySummary) ?? summaryFor(resolved.manifest, { batchKey, phase: "promote", approvalRevision: resolved.decisions.approval.revision, approvalSha256 });
+    }
+    const batch = prior ?? await tx.catalogImportBatch.create({
+      data: {
+        batchKey,
+        sourceFileName: manifest.source.fileName,
+        sourceSha256: manifest.source.sha256,
+        sourceVersion: manifest.source.version,
+        targetLabel: input.targetLabel,
+        mode: "promotion",
+        status: "dry_run",
+        approvalId: resolved.decisions.approval.approvalId,
+        approvalRevision: resolved.decisions.approval.revision,
+        approvalSha256,
+        approvalSource: "reviewed_decisions_file",
+        approvalScope: json(resolved.decisions.approval.scope),
+        imageMappingRevision: resolved.decisions.imageMappingRevision,
+        createdByStaffId: input.actorStaffId,
+      },
+    });
+    await tx.catalogImportBatch.update({ where: { id: batch.id }, data: { status: "applying", summary: json(summaryFor(resolved.manifest, { batchKey, phase: "promote", approvalRevision: resolved.decisions.approval.revision, approvalSha256 })) } });
+
+    const tiers = await tx.tier.findMany({ select: { id: true } });
+    const tierIds = new Set(tiers.map((tier) => tier.id));
+    const productMapping = new Map<string, string>();
+    for (const record of resolved.manifest.records) {
+      const productKey = targetCatalogKey(record, "product");
+      const inventory = record.inventoryMapping;
+      if (!inventory || !tierIds.size) throw new Error(`catalogue_promotion_configuration_missing_${record.variantKey}`);
+      if (productMapping.has(productKey) && productMapping.get(productKey) !== inventory.sapMaterialId) throw new Error(`catalogue_product_inventory_mapping_conflict_${productKey}`);
+      productMapping.set(productKey, inventory.sapMaterialId);
+      const snapshot = await tx.inventorySnapshot.findUnique({ where: { sapMaterialId_warehouseCode: { sapMaterialId: inventory.sapMaterialId, warehouseCode: inventory.warehouseCode } } });
+      if (!snapshot || snapshot.status === "unavailable" || Number(snapshot.available) <= 0 || Date.now() - snapshot.syncedAt.getTime() > 60 * 60 * 1000) throw new Error(`catalogue_inventory_not_ready_${record.variantKey}`);
+      for (const price of record.priceLists ?? []) if (!tierIds.has(price.tierId)) throw new Error(`catalogue_price_tier_not_found_${price.tierId}`);
+    }
+
+    let updatedProducts = 0;
+    let updatedVariants = 0;
+    for (const record of resolved.manifest.records) {
+      const productKey = targetCatalogKey(record, "product");
+      const variantKey = targetCatalogKey(record, "variant");
+      const product = await tx.product.findUnique({ where: { catalogKey: productKey } });
+      const variant = await tx.variant.findUnique({ where: { catalogKey: variantKey } });
+      if (!product || !variant || variant.productId !== product.id) throw new Error(`catalogue_source_import_required_${record.variantKey}`);
+      const inventory = record.inventoryMapping!;
+      await tx.product.update({
+        where: { id: product.id },
+        data: {
+          catalogKey: productKey,
+          internalCode: record.productInternalCode!,
+          sapMaterialId: inventory.sapMaterialId,
+          catalogStatus: "active",
+          name: record.productName,
+          category: record.category,
+          ...(record.image.assetPath ? { imageUrl: record.image.assetPath } : {}),
+        },
+      });
+      updatedProducts += 1;
+      await tx.variant.update({
+        where: { id: variant.id },
+        data: {
+          catalogKey: variantKey,
+          internalCode: record.variantInternalCode!,
+          catalogStatus: "active",
+          imageUrl: record.image.assetPath ?? variant.imageUrl,
+          hsnCode: record.hsnCode,
+          sellingEntity: record.sellingEntity ?? null,
+          gstPercent: record.gstPercent,
+          routingClass: record.routingClass,
+          routingBagEquivalent: record.routingBagEquivalent,
+          unitSize: record.unitSize,
+          unit: record.unit,
+          unitsPerCase: record.unitsPerCase!,
+          unitWeightKg: record.unitWeightKg!,
+        },
+      });
+      updatedVariants += 1;
+      for (const price of record.priceLists ?? []) {
+        await tx.priceList.upsert({
+          where: { tierId_variantId: { tierId: price.tierId, variantId: variant.id } },
+          update: { price: price.rate, rateBasis: price.rateBasis, productId: product.id },
+          create: { tierId: price.tierId, variantId: variant.id, productId: product.id, price: price.rate, rateBasis: price.rateBasis },
+        });
+      }
+    }
+    let retiredProducts = 0;
+    let retiredVariants = 0;
+    for (const candidate of resolved.decisions.retireCandidates ?? []) {
+      const product = await tx.product.findUnique({
+        where: { id: candidate.productId },
+        include: { variants: { select: { id: true } } },
+      });
+      if (!product) throw new Error(`catalogue_retirement_product_not_found_${candidate.productId}`);
+      if (product.name !== candidate.expectedName || (product.sapMaterialId ?? null) !== candidate.expectedSapMaterialId) {
+        throw new Error(`catalogue_retirement_identity_mismatch_${candidate.productId}`);
+      }
+      // A real imported identity is never eligible for the dummy/test
+      // retirement allowlist. Archiving is deliberately recoverable and keeps
+      // every historical relation intact.
+      if (product.catalogKey !== null) throw new Error(`catalogue_retirement_requires_legacy_product_${candidate.productId}`);
+      const actualVariantIds = product.variants.map((variant) => variant.id).sort();
+      const requestedVariantIds = [...candidate.variantIds].sort();
+      if (actualVariantIds.length !== requestedVariantIds.length || actualVariantIds.some((id, index) => id !== requestedVariantIds[index])) {
+        throw new Error(`catalogue_retirement_variant_scope_mismatch_${candidate.productId}`);
+      }
+      const historicalOrderItems = await tx.orderItem.count({ where: { variantId: { in: candidate.variantIds } } });
+      if (historicalOrderItems > 0) throw new Error(`catalogue_retirement_has_historical_orders_${candidate.productId}`);
+      await tx.variant.updateMany({ where: { id: { in: candidate.variantIds }, productId: product.id }, data: { catalogStatus: "archived" } });
+      await tx.product.update({ where: { id: product.id }, data: { catalogStatus: "archived" } });
+      retiredProducts += 1;
+      retiredVariants += candidate.variantIds.length;
+    }
+    const result = summaryFor(resolved.manifest, {
+      batchKey,
+      phase: "promote",
+      approvalRevision: resolved.decisions.approval.revision,
+      approvalSha256,
+      updatedProducts,
+      updatedVariants,
+      blockedRows: 0,
+      skippedRows: 0,
+      pendingReviewRows: 0,
+      retiredProducts,
+      retiredVariants,
+    });
+    await tx.catalogImportBatch.update({ where: { id: batch.id }, data: { status: "completed", completedAt: new Date(), summary: json(result) } });
     return result;
   }, { timeout: 120_000, maxWait: 10_000 });
 }

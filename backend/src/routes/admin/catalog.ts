@@ -27,6 +27,7 @@ router.get("/products", async (req, res) => {
     products: products.map((p) => ({
       id: p.id,
       catalogKey: p.catalogKey,
+      internalCode: p.internalCode,
       catalogStatus: p.catalogStatus,
       name: p.name,
       category: p.category,
@@ -35,12 +36,14 @@ router.get("/products", async (req, res) => {
       variants: p.variants.map((v) => ({
         id: v.id,
         catalogKey: v.catalogKey,
+        internalCode: v.internalCode,
         catalogStatus: v.catalogStatus,
         imageUrl: publicMediaUrl(req, v.imageUrl),
         unitSize: v.unitSize,
         unit: v.unit,
         unitsPerCase: v.unitsPerCase,
         unitWeightKg: Number(v.unitWeightKg),
+        hsnCode: v.hsnCode,
         sellingEntity:v.sellingEntity,gstPercent:v.gstPercent,
         prices: tiers.map((t) => ({
           tierId: t.id,

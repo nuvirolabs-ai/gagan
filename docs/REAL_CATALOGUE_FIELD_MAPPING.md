@@ -37,9 +37,13 @@ generated manifest. Spreadsheet formulas in `S.NO` are not used as identity.
 
 For a SKU such as `1 kg x 30`, `unitWeightKg = 1`,
 `unitsPerCase = 30`, and `caseWeightKg = 30`. The ten rows without an
-explicit multiplier are retained in the manifest but are not imported as
-representable sellable variants until the conversion is confirmed:
-Sehmat G11/G21/G31/G41/G51/G61 and the four Lite products.
+explicit multiplier are still represented safely in the manifest because
+their two explicit weight columns resolve the conversion: Sehmat
+G11/G21/G31/G41/G51/G61 and the four Lite products each read as one 30 KG BAG,
+so `unitsPerCase = 1`, `unitWeightKg = 30`, and `caseWeightKg = 30`. This
+derivation is recorded as `packing_size_and_master_bag`; it is not a SKU-name
+guess and remains overrideable only through an evidence-backed approval
+decision.
 
 The importer derives only the structural routing classification:
 
@@ -65,7 +69,8 @@ deliberate fail-closed result, not a missing-feature shortcut:
 - GST missing: 105;
 - inventory/SAP mapping missing: 105;
 - price tier missing: 105;
-- case conversion missing: 10;
+- case conversion missing: 0; the ten former exceptions are explicitly
+  derived as documented above;
 - approved routing-bag review required for non-Laxmi, non-Instant-Mix rows
   without a source BAG/conversion basis;
 - image mapping: 89 exact, 5 ambiguous, 11 missing.
@@ -73,5 +78,10 @@ deliberate fail-closed result, not a missing-feature shortcut:
 No MRP-derived price, default GST, fabricated stock, supplier, ownership, or
 conversion was created.
 
-The row-tied machine-readable output is
-`docs/real-catalogue/real-catalogue-manifest.json`.
+The older row-tied machine-readable output at
+`docs/real-catalogue/real-catalogue-manifest.json` is retained as prior
+evidence. The current manifest must be generated from the workbook and image
+index with the CLI; `--manifest` is an output path, not an approval input.
+Current summary evidence and the complete row-level review are in
+`docs/real-catalogue/REAL_CATALOGUE_OWNER_DECISION_PACK.md` and
+`docs/real-catalogue/REAL_CATALOGUE_BLOCKER_RECONCILIATION.md`.

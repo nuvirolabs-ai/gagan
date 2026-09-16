@@ -26,6 +26,7 @@ import {
   KeyboardSafeScrollView,
 } from "../components/ui";
 import { formatIsoDay, isoDay as isoDayValue, monthGrid, monthStart, parseIsoDay, shiftMonth } from "../components/dateHelpers";
+import { normalizeDateRange } from "../dateOnly";
 import { repApi } from "../api/repClient";
 import { colors, spacing } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -93,6 +94,12 @@ export default function MyDayScreen() {
   );
 
   const cells = useMemo(() => monthGrid(month), [month]);
+
+  const changeFromDate = (nextFromDate: string) => {
+    const range = normalizeDateRange(nextFromDate, toDate);
+    setFromDate(range.fromDate);
+    setToDate(range.toDate);
+  };
 
   const submitLeave = async () => {
     const from = parseDay(fromDate);
@@ -198,7 +205,7 @@ export default function MyDayScreen() {
               const marked = attendance?.mark === "present";
               const leaveMarked = request?.status === "approved" || request?.status === "pending";
               return date ? (
-                <Pressable key={date} accessibilityRole="button" accessibilityLabel={formatIsoDay(date, { weekday: "long", day: "numeric", month: "long" })} onPress={() => setFromDate(date)} style={styles.calendarDay}>
+                <Pressable key={date} accessibilityRole="button" accessibilityLabel={formatIsoDay(date, { weekday: "long", day: "numeric", month: "long" })} onPress={() => changeFromDate(date)} style={styles.calendarDay}>
                   <View style={[styles.dayDot, marked && styles.presentDot, leaveMarked && styles.leaveDot, request?.status === "rejected" && styles.rejectedDot]}>
                     <Text style={[styles.dayNumber, (marked || leaveMarked) && styles.dayNumberMarked]}>{Number(date.slice(-2))}</Text>
                   </View>
@@ -246,7 +253,7 @@ export default function MyDayScreen() {
           )}
           {composing ? (
             <View style={{ gap: spacing.md, marginTop: spacing.md }}>
-              <DateField label={t("myday.leaveFrom")} value={fromDate} onChange={setFromDate} />
+              <DateField label={t("myday.leaveFrom")} value={fromDate} onChange={changeFromDate} />
               <DateField label={t("myday.leaveTo")} value={toDate} onChange={setToDate} minDate={fromDate} />
               <Field label={t("myday.leave")}>
                 <OptionGrid options={LEAVE_TYPES} value={leaveType} onChange={setLeaveType} />

@@ -23,6 +23,12 @@ export function isDateWithinBounds(value: string, minDate?: string, maxDate?: st
   return true;
 }
 
+/** Keep a leave range valid when the start date changes after the end date was selected. */
+export function normalizeDateRange(fromDate: string, toDate: string): { fromDate: string; toDate: string } {
+  if (!parseDateOnly(fromDate) || !parseDateOnly(toDate)) return { fromDate, toDate };
+  return toDate < fromDate ? { fromDate, toDate: fromDate } : { fromDate, toDate };
+}
+
 export function formatDateOnly(value: string): string {
   const parsed = parseDateOnly(value);
   return parsed

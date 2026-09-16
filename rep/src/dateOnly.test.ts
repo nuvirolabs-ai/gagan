@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { expenseDatePayload } from "./screens/expenseDate";
-import { formatDateOnly, isDateWithinBounds, localDayKey, monthCells, parseDateOnly } from "./dateOnly";
+import { formatDateOnly, isDateWithinBounds, localDayKey, monthCells, normalizeDateRange, parseDateOnly } from "./dateOnly";
 
 describe("Salesperson date-only controls", () => {
   it("rejects impossible dates and preserves valid dates at UTC noon", () => {
@@ -19,5 +19,16 @@ describe("Salesperson date-only controls", () => {
     expect(isDateWithinBounds("2026-03-01", "2026-03-01", "2026-03-31")).toBe(true);
     expect(isDateWithinBounds("2026-04-01", undefined, "2026-03-31")).toBe(false);
     expect(monthCells(new Date(2026, 1, 1)).filter(Boolean)).toHaveLength(28);
+  });
+
+  it("keeps the leave end date on or after a newly selected start date", () => {
+    expect(normalizeDateRange("2026-09-17", "2026-09-16")).toEqual({
+      fromDate: "2026-09-17",
+      toDate: "2026-09-17",
+    });
+    expect(normalizeDateRange("2026-09-16", "2026-09-17")).toEqual({
+      fromDate: "2026-09-16",
+      toDate: "2026-09-17",
+    });
   });
 });

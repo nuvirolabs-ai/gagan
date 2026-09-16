@@ -29,6 +29,19 @@ No hosted database or deployment was changed.
 7. **Image mapping.** Exact matches may use the prepared derivative path. Ambiguous and missing images remain blocked until the owner selects/supplies the exact pack; see the image exception sheet.
 8. **Retirement.** Only the exact, separately listed legacy/test allowlist may be archived. No product is retired by absence from this workbook.
 
+## Grouped decision and impact register
+
+| Decision group | Affected source rows | Proposed mapping/evidence | Genuinely missing decision | Impact if unresolved |
+|---|---:|---|---|---|
+| Durable internal identity | 3–113 / 105 unique variants | Use immutable source variantKey as the review key; proposed internal codes are derived from that key suffix and are not SAP codes | Approve product and variant internal codes, or provide the approved convention | The row can be imported for review but cannot be promoted as a stable orderable identity |
+| GST and HSN | 3–113 / 105 unique variants | Workbook has no tax columns; current commercial engine requires a valid GST value | Supply GST percentage and HSN for each sellable variant | Quote, invoice tax and future SAP payload remain blocked; no default can be applied safely |
+| Price tier and tax basis | 3–113 / 105 unique variants | Preserve each supplied numeric INR/quintal amount; current validation rejects a changed amount when quintal basis is retained | Select the existing tier/list and confirm the supplied rates are GST-exclusive, or provide an evidence-backed case-rate interpretation | Backend-authoritative quote and checkout remain unavailable for the row |
+| Inventory/material mapping | 3–113 / 105 unique variants | Current order path looks up Product.sapMaterialId plus a fresh available warehouse snapshot; no workbook material ID is present | Map to an approved existing material and warehouse with current stock | The product remains non-orderable even if catalogue metadata is complete; no fake stock or internal-code-as-SAP substitution is allowed |
+| BOX routing contribution | 6, 7, 10, 13, 14, 18, 19, 22, 23, 26, 27, 30 | SKU weight × case conversion is explicit, but MASTER BAG/BOX says BOX | Decide the routing-bag contribution for an ordered BOX | Dynamic Jain/Padam threshold routing must keep the row blocked rather than guessing one BOX equals one BAG |
+| Ambiguous images | 13, 28, 48, 64/70, 65/71 | Two exact-name candidates are shown in the image exception sheet; every file is byte-distinct | Select one candidate and approve the mapping revision plus prepared asset path | The row remains non-ready so the app cannot show the wrong pack image |
+| Missing images | 15, 27, 43, 45, 47, 62/68, 63/69, 77, 101, 102, 103 | No exact Drive candidate exists for the stated product/pack | Supply the exact packaging image and add it to a versioned index | The row remains pending; no neighboring size/product image is substituted |
+| Retirement allowlist | Local seeded demo/test records only | Four DEMO-MAT identities are narrow local candidates; historical/ambiguous identities are excluded | Re-resolve exact hosted IDs and approve only the allowlist | Unapproved rows stay active or pending; no broad catalogue replacement or history rewrite occurs |
+
 ## Readiness rule
 
 A row is orderable only after its resolved manifest has no readiness blockers and controlled promotion succeeds. Source import, reviewed configuration, readiness validation and activation are separate phases. A catalogue status change alone cannot use the legacy unconfigured-quote fallback to make a row orderable.

@@ -6,10 +6,14 @@ set -euo pipefail
 # APK and after any future baseline descendant is prepared.
 
 branch=$(git branch --show-current)
-if [[ "$branch" != codex/gagan-salesperson-canonical-v1 ]]; then
+case "$branch" in
+  codex/gagan-canonical-product-v1|codex/gagan-salesperson-canonical-v1)
+    ;;
+  *)
   echo "wrong branch: $branch" >&2
   exit 1
-fi
+    ;;
+esac
 
 if [[ -n "$(git status --porcelain)" ]]; then
   echo "working tree is dirty" >&2

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import { explain } from "../errorCopy";
 
@@ -72,8 +72,8 @@ function toPayload(draft: SurveyDraft) {
     description: draft.description.trim() || undefined,
     startsAt: draft.startsAt ? new Date(draft.startsAt).toISOString() : undefined,
     endsAt: draft.endsAt ? new Date(draft.endsAt).toISOString() : undefined,
-    retailerIds: draft.audience === "selected_retailers" ? draft.retailerIds : [],
-    salespersonIds: draft.audience === "selected_salespersons" ? draft.salespersonIds : [],
+    retailerIds: draft.retailerIds,
+    salespersonIds: draft.salespersonIds,
     questions: draft.questions.map((question) => ({
       ...question,
       minValue: question.type === "rating" || question.type === "number" ? question.minValue : undefined,
@@ -165,8 +165,16 @@ export default function MarketSurveys() {
     return { ...current, questions };
   });
 
-  const people = useMemo(() => draft?.audience === "selected_retailers" ? retailers : staff, [draft?.audience, retailers, staff]);
-  const selectedIds = draft?.audience === "selected_retailers" ? draft.retailerIds : draft?.salespersonIds ?? [];
+  const toggleAssignment = (field: "retailerIds" | "salespersonIds", id: string) => setDraft((current) => {
+    if (!current) return current;
+    const ids = current[field];
+    return { ...current, [field]: ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id] };
+  });
+
+  const assignmentGroup = (title: string, people: any[], field: "retailerIds" | "salespersonIds") => {
+    if (!draft) return null;
+    return <div className="assignment-box"><div className="section-kicker">{title}</div><div className="assignment-grid">{people.length === 0 ? <div className="empty-state">No eligible users loaded.</div> : people.map((person: any) => { const id = person.id; const active = draft[field].includes(id); return <label key={id} className="check-row"><input type="checkbox" checked={active} onChange={() => toggleAssignment(field, id)} /><span>{person.name ?? person.businessName ?? id}<small>{person.phone ?? person.email ?? ""}</small></span></label>; })}</div></div>;
+  };
 
   return (
     <div>
@@ -208,7 +216,7 @@ export default function MarketSurveys() {
               </div>
               <div className="field"><label>Context for the field team (optional)</label><textarea value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} rows={2} placeholder="A short reason helps respondents answer well." /></div>
 
-              {draft.audience.startsWith("selected_") ? <div className="assignment-box"><div className="section-kicker">{draft.audience === "selected_retailers" ? "Selected retailers" : "Selected salespeople"}</div><div className="assignment-grid">{people.map((person: any) => { const id = person.id; const active = selectedIds.includes(id); return <label key={id} className="check-row"><input type="checkbox" checked={active} onChange={() => setDraft({ ...draft, ...(draft.audience === "selected_retailers" ? { retailerIds: active ? draft.retailerIds.filter((item) => item !== id) : [...draft.retailerIds, id] } : { salespersonIds: active ? draft.salespersonIds.filter((item) => item !== id) : [...draft.salespersonIds, id] }) })} /><span>{person.name ?? person.businessName ?? id}<small>{person.phone ?? person.email ?? ""}</small></span></label>; })}</div></div> : null}
+              {draft.audience.startsWith("selected_") ? <>{draft.audience === "selected_retailers" ? assignmentGroup("Selected retailers", retailers, "retailerIds") : assignmentGroup("Selected salespeople", staff, "salespersonIds")}{draft.audience === "selected_retailers" ? assignmentGroup("Also include selected salespeople (optional)", staff, "salespersonIds") : assignmentGroup("Also include selected retailers (optional)", retailers, "retailerIds")}</> : null}
 
               <div className="section-kicker">Questions</div>
               {draft.questions.map((question, index) => <div className="question-builder" key={index}><div className="between"><strong>Question {index + 1}</strong><div className="row"><button className="sm secondary" disabled={index === 0} onClick={() => moveQuestion(index, -1)}>↑</button><button className="sm secondary" disabled={index === draft.questions.length - 1} onClick={() => moveQuestion(index, 1)}>↓</button><button className="sm danger" disabled={draft.questions.length === 1} onClick={() => removeQuestion(index)}>Remove</button></div></div><div className="form-grid"><div className="field"><label>Prompt</label><input value={question.prompt} onChange={(event) => updateQuestion(index, { prompt: event.target.value })} placeholder="What is moving fastest this week?" /></div><div className="field"><label>Type</label><select value={question.type} onChange={(event) => updateQuestion(index, { type: event.target.value as QuestionType })}>{Object.entries(TYPE_LABELS).map(([type, label]) => <option key={type} value={type}>{label}</option>)}</select></div></div><label className="check-row inline-check"><input type="checkbox" checked={question.required} onChange={(event) => updateQuestion(index, { required: event.target.checked })} />Required answer</label>{["single_choice", "multiple_choice"].includes(question.type) ? <div className="option-editor">{question.options.map((option, optionIndex) => <div className="row" key={optionIndex}><input value={option.label} onChange={(event) => updateQuestion(index, { options: question.options.map((item, i) => i === optionIndex ? { ...item, label: event.target.value } : item) })} placeholder={`Option ${optionIndex + 1}`} /><button className="sm danger" onClick={() => updateQuestion(index, { options: question.options.filter((_, i) => i !== optionIndex) })}>×</button></div>)}<button className="sm secondary" onClick={() => updateQuestion(index, { options: [...question.options, { label: "" }] })}>Add option</button></div> : null}{["rating", "number"].includes(question.type) ? <div className="form-grid"><div className="field"><label>Minimum (optional)</label><input type="number" value={question.minValue ?? ""} onChange={(event) => updateQuestion(index, { minValue: event.target.value === "" ? undefined : Number(event.target.value) })} /></div><div className="field"><label>Maximum (optional)</label><input type="number" value={question.maxValue ?? ""} onChange={(event) => updateQuestion(index, { maxValue: event.target.value === "" ? undefined : Number(event.target.value) })} /></div></div> : null}{question.type === "text" ? <div className="field"><label>Maximum characters (optional)</label><input type="number" value={question.maxLength ?? ""} onChange={(event) => updateQuestion(index, { maxLength: event.target.value === "" ? undefined : Number(event.target.value) })} /></div> : null}</div>)}

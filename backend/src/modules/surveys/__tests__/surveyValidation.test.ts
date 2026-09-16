@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { SurveyQuestionType } from "@prisma/client";
-import { SurveyError, SurveyService } from "../surveyService";
+import { SurveyAudience, SurveyQuestionType } from "@prisma/client";
+import { isSurveyActorAllowed, SurveyError, SurveyService } from "../surveyService";
 
 const survey = {
   questions: [
@@ -16,6 +16,19 @@ const survey = {
 const service = new SurveyService({} as any);
 
 describe("market survey answer contract", () => {
+  it("allows one selected survey to target both roles without widening access", () => {
+    const assignments = [
+      { audience: SurveyAudience.selected_retailers, retailerId: "retailer-1", salespersonId: null },
+      { audience: SurveyAudience.selected_salespersons, retailerId: null, salespersonId: "staff-1" },
+    ];
+
+    expect(isSurveyActorAllowed(SurveyAudience.selected_retailers, assignments, { kind: "staff", id: "staff-1" })).toBe(true);
+    expect(isSurveyActorAllowed(SurveyAudience.selected_retailers, assignments, { kind: "staff", id: "staff-1", contextRetailerId: "retailer-1" })).toBe(true);
+    expect(isSurveyActorAllowed(SurveyAudience.selected_retailers, assignments, { kind: "retailer", id: "retailer-1" })).toBe(true);
+    expect(isSurveyActorAllowed(SurveyAudience.selected_retailers, assignments, { kind: "retailer", id: "retailer-2" })).toBe(false);
+    expect(isSurveyActorAllowed(SurveyAudience.selected_retailers, assignments, { kind: "staff", id: "staff-2" })).toBe(false);
+  });
+
   it("normalizes every V1 answer type and preserves option identity", () => {
     const result = service.normalizeAnswers(survey, [
       { questionId: "choice", optionIds: ["fast"] },

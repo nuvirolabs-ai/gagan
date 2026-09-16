@@ -213,13 +213,10 @@ function validateDefinition(input: SurveyDefinitionInput) {
 }
 
 function assignmentCreateData(definition: ReturnType<typeof validateDefinition>) {
-  if (definition.audience === SurveyAudience.selected_retailers) {
-    return definition.retailerIds.map((retailerId) => ({ audience: definition.audience, retailerId }));
-  }
-  if (definition.audience === SurveyAudience.selected_salespersons) {
-    return definition.salespersonIds.map((salespersonId) => ({ audience: definition.audience, salespersonId }));
-  }
-  return [];
+  return [
+    ...definition.retailerIds.map((retailerId) => ({ audience: SurveyAudience.selected_retailers, retailerId })),
+    ...definition.salespersonIds.map((salespersonId) => ({ audience: SurveyAudience.selected_salespersons, salespersonId })),
+  ];
 }
 
 function currentRespondent(actor: SurveyActor) {
@@ -247,6 +244,34 @@ function currentRespondent(actor: SurveyActor) {
   } as const;
 }
 
+type SurveyAssignmentTarget = {
+  audience: SurveyAudience;
+  retailerId: string | null;
+  salespersonId: string | null;
+};
+
+/**
+ * A survey keeps its original primary audience for backwards compatibility,
+ * while selected assignments may include both respondent roles. Each
+ * assignment's audience is authoritative for access checks.
+ */
+export function isSurveyActorAllowed(
+  audience: SurveyAudience,
+  assignments: SurveyAssignmentTarget[],
+  actor: SurveyActor,
+) {
+  const direct = actor.kind === "staff" && !actor.contextRetailerId;
+  if (direct) {
+    return audience === SurveyAudience.all_salespersons
+      || assignments.some((assignment) => assignment.audience === SurveyAudience.selected_salespersons && assignment.salespersonId === actor.id);
+  }
+
+  const targetId = actor.kind === "retailer" ? actor.id : actor.contextRetailerId;
+  if (!targetId) return false;
+  return audience === SurveyAudience.all_retailers
+    || assignments.some((assignment) => assignment.audience === SurveyAudience.selected_retailers && assignment.retailerId === targetId);
+}
+
 async function surveyForActor(db: Db, surveyId: string, actor: SurveyActor, now: Date) {
   const survey = await db.survey.findFirst({
     where: { id: surveyId, status: SurveyStatus.active, ...dateWindow(now) },
@@ -267,13 +292,7 @@ async function surveyForActor(db: Db, surveyId: string, actor: SurveyActor, now:
     }
   }
 
-  const isDirect = actor.kind === "staff" && !actor.contextRetailerId;
-  const targetId = actor.kind === "retailer" ? actor.id : actor.contextRetailerId;
-  const audienceAllowed = survey.audience === SurveyAudience.all_retailers && !isDirect && Boolean(targetId)
-    || survey.audience === SurveyAudience.selected_retailers && !isDirect && Boolean(targetId) && survey.assignments.some((assignment) => assignment.retailerId === targetId)
-    || survey.audience === SurveyAudience.all_salespersons && isDirect
-    || survey.audience === SurveyAudience.selected_salespersons && isDirect && survey.assignments.some((assignment) => assignment.salespersonId === actor.id);
-  if (!audienceAllowed) throw new SurveyError("survey_not_assigned", 403);
+  if (!isSurveyActorAllowed(survey.audience, survey.assignments, actor)) throw new SurveyError("survey_not_assigned", 403);
 
   return { survey, respondent };
 }
@@ -440,7 +459,7 @@ export class SurveyService {
   async listForRetailer(retailerId: string) {
     const now = new Date();
     const surveys = await this.prisma.survey.findMany({
-      where: { status: SurveyStatus.active, ...dateWindow(now), OR: [{ audience: SurveyAudience.all_retailers }, { audience: SurveyAudience.selected_retailers, assignments: { some: { retailerId } } }] },
+      where: { status: SurveyStatus.active, ...dateWindow(now), OR: [{ audience: SurveyAudience.all_retailers }, { assignments: { some: { audience: SurveyAudience.selected_retailers, retailerId } } }] },
       include: SURVEY_INCLUDE,
       orderBy: { activatedAt: "desc" },
     });
@@ -451,8 +470,8 @@ export class SurveyService {
 
   async listForStaff(staffId: string, contextRetailerId?: string) {
     const now = new Date();
-    const direct = { OR: [{ audience: SurveyAudience.all_salespersons }, { audience: SurveyAudience.selected_salespersons, assignments: { some: { salespersonId: staffId } } }] };
-    const contextual = contextRetailerId ? { OR: [{ audience: SurveyAudience.all_retailers }, { audience: SurveyAudience.selected_retailers, assignments: { some: { retailerId: contextRetailerId } } }] } : null;
+    const direct = { OR: [{ audience: SurveyAudience.all_salespersons }, { assignments: { some: { audience: SurveyAudience.selected_salespersons, salespersonId: staffId } } }] };
+    const contextual = contextRetailerId ? { OR: [{ audience: SurveyAudience.all_retailers }, { assignments: { some: { audience: SurveyAudience.selected_retailers, retailerId: contextRetailerId } } }] } : null;
     const surveys = await this.prisma.survey.findMany({ where: { status: SurveyStatus.active, ...dateWindow(now), OR: contextual ? [direct, contextual] : [direct] }, include: SURVEY_INCLUDE, orderBy: { activatedAt: "desc" } });
     const keys = contextRetailerId ? [`salesperson:${staffId}`, `salesperson:${staffId}:retailer:${contextRetailerId}`] : [`salesperson:${staffId}`];
     const responses = await this.prisma.surveyResponse.findMany({ where: { respondentKey: { in: keys } }, select: { surveyId: true, respondentKey: true, submittedAt: true } });
@@ -460,7 +479,7 @@ export class SurveyService {
     return surveys.map((survey) => ({
       ...respondentSurveyView(survey),
       submittedAt: submitted.get(`${survey.id}:salesperson:${staffId}`) ?? (contextRetailerId ? submitted.get(`${survey.id}:salesperson:${staffId}:retailer:${contextRetailerId}`) ?? null : null),
-      responseContext: survey.audience === SurveyAudience.all_retailers || survey.audience === SurveyAudience.selected_retailers ? "retailer" : "salesperson",
+      responseContext: contextRetailerId && isSurveyActorAllowed(survey.audience, survey.assignments, { kind: "staff", id: staffId, contextRetailerId }) ? "retailer" : "salesperson",
     }));
   }
 

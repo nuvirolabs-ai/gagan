@@ -7,6 +7,7 @@ import {
   assertRealCatalogueTarget,
   buildRealCatalogueManifest,
   promoteRealCatalogueManifest,
+  publishRealCatalogueManifest,
   realCatalogueDecisionsSha256,
   resolveRealCatalogueDecisions,
   type DriveImageEntry,
@@ -429,6 +430,74 @@ describe("real catalogue source mapping", () => {
       if (sourceProductId) await prisma.product.delete({ where: { id: sourceProductId } });
       await prisma.variant.delete({ where: { id: legacyVariant.id } });
       await prisma.product.delete({ where: { id: legacyProduct.id } });
+    }
+  });
+
+  it("publishes every reviewed row for browsing with an explicit placeholder while keeping it non-orderable", async () => {
+    if (!process.env.DATABASE_URL) return;
+    const url = new URL(process.env.DATABASE_URL);
+    if (!(url.hostname === "localhost" || url.hostname === "127.0.0.1") || !url.pathname.includes("test")) return;
+    const base = buildRealCatalogueManifest(workbookBuffer(), "catalogue.xlsx", imageIndex);
+    const sourceRecord = base.records.find((record) => record.source.skuName === "SEHMAT G11")!;
+    const run = crypto.randomUUID();
+    const sourceSha256 = crypto.createHash("sha256").update(`${base.source.sha256}:publish:${run}`).digest("hex");
+    const manifest = {
+      ...base,
+      source: { ...base.source, sha256: sourceSha256, batchKey: `real-catalogue:publish:${sourceSha256}` },
+      records: [{
+        ...sourceRecord,
+        productKey: `real-catalogue:publish-product:${run}`,
+        variantKey: `real-catalogue:publish-variant:${run}`,
+        image: { ...sourceRecord.image },
+      }],
+    };
+    const actor = await prisma.staffUser.findFirstOrThrow();
+    const tierIds = (await prisma.tier.findMany({ select: { id: true } })).map((tier) => tier.id);
+    const decisions = {
+      schemaVersion: 1,
+      approval: {
+        approvalId: `publish-approval-${run}`,
+        revision: 1,
+        approvedBy: "owner-test",
+        approvedAt: "2026-09-17T00:00:00.000Z",
+        scope: "publish visible catalogue regression",
+        source: { workbookSha256: manifest.source.sha256, sourceVersion: manifest.source.version },
+      },
+      pricing: {
+        sourceRateBasis: "quintal",
+        gstTreatment: "exclusive",
+        targetTierId: null,
+        targetTierStatus: "all_existing_tiers",
+        scope: "all_retailers",
+        evidence: "owner-approved publish regression",
+      },
+      imageMappingRevision: "images-publish-v1",
+      records: [{
+        variantKey: manifest.records[0].variantKey,
+        productInternalCode: `PUBLISH-P-${run}`,
+        variantInternalCode: `PUBLISH-V-${run}`,
+        image: { placeholderLabel: "Image coming soon", mappingRevision: "images-publish-v1", evidence: "missing image placeholder regression" },
+      }],
+    };
+    try {
+      await applyRealCatalogueManifest(prisma, manifest, { actorStaffId: actor.id, targetLabel: "disposable-local" });
+      const first = await publishRealCatalogueManifest(prisma, manifest, { actorStaffId: actor.id, targetLabel: "disposable-local", decisions });
+      const replay = await publishRealCatalogueManifest(prisma, manifest, { actorStaffId: actor.id, targetLabel: "disposable-local", decisions });
+      const product = await prisma.product.findUniqueOrThrow({ where: { catalogKey: manifest.records[0].productKey } });
+      const variant = await prisma.variant.findUniqueOrThrow({ where: { catalogKey: manifest.records[0].variantKey } });
+      expect(first).toMatchObject({ phase: "publish", publishedProducts: 1, publishedVariants: 1, placeholderImages: 1, pendingImages: 0, orderableVariants: 0 });
+      expect(replay).toEqual(first);
+      expect(product.catalogStatus).toBe("published");
+      expect(variant).toMatchObject({ catalogStatus: "published", catalogImageStatus: "placeholder", catalogImageLabel: "Image coming soon" });
+      expect(await prisma.priceList.count({ where: { variantId: variant.id } })).toBe(tierIds.length);
+      expect(await prisma.priceList.findMany({ where: { variantId: variant.id } })).toEqual(expect.arrayContaining(tierIds.map((tierId) => expect.objectContaining({ tierId, rateBasis: "quintal", price: expect.anything() }))));
+    } finally {
+      const variant = await prisma.variant.findUnique({ where: { catalogKey: manifest.records[0].variantKey } });
+      if (variant) await prisma.priceList.deleteMany({ where: { variantId: variant.id } });
+      await prisma.catalogImportBatch.deleteMany({ where: { sourceSha256 } });
+      if (variant) await prisma.variant.delete({ where: { id: variant.id } });
+      const product = await prisma.product.findUnique({ where: { catalogKey: manifest.records[0].productKey } });
+      if (product) await prisma.product.delete({ where: { id: product.id } });
     }
   });
 });

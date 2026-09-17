@@ -76,6 +76,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
   const setQty = (product: any, variant: any, next: number) => {
     if (variant.price == null) return;
     const current = qtyFor(variant.id);
+    if (next > current && variant.orderable === false) return;
     const orderable = variant.availability?.status === "available" && Number(variant.availability.available) > 0;
     // The API owns inventory. A rep can reduce a saved line, but cannot add
     // stock that SAP has marked unavailable or stale.
@@ -131,7 +132,9 @@ export default function RepCatalogScreen({ route, navigation }: any) {
                 <ProductThumb
                   name={product.name}
                   category={product.category}
-                  imageUrl={variant.imageUrl ?? product.imageUrl}
+                  imageUrl={variant.imageStatus === "placeholder" || variant.imageStatus === "pending" ? null : variant.imageUrl ?? product.imageUrl}
+                  imageStatus={variant.imageStatus}
+                  imageLabel={variant.imageLabel}
                   size={72}
                 />
                 <View style={{ flex: 1, minWidth: 0 }}>
@@ -147,11 +150,13 @@ export default function RepCatalogScreen({ route, navigation }: any) {
                         {variant.price != null ? `${inr(variant.price)}/case` : "—"}
                       </Text>
                     </View>
+                    {variant.rateLabel ? <Text style={styles.rateLabel}>{variant.rateLabel}</Text> : null}
                     {variant.pricePerKg != null ? <Text style={styles.perKg}>{inr(variant.pricePerKg)}/kg</Text> : null}
                   </View>
+                  {variant.orderable === false ? <Text style={styles.pendingOrder}>{variant.orderingReason ?? "Ordering setup pending"}</Text> : null}
                   {variant.isOverride && <Text style={styles.override}>{t("catalog.specialRate")}</Text>}
                 </View>
-                {qty === 0 ? <QtyStepper qty={qty} onChange={(next) => setQty(product, variant, next)} compact /> : null}
+                {qty === 0 && variant.orderable !== false ? <QtyStepper qty={qty} onChange={(next) => setQty(product, variant, next)} compact /> : null}
                 </View>
                 {product.skus.length > 1 || qty > 0 ? <View style={styles.controlsRow}>
                 {product.skus.length > 1 ? <View style={styles.packOptions}>
@@ -277,6 +282,8 @@ const styles = StyleSheet.create({
   // pair, the wrapping row gives the per-kg value its own line instead of
   // truncating it with an ellipsis.
   price: { fontSize: 14.5, fontWeight: "700", color: colors.ink, flexShrink: 0 },
+  rateLabel: { fontSize: 10.5, color: colors.inkMuted, marginTop: 1 },
+  pendingOrder: { fontSize: 11, color: colors.warning, fontWeight: "700", marginTop: 2 },
   perKg: { fontSize: 11, color: colors.inkMuted, marginTop: 1 },
   override: { fontSize: 10, color: colors.blue, fontWeight: "700", marginTop: 3 },
 

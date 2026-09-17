@@ -31,6 +31,13 @@ export interface QuickOrderItem {
   unitSize: string;
   unitsPerCase: number;
   casePrice: string | null;
+  commercialRate?: string | number | null;
+  rateBasis?: string;
+  rateLabel?: string | null;
+  orderable?: boolean;
+  orderingReason?: string | null;
+  imageStatus?: "exact" | "placeholder" | "pending";
+  imageLabel?: string | null;
 }
 
 export interface HomeActiveOrder {
@@ -54,7 +61,17 @@ export interface HomeSku {
   unit: string;
   unitsPerCase: number;
   price: number | null;
+  commercialRate?: number | null;
+  rateBasis?: string;
+  rateLabel?: string | null;
   isOverride?: boolean;
+  catalogStatus?: string;
+  orderable?: boolean;
+  orderingStatus?: string;
+  orderingReason?: string | null;
+  imageUrl?: string | null;
+  imageStatus?: "exact" | "placeholder" | "pending";
+  imageLabel?: string | null;
   availability?: { status?: string; available?: number | null } | null;
 }
 

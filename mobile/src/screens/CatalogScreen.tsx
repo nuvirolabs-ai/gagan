@@ -77,6 +77,7 @@ export default function CatalogScreen({ navigation }: any) {
   const setQty = (group: ProductGroupLike, sku: Sku, next: number) => {
     if (sku.price == null) return;
     const current = qtyFor(sku.id);
+    if (next > current && sku.orderable === false) return;
     const availability = sku.availability;
     const orderable =
       !availability || availability.status == null || availability.status === "unknown"

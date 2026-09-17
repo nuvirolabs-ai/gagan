@@ -86,7 +86,11 @@ export default function ProductDetailScreen({ route, navigation }: any) {
 
   const setQty = (next: number) => {
     if (!selected || selected.price == null) return;
-    const orderable = selected.availability?.status === "available" && Number(selected.availability.available) > 0;
+    const availability = selected.availability;
+    const stockReady = !availability || availability.status == null || availability.status === "unknown"
+      ? true
+      : availability.status === "available" && Number(availability.available ?? 0) > 0;
+    const orderable = selected.orderable !== false && stockReady;
     if (next > inCart && !orderable) return;
     if (inCart === 0 && next > 0) {
       addLine({
@@ -110,7 +114,9 @@ export default function ProductDetailScreen({ route, navigation }: any) {
           <ProductThumb
             name={product.name}
             category={product.category}
-            imageUrl={selected?.imageUrl ?? product.imageUrl}
+            imageUrl={selected?.imageStatus === "placeholder" || selected?.imageStatus === "pending" ? null : selected?.imageUrl ?? product.imageUrl}
+            imageStatus={selected?.imageStatus}
+            imageLabel={selected?.imageLabel}
             size={168}
           />
         </View>
@@ -164,6 +170,8 @@ export default function ProductDetailScreen({ route, navigation }: any) {
               )}
             </View>
           )}
+          {selected?.rateLabel ? <Text style={styles.rateLabel}>{selected.rateLabel}</Text> : null}
+          {selected?.orderable === false ? <Text style={styles.pendingOrder}>{selected.orderingReason ?? "Ordering setup pending"}</Text> : null}
           {selected?.isOverride ? (
             <View style={styles.override}>
               <Ionicons name="pricetag" size={11} color={colors.green} />
@@ -206,8 +214,8 @@ export default function ProductDetailScreen({ route, navigation }: any) {
           </View>
         ) : (
           <TouchableOpacity
-            style={[styles.addBtn, selected?.price == null && styles.addBtnDisabled]}
-            disabled={selected?.price == null}
+            style={[styles.addBtn, (selected?.price == null || selected?.orderable === false) && styles.addBtnDisabled]}
+            disabled={selected?.price == null || selected?.orderable === false}
             onPress={() => setQty(1)}
           >
             <Ionicons name="cart-outline" size={17} color={colors.onDark} />
@@ -273,6 +281,8 @@ const styles = StyleSheet.create({
   perKgBox: { alignItems: "flex-end" },
   perKgValue: { fontSize: 15, fontWeight: "700", color: colors.ink },
   perKgLabel: { fontSize: 10, color: colors.inkMuted, marginTop: 1 },
+  rateLabel: { fontSize: 11, color: colors.inkMuted, marginTop: spacing.sm },
+  pendingOrder: { fontSize: 12, color: colors.warning, fontWeight: "700", marginTop: spacing.sm },
   override: {
     flexDirection: "row",
     alignItems: "center",

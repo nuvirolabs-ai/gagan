@@ -6,6 +6,7 @@ import {
   applyRealCatalogueManifest,
   buildRealCatalogueManifest,
   promoteRealCatalogueManifest,
+  publishRealCatalogueManifest,
   readImageIndex,
   resolveRealCatalogueDecisions,
   type RealCatalogueManifest,
@@ -26,6 +27,7 @@ function printSummary(manifest: RealCatalogueManifest) {
     records: manifest.records.length,
     activeReady: manifest.records.filter((record) => record.catalogStatus === "active").length,
     pendingReview: manifest.records.filter((record) => record.catalogStatus === "pending_review").length,
+    published: manifest.records.filter((record) => record.catalogStatus === "published").length,
     exactImages: manifest.records.filter((record) => record.image.status === "matched").length,
     ambiguousImages: manifest.records.filter((record) => record.image.status === "ambiguous").length,
     missingImages: manifest.records.filter((record) => record.image.status === "missing").length,
@@ -49,7 +51,7 @@ async function main() {
   if (imageIndexBuffer) manifest.imageSource.indexSha256 = crypto.createHash("sha256").update(imageIndexBuffer).digest("hex");
   const decisionsPath = argument("--decisions");
   const phase = argument("--phase") ?? "import";
-  if (phase !== "import" && phase !== "promote") throw new Error("--phase must be import or promote");
+  if (phase !== "import" && phase !== "promote" && phase !== "publish") throw new Error("--phase must be import, promote or publish");
   let reviewedManifest = manifest;
   let decisions: unknown;
   let approvalSha256: string | undefined;
@@ -83,7 +85,7 @@ async function main() {
   const targetLabel = argument("--target");
   if (!actorStaffId || !targetLabel) throw new Error("--apply requires --actor=<staff-id> and --target=<disposable-local|gagan-staging>");
   if (process.env.REAL_CATALOGUE_CONFIRM !== "REAL_CATALOGUE_V1") throw new Error("explicit catalogue apply confirmation required");
-  if (phase === "promote" && !decisions) throw new Error("--phase=promote requires --decisions=<approved-decisions.json>");
+  if ((phase === "promote" || phase === "publish") && !decisions) throw new Error(`--phase=${phase} requires --decisions=<approved-decisions.json>`);
   const targetIdentity = {
     serviceName: argument("--service"),
     serviceId: argument("--service-id"),
@@ -95,7 +97,9 @@ async function main() {
   try {
     const result = phase === "promote"
       ? await promoteRealCatalogueManifest(database, manifest, { actorStaffId, targetLabel, decisions, targetIdentity })
-      : await applyRealCatalogueManifest(database, reviewedManifest, { actorStaffId, targetLabel, targetIdentity, approval: approvalMetadata });
+      : phase === "publish"
+        ? await publishRealCatalogueManifest(database, manifest, { actorStaffId, targetLabel, decisions, targetIdentity })
+        : await applyRealCatalogueManifest(database, reviewedManifest, { actorStaffId, targetLabel, targetIdentity, approval: approvalMetadata });
     console.log(JSON.stringify({ applied: true, result }, null, 2));
   } finally {
     await database.$disconnect();

@@ -132,6 +132,7 @@ export default function HomeScreen({ navigation }: any) {
   const setSkuQty = (sku: Sku, next: number) => {
     if (sku.price == null) return;
     const current = qtyFor(sku.id);
+    if (next > current && sku.orderable === false) return;
     if (current === 0 && next > 0) {
       addLine({
         variantId: sku.id,

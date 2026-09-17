@@ -187,7 +187,8 @@ export function reorderLines(
   const lines: CartLine[] = [];
   for (const item of lastOrder.items) {
     const price = currentSkuPrice(groups, item.variantId);
-    if (price == null || item.qty <= 0) continue;
+    const sku = groups.flatMap((group) => group.skus).find((candidate) => candidate.id === item.variantId);
+    if (price == null || item.qty <= 0 || sku?.orderable === false) continue;
     lines.push({
       variantId: item.variantId,
       productName: groupNameForSku(groups, item.variantId) || item.name,

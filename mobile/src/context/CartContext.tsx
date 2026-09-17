@@ -40,6 +40,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     const live = new Map<string, { price: number; productName: string; packSize: string }>();
     for (const product of catalog.catalog ?? []) {
       for (const v of product.variants ?? []) {
+        if (v.orderable === false) continue;
         const orderable = v.availability?.status === "available" && Number(v.availability.available) > 0;
         if (v.price == null || !orderable) continue;
         live.set(v.id, {

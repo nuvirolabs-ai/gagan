@@ -23,8 +23,17 @@ export interface Sku {
   unitSize: string;
   unitsPerCase: number;
   price: number | null;
+  commercialRate?: number | null;
+  rateBasis?: string;
+  rateLabel?: string | null;
+  catalogStatus?: string;
+  orderable?: boolean;
+  orderingStatus?: string;
+  orderingReason?: string | null;
   availability?: { status?: string; available?: number | null } | null;
   imageUrl?: string | null;
+  imageStatus?: "exact" | "placeholder" | "pending";
+  imageLabel?: string | null;
 }
 
 export interface ProductGroupLike {
@@ -38,6 +47,7 @@ export interface ProductGroupLike {
 
 function isOrderable(sku: Sku | undefined): boolean {
   if (!sku || sku.price == null) return false;
+  if (sku.orderable === false) return false;
   const availability = sku.availability;
   // Unknown stock is not a promise of stock, but it is not a block either:
   // the API says "unknown" when no warehouse feed covers the item.
@@ -87,7 +97,9 @@ export default function ProductGroupCard({
         <ProductThumb
           name={group.name}
           category={group.category}
-          imageUrl={selected?.imageUrl ?? group.imageUrl}
+          imageUrl={selected?.imageStatus === "placeholder" || selected?.imageStatus === "pending" ? null : selected?.imageUrl ?? group.imageUrl}
+          imageStatus={selected?.imageStatus}
+          imageLabel={selected?.imageLabel}
           size={thumb}
         />
         <View style={{ flex: 1, minWidth: 0 }}>
@@ -100,7 +112,8 @@ export default function ProductGroupCard({
           <Text style={styles.price} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
             {selected?.price != null ? `${inr(selected.price)} / case` : "Price on request"}
           </Text>
-          {!orderable && selected ? <Text style={styles.outOfStock}>Out of stock</Text> : null}
+          {selected?.rateLabel ? <Text style={styles.rateLabel}>{selected.rateLabel}</Text> : null}
+          {!orderable && selected ? <Text style={styles.outOfStock}>{selected.orderingReason ?? "Out of stock"}</Text> : null}
         </View>
       </TouchableOpacity>
 
@@ -138,7 +151,7 @@ export default function ProductGroupCard({
         {selected && orderable ? (
           <QtyStepper qty={qty} onChange={(next) => onChangeQty(selected, next)} compact />
         ) : (
-          <Text style={styles.footNote}>Unavailable</Text>
+          <Text style={styles.footNote}>{selected?.orderingReason ?? "Unavailable"}</Text>
         )}
       </View>
     </View>
@@ -181,6 +194,7 @@ const styles = StyleSheet.create({
   pack: { fontSize: 11.5, color: colors.inkMuted, marginTop: 2 },
   price: { fontSize: 13.5, fontWeight: "700", color: colors.ink, marginTop: 4 },
   outOfStock: { fontSize: 11, fontWeight: "700", color: colors.warning, marginTop: 2 },
+  rateLabel: { fontSize: 10.5, color: colors.inkMuted, marginTop: 1 },
 
   packRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   packChip: {

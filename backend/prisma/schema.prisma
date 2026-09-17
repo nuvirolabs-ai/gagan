@@ -1121,6 +1121,10 @@ model Variant {
   internalCode       String?              @unique
   catalogStatus      String               @default("active")
   imageUrl           String?
+  /// Publication can intentionally show a labelled placeholder while the
+  /// sellable variant remains non-orderable until commercial setup is valid.
+  catalogImageStatus String               @default("exact")
+  catalogImageLabel  String?
   hsnCode            String?
   sellingEntity      String?
   gstPercent         Decimal?            @db.Decimal(5, 2)

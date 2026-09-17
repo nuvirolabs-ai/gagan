@@ -5,7 +5,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 
 export const REAL_CATALOGUE_VERSION = "sku-wise-item-list-2026-09-16-v1";
 export const REAL_CATALOGUE_SOURCE_FILE = "SKU WISE ITEM LIST – 16-09-26-UPDATED.xlsx";
-export const REAL_CATALOGUE_STATUSES = ["active", "pending_review", "archived", "test"] as const;
+export const REAL_CATALOGUE_STATUSES = ["active", "published", "pending_review", "archived", "test"] as const;
 export type RealCatalogueStatus = (typeof REAL_CATALOGUE_STATUSES)[number];
 
 export type DriveImageEntry = {
@@ -16,11 +16,13 @@ export type DriveImageEntry = {
 };
 
 export type RealCatalogueImage = {
-  status: "matched" | "ambiguous" | "missing";
+  status: "matched" | "ambiguous" | "missing" | "placeholder";
   candidates: DriveImageEntry[];
   selectedDriveFileId?: string | null;
   /** Root-relative path served by the existing private application asset. */
   assetPath: string | null;
+  /** Human-readable state when a photo is intentionally not exact imagery. */
+  placeholderLabel?: "Image coming soon" | "Image pending confirmation";
 };
 
 export type RealCataloguePriceDecision = {
@@ -63,7 +65,8 @@ export type RealCatalogueDecisionRecord = {
     sellingEntity?: "jain_traders" | "padam_international" | null;
   };
   image?: {
-    driveFileId: string;
+    driveFileId?: string;
+    placeholderLabel?: "Image coming soon";
     mappingRevision: string;
     evidence?: string;
     sourceFileSha256?: string;
@@ -81,7 +84,8 @@ export type RealCataloguePricingDecision = {
   sourceRateBasis: "quintal";
   gstTreatment: "exclusive";
   targetTierId: string | null;
-  targetTierStatus: "unresolved";
+  targetTierStatus: "unresolved" | "all_existing_tiers";
+  scope?: "all_retailers";
   evidence: string;
 };
 
@@ -191,12 +195,17 @@ export type RealCatalogueApplySummary = {
   blockedRows: number;
   skippedRows: number;
   preservedStatuses: number;
-  phase?: "import" | "promote";
+  phase?: "import" | "promote" | "publish";
   approvalRevision?: number;
   approvalSha256?: string;
   pendingReviewRows?: number;
   retiredProducts?: number;
   retiredVariants?: number;
+  placeholderImages?: number;
+  pendingImages?: number;
+  publishedProducts?: number;
+  publishedVariants?: number;
+  orderableVariants?: number;
 };
 
 type RealCatalogueApprovalMetadata = {
@@ -355,8 +364,8 @@ function readinessBlockersFor(record: RealCatalogueRecord) {
     blockers.push("approved_routing_bag_equivalent_requires_review");
   }
   if (record.routingClass === "INSTANT_MIX" && record.routingBagEquivalent !== null) blockers.push("instant_mix_fixed_conversion_conflict");
-  if (record.image.status !== "matched") blockers.push(record.image.status === "ambiguous" ? "image_mapping_ambiguous" : "image_missing");
-  else if (!record.image.assetPath) blockers.push("image_asset_not_prepared");
+  if (record.image.status !== "matched" && record.image.status !== "placeholder") blockers.push(record.image.status === "ambiguous" ? "image_mapping_ambiguous" : "image_missing");
+  else if (record.image.status === "matched" && !record.image.assetPath) blockers.push("image_asset_not_prepared");
   return blockers;
 }
 
@@ -612,18 +621,28 @@ function normalizeDecisionRecord(value: unknown, index: number): RealCatalogueDe
   }
   if (value.image !== undefined) {
     if (!isRecord(value.image)) throw new Error(`invalid_decisions_records_${index}_image`);
-    assertKeys(value.image, ["driveFileId", "mappingRevision", "evidence", "sourceFileSha256", "assetPath"], `record_${index}_image`);
-    result.image = {
-      driveFileId: requireString(value.image.driveFileId, `records_${index}_image_driveFileId`),
-      mappingRevision: requireString(value.image.mappingRevision, `records_${index}_image_mappingRevision`),
-      ...(value.image.evidence === undefined ? {} : { evidence: requireString(value.image.evidence, `records_${index}_image_evidence`) }),
-      ...(value.image.sourceFileSha256 === undefined ? {} : (() => {
-        const sourceFileSha256 = requireString(value.image.sourceFileSha256, `records_${index}_image_sourceFileSha256`);
-        if (!/^[a-f0-9]{64}$/i.test(sourceFileSha256)) throw new Error(`invalid_decisions_records_${index}_image_sourceFileSha256`);
-        return { sourceFileSha256: sourceFileSha256.toLowerCase() };
-      })()),
-      ...(value.image.assetPath === undefined ? {} : { assetPath: requireString(value.image.assetPath, `records_${index}_image_assetPath`) }),
-    };
+    assertKeys(value.image, ["driveFileId", "placeholderLabel", "mappingRevision", "evidence", "sourceFileSha256", "assetPath"], `record_${index}_image`);
+    const mappingRevision = requireString(value.image.mappingRevision, `records_${index}_image_mappingRevision`);
+    const evidence = value.image.evidence === undefined ? {} : { evidence: requireString(value.image.evidence, `records_${index}_image_evidence`) };
+    if (value.image.placeholderLabel !== undefined) {
+      if (value.image.placeholderLabel !== "Image coming soon") throw new Error(`invalid_decisions_records_${index}_image_placeholderLabel`);
+      if (value.image.driveFileId !== undefined || value.image.sourceFileSha256 !== undefined || value.image.assetPath !== undefined) {
+        throw new Error(`invalid_decisions_records_${index}_image_placeholder_fields`);
+      }
+      result.image = { placeholderLabel: "Image coming soon", mappingRevision, ...evidence };
+    } else {
+      result.image = {
+        driveFileId: requireString(value.image.driveFileId, `records_${index}_image_driveFileId`),
+        mappingRevision,
+        ...evidence,
+        ...(value.image.sourceFileSha256 === undefined ? {} : (() => {
+          const sourceFileSha256 = requireString(value.image.sourceFileSha256, `records_${index}_image_sourceFileSha256`);
+          if (!/^[a-f0-9]{64}$/i.test(sourceFileSha256)) throw new Error(`invalid_decisions_records_${index}_image_sourceFileSha256`);
+          return { sourceFileSha256: sourceFileSha256.toLowerCase() };
+        })()),
+        ...(value.image.assetPath === undefined ? {} : { assetPath: requireString(value.image.assetPath, `records_${index}_image_assetPath`) }),
+      };
+    }
   }
   return result;
 }
@@ -645,16 +664,18 @@ export function validateRealCatalogueDecisions(manifest: RealCatalogueManifest, 
   let pricing: RealCataloguePricingDecision | undefined;
   if (input.pricing !== undefined) {
     if (!isRecord(input.pricing)) throw new Error("invalid_decisions_pricing");
-    assertKeys(input.pricing, ["sourceRateBasis", "gstTreatment", "targetTierId", "targetTierStatus", "evidence"], "pricing");
+    assertKeys(input.pricing, ["sourceRateBasis", "gstTreatment", "targetTierId", "targetTierStatus", "scope", "evidence"], "pricing");
     if (input.pricing.sourceRateBasis !== "quintal") throw new Error("invalid_decisions_pricing_sourceRateBasis");
     if (input.pricing.gstTreatment !== "exclusive") throw new Error("invalid_decisions_pricing_gstTreatment");
     if (input.pricing.targetTierId !== null) throw new Error("invalid_decisions_pricing_targetTierId");
-    if (input.pricing.targetTierStatus !== "unresolved") throw new Error("invalid_decisions_pricing_targetTierStatus");
+    if (input.pricing.targetTierStatus !== "unresolved" && input.pricing.targetTierStatus !== "all_existing_tiers") throw new Error("invalid_decisions_pricing_targetTierStatus");
+    if (input.pricing.targetTierStatus === "all_existing_tiers" && input.pricing.scope !== "all_retailers") throw new Error("invalid_decisions_pricing_scope");
     pricing = {
       sourceRateBasis: "quintal",
       gstTreatment: "exclusive",
       targetTierId: null,
-      targetTierStatus: "unresolved",
+      targetTierStatus: input.pricing.targetTierStatus,
+      ...(input.pricing.scope === undefined ? {} : { scope: input.pricing.scope as "all_retailers" }),
       evidence: requireString(input.pricing.evidence, "pricing_evidence"),
     };
   }
@@ -693,7 +714,11 @@ export function validateRealCatalogueDecisions(manifest: RealCatalogueManifest, 
       }
     }
     if (record.image) {
-      if (!source.image.candidates.some((candidate) => candidate.driveFileId === record.image!.driveFileId)) throw new Error(`decision_image_not_a_candidate_${record.variantKey}`);
+      if (record.image.placeholderLabel) {
+        if (source.image.status !== "missing") throw new Error(`decision_placeholder_requires_missing_image_${record.variantKey}`);
+      } else {
+        if (!record.image.driveFileId || !source.image.candidates.some((candidate) => candidate.driveFileId === record.image!.driveFileId)) throw new Error(`decision_image_not_a_candidate_${record.variantKey}`);
+      }
       if (record.image.assetPath !== undefined) {
         const expectedAssetPath = `/catalog-images/real/${source.variantKey.replace(/^real-catalogue:variant:/, "")}.jpg`;
         if (record.image.assetPath !== expectedAssetPath) throw new Error(`decision_image_asset_path_invalid_${record.variantKey}`);
@@ -772,12 +797,20 @@ export function resolveRealCatalogueDecisions(manifest: RealCatalogueManifest, i
     const imageDecision = decision.image;
     const catalogVariantKey = decision.variantCatalogKey ?? source.variantKey;
     const image = imageDecision
-      ? {
-          status: "matched" as const,
-          candidates: source.image.candidates,
-          selectedDriveFileId: imageDecision.driveFileId,
-          assetPath: imageDecision.assetPath ?? source.image.assetPath ?? null,
-        }
+      ? imageDecision.placeholderLabel
+        ? {
+            status: "placeholder" as const,
+            candidates: source.image.candidates,
+            selectedDriveFileId: null,
+            assetPath: null,
+            placeholderLabel: imageDecision.placeholderLabel,
+          }
+        : {
+            status: "matched" as const,
+            candidates: source.image.candidates,
+            selectedDriveFileId: imageDecision.driveFileId,
+            assetPath: imageDecision.assetPath ?? source.image.assetPath ?? null,
+          }
       : { ...source.image };
     const record: RealCatalogueRecord = {
       ...source,
@@ -865,7 +898,7 @@ export function assertRealCatalogueTarget(databaseUrl: string, targetLabel: stri
 }
 
 function summaryFor(manifest: RealCatalogueManifest, values: Partial<RealCatalogueApplySummary> = {}) {
-  const pendingReviewRows = manifest.records.filter((record) => record.catalogStatus !== "active").length;
+  const pendingReviewRows = manifest.records.filter((record) => record.catalogStatus === "pending_review").length;
   return {
     sourceSha256: manifest.source.sha256,
     batchKey: manifest.source.batchKey,
@@ -880,6 +913,151 @@ function summaryFor(manifest: RealCatalogueManifest, values: Partial<RealCatalog
     pendingReviewRows,
     ...values,
   } satisfies RealCatalogueApplySummary;
+}
+
+function publicationImageState(record: RealCatalogueRecord) {
+  if (record.image.status === "matched") {
+    if (!record.image.assetPath) throw new Error(`catalogue_publication_image_asset_missing_${record.variantKey}`);
+    return { catalogImageStatus: "exact" as const, catalogImageLabel: null, imageUrl: record.image.assetPath };
+  }
+  if (record.image.status === "placeholder") {
+    return { catalogImageStatus: "placeholder" as const, catalogImageLabel: "Image coming soon", imageUrl: null };
+  }
+  return { catalogImageStatus: "pending" as const, catalogImageLabel: "Image pending confirmation", imageUrl: null };
+}
+
+/**
+ * Publish the reviewed source catalogue for browsing without making it
+ * orderable. `published` is deliberately distinct from `active`: the
+ * commercial engine and order writer continue to accept only active rows,
+ * while the catalogue APIs can show every reviewed real variant with an
+ * explicit Ordering setup pending state.
+ */
+export async function publishRealCatalogueManifest(
+  database: PrismaClient,
+  manifest: RealCatalogueManifest,
+  input: {
+    actorStaffId: string;
+    targetLabel: string;
+    decisions: unknown;
+    targetIdentity?: Partial<RealCatalogueTargetIdentity>;
+  },
+) {
+  assertRealCatalogueTarget(process.env.DATABASE_URL ?? "", input.targetLabel, input.targetIdentity);
+  const resolved = resolveRealCatalogueDecisions(manifest, input.decisions);
+  if (resolved.decisions.pricing?.targetTierStatus !== "all_existing_tiers" || resolved.decisions.pricing.scope !== "all_retailers") {
+    throw new Error("catalogue_publication_price_scope_not_approved");
+  }
+  const invalidRows = resolved.manifest.records.filter((record) =>
+    !record.productInternalCode || !record.variantInternalCode ||
+    record.unitsPerCase === null || record.unitWeightKg === null || record.caseWeightKg === null ||
+    !record.routingClass || !/^(?:\d+)(?:\.\d+)?$/.test(record.pricePerQuintal)
+  );
+  if (invalidRows.length) throw new Error(`catalogue_publication_source_not_ready_${invalidRows.length}_rows`);
+
+  const approvalSha256 = resolved.approvalSha256;
+  const batchKey = `${manifest.source.batchKey}:publication:${resolved.decisions.approval.approvalId}:r${resolved.decisions.approval.revision}:${approvalSha256}:${resolved.decisions.imageMappingRevision}`;
+  return database.$transaction(async (tx) => {
+    const existing = await tx.catalogImportBatch.findUnique({ where: { batchKey } });
+    if (existing?.status === "completed" || existing?.status === "completed_with_errors") {
+      return (existing.summary as unknown as RealCatalogueApplySummary) ?? summaryFor(resolved.manifest, { batchKey, phase: "publish", approvalRevision: resolved.decisions.approval.revision, approvalSha256 });
+    }
+
+    const tiers = await tx.tier.findMany({ select: { id: true } });
+    if (tiers.length === 0) throw new Error("catalogue_publication_no_price_tiers");
+    const batch = existing ?? await tx.catalogImportBatch.create({
+      data: {
+        batchKey,
+        sourceFileName: manifest.source.fileName,
+        sourceSha256: manifest.source.sha256,
+        sourceVersion: manifest.source.version,
+        targetLabel: input.targetLabel,
+        mode: "publication",
+        status: "dry_run",
+        createdByStaffId: input.actorStaffId,
+        approvalId: resolved.decisions.approval.approvalId,
+        approvalRevision: resolved.decisions.approval.revision,
+        approvalSha256,
+        approvalSource: "reviewed_decisions_file",
+        approvalScope: json(resolved.decisions.approval.scope),
+        imageMappingRevision: resolved.decisions.imageMappingRevision,
+      },
+    });
+    await tx.catalogImportBatch.update({ where: { id: batch.id }, data: { status: "applying", summary: json(summaryFor(resolved.manifest, { batchKey, phase: "publish", approvalRevision: resolved.decisions.approval.revision, approvalSha256 })) } });
+
+    const productIds = new Map<string, string>();
+    const variants: Array<{ record: RealCatalogueRecord; productId: string; variantId: string }> = [];
+    for (const record of resolved.manifest.records) {
+      const productKey = targetCatalogKey(record, "product");
+      const variantKey = targetCatalogKey(record, "variant");
+      const product = await tx.product.findUnique({ where: { catalogKey: productKey } });
+      const variant = await tx.variant.findUnique({ where: { catalogKey: variantKey } });
+      if (!product || !variant || variant.productId !== product.id) throw new Error(`catalogue_source_import_required_${record.variantKey}`);
+      productIds.set(productKey, product.id);
+      variants.push({ record, productId: product.id, variantId: variant.id });
+    }
+
+    const imageByProduct = new Map<string, string>();
+    for (const { record, productId } of variants) {
+      if (record.image.status === "matched" && record.image.assetPath && !imageByProduct.has(productId)) imageByProduct.set(productId, record.image.assetPath);
+    }
+    for (const [productId, imageUrl] of imageByProduct) {
+      await tx.product.update({ where: { id: productId }, data: { catalogStatus: "published", imageUrl } });
+    }
+    const productsWithoutExactImage = new Set(variants.map(({ productId }) => productId));
+    for (const productId of productsWithoutExactImage) {
+      if (!imageByProduct.has(productId)) await tx.product.update({ where: { id: productId }, data: { catalogStatus: "published", imageUrl: null } });
+    }
+
+    let placeholderImages = 0;
+    let pendingImages = 0;
+    for (const { record, productId, variantId } of variants) {
+      const image = publicationImageState(record);
+      if (image.catalogImageStatus === "placeholder") placeholderImages += 1;
+      if (image.catalogImageStatus === "pending") pendingImages += 1;
+      await tx.variant.update({
+        where: { id: variantId },
+        data: {
+          productId,
+          catalogKey: targetCatalogKey(record, "variant"),
+          internalCode: record.variantInternalCode!,
+          catalogStatus: "published",
+          imageUrl: image.imageUrl,
+          catalogImageStatus: image.catalogImageStatus,
+          catalogImageLabel: image.catalogImageLabel,
+          unitSize: record.unitSize,
+          unit: record.unit,
+          unitsPerCase: record.unitsPerCase!,
+          unitWeightKg: record.unitWeightKg!,
+        },
+      });
+      for (const tier of tiers) {
+        await tx.priceList.upsert({
+          where: { tierId_variantId: { tierId: tier.id, variantId } },
+          update: { price: record.pricePerQuintal, rateBasis: "quintal", productId },
+          create: { tierId: tier.id, variantId, productId, price: record.pricePerQuintal, rateBasis: "quintal" },
+        });
+      }
+    }
+    const result = summaryFor(resolved.manifest, {
+      batchKey,
+      phase: "publish",
+      approvalRevision: resolved.decisions.approval.revision,
+      approvalSha256,
+      updatedProducts: productIds.size,
+      updatedVariants: variants.length,
+      blockedRows: 0,
+      skippedRows: 0,
+      pendingReviewRows: 0,
+      placeholderImages,
+      pendingImages,
+      publishedProducts: productIds.size,
+      publishedVariants: variants.length,
+      orderableVariants: 0,
+    });
+    await tx.catalogImportBatch.update({ where: { id: batch.id }, data: { status: "completed", completedAt: new Date(), summary: json(result) } });
+    return result;
+  }, { timeout: 180_000, maxWait: 10_000 });
 }
 
 /**

@@ -5,10 +5,17 @@ import { financialSummaryFor } from "../modules/finance/financialSummary";
 import { publicMediaUrl } from "../lib/media";
 import { groupCatalog } from "../modules/catalog/catalogGrouping";
 import { presentLastOrder } from "../modules/catalog/lastOrder";
+import { catalogueImageState, catalogueOrderingState, catalogueStatusWhere } from "../modules/catalog/catalogueVisibility";
 
 const router = Router();
 
 const ACTIVE_ORDER_STATUSES = ["placed", "confirmed", "packed", "out_for_delivery"] as const;
+
+function casePrice(raw: unknown, rateBasis: string, caseWeightKg: number) {
+  if (raw == null) return null;
+  const rate = Number(raw);
+  return rateBasis === "quintal" ? Math.round(rate * caseWeightKg) / 100 : rate;
+}
 
 // Everything the Home screen needs in one call — the design shows eight distinct
 // data regions and separate endpoints would mean eight round-trips on open.
@@ -45,8 +52,8 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
       }),
       prisma.priceList.findMany({ where: { tierId: retailer.tierId } }),
       prisma.product.findMany({
-        where: { catalogStatus: "active", variants: { some: { catalogStatus: "active" } } },
-        include: { variants: { where: { catalogStatus: "active" } } },
+        where: { catalogStatus: catalogueStatusWhere(), variants: { some: { catalogStatus: catalogueStatusWhere() } } },
+        include: { variants: { where: { catalogStatus: catalogueStatusWhere() } } },
         orderBy: { createdAt: "asc" },
       }),
     ]);
@@ -54,11 +61,14 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
   const overrides = await prisma.priceOverride.findMany({ where: { retailerId: retailer.id } });
   const priceByVariant = new Map(priceList.map((p) => [p.variantId, p.price]));
   const overrideByVariant = new Map(overrides.map((o) => [o.variantId, o.price]));
+  const priceBasisByVariant = new Map(priceList.map((p) => [p.variantId, p.rateBasis]));
+  const overrideBasisByVariant = new Map(overrides.map((o) => [o.variantId, o.rateBasis]));
   const currentPriceByVariant = new Map<string, number | null>();
   for (const product of products) {
     for (const variant of product.variants) {
       const raw = overrideByVariant.get(variant.id) ?? priceByVariant.get(variant.id);
-      currentPriceByVariant.set(variant.id, raw != null ? Number(raw) : null);
+      const basis = overrideBasisByVariant.get(variant.id) ?? priceBasisByVariant.get(variant.id) ?? "case";
+      currentPriceByVariant.set(variant.id, casePrice(raw, basis, Number(variant.unitWeightKg) * variant.unitsPerCase));
     }
   }
 
@@ -71,7 +81,13 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
       imageUrl: publicMediaUrl(req, v.imageUrl ?? product.imageUrl),
       unitSize: v.unitSize,
       unitsPerCase: v.unitsPerCase,
-      casePrice: overrideByVariant.get(v.id) ?? priceByVariant.get(v.id) ?? null,
+      casePrice: casePrice(overrideByVariant.get(v.id) ?? priceByVariant.get(v.id), overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case", Number(v.unitWeightKg) * v.unitsPerCase),
+      commercialRate: overrideByVariant.get(v.id) ?? priceByVariant.get(v.id) ?? null,
+      rateBasis: overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case",
+      rateLabel: (overrideByVariant.get(v.id) ?? priceByVariant.get(v.id)) != null ? `${(overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case") === "quintal" ? "per quintal" : "per case"} · Excluding GST` : null,
+      catalogStatus: v.catalogStatus,
+      ...catalogueOrderingState(v.catalogStatus),
+      ...catalogueImageState(v),
     }))
   );
 
@@ -93,7 +109,13 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
         unitsPerCase: v.unitsPerCase,
         caseWeightKg: Number(v.unitWeightKg) * v.unitsPerCase,
         imageUrl: publicMediaUrl(req, v.imageUrl ?? product.imageUrl),
-        price: Number(overrideByVariant.get(v.id) ?? priceByVariant.get(v.id) ?? 0) || null,
+        price: casePrice(overrideByVariant.get(v.id) ?? priceByVariant.get(v.id), overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case", Number(v.unitWeightKg) * v.unitsPerCase),
+        commercialRate: Number(overrideByVariant.get(v.id) ?? priceByVariant.get(v.id) ?? 0) || null,
+        rateBasis: overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case",
+        rateLabel: (overrideByVariant.get(v.id) ?? priceByVariant.get(v.id)) != null ? `${(overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case") === "quintal" ? "per quintal" : "per case"} · Excluding GST` : null,
+        catalogStatus: v.catalogStatus,
+        ...catalogueOrderingState(v.catalogStatus),
+        ...catalogueImageState(v),
         isOverride: overrideByVariant.get(v.id) != null,
       })),
     }))

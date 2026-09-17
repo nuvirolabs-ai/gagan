@@ -4,6 +4,7 @@ import { requireAuth, AuthedRequest } from "../lib/auth";
 import { DEFAULT_WAREHOUSE_CODE, INVENTORY_STALE_AFTER_MS } from "../modules/inventory/inventoryService";
 import { publicMediaUrl } from "../lib/media";
 import { groupCatalog } from "../modules/catalog/catalogGrouping";
+import { catalogueImageState, catalogueOrderingState, catalogueStatusWhere } from "../modules/catalog/catalogueVisibility";
 
 const router = Router();
 
@@ -38,6 +39,10 @@ function shapeVariant(v: any, resolve: ReturnType<typeof priceResolver>, invento
     commercialRate:rate,rateBasis,sellingEntity:v.sellingEntity,gstPercent:v.gstPercent,
     price,
     isOverride,
+    catalogStatus: v.catalogStatus,
+    ...catalogueOrderingState(v.catalogStatus),
+    ...catalogueImageState(v),
+    rateLabel: rate !== null ? `${rateBasis === "quintal" ? "per quintal" : "per case"} · Excluding GST` : null,
     // Retailers compare commodities on rate per kg, and it's what the invoice
     // is priced on, so send it rather than making each client re-derive it.
     pricePerKg: price != null && caseWeightKg > 0 ? Math.round((price / caseWeightKg) * 100) / 100 : null,
@@ -61,8 +66,8 @@ router.get("/catalog", requireAuth, async (req: AuthedRequest, res) => {
 
   const [products, priceList, overrides, config, inventory] = await Promise.all([
     prisma.product.findMany({
-      where: { catalogStatus: "active", variants: { some: { catalogStatus: "active" } } },
-      include: { variants: { where: { catalogStatus: "active" } } },
+      where: { catalogStatus: catalogueStatusWhere(), variants: { some: { catalogStatus: catalogueStatusWhere() } } },
+      include: { variants: { where: { catalogStatus: catalogueStatusWhere() } } },
       orderBy: { createdAt: "asc" },
     }),
     prisma.priceList.findMany({ where: { tierId: retailer.tierId } }),
@@ -125,8 +130,8 @@ router.get("/catalog", requireAuth, async (req: AuthedRequest, res) => {
  */
 router.get("/products/:id", requireAuth, async (req: AuthedRequest, res) => {
   const product = await prisma.product.findUnique({
-    where: { id: req.params.id, catalogStatus: "active" },
-    include: { variants: { where: { catalogStatus: "active" } } },
+    where: { id: req.params.id, catalogStatus: { in: ["active", "published"] } },
+    include: { variants: { where: { catalogStatus: { in: ["active", "published"] } } } },
   });
   if (!product) return res.status(404).json({ error: "Product not found" });
 
@@ -136,8 +141,8 @@ router.get("/products/:id", requireAuth, async (req: AuthedRequest, res) => {
   // Siblings are the other pack sizes the ERP calls the same material.
   const siblings = product.sapMaterialId
     ? await prisma.product.findMany({
-        where: { sapMaterialId: product.sapMaterialId, category: product.category, catalogStatus: "active", variants: { some: { catalogStatus: "active" } } },
-        include: { variants: { where: { catalogStatus: "active" } } },
+        where: { sapMaterialId: product.sapMaterialId, category: product.category, catalogStatus: { in: ["active", "published"] }, variants: { some: { catalogStatus: { in: ["active", "published"] } } } },
+        include: { variants: { where: { catalogStatus: { in: ["active", "published"] } } } },
         orderBy: { createdAt: "asc" },
       })
     : [product];

@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, Image, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { colors, radius } from "../theme";
 
 // Product photography comes from the catalog record when available. The
@@ -17,11 +18,15 @@ export default function ProductThumb({
   name,
   category,
   imageUrl,
+  imageStatus,
+  imageLabel,
   size = 92,
 }: {
   name: string;
   category: string;
   imageUrl?: string | null;
+  imageStatus?: "exact" | "placeholder" | "pending";
+  imageLabel?: string | null;
   size?: number;
 }) {
   if (imageUrl) {
@@ -35,6 +40,17 @@ export default function ProductThumb({
   }
 
   const tint = CATEGORY_TINT[category] ?? { bg: colors.surfaceAlt, band: colors.green };
+
+  if (imageStatus === "placeholder" || imageStatus === "pending") {
+    return (
+      <View style={[styles.missing, { width: size, height: size, backgroundColor: tint.bg }]}>
+        <Ionicons name="image-outline" size={Math.max(20, size * 0.28)} color={tint.band} />
+        <Text style={[styles.missingLabel, { color: tint.band }]} numberOfLines={3}>
+          {imageLabel ?? (imageStatus === "placeholder" ? "Image coming soon" : "Image pending confirmation")}
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.pack, { width: size, height: size, backgroundColor: tint.bg }]}>
@@ -55,6 +71,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "flex-start",
   },
+  missing: { borderRadius: radius.sm, alignItems: "center", justifyContent: "center", paddingHorizontal: 6, gap: 5 },
+  missingLabel: { fontSize: 10, fontWeight: "800", textAlign: "center", lineHeight: 13 },
   band: {
     width: "100%",
     paddingVertical: 4,

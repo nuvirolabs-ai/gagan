@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../../lib/prisma";
 import { publicMediaUrl } from "../../lib/media";
 import { requireAdmin } from "../../lib/adminAuth";
+import { catalogueImageState, catalogueOrderingState, catalogueStatusWhere } from "../../modules/catalog/catalogueVisibility";
 
 const router = Router();
 router.use(requireAdmin);
@@ -11,8 +12,8 @@ router.get("/products", async (req, res) => {
   const includeInactive = req.query.view === "all";
   const [products, tiers, priceList] = await Promise.all([
     prisma.product.findMany({
-      ...(includeInactive ? {} : { where: { catalogStatus: "active", variants: { some: { catalogStatus: "active" } } } }),
-      include: { variants: includeInactive ? true : { where: { catalogStatus: "active" } } },
+      ...(includeInactive ? {} : { where: { catalogStatus: catalogueStatusWhere(), variants: { some: { catalogStatus: catalogueStatusWhere() } } } }),
+      include: { variants: includeInactive ? true : { where: { catalogStatus: catalogueStatusWhere() } } },
       orderBy: { createdAt: "asc" },
     }),
     prisma.tier.findMany({ orderBy: { name: "asc" } }),
@@ -38,6 +39,8 @@ router.get("/products", async (req, res) => {
         catalogKey: v.catalogKey,
         internalCode: v.internalCode,
         catalogStatus: v.catalogStatus,
+        ...catalogueOrderingState(v.catalogStatus),
+        ...catalogueImageState(v),
         imageUrl: publicMediaUrl(req, v.imageUrl),
         unitSize: v.unitSize,
         unit: v.unit,

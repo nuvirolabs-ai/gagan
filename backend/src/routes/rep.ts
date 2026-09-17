@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { publicMediaUrl } from "../lib/media";
 import { groupCatalog } from "../modules/catalog/catalogGrouping";
+import { catalogueImageState, catalogueOrderingState, catalogueStatusWhere } from "../modules/catalog/catalogueVisibility";
 import { financialLedgerFor } from "../modules/finance/financialQueries";
 import { financialSummaryFor } from "../modules/finance/financialSummary";
 import { DEFAULT_WAREHOUSE_CODE, INVENTORY_STALE_AFTER_MS } from "../modules/inventory/inventoryService";
@@ -202,8 +203,8 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
 
   const [products, priceList, overrides, inventory] = await Promise.all([
     prisma.product.findMany({
-      where: { catalogStatus: "active", variants: { some: { catalogStatus: "active" } } },
-      include: { variants: { where: { catalogStatus: "active" } } },
+      where: { catalogStatus: catalogueStatusWhere(), variants: { some: { catalogStatus: catalogueStatusWhere() } } },
+      include: { variants: { where: { catalogStatus: catalogueStatusWhere() } } },
       orderBy: { createdAt: "asc" },
     }),
     prisma.priceList.findMany({ where: { tierId: retailer.tierId } }),
@@ -236,6 +237,10 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
         caseWeightKg,
         commercialRate:rate,rateBasis,sellingEntity:v.sellingEntity,gstPercent:v.gstPercent,
         price,
+        catalogStatus: v.catalogStatus,
+        ...catalogueOrderingState(v.catalogStatus),
+        ...catalogueImageState(v),
+        rateLabel: rate !== null ? `${rateBasis === "quintal" ? "per quintal" : "per case"} · Excluding GST` : null,
         isOverride: override != null,
         pricePerKg:
           price != null && caseWeightKg > 0 ? Math.round((price / caseWeightKg) * 100) / 100 : null,

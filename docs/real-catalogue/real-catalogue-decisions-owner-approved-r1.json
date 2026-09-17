@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "approval": {
-    "approvalId": "gagan-real-catalogue-owner-approval-r1",
-    "revision": 1,
+    "approvalId": "gagan-real-catalogue-owner-approval-r2",
+    "revision": 2,
     "approvedBy": "Gagan owner",
     "approvedAt": "2026-09-17T00:00:00.000Z",
     "decisionSource": "Explicit owner decisions in the current Gagan real-catalogue activation task",
-    "scope": "Approve durable internal Gagan Product and Variant codes; treat workbook prices as GST-exclusive INR per-quintal rates without selecting a target tier; resolve the twelve exact reviewed 20 KG BOX rows as one ordered BOX equals one routing BAG for threshold contribution only; allow equivalent-image selection for verified identical packaging; approve retirement in principle only for an exact verified dummy/test allowlist. Unresolved fields remain unapproved and no hosted promotion is authorized.",
+    "scope": "Publish all 105 reviewed real variants visibly on the existing Gagan staging catalogue; use permanent internal Gagan identifiers; apply workbook prices to all existing retailer tiers as GST-exclusive INR per-quintal rates; resolve the twelve exact reviewed 20 KG BOX rows as one ordered BOX equals one routing BAG for threshold contribution only; choose sharper images only for verified identical packaging; use an Image coming soon placeholder for exact photographs that are missing; keep unresolved image alternatives pending confirmation; keep rows without approved tax or inventory non-orderable; retire only the exact confirmed dummy/test allowlist. No GST, stock, SAP mapping or dynamic routing override is invented.",
     "source": {
       "workbookSha256": "f9f69849c37421bd48a0326d50239cb2ebf0ff47b955bc56915556446fa9e5a6",
       "sourceVersion": "sku-wise-item-list-2026-09-16-v1",
@@ -17,10 +17,11 @@
     "sourceRateBasis": "quintal",
     "gstTreatment": "exclusive",
     "targetTierId": null,
-    "targetTierStatus": "unresolved",
-    "evidence": "Owner decision: workbook numeric prices are before GST and retain their per-quintal basis. Existing target price-list/tier applicability remains unresolved; no price list is written by this approval."
+    "targetTierStatus": "all_existing_tiers",
+    "scope": "all_retailers",
+    "evidence": "Owner decision: workbook numeric prices are before GST, retain their per-quintal basis and apply to all retailers through every existing price tier. No GST percentage, HSN or stock mapping is invented."
   },
-  "imageMappingRevision": "drive-image-selection-2026-09-17-r1",
+  "imageMappingRevision": "drive-image-selection-2026-09-17-r2",
   "records": [
     {
       "variantKey": "real-catalogue:variant:02231e3b302d337360ec2267a0651f8b3592c8c5a2374ca06f1b8521c3d5f84b",
@@ -136,7 +137,8 @@
       "productCatalogKey": "real-catalogue:product:5c0e26a9b11f3385de98dbabbefd06c1966377e104683eb036ef5990e96367d3",
       "variantCatalogKey": "real-catalogue:variant:f8aa52e1e7267f8bbc1a3684071a2c24361bcd20ae7788678793d9f3c554e30f",
       "productInternalCode": "GAGAN-INT-P-5c0e26a9b11f3385de98dbabbefd06c1966377e104683eb036ef5990e96367d3",
-      "variantInternalCode": "GAGAN-INT-V-f8aa52e1e7267f8bbc1a3684071a2c24361bcd20ae7788678793d9f3c554e30f"
+      "variantInternalCode": "GAGAN-INT-V-f8aa52e1e7267f8bbc1a3684071a2c24361bcd20ae7788678793d9f3c554e30f",
+      "image": { "placeholderLabel": "Image coming soon", "mappingRevision": "drive-image-selection-2026-09-17-r2", "evidence": "No exact Drive photograph supplied for workbook row 15; owner-approved labelled placeholder." }
     },
     {
       "variantKey": "real-catalogue:variant:9431426f81359e45af2a791956b83e82c1f7f05680e441bd484617fd5843707b",
@@ -246,6 +248,7 @@
       "variantCatalogKey": "real-catalogue:variant:6dc0f354e3458336039f19efba23733e82bc8686da0663e150fad3d08c5ae187",
       "productInternalCode": "GAGAN-INT-P-840633fb86efa371130985e209b68f45646269d0496226f01a7bd0eaaee913e1",
       "variantInternalCode": "GAGAN-INT-V-6dc0f354e3458336039f19efba23733e82bc8686da0663e150fad3d08c5ae187",
+      "image": { "placeholderLabel": "Image coming soon", "mappingRevision": "drive-image-selection-2026-09-17-r2", "evidence": "No exact Drive photograph supplied for workbook row 27; owner-approved labelled placeholder." },
       "routing": {
         "routingClass": "OTHER",
         "routingBagEquivalent": "1.000",
@@ -367,7 +370,8 @@
       "productCatalogKey": "real-catalogue:product:c6b7706f00f9c8bf7346168c19b37fd0b778ac5c85e8deb007e11a07f76a3f27",
       "variantCatalogKey": "real-catalogue:variant:9bdb59f4b15ddbe67e1f9db1a546dd2bb4cf400b66cf6f833b5561bc2929bd10",
       "productInternalCode": "GAGAN-INT-P-c6b7706f00f9c8bf7346168c19b37fd0b778ac5c85e8deb007e11a07f76a3f27",
-      "variantInternalCode": "GAGAN-INT-V-9bdb59f4b15ddbe67e1f9db1a546dd2bb4cf400b66cf6f833b5561bc2929bd10"
+      "variantInternalCode": "GAGAN-INT-V-9bdb59f4b15ddbe67e1f9db1a546dd2bb4cf400b66cf6f833b5561bc2929bd10",
+      "image": { "placeholderLabel": "Image coming soon", "mappingRevision": "drive-image-selection-2026-09-17-r2", "evidence": "No exact Drive photograph supplied for workbook row 43; owner-approved labelled placeholder." }
     },
     {
       "variantKey": "real-catalogue:variant:f6860bdd651fdb8af3479af70abb9dc5002f190d864c1d234127126e02f80112",
@@ -381,7 +385,8 @@
       "productCatalogKey": "real-catalogue:product:ba9d4771e23caec477df86e1c54368625be1a47972163251264aad8fdcd1b5df",
       "variantCatalogKey": "real-catalogue:variant:9686ab16b5768997ea245dd067035a7dd258c2b23c896972d258ff4e1db64373",
       "productInternalCode": "GAGAN-INT-P-ba9d4771e23caec477df86e1c54368625be1a47972163251264aad8fdcd1b5df",
-      "variantInternalCode": "GAGAN-INT-V-9686ab16b5768997ea245dd067035a7dd258c2b23c896972d258ff4e1db64373"
+      "variantInternalCode": "GAGAN-INT-V-9686ab16b5768997ea245dd067035a7dd258c2b23c896972d258ff4e1db64373",
+      "image": { "placeholderLabel": "Image coming soon", "mappingRevision": "drive-image-selection-2026-09-17-r2", "evidence": "No exact Drive photograph supplied for workbook row 45; owner-approved labelled placeholder." }
     },
     {
       "variantKey": "real-catalogue:variant:45eabfdce8b7cf4b20634fa0f25cf87131924822728fed0d0b6009ed62a9f7cc",
@@ -395,7 +400,8 @@
       "productCatalogKey": "real-catalogue:product:efa4d532de92c7dfe0ce56f169c9a6d1511c3e5f5478562b5376bc9fae6cef86",
       "variantCatalogKey": "real-catalogue:variant:311e912c3c7c4e21feda3ce4de46323b3ad0e8bb18d291837aaeadca7e487a9c",
       "productInternalCode": "GAGAN-INT-P-efa4d532de92c7dfe0ce56f169c9a6d1511c3e5f5478562b5376bc9fae6cef86",
-      "variantInternalCode": "GAGAN-INT-V-311e912c3c7c4e21feda3ce4de46323b3ad0e8bb18d291837aaeadca7e487a9c"
+      "variantInternalCode": "GAGAN-INT-V-311e912c3c7c4e21feda3ce4de46323b3ad0e8bb18d291837aaeadca7e487a9c",
+      "image": { "placeholderLabel": "Image coming soon", "mappingRevision": "drive-image-selection-2026-09-17-r2", "evidence": "No exact Drive photograph supplied for workbook row 47; owner-approved labelled placeholder." }
     },
     {
       "variantKey": "real-catalogue:variant:a4089ed691a3d894fb02b0d37643a24487f4302cbd12c5a43f2e5ac02b4d8913",
@@ -500,14 +506,16 @@
       "productCatalogKey": "real-catalogue:product:4c1df9c309a861410f84733a5f3a2686bec61247f1eade723c6fc7defd2b5265",
       "variantCatalogKey": "real-catalogue:variant:e535d7da3321fb6423fef606df3ecbf50204fc8abbe7a5d25bc6a5a91b3ac5f4",
       "productInternalCode": "GAGAN-INT-P-4c1df9c309a861410f84733a5f3a2686bec61247f1eade723c6fc7defd2b5265",
-      "variantInternalCode": "GAGAN-INT-V-e535d7da3321fb6423fef606df3ecbf50204fc8abbe7a5d25bc6a5a91b3ac5f4"
+      "variantInternalCode": "GAGAN-INT-V-e535d7da3321fb6423fef606df3ecbf50204fc8abbe7a5d25bc6a5a91b3ac5f4",
+      "image": { "placeholderLabel": "Image coming soon", "mappingRevision": "drive-image-selection-2026-09-17-r2", "evidence": "No exact Drive photograph supplied for workbook rows 62 and 68; owner-approved labelled placeholder." }
     },
     {
       "variantKey": "real-catalogue:variant:da457c6ff0b76a0f673eb1cdac8e5b606e2bc402c795f0184bf9613be10fc698",
       "productCatalogKey": "real-catalogue:product:4c1df9c309a861410f84733a5f3a2686bec61247f1eade723c6fc7defd2b5265",
       "variantCatalogKey": "real-catalogue:variant:da457c6ff0b76a0f673eb1cdac8e5b606e2bc402c795f0184bf9613be10fc698",
       "productInternalCode": "GAGAN-INT-P-4c1df9c309a861410f84733a5f3a2686bec61247f1eade723c6fc7defd2b5265",
-      "variantInternalCode": "GAGAN-INT-V-da457c6ff0b76a0f673eb1cdac8e5b606e2bc402c795f0184bf9613be10fc698"
+      "variantInternalCode": "GAGAN-INT-V-da457c6ff0b76a0f673eb1cdac8e5b606e2bc402c795f0184bf9613be10fc698",
+      "image": { "placeholderLabel": "Image coming soon", "mappingRevision": "drive-image-selection-2026-09-17-r2", "evidence": "No exact Drive photograph supplied for workbook rows 63 and 69; owner-approved labelled placeholder." }
     },
     {
       "variantKey": "real-catalogue:variant:e7b7e9d68e498933ae261b7b1a96eea25929f7ca82fd2994d82465ed76ed1888",
@@ -517,7 +525,7 @@
       "variantInternalCode": "GAGAN-INT-V-e7b7e9d68e498933ae261b7b1a96eea25929f7ca82fd2994d82465ed76ed1888",
       "image": {
         "driveFileId": "1BEO2_kziBjyvbSdbbjjRxv4ZtR1pRpiP",
-        "mappingRevision": "drive-image-selection-2026-09-17-r1",
+      "mappingRevision": "drive-image-selection-2026-09-17-r2",
         "evidence": "Owner-approved equivalent image selection for MOONG MOGAR (30 kg x 1); selected IMG_MOONG MOGAR (30 kg x 1)-13.jpg. Verified same brand, exact product and 30 kg pack as the alternative; selected the sharper, centered, more legible front-facing package.",
         "sourceFileSha256": "4e8152e22770e650faab49f764b2eeda61d91aa1d2790d09f34171bb2c5708ae",
         "assetPath": "/catalog-images/real/e7b7e9d68e498933ae261b7b1a96eea25929f7ca82fd2994d82465ed76ed1888.jpg"
@@ -531,7 +539,7 @@
       "variantInternalCode": "GAGAN-INT-V-17ec761e26a7b2dd77e063a9b73469483d239a3fc01b3bfc549cefa352b56fd5",
       "image": {
         "driveFileId": "1l0ptFDsDFrsGaRiQuuBtOWBx1YMJFMZS",
-        "mappingRevision": "drive-image-selection-2026-09-17-r1",
+      "mappingRevision": "drive-image-selection-2026-09-17-r2",
         "evidence": "Owner-approved equivalent image selection for URAD CHILKA (30 kg x 1); selected IMG_URAD CHILKA (30 kg x 1)-14.jpg. Verified same brand, exact product and 30 kg pack as the alternative; selected the sharper, centered, more legible front-facing package.",
         "sourceFileSha256": "b6a24ff38655b4f58ea1c3b90ac228222f12af4d1cb0c86336e1135dffed58f3",
         "assetPath": "/catalog-images/real/17ec761e26a7b2dd77e063a9b73469483d239a3fc01b3bfc549cefa352b56fd5.jpg"
@@ -577,7 +585,8 @@
       "productCatalogKey": "real-catalogue:product:87bd85820ec0deab7d21a1e34aaca5724dff9f97526833d1fa0123f400ca2dcc",
       "variantCatalogKey": "real-catalogue:variant:ae99e992558d57bb70bf6db6c50f23411c26425bb29e6986efa79ec11bee81d7",
       "productInternalCode": "GAGAN-INT-P-87bd85820ec0deab7d21a1e34aaca5724dff9f97526833d1fa0123f400ca2dcc",
-      "variantInternalCode": "GAGAN-INT-V-ae99e992558d57bb70bf6db6c50f23411c26425bb29e6986efa79ec11bee81d7"
+      "variantInternalCode": "GAGAN-INT-V-ae99e992558d57bb70bf6db6c50f23411c26425bb29e6986efa79ec11bee81d7",
+      "image": { "placeholderLabel": "Image coming soon", "mappingRevision": "drive-image-selection-2026-09-17-r2", "evidence": "No exact Drive photograph supplied for workbook row 77; owner-approved labelled placeholder." }
     },
     {
       "variantKey": "real-catalogue:variant:6ebd153a78f9777065491a58a8b5ac75baf07319f2fd1389d0556f4c2f213566",
@@ -745,21 +754,24 @@
       "productCatalogKey": "real-catalogue:product:d50adaba4b0a4a8e6a0abb257fa35ee74a9cddc5ca7d457342ac4e746d3f35b2",
       "variantCatalogKey": "real-catalogue:variant:8d281b5782612923383d9e11495d32eccefbbf9f689bc6471b0d361f909f48aa",
       "productInternalCode": "GAGAN-INT-P-d50adaba4b0a4a8e6a0abb257fa35ee74a9cddc5ca7d457342ac4e746d3f35b2",
-      "variantInternalCode": "GAGAN-INT-V-8d281b5782612923383d9e11495d32eccefbbf9f689bc6471b0d361f909f48aa"
+      "variantInternalCode": "GAGAN-INT-V-8d281b5782612923383d9e11495d32eccefbbf9f689bc6471b0d361f909f48aa",
+      "image": { "placeholderLabel": "Image coming soon", "mappingRevision": "drive-image-selection-2026-09-17-r2", "evidence": "No exact Drive photograph supplied for workbook row 101; owner-approved labelled placeholder." }
     },
     {
       "variantKey": "real-catalogue:variant:e9a12ec8a7a2d566de1053d0b5ebd3d6f36e01b691f3751f15fbd7c9e05414ed",
       "productCatalogKey": "real-catalogue:product:d50adaba4b0a4a8e6a0abb257fa35ee74a9cddc5ca7d457342ac4e746d3f35b2",
       "variantCatalogKey": "real-catalogue:variant:e9a12ec8a7a2d566de1053d0b5ebd3d6f36e01b691f3751f15fbd7c9e05414ed",
       "productInternalCode": "GAGAN-INT-P-d50adaba4b0a4a8e6a0abb257fa35ee74a9cddc5ca7d457342ac4e746d3f35b2",
-      "variantInternalCode": "GAGAN-INT-V-e9a12ec8a7a2d566de1053d0b5ebd3d6f36e01b691f3751f15fbd7c9e05414ed"
+      "variantInternalCode": "GAGAN-INT-V-e9a12ec8a7a2d566de1053d0b5ebd3d6f36e01b691f3751f15fbd7c9e05414ed",
+      "image": { "placeholderLabel": "Image coming soon", "mappingRevision": "drive-image-selection-2026-09-17-r2", "evidence": "No exact Drive photograph supplied for workbook row 102; owner-approved labelled placeholder." }
     },
     {
       "variantKey": "real-catalogue:variant:b58b34ae3e925bae5fd174fe110a97f17e32dc32130ee03d46a75b987befd24c",
       "productCatalogKey": "real-catalogue:product:d50adaba4b0a4a8e6a0abb257fa35ee74a9cddc5ca7d457342ac4e746d3f35b2",
       "variantCatalogKey": "real-catalogue:variant:b58b34ae3e925bae5fd174fe110a97f17e32dc32130ee03d46a75b987befd24c",
       "productInternalCode": "GAGAN-INT-P-d50adaba4b0a4a8e6a0abb257fa35ee74a9cddc5ca7d457342ac4e746d3f35b2",
-      "variantInternalCode": "GAGAN-INT-V-b58b34ae3e925bae5fd174fe110a97f17e32dc32130ee03d46a75b987befd24c"
+      "variantInternalCode": "GAGAN-INT-V-b58b34ae3e925bae5fd174fe110a97f17e32dc32130ee03d46a75b987befd24c",
+      "image": { "placeholderLabel": "Image coming soon", "mappingRevision": "drive-image-selection-2026-09-17-r2", "evidence": "No exact Drive photograph supplied for workbook row 103; owner-approved labelled placeholder." }
     },
     {
       "variantKey": "real-catalogue:variant:5142dbc86fef7844410565e2de5fbd59bc90751c634c243a5e5d653781f62cb1",

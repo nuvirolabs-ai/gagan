@@ -1,7 +1,19 @@
+// The mobile app deliberately does not include Node types in its app tsconfig;
+// these imports are only used by this structural source-order regression test.
+// @ts-expect-error Vitest executes this test in Node without app-level Node types.
+import { readFileSync } from "node:fs";
+// @ts-expect-error Vitest executes this test in Node without app-level Node types.
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { HomeProductGroup } from "../../types/home";
 import { buildRetailerPromotions } from "../retailerPromotions";
 import { shouldShowMiniCart } from "../miniCartVisibility";
+import { MINI_CART_SPACE, TAB_BAR_SPACE, tabBarContentSpace } from "../../theme";
+
+const homeScreenSource = readFileSync(
+  fileURLToPath(new URL("../../screens/HomeScreen.tsx", import.meta.url)),
+  "utf8"
+);
 
 const group = (overrides: Partial<HomeProductGroup>): HomeProductGroup => ({
   id: overrides.id ?? "group",
@@ -44,5 +56,21 @@ describe("approved retailer commerce polish", () => {
     expect(shouldShowMiniCart("Review")).toBe(false);
     expect(shouldShowMiniCart("Checkout")).toBe(false);
     expect(shouldShowMiniCart("OrderDetail")).toBe(false);
+  });
+
+  it("keeps Home shopping-first and reserves the full floating-footer inset", () => {
+    const markers = [
+      "<RetailerPromoCarousel",
+      "{/* Shop by category */}",
+      "{/* Products */}",
+      "{/* Latest order */}",
+      "{/* Account finance */}",
+      "{/* Order again */}",
+    ];
+    const positions = markers.map((marker) => homeScreenSource.indexOf(marker));
+
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    expect(tabBarContentSpace(2)).toBe(TAB_BAR_SPACE + MINI_CART_SPACE);
   });
 });

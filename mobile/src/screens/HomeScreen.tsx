@@ -207,72 +207,7 @@ export default function HomeScreen({ navigation }: any) {
         }}
       />
 
-      {activeOrder ? (
-        <TouchableOpacity
-          style={styles.latestOrder}
-          activeOpacity={0.88}
-          onPress={() => navigation.navigate("OrderDetail", { orderId: activeOrder.id })}
-          accessibilityRole="button"
-          accessibilityLabel={`${t("home.yourOrder")} ${formatOrderRef(activeOrder)}`}
-        >
-          <View style={styles.latestOrderCopy}>
-            <Text style={styles.latestOrderLabel}>Latest order</Text>
-            <Text style={styles.latestOrderId} numberOfLines={1}>{formatOrderRef(activeOrder)}</Text>
-            <Text style={styles.latestOrderMeta} numberOfLines={1}>
-              {arriving ? t("home.arriving", { when: arriving }) : t("home.orderOnTheWay")}
-            </Text>
-          </View>
-          <Text style={styles.latestOrderTotal}>{inr(activeOrder.orderTotal)}</Text>
-          <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
-        </TouchableOpacity>
-      ) : null}
-
-      <View style={styles.sectionSpace}>
-        <AccountStrip
-          account={account}
-          onPay={() => navigation.navigate("Pay")}
-          onLedger={() => navigation.navigate("Ledger")}
-        />
-      </View>
-
-      <View style={styles.sectionHead}>
-        <Text style={styles.sectionTitle}>{t("home.orderAgain")}</Text>
-      </View>
-      {lastOrder && addableUsual.length > 0 ? (
-        <View style={styles.usual}>
-          {lastOrder.items.map((item) => {
-            const live = addableUsual.find((line) => line.variantId === item.variantId);
-            if (!live) return null;
-            return (
-              <View key={item.variantId} style={styles.usualRow}>
-                <Text style={styles.usualName} numberOfLines={1}>
-                  {live.productName}
-                </Text>
-                <Text style={styles.usualQty}>
-                  {t("home.cases", { count: item.qty })}
-                </Text>
-              </View>
-            );
-          })}
-          <TouchableOpacity
-            style={styles.usualBtn}
-            onPress={addLastOrder}
-            accessibilityRole="button"
-            accessibilityLabel={t("home.addLastOrder")}
-          >
-            <Text style={styles.usualBtnText}>{t("home.addLastOrder")}</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <View style={styles.quietEmpty}>
-          <Text style={styles.quietTitle}>{t("home.noOrderHistory")}</Text>
-          <Text style={styles.quietBody}>{t("home.noOrderHistoryBody")}</Text>
-          <TouchableOpacity onPress={() => navigation.navigate("Products")}>
-            <Text style={styles.link}>{t("home.viewProducts")}</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
+      {/* Shop by category */}
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>{t("home.shopByCategory")}</Text>
       </View>
@@ -299,6 +234,7 @@ export default function HomeScreen({ navigation }: any) {
         })}
       </ScrollView>
 
+      {/* Products */}
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>
           {selectedCategory === ALL_CATEGORY
@@ -338,6 +274,75 @@ export default function HomeScreen({ navigation }: any) {
           </>
         )}
       </View>
+
+      {/* Latest order */}
+      {activeOrder ? (
+        <TouchableOpacity
+          style={styles.latestOrder}
+          activeOpacity={0.88}
+          onPress={() => navigation.navigate("OrderDetail", { orderId: activeOrder.id })}
+          accessibilityRole="button"
+          accessibilityLabel={`${t("home.yourOrder")} ${formatOrderRef(activeOrder)}`}
+        >
+          <View style={styles.latestOrderCopy}>
+            <Text style={styles.latestOrderLabel}>Latest order</Text>
+            <Text style={styles.latestOrderId} numberOfLines={1}>{formatOrderRef(activeOrder)}</Text>
+            <Text style={styles.latestOrderMeta} numberOfLines={1}>
+              {arriving ? t("home.arriving", { when: arriving }) : t("home.orderOnTheWay")}
+            </Text>
+          </View>
+          <Text style={styles.latestOrderTotal}>{inr(activeOrder.orderTotal)}</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+        </TouchableOpacity>
+      ) : null}
+
+      {/* Account finance */}
+      <View style={styles.sectionSpace}>
+        <AccountStrip
+          account={account}
+          onPay={() => navigation.navigate("Pay")}
+          onLedger={() => navigation.navigate("Ledger")}
+        />
+      </View>
+
+      {/* Order again */}
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionTitle}>{t("home.orderAgain")}</Text>
+      </View>
+      {lastOrder && addableUsual.length > 0 ? (
+        <View style={styles.usual}>
+          {lastOrder.items.map((item) => {
+            const live = addableUsual.find((line) => line.variantId === item.variantId);
+            if (!live) return null;
+            return (
+              <View key={item.variantId} style={styles.usualRow}>
+                <Text style={styles.usualName} numberOfLines={1}>
+                  {live.productName}
+                </Text>
+                <Text style={styles.usualQty}>
+                  {t("home.cases", { count: item.qty })}
+                </Text>
+              </View>
+            );
+          })}
+          <TouchableOpacity
+            style={styles.usualBtn}
+            onPress={addLastOrder}
+            accessibilityRole="button"
+            accessibilityLabel={t("home.addLastOrder")}
+          >
+            <Text style={styles.usualBtnText}>{t("home.addLastOrder")}</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.quietEmpty}>
+          <Text style={styles.quietTitle}>{t("home.noOrderHistory")}</Text>
+          <Text style={styles.quietBody}>{t("home.noOrderHistoryBody")}</Text>
+          <TouchableOpacity onPress={() => navigation.navigate("Products")}>
+            <Text style={styles.link}>{t("home.viewProducts")}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {salesRep ? (
         <View style={styles.support}>

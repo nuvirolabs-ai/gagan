@@ -116,6 +116,63 @@ describe("real catalogue source mapping", () => {
     expect(resolved.approvalSha256).toMatch(/^[a-f0-9]{64}$/);
   });
 
+  it("accepts a separated staging inventory identity without fabricating an SAP material", () => {
+    const manifest = buildRealCatalogueManifest(workbookBuffer(), "catalogue.xlsx", imageIndex);
+    const row = manifest.records[0];
+    const resolved = resolveRealCatalogueDecisions(manifest, {
+      schemaVersion: 1,
+      approval: {
+        approvalId: "approval-test-internal-inventory",
+        revision: 1,
+        approvedBy: "owner-test",
+        approvedAt: "2026-09-17T00:00:00.000Z",
+        scope: "controlled staging inventory identity",
+        source: { workbookSha256: manifest.source.sha256, sourceVersion: manifest.source.version },
+      },
+      imageMappingRevision: "images-v1",
+      records: [{
+        variantKey: row.variantKey,
+        inventory: {
+          inventoryIdentity: "GAGAN-UAT-INV-BROKEN-30KG",
+          warehouseCode: "WH-001",
+          evidence: "controlled staging inventory approval",
+        },
+      }],
+    });
+
+    expect(resolved.manifest.records[0].inventoryMapping).toEqual({
+      inventoryIdentity: "GAGAN-UAT-INV-BROKEN-30KG",
+      warehouseCode: "WH-001",
+      evidence: "controlled staging inventory approval",
+    });
+    expect(resolved.manifest.records[0].inventoryMapping?.sapMaterialId).toBeUndefined();
+  });
+
+  it("rejects a reviewed inventory mapping that mixes SAP and staging identities", () => {
+    const manifest = buildRealCatalogueManifest(workbookBuffer(), "catalogue.xlsx", imageIndex);
+    expect(() => resolveRealCatalogueDecisions(manifest, {
+      schemaVersion: 1,
+      approval: {
+        approvalId: "approval-test-inventory-identity-conflict",
+        revision: 1,
+        approvedBy: "owner-test",
+        approvedAt: "2026-09-17T00:00:00.000Z",
+        scope: "invalid inventory identity test",
+        source: { workbookSha256: manifest.source.sha256, sourceVersion: manifest.source.version },
+      },
+      imageMappingRevision: "images-v1",
+      records: [{
+        variantKey: manifest.records[0].variantKey,
+        inventory: {
+          sapMaterialId: "SAP-DO-NOT-MIX",
+          inventoryIdentity: "GAGAN-UAT-DO-NOT-MIX",
+          warehouseCode: "WH-001",
+          evidence: "invalid test",
+        },
+      }],
+    })).toThrow("invalid_decisions_records_0_inventory_identity");
+  });
+
   it("rejects an image decision outside the exact candidate set", () => {
     const manifest = buildRealCatalogueManifest(workbookBuffer(), "catalogue.xlsx", imageIndex);
     expect(() => resolveRealCatalogueDecisions(manifest, {

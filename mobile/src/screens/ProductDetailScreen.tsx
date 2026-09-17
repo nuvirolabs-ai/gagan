@@ -12,6 +12,7 @@ import { api } from "../api/client";
 import { useCart } from "../context/CartContext";
 import { colors, radius, spacing, inr } from "../theme";
 import ProductThumb from "../components/ProductThumb";
+import MiniCartBar from "../components/MiniCartBar";
 import { QtyStepper, EmptyState, ScreenSkeleton, SectionTitle } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 import { canChangeCatalogQuantity } from "../lib/catalogInteractions";
@@ -104,7 +105,7 @@ export default function ProductDetailScreen({ route, navigation }: any) {
 
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 220 }} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
           <ProductThumb
             name={product.name}
@@ -195,28 +196,31 @@ export default function ProductDetailScreen({ route, navigation }: any) {
         </View>
       </ScrollView>
 
-      <View style={styles.bar}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.barLabel}>{inCart > 0 ? `${inCart} case(s) in cart` : t("product.subtotal")}</Text>
-          <Text style={styles.barValue}>{inr(lineTotal)}</Text>
-        </View>
-        {inCart > 0 ? (
-          <View style={styles.barActions}>
-            <QtyStepper qty={inCart} onChange={setQty} />
-            <TouchableOpacity style={styles.viewCart} onPress={() => navigation.navigate("Main", { screen: "Cart" })}>
-              <Text style={styles.viewCartText}>{t("product.viewCart")}</Text>
-            </TouchableOpacity>
+      <View style={styles.footer}>
+        <MiniCartBar onPress={() => navigation.navigate("Main", { screen: "Cart" })} />
+        <View style={styles.bar}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.barLabel}>{inCart > 0 ? `${inCart} case(s) in cart` : t("product.subtotal")}</Text>
+            <Text style={styles.barValue}>{inr(lineTotal)}</Text>
           </View>
-        ) : (
-          <TouchableOpacity
-            style={[styles.addBtn, (selected?.price == null || selected?.orderable === false) && styles.addBtnDisabled]}
-            disabled={selected?.price == null || selected?.orderable === false}
-            onPress={() => setQty(1)}
-          >
-            <Ionicons name="cart-outline" size={17} color={colors.onDark} />
-            <Text style={styles.addBtnText}>{t("product.addToCart")}</Text>
-          </TouchableOpacity>
-        )}
+          {inCart > 0 ? (
+            <View style={styles.barActions}>
+              <QtyStepper qty={inCart} onChange={setQty} />
+              <TouchableOpacity style={styles.viewCart} onPress={() => navigation.navigate("Main", { screen: "Cart" })}>
+                <Text style={styles.viewCartText}>{t("product.viewCart")}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[styles.addBtn, (selected?.price == null || selected?.orderable === false) && styles.addBtnDisabled]}
+              disabled={selected?.price == null || selected?.orderable === false}
+              onPress={() => setQty(1)}
+            >
+              <Ionicons name="cart-outline" size={17} color={colors.onDark} />
+              <Text style={styles.addBtnText}>{t("product.addToCart")}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -225,6 +229,7 @@ export default function ProductDetailScreen({ route, navigation }: any) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, backgroundColor: colors.bg },
+  footer: { position: "absolute", left: 0, right: 0, bottom: 0 },
 
   hero: {
     alignItems: "center",
@@ -291,10 +296,6 @@ const styles = StyleSheet.create({
   infoText: { flex: 1, fontSize: 12.5, color: colors.inkMuted, lineHeight: 18 },
 
   bar: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,

@@ -26,7 +26,7 @@ describe("retailer home promotions", () => {
     expect(promotions.map((item) => item.id)).toEqual(["dal-range", "laxmi-toor-dal", "rice-whole-grains"]);
     expect(promotions.map((item) => item.category)).toEqual(["Daal", "Daal", "Rice"]);
     expect(promotions.map((item) => item.imageUrl)).toEqual(["/dal.jpg", "/laxmi.jpg", "/rice.jpg"]);
-    expect(promotions.map((item) => item.cta)).toEqual(["View Dals", "Shop Laxmi", "Explore Range"]);
+    expect(promotions.map((item) => item.cta)).toEqual(["Explore Dals", "View Range", "Explore Range"]);
   });
 
   it("uses a category treatment when no exact catalogue image is available", () => {

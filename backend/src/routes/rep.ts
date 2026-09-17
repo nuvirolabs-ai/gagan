@@ -6,7 +6,7 @@ import { groupCatalog } from "../modules/catalog/catalogGrouping";
 import { catalogueImageState, catalogueOrderingState, catalogueStatusWhere } from "../modules/catalog/catalogueVisibility";
 import { financialLedgerFor } from "../modules/finance/financialQueries";
 import { financialSummaryFor } from "../modules/finance/financialSummary";
-import { DEFAULT_WAREHOUSE_CODE, INVENTORY_STALE_AFTER_MS } from "../modules/inventory/inventoryService";
+import { DEFAULT_WAREHOUSE_CODE, INVENTORY_STALE_AFTER_MS, inventoryLookupKey } from "../modules/inventory/inventoryService";
 import { requireRep, assignedRetailer, RepRequest } from "../lib/repAuth";
 import { createOrderForRetailer } from "../lib/orders";
 import { createRateLimiter } from "../platform/http/rateLimit";
@@ -214,7 +214,7 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
 
   const tierPrice = new Map(priceList.map((p) => [p.variantId, Number(p.price)]));
   const overridePrice = new Map(overrides.map((o) => [o.variantId, Number(o.price)]));
-  const inventoryByMaterial = new Map(inventory.map((snapshot) => [snapshot.sapMaterialId, snapshot]));
+  const inventoryByIdentity = new Map(inventory.map((snapshot) => [inventoryLookupKey(snapshot) ?? "", snapshot]));
 
   const catalog = products.map((product) => ({
     id: product.id,
@@ -244,9 +244,9 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
         isOverride: override != null,
         pricePerKg:
           price != null && caseWeightKg > 0 ? Math.round((price / caseWeightKg) * 100) / 100 : null,
-        availability: product.sapMaterialId && inventoryByMaterial.has(product.sapMaterialId)
+        availability: inventoryLookupKey(product) != null && inventoryByIdentity.has(inventoryLookupKey(product)!)
           ? (() => {
-              const snapshot = inventoryByMaterial.get(product.sapMaterialId)!;
+              const snapshot = inventoryByIdentity.get(inventoryLookupKey(product)!)!;
               return {
                 available: Number(snapshot.available),
                 warehouseCode: snapshot.warehouseCode,

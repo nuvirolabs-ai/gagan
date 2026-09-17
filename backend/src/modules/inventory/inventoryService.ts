@@ -9,13 +9,35 @@ export const INVENTORY_STALE_AFTER_MS = 60 * 60 * 1000;
 export type InventoryInput = {
   productId: string;
   variantId?: string | null;
-  sapMaterialId: string;
+  sapMaterialId?: string | null;
+  /** Controlled staging/UAT identity; never copied into an SAP field. */
+  inventoryIdentity?: string | null;
   warehouseCode?: string;
   onHand: number;
   committed?: number;
   syncedAt?: Date;
   source?: string;
 };
+
+export type InventoryIdentity = { kind: "internal" | "sap"; value: string };
+
+export function inventoryIdentityForProduct(product: {
+  inventoryIdentity?: string | null;
+  sapMaterialId?: string | null;
+}): InventoryIdentity | null {
+  const internal = product.inventoryIdentity?.trim();
+  if (internal) return { kind: "internal", value: internal };
+  const sap = product.sapMaterialId?.trim();
+  return sap ? { kind: "sap", value: sap } : null;
+}
+
+export function inventoryLookupKey(snapshot: {
+  inventoryIdentity?: string | null;
+  sapMaterialId?: string | null;
+}): string | null {
+  const identity = inventoryIdentityForProduct(snapshot);
+  return identity ? `${identity.kind}:${identity.value}` : null;
+}
 
 export class InventoryValidationError extends Error {
   constructor(
@@ -33,16 +55,18 @@ function statusFor(available: number): "available" | "low" | "unavailable" {
 }
 
 export async function upsertInventorySnapshot(db: Db = prisma, input: InventoryInput) {
+  const internal = input.inventoryIdentity?.trim() || null;
+  const sap = input.sapMaterialId?.trim() || null;
+  if ((internal && sap) || (!internal && !sap)) throw new Error("inventory_identity_required_exactly_once");
   const committed = input.committed ?? 0;
   const available = Math.max(input.onHand - committed, 0);
   const syncedAt = input.syncedAt ?? new Date();
+  const warehouseCode = input.warehouseCode ?? DEFAULT_WAREHOUSE_CODE;
+  const where = internal
+    ? { inventoryIdentity_warehouseCode: { inventoryIdentity: internal, warehouseCode } }
+    : { sapMaterialId_warehouseCode: { sapMaterialId: sap!, warehouseCode } };
   return db.inventorySnapshot.upsert({
-    where: {
-      sapMaterialId_warehouseCode: {
-        sapMaterialId: input.sapMaterialId,
-        warehouseCode: input.warehouseCode ?? DEFAULT_WAREHOUSE_CODE,
-      },
-    },
+    where,
     update: {
       productId: input.productId,
       variantId: input.variantId ?? null,
@@ -56,8 +80,8 @@ export async function upsertInventorySnapshot(db: Db = prisma, input: InventoryI
     create: {
       productId: input.productId,
       variantId: input.variantId ?? null,
-      sapMaterialId: input.sapMaterialId,
-      warehouseCode: input.warehouseCode ?? DEFAULT_WAREHOUSE_CODE,
+      ...(sap ? { sapMaterialId: sap } : { inventoryIdentity: internal! }),
+      warehouseCode,
       onHand: input.onHand,
       committed,
       available,
@@ -75,10 +99,11 @@ export async function inventoryForVariant(
   warehouseCode = DEFAULT_WAREHOUSE_CODE
 ) {
   const variant = await db.variant.findUnique({ where: { id: variantId }, include: { product: true } });
-  if (!variant?.product.sapMaterialId) return null;
-  const snapshot = await db.inventorySnapshot.findUnique({
-    where: { sapMaterialId_warehouseCode: { sapMaterialId: variant.product.sapMaterialId, warehouseCode } },
-  });
+  const identity = variant ? inventoryIdentityForProduct(variant.product) : null;
+  if (!identity) return null;
+  const snapshot = identity.kind === "internal"
+    ? await db.inventorySnapshot.findUnique({ where: { inventoryIdentity_warehouseCode: { inventoryIdentity: identity.value, warehouseCode } } })
+    : await db.inventorySnapshot.findUnique({ where: { sapMaterialId_warehouseCode: { sapMaterialId: identity.value, warehouseCode } } });
   if (!snapshot) return null;
   const stale = now.getTime() - snapshot.syncedAt.getTime() > INVENTORY_STALE_AFTER_MS;
   return {

@@ -34,8 +34,10 @@ export type RealCataloguePriceDecision = {
 };
 
 export type RealCatalogueInventoryDecision = {
-  /** This is an approved external mapping, never an internal code. */
-  sapMaterialId: string;
+  /** Exactly one durable inventory identity is approved. */
+  sapMaterialId?: string;
+  /** Controlled staging/UAT identity; never an SAP material code. */
+  inventoryIdentity?: string;
   warehouseCode: string;
   evidence: string;
 };
@@ -596,9 +598,13 @@ function normalizeDecisionRecord(value: unknown, index: number): RealCatalogueDe
   }
   if (value.inventory !== undefined) {
     if (!isRecord(value.inventory)) throw new Error(`invalid_decisions_records_${index}_inventory`);
-    assertKeys(value.inventory, ["sapMaterialId", "warehouseCode", "evidence"], `record_${index}_inventory`);
+    assertKeys(value.inventory, ["sapMaterialId", "inventoryIdentity", "warehouseCode", "evidence"], `record_${index}_inventory`);
+    const sapMaterialId = value.inventory.sapMaterialId === undefined ? null : requireString(value.inventory.sapMaterialId, `records_${index}_inventory_sapMaterialId`);
+    const inventoryIdentity = value.inventory.inventoryIdentity === undefined ? null : requireString(value.inventory.inventoryIdentity, `records_${index}_inventory_inventoryIdentity`);
+    if ((sapMaterialId === null) === (inventoryIdentity === null)) throw new Error(`invalid_decisions_records_${index}_inventory_identity`);
     result.inventory = {
-      sapMaterialId: requireString(value.inventory.sapMaterialId, `records_${index}_inventory_sapMaterialId`),
+      ...(sapMaterialId === null ? {} : { sapMaterialId }),
+      ...(inventoryIdentity === null ? {} : { inventoryIdentity }),
       warehouseCode: requireString(value.inventory.warehouseCode, `records_${index}_inventory_warehouseCode`),
       evidence: requireString(value.inventory.evidence, `records_${index}_inventory_evidence`),
     };
@@ -1343,9 +1349,12 @@ export async function promoteRealCatalogueManifest(
       const productKey = targetCatalogKey(record, "product");
       const inventory = record.inventoryMapping;
       if (!inventory || !tierIds.size) throw new Error(`catalogue_promotion_configuration_missing_${record.variantKey}`);
-      if (productMapping.has(productKey) && productMapping.get(productKey) !== inventory.sapMaterialId) throw new Error(`catalogue_product_inventory_mapping_conflict_${productKey}`);
-      productMapping.set(productKey, inventory.sapMaterialId);
-      const snapshot = await tx.inventorySnapshot.findUnique({ where: { sapMaterialId_warehouseCode: { sapMaterialId: inventory.sapMaterialId, warehouseCode: inventory.warehouseCode } } });
+      const identityKey = inventory.inventoryIdentity ? `internal:${inventory.inventoryIdentity}` : `sap:${inventory.sapMaterialId}`;
+      if (productMapping.has(productKey) && productMapping.get(productKey) !== identityKey) throw new Error(`catalogue_product_inventory_mapping_conflict_${productKey}`);
+      productMapping.set(productKey, identityKey);
+      const snapshot = inventory.inventoryIdentity
+        ? await tx.inventorySnapshot.findUnique({ where: { inventoryIdentity_warehouseCode: { inventoryIdentity: inventory.inventoryIdentity, warehouseCode: inventory.warehouseCode } } })
+        : await tx.inventorySnapshot.findUnique({ where: { sapMaterialId_warehouseCode: { sapMaterialId: inventory.sapMaterialId!, warehouseCode: inventory.warehouseCode } } });
       if (!snapshot || snapshot.status === "unavailable" || Number(snapshot.available) <= 0 || Date.now() - snapshot.syncedAt.getTime() > 60 * 60 * 1000) throw new Error(`catalogue_inventory_not_ready_${record.variantKey}`);
       for (const price of record.priceLists ?? []) if (!tierIds.has(price.tierId)) throw new Error(`catalogue_price_tier_not_found_${price.tierId}`);
     }
@@ -1364,7 +1373,9 @@ export async function promoteRealCatalogueManifest(
         data: {
           catalogKey: productKey,
           internalCode: record.productInternalCode!,
-          sapMaterialId: inventory.sapMaterialId,
+          ...(inventory.inventoryIdentity
+            ? { inventoryIdentity: inventory.inventoryIdentity }
+            : { sapMaterialId: inventory.sapMaterialId!, inventoryIdentity: null }),
           catalogStatus: "active",
           name: record.productName,
           category: record.category,

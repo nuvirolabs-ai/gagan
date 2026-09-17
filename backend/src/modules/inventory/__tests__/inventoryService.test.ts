@@ -9,18 +9,29 @@ import {
 } from "../inventoryService";
 
 const run = randomUUID();
-const ids = { tier: `inventory-tier-${run}`, product: `inventory-product-${run}`, variant: `inventory-variant-${run}` };
+const ids = {
+  tier: `inventory-tier-${run}`,
+  product: `inventory-product-${run}`,
+  variant: `inventory-variant-${run}`,
+  internalProduct: `inventory-internal-product-${run}`,
+  internalVariant: `inventory-internal-variant-${run}`,
+};
 
 beforeAll(async () => {
   await prisma.tier.create({ data: { id: ids.tier, name: `Inventory tier ${run}` } });
   await prisma.product.create({ data: { id: ids.product, name: `Inventory product ${run}`, category: "test", sapMaterialId: `MAT-${run}` } });
   await prisma.variant.create({ data: { id: ids.variant, productId: ids.product, unitSize: "1", unit: "case", unitsPerCase: 1, unitWeightKg: 1 } });
+  await prisma.product.create({ data: { id: ids.internalProduct, name: `Internal inventory product ${run}`, category: "test", inventoryIdentity: `GAGAN-UAT-INV-${run}` } });
+  await prisma.variant.create({ data: { id: ids.internalVariant, productId: ids.internalProduct, unitSize: "1", unit: "case", unitsPerCase: 1, unitWeightKg: 1 } });
 });
 
 afterAll(async () => {
   await prisma.inventorySnapshot.deleteMany({ where: { productId: ids.product } });
+  await prisma.inventorySnapshot.deleteMany({ where: { productId: ids.internalProduct } });
   await prisma.variant.deleteMany({ where: { productId: ids.product } });
+  await prisma.variant.deleteMany({ where: { productId: ids.internalProduct } });
   await prisma.product.delete({ where: { id: ids.product } });
+  await prisma.product.delete({ where: { id: ids.internalProduct } });
   await prisma.tier.delete({ where: { id: ids.tier } });
   await prisma.$disconnect();
 });
@@ -49,5 +60,22 @@ describe("inventory availability", () => {
     await upsertInventorySnapshot(prisma, { productId: ids.product, variantId: ids.variant, sapMaterialId: `MAT-${run}`, warehouseCode: "WH-002", onHand: 2, committed: 0, syncedAt: new Date() });
     const snapshot = await inventoryForVariant(prisma, ids.variant, new Date(), "WH-002");
     expect(snapshot).toMatchObject({ warehouseCode: "WH-002", available: 2, status: "low" });
+  });
+
+  it("uses the separated internal identity for controlled UAT stock", async () => {
+    await upsertInventorySnapshot(prisma, {
+      productId: ids.internalProduct,
+      variantId: ids.internalVariant,
+      inventoryIdentity: `GAGAN-UAT-INV-${run}`,
+      warehouseCode: DEFAULT_WAREHOUSE_CODE,
+      onHand: 3,
+      committed: 1,
+      syncedAt: new Date(),
+      source: "controlled_uat",
+    });
+
+    const snapshot = await inventoryForVariant(prisma, ids.internalVariant);
+    expect(snapshot).toMatchObject({ inventoryIdentity: `GAGAN-UAT-INV-${run}`, sapMaterialId: null, available: 2, source: "controlled_uat" });
+    await expect(validateOrderInventory(prisma, [{ variantId: ids.internalVariant, qty: 2 }])).resolves.toEqual(undefined);
   });
 });

@@ -2,40 +2,35 @@
 
 Status: **canonical local staging source** — not a production release and not a replacement for the immutable release tags.
 
-Created: 2026-09-07 (Asia/Kolkata)
+Created: 2026-09-07 (Asia/Kolkata); current manifest update: 2026-09-17 (Asia/Kolkata)
 
 ## Source-of-truth decision
 
-The canonical runtime source in this folder is the clean accepted hardened staging integration at:
+The canonical runtime source in this folder is the clean consolidated staging candidate at:
 
 ```text
-Branch: codex/gagan-current (local canonical branch; not pushed)
-Canonical HEAD: local documentation-only consolidation commit; verify with `git rev-parse HEAD`
-Canonical HEAD subject: docs: establish canonical Gagan current checkout
-Runtime source parent: dcbc7a933da76eeb10599d757aca8207f7cfaa0f
-Runtime source subject: docs: add physical Moto E13 acceptance evidence for gagan-staging-p0-hardened-v1
+Branch: codex/gagan-canonical-product-v1 (pushed feature branch)
+Canonical HEAD: 2a8e2d2e9288fb9ff4fb1d5e2f38802e50a172a8
+Canonical HEAD subject: feat: publish reviewed real catalogue safely
+Runtime source parent: 063b2c54a06a8879a33ea8e78e39f0e7ec32094b
+Runtime source subject: reviewed Jain/Padam routing and catalogue publication base
 Remote: https://github.com/nuvirolabs-ai/gagan.git
 ```
 
-This commit is the exact accepted source branch head:
+This is the active canonical branch head:
 
 ```text
-Accepted branch: codex/gagan-p0-staging-integration
-Accepted branch SHA: dcbc7a933da76eeb10599d757aca8207f7cfaa0f
-Accepted branch remote SHA: dcbc7a933da76eeb10599d757aca8207f7cfaa0f
+Active branch: codex/gagan-canonical-product-v1
+Active branch SHA: 2a8e2d2e9288fb9ff4fb1d5e2f38802e50a172a8
+Active branch remote SHA: 2a8e2d2e9288fb9ff4fb1d5e2f38802e50a172a8
 ```
 
-The accepted branch was verified before consolidation:
-
-- `gagan-staging-p0-hardened-v1` is an annotated tag object `dc58977ac8ad027bd275ff7add775f3ebe616f65` peeled to commit `1859d4e1014d194b35453c4afa044b17452c7840`.
-- The frozen staging tag is an ancestor of the accepted branch: **yes**.
-- The accepted branch is two documentation/evidence commits beyond the tag: `d633c9f9e14d2f882c7e918e49bdb64e8a5c6d4f` and `dcbc7a933da76eeb10599d757aca8207f7cfaa0f`.
-- The accepted branch is an ancestor of the staging tag: **no**; the tag was not moved.
-- Local `main` was `2bf864b7a3f5ca3c437ceb3cb59dc9ba95d925d1`; remote `origin/main` was `0a2aadd8d9c6a42d68daac3554bb5b45ce250465`. Neither was modified.
-- The runtime scopes `backend`, `admin`, `rep`, `mobile`, `founder`, `gagan-secondary-admin`, `scripts`, and `render.yaml` have **zero changed paths** between the tag commit and the accepted branch head.
-- The accepted branch worktree was clean before this canonical checkout was created.
-
-The new canonical branch is local-only. Its only commit beyond the accepted branch is this consolidation manifest/report commit; the application runtime trees remain exactly the accepted runtime. No push, production branch update, production deployment, real SAP connection, or frozen-tag rewrite was performed.
+The prior immutable `gagan-canonical-product-v1` tag remains at
+`1728bc6ce1aad30bbaf528821d7c307cc46c5111` and was not moved. The active
+branch is its reviewed Jain/Padam-routing and real-catalogue descendant. The
+real-catalogue feature branch and this canonical branch both point to the same
+clean pushed commit. No production branch update, production deployment, real
+SAP connection, or frozen-tag rewrite was performed.
 
 ## Canonical application trees
 
@@ -63,6 +58,27 @@ These are the only APKs copied into the canonical folder. Their SHA-256 values w
 | Frozen Salesperson template reference APK | `artifacts/apk/gagan-salesperson-final-template-8eed514.apk` | `/Users/tanutejas/Desktop/gagan-salesperson-final-template-8eed514.apk` | `b7f7e86a18644e50294f63c296fd294875111b900d9a361fa3f36c9f7440dc94` | 87,879,853 bytes | `com.gagan.sales`; frozen template verification artifact; not the current hardened runtime |
 
 The APKs are copied artifacts, not newly built binaries. The accepted manifest records the hardened Salesperson source/runtime relationship, package ID, staging API, physical Moto E13 acceptance, and the boundary that the hardening change was JavaScript/offline/account-boundary work rather than a new native module. The current source of truth remains the Git runtime tree above.
+
+## Real catalogue publication candidate (2026-09-17)
+
+The active branch includes the reviewed real-catalogue publication path at
+`2a8e2d2e9288fb9ff4fb1d5e2f38802e50a172a8`. The source workbook contains 105
+unique variants across 46 products. The local rehearsal published 46 products
+and 105 variants, produced 91 exact image mappings, 11 approved labelled
+placeholders and 3 pending ambiguous image mappings, and wrote 230 price-list
+rows while leaving 0 variants orderable until approved tax and inventory
+configuration is present. The exact review APK candidates, hashes, package
+metadata and physical smoke evidence are recorded in
+`/Users/tanutejas/Documents/GAGAN/CURRENT/BUILDS/CANDIDATES/2a8e2d2/RELEASE_MANIFEST.md`.
+
+The intended hosted target is `https://gagan-srat.onrender.com`. Its public
+health endpoints returned HTTP 200, but the authorized Render service,
+database, migration ledger and recovery boundary were not available in the
+accessible browser session. No hosted catalogue migration/import/promotion,
+dummy retirement, backend deployment or Admin deployment was performed. The
+Moto E13 review apps are installed and launch, but the device still shows the
+pre-publication staging catalogue; real-catalogue physical acceptance is
+therefore pending hosted activation.
 
 ## Frozen Salesperson template reference
 

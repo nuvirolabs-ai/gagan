@@ -1,8 +1,8 @@
 # Real catalogue business decision register
 
-Revision: **R1 — partially approved; activation remains blocked**
+Revision: **R2 — owner approvals recorded; local publication rehearsal complete; hosted activation remains pending**
 Recorded: 17 September 2026
-Branch: `codex/gagan-real-catalogue-v1`
+Branch: `codex/gagan-canonical-product-v1` (source checkpoint `2a8e2d2e9288fb9ff4fb1d5e2f38802e50a172a8`)
 Hosted writes: **none**
 
 ## Approval provenance
@@ -11,8 +11,8 @@ Hosted writes: **none**
 |---|---|
 | Decision source | Explicit owner decisions in the current Gagan real-catalogue activation task |
 | Approver | Gagan owner |
-| Approval ID | `gagan-real-catalogue-owner-approval-r1` |
-| Approval revision | `1` |
+| Approval ID | `gagan-real-catalogue-owner-approval-r2` |
+| Approval revision | `2` |
 | Workbook | `1-SKU-WISE-ITEM-LIST-16-09-26-UPDATED.xlsx` |
 | Workbook SHA-256 | `f9f69849c37421bd48a0326d50239cb2ebf0ff47b955bc56915556446fa9e5a6` |
 | Workbook version | `sku-wise-item-list-2026-09-16-v1` |
@@ -20,7 +20,7 @@ Hosted writes: **none**
 | Image index | `docs/real-catalogue/drive-image-index.json` |
 | Image-index SHA-256 | `41da39cf271c7cb37f363c39a128cb2d59b4205ee2359ff145cca898dcb3cc2d` |
 | Image-mapping revision | `drive-image-selection-2026-09-17-r1` |
-| Supported decisions file | `docs/real-catalogue/real-catalogue-decisions-owner-approved-r1.json` |
+| Supported decisions file | `docs/real-catalogue/real-catalogue-decisions-owner-approved-r1.json` (content revision 2; filename retained for compatibility) |
 
 The approval is bound to the full stable `variantKey` values in the
 decisions file. Workbook row numbers are supporting evidence and are not the
@@ -32,10 +32,10 @@ file and cannot make a row orderable.
 | Decision | Scope | Local result | Boundary |
 |---|---|---|---|
 | Durable internal identity | All 46 deterministic products and 105 unique variants | `GAGAN-INT-P-<product-key-suffix>` and `GAGAN-INT-V-<variant-key-suffix>` recorded in the reviewed manifest and source-import path | Internal Gagan identifiers only. Never SAP material codes. |
-| Workbook price interpretation | All workbook prices | Numeric values remain the supplied INR per-quintal rates and are recorded as GST-exclusive | No target price-list/tier selected. No price list written. |
+| Workbook price interpretation | All workbook prices | Numeric values remain the supplied INR per-quintal rates and are recorded as GST-exclusive for all current retailer tiers | No MRP substitution or tax default; local rehearsal wrote 230 rows across existing tiers. |
 | Twenty-kilogram rice BOX contribution | Source rows 6, 7, 10, 13, 14, 18, 19, 22, 23, 26, 27, 30 | Each ordered master BOX contributes `1.000` routing BAG | Routing contribution only. Displayed container remains BOX, actual master weight remains 20 kg, and pricing/freight weight is unchanged. |
 | Equivalent image selection | Moong Mogar 30 kg and Urad Chilka 30 kg | Selected sharper, centered exact-pack candidates recorded with Drive ID, source hash, rationale, mapping revision and deterministic asset path | The three other ambiguous groups remain unresolved. No missing image was substituted. |
-| Dummy/test catalogue retirement | Confirmed dummy/test records | Owner approved replacement of confirmed dummy/test products in principle; exact target-specific allowlist is prepared for read-only re-resolution | No hosted IDs are placed in the executable approval file. No product has been retired. |
+| Dummy/test catalogue retirement | Confirmed dummy/test records | Owner approved removal from active sale; the exact target-specific allowlist still requires read-only re-resolution on hosted staging | No hosted IDs are placed in the executable approval file. No product has been retired. |
 
 ## Internal identity assignment
 
@@ -121,10 +121,7 @@ These are not covered by owner approval revision 1:
 ### Required for orderable activation
 
 1. Approved GST percentage and HSN for each sellable variant.
-2. The existing target price-list/tier that should receive each supplied
-   GST-exclusive per-quintal rate. The numeric rates must not be copied to
-   every tier.
-3. Approved material/warehouse mapping and a current available inventory
+2. Approved material/warehouse mapping and a current available inventory
    snapshot for each orderable variant. Internal Gagan codes cannot satisfy
    the external material field and stock cannot be invented.
 

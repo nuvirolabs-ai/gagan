@@ -1,6 +1,6 @@
 # Real catalogue import and activation plan
 
-Status: **owner approval revision 1 recorded locally; source import and approval-path hardening complete; activation remains blocked until GST/HSN, target tier, inventory configuration and remaining image decisions are available.** Prepared 17 September 2026 on codex/gagan-real-catalogue-v1. No hosted database, deployment, production, main, Dogkart, GNV or SAP resource was changed.
+Status: **owner approval revision 2 recorded locally; source import, reviewed publication path and local rehearsal complete; hosted activation remains pending exact Render service/database/recovery access and unresolved tax/inventory/image exceptions.** Prepared 17 September 2026 on codex/gagan-canonical-product-v1. No hosted database, deployment, production, main, Dogkart, GNV or SAP resource was changed.
 
 ## Verified input
 
@@ -24,7 +24,7 @@ Controlled activation is a distinct promotion:
 
     npm run catalogue:real -- --input=<xlsx> --image-index=../docs/real-catalogue/drive-image-index.json --decisions=<approved-decisions.json> --phase=promote --apply --actor=<staff-id> --target=<disposable-local|gagan-staging>
 
-The owner-approved decisions file is validated against the exact workbook and image-index checksums. It records durable internal identities for all 105 unique variants, the GST-exclusive/quintal interpretation without selecting a target tier, one routing BAG for each of the twelve approved 20 KG BOX rows, two equivalent image choices and the approval revision. It intentionally does not contain GST/HSN, a target tier, inventory/material mappings, the three unresolved image choices, the eleven missing images or hosted retirement IDs. The example file under docs/real-catalogue remains a template only, not an approval.
+The owner-approved decisions file is validated against the exact workbook and image-index checksums. It records durable internal identities for all 105 unique variants, the GST-exclusive/quintal interpretation for all existing retailer tiers, one routing BAG for each of the twelve approved 20 KG BOX rows, two equivalent image choices, the eleven owner-approved placeholders and the approval revision. It intentionally does not contain GST/HSN, inventory/material mappings, the three unresolved image choices or hosted retirement IDs. The example file under docs/real-catalogue remains a template only, not an approval.
 
 For apply, all of these are required:
 
@@ -58,7 +58,7 @@ The source checksum identifies the source batch. When reviewed configuration is 
 - Two of the five ambiguous groups are now resolved by an owner-approved equivalent-image selection; three groups remain unresolved. Eleven exact product/pack images remain absent.
 - The ten former conversion exceptions are now derived from explicit 30 KG plus 30KG BAG fields; no conversion row is skipped by the current parser.
 - The twelve reviewed Gagan rice BOX rows are approved as one ordered master BOX equals one routing BAG for threshold contribution only. This does not change the displayed BOX, 20 KG weight or pricing/freight basis.
-- Workbook rates are recorded as GST-exclusive INR per quintal. The existing target price-list/tier remains unresolved and no price is written to every tier.
+- Workbook rates are recorded as GST-exclusive INR per quintal for all existing retailer tiers under the final owner approval. GST/HSN and inventory/material readiness remain separate server-enforced orderability gates.
 - Dynamic Jain/Padam routing remains runtime-authoritative; no per-SKU sellingEntity is fabricated.
 
 See:
@@ -73,7 +73,7 @@ See:
 
 ## Local rehearsal evidence
 
-The current branch migrates from zero through 42 migrations, including the additive real-catalogue approval migration. On gagan_catalogue_approval_test_20260917_0500, the full migration and seed completed, the source import created 46 product identities and 105 variants, and an identical replay left 46 real products, 105 real variants and one source batch. The replay returned the durable prior summary rather than creating duplicates. The owner-approved decisions file has been validated against the exact source checksums and is ready for a fresh local dry-run/rehearsal; no hosted data was used.
+The current branch migrates from zero through 43 migrations, including the additive real-catalogue publication migration. On the final pristine local rehearsal database, the full migration and seed completed, the reviewed publication created 46 product identities and 105 variants, and an identical replay left the same identities and batch summary without duplicates. The publication result was 91 exact images, 11 approved placeholders, 3 pending ambiguous images, 230 price rows and 0 orderable variants pending tax/inventory configuration. No hosted data was used.
 
 A prior 41-migration rehearsal recorded 36 products, 95 variants and ten conversion skips. That is historical evidence only; the current parser resolves those ten explicit BAG rows and the current counts above supersede that old rehearsal.
 
@@ -85,6 +85,6 @@ Archiving is status-only and recoverable; it does not delete products, variants,
 
 ## Recovery and release boundary
 
-Keep the workbook, Drive index, matched source images, generated manifests, migration record and disposable database dump outside Git under the GAGAN archive. The current local rehearsal dump is /Users/tanutejas/Documents/GAGAN/ARCHIVE/catalogue-source/20260917-local-uat/gagan_catalogue_approval_test_20260917_0500.dump with SHA-256 3169131020cb4c0009cf16956638604f0999735c15da88b9d7210983f9229f69. It was restored into a second disposable database and recovered 46 real products, 105 real variants and one import batch. Before any hosted write, verify the exact Render service/database binding and a recoverable backup/restore boundary. No hosted promotion is currently permitted: the owner-approved revision is local only, and GST/HSN, target tier, inventory/material mapping, remaining image decisions and exact hosted retirement IDs are still unresolved.
+Keep the workbook, Drive index, matched source images, generated manifests, migration record and disposable database dump outside Git under the GAGAN archive. The current local rehearsal dump is /Users/tanutejas/Documents/GAGAN/ARCHIVE/catalogue-source/20260917-local-uat/gagan_catalogue_approval_test_20260917_0500.dump with SHA-256 3169131020cb4c0009cf16956638604f0999735c15da88b9d7210983f9229f69. It was restored into a second disposable database and recovered the reviewed product identities, variants and import batch. Before any hosted write, verify the exact Render service/database binding and a recoverable backup/restore boundary. No hosted promotion is currently permitted: GST/HSN, inventory/material mapping, remaining image decisions and exact hosted retirement IDs remain unresolved, and authorized Render access was not available in the accessible browser session.
 
 When approved decisions exist, rehearse the exact decisions file locally, export a change manifest, validate the exact target guard, confirm backup/recovery, and only then promote. A data-only catalogue update should not replace either mobile APK; rebuild clients only if the final client source or API contract actually changes.

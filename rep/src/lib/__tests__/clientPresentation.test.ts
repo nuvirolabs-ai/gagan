@@ -20,7 +20,7 @@ describe("client-facing salesperson presentation", () => {
       read("screens/RepAccountScreen.tsx"),
     ].join("\n");
 
-    expect(activeCopy).not.toMatch(/\bUAT\b|FOUNDER UAT|ROUTING-UAT|FIELD OPS/i);
+    expect(activeCopy).not.toMatch(/\bUAT\b|FOUNDER UAT|ROUTING-UAT|FIELD OPS|FIELD INSIGHT/i);
     expect(activeCopy).not.toMatch(/Product demo|FIELD COMPANION|GAGAN FIELD COMPANION|FIELD DAY/i);
     expect(activeCopy).not.toMatch(/\bin field\b|Field expense claims|field updates?/i);
   });

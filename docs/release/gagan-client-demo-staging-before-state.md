@@ -68,3 +68,15 @@ archived from new catalogue reads while their historical rows remain intact.
 No product names in the published 46-product/105-variant master matched the
 UAT/test/demo pattern. No product name, SKU, order line, invoice, or immutable
 historical snapshot is rewritten.
+
+## Active survey display record
+
+The active survey was also checked during physical review. Its display title
+was an active, mutable presentation field rather than an order or invoice
+snapshot:
+
+| Survey ID | Before title | Status | Final title |
+|---|---|---|---|
+| `db883fa1-ba60-4e4d-b3a0-74d5720e2903` | GAGAN MARKET SURVEY UAT — PHYSICAL RETRY — 2026-09-16 | active | Gagan Market Survey — Store Priorities — 17 Sep 2026 |
+
+The closed survey `f7c8ad95-8b54-476a-8137-dd5f63d108f0` was not changed.

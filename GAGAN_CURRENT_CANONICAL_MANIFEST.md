@@ -10,10 +10,10 @@ The canonical runtime source in this folder is the clean consolidated staging ca
 
 ```text
 Branch: codex/gagan-canonical-product-v1 (pushed feature branch)
-Canonical HEAD: 2a8e2d2e9288fb9ff4fb1d5e2f38802e50a172a8
-Canonical HEAD subject: feat: publish reviewed real catalogue safely
-Runtime source parent: 063b2c54a06a8879a33ea8e78e39f0e7ec32094b
-Runtime source subject: reviewed Jain/Padam routing and catalogue publication base
+Canonical HEAD: 9b1b6f76839c4530928c844dde1cd608e2ad5f68
+Canonical HEAD subject: docs: record real catalogue publication checkpoint
+Runtime source parent: 2a8e2d2e9288fb9ff4fb1d5e2f38802e50a172a8
+Runtime source subject: feat: publish reviewed real catalogue safely
 Remote: https://github.com/nuvirolabs-ai/gagan.git
 ```
 
@@ -21,8 +21,8 @@ This is the active canonical branch head:
 
 ```text
 Active branch: codex/gagan-canonical-product-v1
-Active branch SHA: 2a8e2d2e9288fb9ff4fb1d5e2f38802e50a172a8
-Active branch remote SHA: 2a8e2d2e9288fb9ff4fb1d5e2f38802e50a172a8
+Active branch SHA: 9b1b6f76839c4530928c844dde1cd608e2ad5f68
+Active branch remote SHA: 9b1b6f76839c4530928c844dde1cd608e2ad5f68
 ```
 
 The prior immutable `gagan-canonical-product-v1` tag remains at

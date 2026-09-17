@@ -11,6 +11,7 @@ import { CartProvider } from "./src/context/CartContext";
 import { LanguageProvider, useLanguage } from "./src/i18n/LanguageContext";
 import TabBar from "./src/components/TabBar";
 import { colors } from "./src/theme";
+import { buildInfo } from "./src/buildInfo";
 
 import LoginScreen from "./src/screens/LoginScreen";
 import HomeScreen from "./src/screens/HomeScreen";
@@ -73,6 +74,7 @@ function RootNavigator() {
   if (loading) {
     return (
       <View
+        accessibilityLabel={`Gagan build ${buildInfo.sourceSha}`}
         style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.bg }}
       >
         <ActivityIndicator size="large" color={colors.green} />

@@ -1,9 +1,4 @@
-/**
- * Non-secret build identity baked into review bundles at build time.
- *
- * It is available to support exact APK provenance without putting credentials
- * or operational configuration into the client-facing experience.
- */
+/** Non-secret build identity embedded in review bundles at build time. */
 export const buildInfo = {
   sourceSha: process.env.EXPO_PUBLIC_BUILD_SOURCE_SHA ?? "unpublished",
   version: process.env.EXPO_PUBLIC_BUILD_VERSION ?? "development",

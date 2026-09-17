@@ -1,0 +1,836 @@
+{
+  "schemaVersion": 1,
+  "approval": {
+    "approvalId": "gagan-real-catalogue-owner-approval-r1",
+    "revision": 1,
+    "approvedBy": "Gagan owner",
+    "approvedAt": "2026-09-17T00:00:00.000Z",
+    "decisionSource": "Explicit owner decisions in the current Gagan real-catalogue activation task",
+    "scope": "Approve durable internal Gagan Product and Variant codes; treat workbook prices as GST-exclusive INR per-quintal rates without selecting a target tier; resolve the twelve exact reviewed 20 KG BOX rows as one ordered BOX equals one routing BAG for threshold contribution only; allow equivalent-image selection for verified identical packaging; approve retirement in principle only for an exact verified dummy/test allowlist. Unresolved fields remain unapproved and no hosted promotion is authorized.",
+    "source": {
+      "workbookSha256": "f9f69849c37421bd48a0326d50239cb2ebf0ff47b955bc56915556446fa9e5a6",
+      "sourceVersion": "sku-wise-item-list-2026-09-16-v1",
+      "imageIndexSha256": "41da39cf271c7cb37f363c39a128cb2d59b4205ee2359ff145cca898dcb3cc2d"
+    }
+  },
+  "pricing": {
+    "sourceRateBasis": "quintal",
+    "gstTreatment": "exclusive",
+    "targetTierId": null,
+    "targetTierStatus": "unresolved",
+    "evidence": "Owner decision: workbook numeric prices are before GST and retain their per-quintal basis. Existing target price-list/tier applicability remains unresolved; no price list is written by this approval."
+  },
+  "imageMappingRevision": "drive-image-selection-2026-09-17-r1",
+  "records": [
+    {
+      "variantKey": "real-catalogue:variant:02231e3b302d337360ec2267a0651f8b3592c8c5a2374ca06f1b8521c3d5f84b",
+      "productCatalogKey": "real-catalogue:product:724e5996749c901ed4779afe64cbd20ae9eceac8031a52d6ffccc46b84dd4655",
+      "variantCatalogKey": "real-catalogue:variant:02231e3b302d337360ec2267a0651f8b3592c8c5a2374ca06f1b8521c3d5f84b",
+      "productInternalCode": "GAGAN-INT-P-724e5996749c901ed4779afe64cbd20ae9eceac8031a52d6ffccc46b84dd4655",
+      "variantInternalCode": "GAGAN-INT-V-02231e3b302d337360ec2267a0651f8b3592c8c5a2374ca06f1b8521c3d5f84b"
+    },
+    {
+      "variantKey": "real-catalogue:variant:6986bb1ebc542536524718be661a0a6a2fce3362cd7d5de3494298f74ce1e820",
+      "productCatalogKey": "real-catalogue:product:e73d3c95716118514a064a096ca2418860f650b92cfcc66d4112a2203e90d939",
+      "variantCatalogKey": "real-catalogue:variant:6986bb1ebc542536524718be661a0a6a2fce3362cd7d5de3494298f74ce1e820",
+      "productInternalCode": "GAGAN-INT-P-e73d3c95716118514a064a096ca2418860f650b92cfcc66d4112a2203e90d939",
+      "variantInternalCode": "GAGAN-INT-V-6986bb1ebc542536524718be661a0a6a2fce3362cd7d5de3494298f74ce1e820"
+    },
+    {
+      "variantKey": "real-catalogue:variant:a667124b440dc8dbda60a6e6a6b39902bdf280c0c1e08b1f2fbf02a365a38302",
+      "productCatalogKey": "real-catalogue:product:23d9b875ea0fa163648bb45cd9dccac12f7e0946a7b5ce357228011a0d7f2c8b",
+      "variantCatalogKey": "real-catalogue:variant:a667124b440dc8dbda60a6e6a6b39902bdf280c0c1e08b1f2fbf02a365a38302",
+      "productInternalCode": "GAGAN-INT-P-23d9b875ea0fa163648bb45cd9dccac12f7e0946a7b5ce357228011a0d7f2c8b",
+      "variantInternalCode": "GAGAN-INT-V-a667124b440dc8dbda60a6e6a6b39902bdf280c0c1e08b1f2fbf02a365a38302"
+    },
+    {
+      "variantKey": "real-catalogue:variant:5384545e9b77a863445d7e860b611a9017fc3e9705a6024e035688d2a0f5727e",
+      "productCatalogKey": "real-catalogue:product:23d9b875ea0fa163648bb45cd9dccac12f7e0946a7b5ce357228011a0d7f2c8b",
+      "variantCatalogKey": "real-catalogue:variant:5384545e9b77a863445d7e860b611a9017fc3e9705a6024e035688d2a0f5727e",
+      "productInternalCode": "GAGAN-INT-P-23d9b875ea0fa163648bb45cd9dccac12f7e0946a7b5ce357228011a0d7f2c8b",
+      "variantInternalCode": "GAGAN-INT-V-5384545e9b77a863445d7e860b611a9017fc3e9705a6024e035688d2a0f5727e",
+      "routing": {
+        "routingClass": "OTHER",
+        "routingBagEquivalent": "1.000",
+        "sellingEntity": null
+      }
+    },
+    {
+      "variantKey": "real-catalogue:variant:32f10132475d9334a9348831bdd6581692b2e8c6efe66f06aea4cfadcae95e72",
+      "productCatalogKey": "real-catalogue:product:23d9b875ea0fa163648bb45cd9dccac12f7e0946a7b5ce357228011a0d7f2c8b",
+      "variantCatalogKey": "real-catalogue:variant:32f10132475d9334a9348831bdd6581692b2e8c6efe66f06aea4cfadcae95e72",
+      "productInternalCode": "GAGAN-INT-P-23d9b875ea0fa163648bb45cd9dccac12f7e0946a7b5ce357228011a0d7f2c8b",
+      "variantInternalCode": "GAGAN-INT-V-32f10132475d9334a9348831bdd6581692b2e8c6efe66f06aea4cfadcae95e72",
+      "routing": {
+        "routingClass": "OTHER",
+        "routingBagEquivalent": "1.000",
+        "sellingEntity": null
+      }
+    },
+    {
+      "variantKey": "real-catalogue:variant:f682c314a576296a64b08cfda50d2dfad0b4805e65432324652f4fb9289d58f1",
+      "productCatalogKey": "real-catalogue:product:23d9b875ea0fa163648bb45cd9dccac12f7e0946a7b5ce357228011a0d7f2c8b",
+      "variantCatalogKey": "real-catalogue:variant:f682c314a576296a64b08cfda50d2dfad0b4805e65432324652f4fb9289d58f1",
+      "productInternalCode": "GAGAN-INT-P-23d9b875ea0fa163648bb45cd9dccac12f7e0946a7b5ce357228011a0d7f2c8b",
+      "variantInternalCode": "GAGAN-INT-V-f682c314a576296a64b08cfda50d2dfad0b4805e65432324652f4fb9289d58f1"
+    },
+    {
+      "variantKey": "real-catalogue:variant:f200ae837c0369ea38d9144aabf5f6f9509ea1a2c6ec5322e5dac940bc797b91",
+      "productCatalogKey": "real-catalogue:product:e79d7cb48704557c83b3fb55743f017efdd092981b6a9f9d4cf0920308f58951",
+      "variantCatalogKey": "real-catalogue:variant:f200ae837c0369ea38d9144aabf5f6f9509ea1a2c6ec5322e5dac940bc797b91",
+      "productInternalCode": "GAGAN-INT-P-e79d7cb48704557c83b3fb55743f017efdd092981b6a9f9d4cf0920308f58951",
+      "variantInternalCode": "GAGAN-INT-V-f200ae837c0369ea38d9144aabf5f6f9509ea1a2c6ec5322e5dac940bc797b91"
+    },
+    {
+      "variantKey": "real-catalogue:variant:fb415e8a10496c88d0cab5d1c2bccef15245eaa93fbbbacc9e2fcf78394e7696",
+      "productCatalogKey": "real-catalogue:product:e79d7cb48704557c83b3fb55743f017efdd092981b6a9f9d4cf0920308f58951",
+      "variantCatalogKey": "real-catalogue:variant:fb415e8a10496c88d0cab5d1c2bccef15245eaa93fbbbacc9e2fcf78394e7696",
+      "productInternalCode": "GAGAN-INT-P-e79d7cb48704557c83b3fb55743f017efdd092981b6a9f9d4cf0920308f58951",
+      "variantInternalCode": "GAGAN-INT-V-fb415e8a10496c88d0cab5d1c2bccef15245eaa93fbbbacc9e2fcf78394e7696",
+      "routing": {
+        "routingClass": "OTHER",
+        "routingBagEquivalent": "1.000",
+        "sellingEntity": null
+      }
+    },
+    {
+      "variantKey": "real-catalogue:variant:e6a5be6d1aeb00c9feb3e792984f4baed74fcc81f2683d4ec4717e85a5afa893",
+      "productCatalogKey": "real-catalogue:product:e79d7cb48704557c83b3fb55743f017efdd092981b6a9f9d4cf0920308f58951",
+      "variantCatalogKey": "real-catalogue:variant:e6a5be6d1aeb00c9feb3e792984f4baed74fcc81f2683d4ec4717e85a5afa893",
+      "productInternalCode": "GAGAN-INT-P-e79d7cb48704557c83b3fb55743f017efdd092981b6a9f9d4cf0920308f58951",
+      "variantInternalCode": "GAGAN-INT-V-e6a5be6d1aeb00c9feb3e792984f4baed74fcc81f2683d4ec4717e85a5afa893"
+    },
+    {
+      "variantKey": "real-catalogue:variant:ba454310e612a4b8b761e28f18afdbf087966e693b76b3f5a301723fbd2afb72",
+      "productCatalogKey": "real-catalogue:product:5c0e26a9b11f3385de98dbabbefd06c1966377e104683eb036ef5990e96367d3",
+      "variantCatalogKey": "real-catalogue:variant:ba454310e612a4b8b761e28f18afdbf087966e693b76b3f5a301723fbd2afb72",
+      "productInternalCode": "GAGAN-INT-P-5c0e26a9b11f3385de98dbabbefd06c1966377e104683eb036ef5990e96367d3",
+      "variantInternalCode": "GAGAN-INT-V-ba454310e612a4b8b761e28f18afdbf087966e693b76b3f5a301723fbd2afb72"
+    },
+    {
+      "variantKey": "real-catalogue:variant:815edb22ab7f21bf20105116b59d628af336ca76c870d875663c7989c7621010",
+      "productCatalogKey": "real-catalogue:product:5c0e26a9b11f3385de98dbabbefd06c1966377e104683eb036ef5990e96367d3",
+      "variantCatalogKey": "real-catalogue:variant:815edb22ab7f21bf20105116b59d628af336ca76c870d875663c7989c7621010",
+      "productInternalCode": "GAGAN-INT-P-5c0e26a9b11f3385de98dbabbefd06c1966377e104683eb036ef5990e96367d3",
+      "variantInternalCode": "GAGAN-INT-V-815edb22ab7f21bf20105116b59d628af336ca76c870d875663c7989c7621010",
+      "routing": {
+        "routingClass": "OTHER",
+        "routingBagEquivalent": "1.000",
+        "sellingEntity": null
+      }
+    },
+    {
+      "variantKey": "real-catalogue:variant:ac48b15265e81a4261e9727851db7849bbdddc21e33c7b86a76ebdd90e6e9d27",
+      "productCatalogKey": "real-catalogue:product:5c0e26a9b11f3385de98dbabbefd06c1966377e104683eb036ef5990e96367d3",
+      "variantCatalogKey": "real-catalogue:variant:ac48b15265e81a4261e9727851db7849bbdddc21e33c7b86a76ebdd90e6e9d27",
+      "productInternalCode": "GAGAN-INT-P-5c0e26a9b11f3385de98dbabbefd06c1966377e104683eb036ef5990e96367d3",
+      "variantInternalCode": "GAGAN-INT-V-ac48b15265e81a4261e9727851db7849bbdddc21e33c7b86a76ebdd90e6e9d27",
+      "routing": {
+        "routingClass": "OTHER",
+        "routingBagEquivalent": "1.000",
+        "sellingEntity": null
+      }
+    },
+    {
+      "variantKey": "real-catalogue:variant:f8aa52e1e7267f8bbc1a3684071a2c24361bcd20ae7788678793d9f3c554e30f",
+      "productCatalogKey": "real-catalogue:product:5c0e26a9b11f3385de98dbabbefd06c1966377e104683eb036ef5990e96367d3",
+      "variantCatalogKey": "real-catalogue:variant:f8aa52e1e7267f8bbc1a3684071a2c24361bcd20ae7788678793d9f3c554e30f",
+      "productInternalCode": "GAGAN-INT-P-5c0e26a9b11f3385de98dbabbefd06c1966377e104683eb036ef5990e96367d3",
+      "variantInternalCode": "GAGAN-INT-V-f8aa52e1e7267f8bbc1a3684071a2c24361bcd20ae7788678793d9f3c554e30f"
+    },
+    {
+      "variantKey": "real-catalogue:variant:9431426f81359e45af2a791956b83e82c1f7f05680e441bd484617fd5843707b",
+      "productCatalogKey": "real-catalogue:product:3ee2c0a591c944084d72bb1a53899af8e3165a01511df969dbe6ec3898904ddc",
+      "variantCatalogKey": "real-catalogue:variant:9431426f81359e45af2a791956b83e82c1f7f05680e441bd484617fd5843707b",
+      "productInternalCode": "GAGAN-INT-P-3ee2c0a591c944084d72bb1a53899af8e3165a01511df969dbe6ec3898904ddc",
+      "variantInternalCode": "GAGAN-INT-V-9431426f81359e45af2a791956b83e82c1f7f05680e441bd484617fd5843707b"
+    },
+    {
+      "variantKey": "real-catalogue:variant:9160161df7d963295aac224961a4dcfb685dc0cdedc0a39be2a63d15bca731f4",
+      "productCatalogKey": "real-catalogue:product:f2c0fdca56bde14689561697897323cf70813254a5aaa2b6d3ab1a54756b9553",
+      "variantCatalogKey": "real-catalogue:variant:9160161df7d963295aac224961a4dcfb685dc0cdedc0a39be2a63d15bca731f4",
+      "productInternalCode": "GAGAN-INT-P-f2c0fdca56bde14689561697897323cf70813254a5aaa2b6d3ab1a54756b9553",
+      "variantInternalCode": "GAGAN-INT-V-9160161df7d963295aac224961a4dcfb685dc0cdedc0a39be2a63d15bca731f4"
+    },
+    {
+      "variantKey": "real-catalogue:variant:2cd971929e1cacecddd274b692af8534da5cf017a222861511a8af45443bad1e",
+      "productCatalogKey": "real-catalogue:product:f2c0fdca56bde14689561697897323cf70813254a5aaa2b6d3ab1a54756b9553",
+      "variantCatalogKey": "real-catalogue:variant:2cd971929e1cacecddd274b692af8534da5cf017a222861511a8af45443bad1e",
+      "productInternalCode": "GAGAN-INT-P-f2c0fdca56bde14689561697897323cf70813254a5aaa2b6d3ab1a54756b9553",
+      "variantInternalCode": "GAGAN-INT-V-2cd971929e1cacecddd274b692af8534da5cf017a222861511a8af45443bad1e",
+      "routing": {
+        "routingClass": "OTHER",
+        "routingBagEquivalent": "1.000",
+        "sellingEntity": null
+      }
+    },
+    {
+      "variantKey": "real-catalogue:variant:66427feb81cd4a9cdb2c69f9e096344cf415547f576f6d2973929727bb6ae230",
+      "productCatalogKey": "real-catalogue:product:f2c0fdca56bde14689561697897323cf70813254a5aaa2b6d3ab1a54756b9553",
+      "variantCatalogKey": "real-catalogue:variant:66427feb81cd4a9cdb2c69f9e096344cf415547f576f6d2973929727bb6ae230",
+      "productInternalCode": "GAGAN-INT-P-f2c0fdca56bde14689561697897323cf70813254a5aaa2b6d3ab1a54756b9553",
+      "variantInternalCode": "GAGAN-INT-V-66427feb81cd4a9cdb2c69f9e096344cf415547f576f6d2973929727bb6ae230",
+      "routing": {
+        "routingClass": "OTHER",
+        "routingBagEquivalent": "1.000",
+        "sellingEntity": null
+      }
+    },
+    {
+      "variantKey": "real-catalogue:variant:5276199c619107ea86179da2e297fc290e29f1e6251cd7d3a44a4f9106884fb6",
+      "productCatalogKey": "real-catalogue:product:f2c0fdca56bde14689561697897323cf70813254a5aaa2b6d3ab1a54756b9553",
+      "variantCatalogKey": "real-catalogue:variant:5276199c619107ea86179da2e297fc290e29f1e6251cd7d3a44a4f9106884fb6",
+      "productInternalCode": "GAGAN-INT-P-f2c0fdca56bde14689561697897323cf70813254a5aaa2b6d3ab1a54756b9553",
+      "variantInternalCode": "GAGAN-INT-V-5276199c619107ea86179da2e297fc290e29f1e6251cd7d3a44a4f9106884fb6"
+    },
+    {
+      "variantKey": "real-catalogue:variant:562de73d616384b084b22bc68f7bd0bcee03c9dd389b8aad78dce3d2cd7c3154",
+      "productCatalogKey": "real-catalogue:product:92eb2853499b5f27fec63c864ea45ed302d05a09e06f6dafb87dbb798c6d4cdc",
+      "variantCatalogKey": "real-catalogue:variant:562de73d616384b084b22bc68f7bd0bcee03c9dd389b8aad78dce3d2cd7c3154",
+      "productInternalCode": "GAGAN-INT-P-92eb2853499b5f27fec63c864ea45ed302d05a09e06f6dafb87dbb798c6d4cdc",
+      "variantInternalCode": "GAGAN-INT-V-562de73d616384b084b22bc68f7bd0bcee03c9dd389b8aad78dce3d2cd7c3154"
+    },
+    {
+      "variantKey": "real-catalogue:variant:6f2c8d8ab5a027d7d9a96b1cd2076aefb49ca2dc44911d84a90e5529fcf750ca",
+      "productCatalogKey": "real-catalogue:product:92eb2853499b5f27fec63c864ea45ed302d05a09e06f6dafb87dbb798c6d4cdc",
+      "variantCatalogKey": "real-catalogue:variant:6f2c8d8ab5a027d7d9a96b1cd2076aefb49ca2dc44911d84a90e5529fcf750ca",
+      "productInternalCode": "GAGAN-INT-P-92eb2853499b5f27fec63c864ea45ed302d05a09e06f6dafb87dbb798c6d4cdc",
+      "variantInternalCode": "GAGAN-INT-V-6f2c8d8ab5a027d7d9a96b1cd2076aefb49ca2dc44911d84a90e5529fcf750ca",
+      "routing": {
+        "routingClass": "OTHER",
+        "routingBagEquivalent": "1.000",
+        "sellingEntity": null
+      }
+    },
+    {
+      "variantKey": "real-catalogue:variant:7fc553f8d04897225035690e6a955e3c17cc5d29f89e470b5ccc4cfec5503312",
+      "productCatalogKey": "real-catalogue:product:92eb2853499b5f27fec63c864ea45ed302d05a09e06f6dafb87dbb798c6d4cdc",
+      "variantCatalogKey": "real-catalogue:variant:7fc553f8d04897225035690e6a955e3c17cc5d29f89e470b5ccc4cfec5503312",
+      "productInternalCode": "GAGAN-INT-P-92eb2853499b5f27fec63c864ea45ed302d05a09e06f6dafb87dbb798c6d4cdc",
+      "variantInternalCode": "GAGAN-INT-V-7fc553f8d04897225035690e6a955e3c17cc5d29f89e470b5ccc4cfec5503312",
+      "routing": {
+        "routingClass": "OTHER",
+        "routingBagEquivalent": "1.000",
+        "sellingEntity": null
+      }
+    },
+    {
+      "variantKey": "real-catalogue:variant:a8d791dc48e1de04e289e18a168b7573f75f01f9b59193d6d280af177fc09611",
+      "productCatalogKey": "real-catalogue:product:92eb2853499b5f27fec63c864ea45ed302d05a09e06f6dafb87dbb798c6d4cdc",
+      "variantCatalogKey": "real-catalogue:variant:a8d791dc48e1de04e289e18a168b7573f75f01f9b59193d6d280af177fc09611",
+      "productInternalCode": "GAGAN-INT-P-92eb2853499b5f27fec63c864ea45ed302d05a09e06f6dafb87dbb798c6d4cdc",
+      "variantInternalCode": "GAGAN-INT-V-a8d791dc48e1de04e289e18a168b7573f75f01f9b59193d6d280af177fc09611"
+    },
+    {
+      "variantKey": "real-catalogue:variant:b333abec0be1339d3a5568003a29a5645ce1566e525233c8069583df7c717e77",
+      "productCatalogKey": "real-catalogue:product:840633fb86efa371130985e209b68f45646269d0496226f01a7bd0eaaee913e1",
+      "variantCatalogKey": "real-catalogue:variant:b333abec0be1339d3a5568003a29a5645ce1566e525233c8069583df7c717e77",
+      "productInternalCode": "GAGAN-INT-P-840633fb86efa371130985e209b68f45646269d0496226f01a7bd0eaaee913e1",
+      "variantInternalCode": "GAGAN-INT-V-b333abec0be1339d3a5568003a29a5645ce1566e525233c8069583df7c717e77"
+    },
+    {
+      "variantKey": "real-catalogue:variant:6b5e5c560082615e81ab69edb1045ce7f90a9859121635bd20c9c98ef22dd1e4",
+      "productCatalogKey": "real-catalogue:product:840633fb86efa371130985e209b68f45646269d0496226f01a7bd0eaaee913e1",
+      "variantCatalogKey": "real-catalogue:variant:6b5e5c560082615e81ab69edb1045ce7f90a9859121635bd20c9c98ef22dd1e4",
+      "productInternalCode": "GAGAN-INT-P-840633fb86efa371130985e209b68f45646269d0496226f01a7bd0eaaee913e1",
+      "variantInternalCode": "GAGAN-INT-V-6b5e5c560082615e81ab69edb1045ce7f90a9859121635bd20c9c98ef22dd1e4",
+      "routing": {
+        "routingClass": "OTHER",
+        "routingBagEquivalent": "1.000",
+        "sellingEntity": null
+      }
+    },
+    {
+      "variantKey": "real-catalogue:variant:6dc0f354e3458336039f19efba23733e82bc8686da0663e150fad3d08c5ae187",
+      "productCatalogKey": "real-catalogue:product:840633fb86efa371130985e209b68f45646269d0496226f01a7bd0eaaee913e1",
+      "variantCatalogKey": "real-catalogue:variant:6dc0f354e3458336039f19efba23733e82bc8686da0663e150fad3d08c5ae187",
+      "productInternalCode": "GAGAN-INT-P-840633fb86efa371130985e209b68f45646269d0496226f01a7bd0eaaee913e1",
+      "variantInternalCode": "GAGAN-INT-V-6dc0f354e3458336039f19efba23733e82bc8686da0663e150fad3d08c5ae187",
+      "routing": {
+        "routingClass": "OTHER",
+        "routingBagEquivalent": "1.000",
+        "sellingEntity": null
+      }
+    },
+    {
+      "variantKey": "real-catalogue:variant:3363c578316a382b8e7201f93ed00b0b34d8605868ba103e5e660c2d214562ac",
+      "productCatalogKey": "real-catalogue:product:840633fb86efa371130985e209b68f45646269d0496226f01a7bd0eaaee913e1",
+      "variantCatalogKey": "real-catalogue:variant:3363c578316a382b8e7201f93ed00b0b34d8605868ba103e5e660c2d214562ac",
+      "productInternalCode": "GAGAN-INT-P-840633fb86efa371130985e209b68f45646269d0496226f01a7bd0eaaee913e1",
+      "variantInternalCode": "GAGAN-INT-V-3363c578316a382b8e7201f93ed00b0b34d8605868ba103e5e660c2d214562ac"
+    },
+    {
+      "variantKey": "real-catalogue:variant:5852d46bbfef7e77ecbf1adebdf1cdbbef47497c6e0d557f0dde71df56b6f2a1",
+      "productCatalogKey": "real-catalogue:product:3f89ba2689d5cb5de14208b1053cf48d5cfcbcc72f25e8241c1c8f68a152fc5a",
+      "variantCatalogKey": "real-catalogue:variant:5852d46bbfef7e77ecbf1adebdf1cdbbef47497c6e0d557f0dde71df56b6f2a1",
+      "productInternalCode": "GAGAN-INT-P-3f89ba2689d5cb5de14208b1053cf48d5cfcbcc72f25e8241c1c8f68a152fc5a",
+      "variantInternalCode": "GAGAN-INT-V-5852d46bbfef7e77ecbf1adebdf1cdbbef47497c6e0d557f0dde71df56b6f2a1"
+    },
+    {
+      "variantKey": "real-catalogue:variant:3d450edb9dd9c87ccbe85ce183366c594ea5b8af02782cab3b273d1854427b46",
+      "productCatalogKey": "real-catalogue:product:3f89ba2689d5cb5de14208b1053cf48d5cfcbcc72f25e8241c1c8f68a152fc5a",
+      "variantCatalogKey": "real-catalogue:variant:3d450edb9dd9c87ccbe85ce183366c594ea5b8af02782cab3b273d1854427b46",
+      "productInternalCode": "GAGAN-INT-P-3f89ba2689d5cb5de14208b1053cf48d5cfcbcc72f25e8241c1c8f68a152fc5a",
+      "variantInternalCode": "GAGAN-INT-V-3d450edb9dd9c87ccbe85ce183366c594ea5b8af02782cab3b273d1854427b46",
+      "routing": {
+        "routingClass": "OTHER",
+        "routingBagEquivalent": "1.000",
+        "sellingEntity": null
+      }
+    },
+    {
+      "variantKey": "real-catalogue:variant:de3389cdcad81d7438de03f4fc7678d389a6ef581b940f602956edd31569390b",
+      "productCatalogKey": "real-catalogue:product:3f89ba2689d5cb5de14208b1053cf48d5cfcbcc72f25e8241c1c8f68a152fc5a",
+      "variantCatalogKey": "real-catalogue:variant:de3389cdcad81d7438de03f4fc7678d389a6ef581b940f602956edd31569390b",
+      "productInternalCode": "GAGAN-INT-P-3f89ba2689d5cb5de14208b1053cf48d5cfcbcc72f25e8241c1c8f68a152fc5a",
+      "variantInternalCode": "GAGAN-INT-V-de3389cdcad81d7438de03f4fc7678d389a6ef581b940f602956edd31569390b"
+    },
+    {
+      "variantKey": "real-catalogue:variant:de19f250eb9d5c96ba3ae973e5c6f609f7be2901a388cf7ec4bd0ab14ef48a8f",
+      "productCatalogKey": "real-catalogue:product:25d49dcfeeaa8af0d0a7ebf5b259ea6de36fad4ac59e7a92ab46a40945f4abeb",
+      "variantCatalogKey": "real-catalogue:variant:de19f250eb9d5c96ba3ae973e5c6f609f7be2901a388cf7ec4bd0ab14ef48a8f",
+      "productInternalCode": "GAGAN-INT-P-25d49dcfeeaa8af0d0a7ebf5b259ea6de36fad4ac59e7a92ab46a40945f4abeb",
+      "variantInternalCode": "GAGAN-INT-V-de19f250eb9d5c96ba3ae973e5c6f609f7be2901a388cf7ec4bd0ab14ef48a8f"
+    },
+    {
+      "variantKey": "real-catalogue:variant:6d206958c53ff8fb010afe096fe2b4b06552e965b3b221b15d8a70877a05534c",
+      "productCatalogKey": "real-catalogue:product:5f5d6ca84db2ee0685f994ad8407af7b630babff27669b579aa88c338741d6a2",
+      "variantCatalogKey": "real-catalogue:variant:6d206958c53ff8fb010afe096fe2b4b06552e965b3b221b15d8a70877a05534c",
+      "productInternalCode": "GAGAN-INT-P-5f5d6ca84db2ee0685f994ad8407af7b630babff27669b579aa88c338741d6a2",
+      "variantInternalCode": "GAGAN-INT-V-6d206958c53ff8fb010afe096fe2b4b06552e965b3b221b15d8a70877a05534c"
+    },
+    {
+      "variantKey": "real-catalogue:variant:568b4bdca50e981478ef6151ecd95f88ac0d2d312c04687915603852dd305b26",
+      "productCatalogKey": "real-catalogue:product:eb93be759a02f292576d2af75600546d31470bcbc4a3fe9e0793f887f0709407",
+      "variantCatalogKey": "real-catalogue:variant:568b4bdca50e981478ef6151ecd95f88ac0d2d312c04687915603852dd305b26",
+      "productInternalCode": "GAGAN-INT-P-eb93be759a02f292576d2af75600546d31470bcbc4a3fe9e0793f887f0709407",
+      "variantInternalCode": "GAGAN-INT-V-568b4bdca50e981478ef6151ecd95f88ac0d2d312c04687915603852dd305b26"
+    },
+    {
+      "variantKey": "real-catalogue:variant:b660ebaa5399a7c55f842630ce7ed878911a2aded6338f97d481f92df06a98ae",
+      "productCatalogKey": "real-catalogue:product:3b2b164aa88e10d11ee282e354decc08f2966c06ae0602025bbaf6f5f801c3cf",
+      "variantCatalogKey": "real-catalogue:variant:b660ebaa5399a7c55f842630ce7ed878911a2aded6338f97d481f92df06a98ae",
+      "productInternalCode": "GAGAN-INT-P-3b2b164aa88e10d11ee282e354decc08f2966c06ae0602025bbaf6f5f801c3cf",
+      "variantInternalCode": "GAGAN-INT-V-b660ebaa5399a7c55f842630ce7ed878911a2aded6338f97d481f92df06a98ae"
+    },
+    {
+      "variantKey": "real-catalogue:variant:f429cca02881590b7b4c639f0136be955b6ff72f6e374ddc2e70bd76042361da",
+      "productCatalogKey": "real-catalogue:product:8b35a89a745d36587497e82195951f07cba7b523002ad6122341e43ff99c2aa7",
+      "variantCatalogKey": "real-catalogue:variant:f429cca02881590b7b4c639f0136be955b6ff72f6e374ddc2e70bd76042361da",
+      "productInternalCode": "GAGAN-INT-P-8b35a89a745d36587497e82195951f07cba7b523002ad6122341e43ff99c2aa7",
+      "variantInternalCode": "GAGAN-INT-V-f429cca02881590b7b4c639f0136be955b6ff72f6e374ddc2e70bd76042361da"
+    },
+    {
+      "variantKey": "real-catalogue:variant:6813b24c7629a6e9c18ad9eba36654c9c0c9ac633af5e3a3ecf992bb69dcad29",
+      "productCatalogKey": "real-catalogue:product:daaa2b6ed689cb4681e5982486ff117632650019bd3e3166f4eb02899e8b28f3",
+      "variantCatalogKey": "real-catalogue:variant:6813b24c7629a6e9c18ad9eba36654c9c0c9ac633af5e3a3ecf992bb69dcad29",
+      "productInternalCode": "GAGAN-INT-P-daaa2b6ed689cb4681e5982486ff117632650019bd3e3166f4eb02899e8b28f3",
+      "variantInternalCode": "GAGAN-INT-V-6813b24c7629a6e9c18ad9eba36654c9c0c9ac633af5e3a3ecf992bb69dcad29"
+    },
+    {
+      "variantKey": "real-catalogue:variant:6a41827096499accb29beb4d9dfe78daee0abeb9710099e6077089bf09607b97",
+      "productCatalogKey": "real-catalogue:product:551aa33f0549bc49c39c633260d0f6c3c154b5762ccf6d4bbe92ba670a2deca8",
+      "variantCatalogKey": "real-catalogue:variant:6a41827096499accb29beb4d9dfe78daee0abeb9710099e6077089bf09607b97",
+      "productInternalCode": "GAGAN-INT-P-551aa33f0549bc49c39c633260d0f6c3c154b5762ccf6d4bbe92ba670a2deca8",
+      "variantInternalCode": "GAGAN-INT-V-6a41827096499accb29beb4d9dfe78daee0abeb9710099e6077089bf09607b97"
+    },
+    {
+      "variantKey": "real-catalogue:variant:0e4bbca5e1e21210f914a589fccdc2d888c060985e1d2e2b2b67108b73504192",
+      "productCatalogKey": "real-catalogue:product:551aa33f0549bc49c39c633260d0f6c3c154b5762ccf6d4bbe92ba670a2deca8",
+      "variantCatalogKey": "real-catalogue:variant:0e4bbca5e1e21210f914a589fccdc2d888c060985e1d2e2b2b67108b73504192",
+      "productInternalCode": "GAGAN-INT-P-551aa33f0549bc49c39c633260d0f6c3c154b5762ccf6d4bbe92ba670a2deca8",
+      "variantInternalCode": "GAGAN-INT-V-0e4bbca5e1e21210f914a589fccdc2d888c060985e1d2e2b2b67108b73504192"
+    },
+    {
+      "variantKey": "real-catalogue:variant:9c31a2091770a1c75ef53d180ed7426fcf79b7cca832973c888ae5915bb761a9",
+      "productCatalogKey": "real-catalogue:product:551aa33f0549bc49c39c633260d0f6c3c154b5762ccf6d4bbe92ba670a2deca8",
+      "variantCatalogKey": "real-catalogue:variant:9c31a2091770a1c75ef53d180ed7426fcf79b7cca832973c888ae5915bb761a9",
+      "productInternalCode": "GAGAN-INT-P-551aa33f0549bc49c39c633260d0f6c3c154b5762ccf6d4bbe92ba670a2deca8",
+      "variantInternalCode": "GAGAN-INT-V-9c31a2091770a1c75ef53d180ed7426fcf79b7cca832973c888ae5915bb761a9"
+    },
+    {
+      "variantKey": "real-catalogue:variant:47c6b982b6a1218c6ddb266333ce677950ff1bca15fb740fe6db107f610ab406",
+      "productCatalogKey": "real-catalogue:product:c6b7706f00f9c8bf7346168c19b37fd0b778ac5c85e8deb007e11a07f76a3f27",
+      "variantCatalogKey": "real-catalogue:variant:47c6b982b6a1218c6ddb266333ce677950ff1bca15fb740fe6db107f610ab406",
+      "productInternalCode": "GAGAN-INT-P-c6b7706f00f9c8bf7346168c19b37fd0b778ac5c85e8deb007e11a07f76a3f27",
+      "variantInternalCode": "GAGAN-INT-V-47c6b982b6a1218c6ddb266333ce677950ff1bca15fb740fe6db107f610ab406"
+    },
+    {
+      "variantKey": "real-catalogue:variant:915fbc612b0b708b9b729583ed176d0b1eda61b982ff3412adeef4a490b3b6a8",
+      "productCatalogKey": "real-catalogue:product:c6b7706f00f9c8bf7346168c19b37fd0b778ac5c85e8deb007e11a07f76a3f27",
+      "variantCatalogKey": "real-catalogue:variant:915fbc612b0b708b9b729583ed176d0b1eda61b982ff3412adeef4a490b3b6a8",
+      "productInternalCode": "GAGAN-INT-P-c6b7706f00f9c8bf7346168c19b37fd0b778ac5c85e8deb007e11a07f76a3f27",
+      "variantInternalCode": "GAGAN-INT-V-915fbc612b0b708b9b729583ed176d0b1eda61b982ff3412adeef4a490b3b6a8"
+    },
+    {
+      "variantKey": "real-catalogue:variant:9bdb59f4b15ddbe67e1f9db1a546dd2bb4cf400b66cf6f833b5561bc2929bd10",
+      "productCatalogKey": "real-catalogue:product:c6b7706f00f9c8bf7346168c19b37fd0b778ac5c85e8deb007e11a07f76a3f27",
+      "variantCatalogKey": "real-catalogue:variant:9bdb59f4b15ddbe67e1f9db1a546dd2bb4cf400b66cf6f833b5561bc2929bd10",
+      "productInternalCode": "GAGAN-INT-P-c6b7706f00f9c8bf7346168c19b37fd0b778ac5c85e8deb007e11a07f76a3f27",
+      "variantInternalCode": "GAGAN-INT-V-9bdb59f4b15ddbe67e1f9db1a546dd2bb4cf400b66cf6f833b5561bc2929bd10"
+    },
+    {
+      "variantKey": "real-catalogue:variant:f6860bdd651fdb8af3479af70abb9dc5002f190d864c1d234127126e02f80112",
+      "productCatalogKey": "real-catalogue:product:ba9d4771e23caec477df86e1c54368625be1a47972163251264aad8fdcd1b5df",
+      "variantCatalogKey": "real-catalogue:variant:f6860bdd651fdb8af3479af70abb9dc5002f190d864c1d234127126e02f80112",
+      "productInternalCode": "GAGAN-INT-P-ba9d4771e23caec477df86e1c54368625be1a47972163251264aad8fdcd1b5df",
+      "variantInternalCode": "GAGAN-INT-V-f6860bdd651fdb8af3479af70abb9dc5002f190d864c1d234127126e02f80112"
+    },
+    {
+      "variantKey": "real-catalogue:variant:9686ab16b5768997ea245dd067035a7dd258c2b23c896972d258ff4e1db64373",
+      "productCatalogKey": "real-catalogue:product:ba9d4771e23caec477df86e1c54368625be1a47972163251264aad8fdcd1b5df",
+      "variantCatalogKey": "real-catalogue:variant:9686ab16b5768997ea245dd067035a7dd258c2b23c896972d258ff4e1db64373",
+      "productInternalCode": "GAGAN-INT-P-ba9d4771e23caec477df86e1c54368625be1a47972163251264aad8fdcd1b5df",
+      "variantInternalCode": "GAGAN-INT-V-9686ab16b5768997ea245dd067035a7dd258c2b23c896972d258ff4e1db64373"
+    },
+    {
+      "variantKey": "real-catalogue:variant:45eabfdce8b7cf4b20634fa0f25cf87131924822728fed0d0b6009ed62a9f7cc",
+      "productCatalogKey": "real-catalogue:product:ba9d4771e23caec477df86e1c54368625be1a47972163251264aad8fdcd1b5df",
+      "variantCatalogKey": "real-catalogue:variant:45eabfdce8b7cf4b20634fa0f25cf87131924822728fed0d0b6009ed62a9f7cc",
+      "productInternalCode": "GAGAN-INT-P-ba9d4771e23caec477df86e1c54368625be1a47972163251264aad8fdcd1b5df",
+      "variantInternalCode": "GAGAN-INT-V-45eabfdce8b7cf4b20634fa0f25cf87131924822728fed0d0b6009ed62a9f7cc"
+    },
+    {
+      "variantKey": "real-catalogue:variant:311e912c3c7c4e21feda3ce4de46323b3ad0e8bb18d291837aaeadca7e487a9c",
+      "productCatalogKey": "real-catalogue:product:efa4d532de92c7dfe0ce56f169c9a6d1511c3e5f5478562b5376bc9fae6cef86",
+      "variantCatalogKey": "real-catalogue:variant:311e912c3c7c4e21feda3ce4de46323b3ad0e8bb18d291837aaeadca7e487a9c",
+      "productInternalCode": "GAGAN-INT-P-efa4d532de92c7dfe0ce56f169c9a6d1511c3e5f5478562b5376bc9fae6cef86",
+      "variantInternalCode": "GAGAN-INT-V-311e912c3c7c4e21feda3ce4de46323b3ad0e8bb18d291837aaeadca7e487a9c"
+    },
+    {
+      "variantKey": "real-catalogue:variant:a4089ed691a3d894fb02b0d37643a24487f4302cbd12c5a43f2e5ac02b4d8913",
+      "productCatalogKey": "real-catalogue:product:efa4d532de92c7dfe0ce56f169c9a6d1511c3e5f5478562b5376bc9fae6cef86",
+      "variantCatalogKey": "real-catalogue:variant:a4089ed691a3d894fb02b0d37643a24487f4302cbd12c5a43f2e5ac02b4d8913",
+      "productInternalCode": "GAGAN-INT-P-efa4d532de92c7dfe0ce56f169c9a6d1511c3e5f5478562b5376bc9fae6cef86",
+      "variantInternalCode": "GAGAN-INT-V-a4089ed691a3d894fb02b0d37643a24487f4302cbd12c5a43f2e5ac02b4d8913"
+    },
+    {
+      "variantKey": "real-catalogue:variant:e5665b9329870f9a8717c348600a79a6c8cec024ee204d9ee00e2f1d6f64dbac",
+      "productCatalogKey": "real-catalogue:product:efa4d532de92c7dfe0ce56f169c9a6d1511c3e5f5478562b5376bc9fae6cef86",
+      "variantCatalogKey": "real-catalogue:variant:e5665b9329870f9a8717c348600a79a6c8cec024ee204d9ee00e2f1d6f64dbac",
+      "productInternalCode": "GAGAN-INT-P-efa4d532de92c7dfe0ce56f169c9a6d1511c3e5f5478562b5376bc9fae6cef86",
+      "variantInternalCode": "GAGAN-INT-V-e5665b9329870f9a8717c348600a79a6c8cec024ee204d9ee00e2f1d6f64dbac"
+    },
+    {
+      "variantKey": "real-catalogue:variant:bdb0c714b53031a5713393da605846d8c5a2f1586d67428667c73839d0dc1cb1",
+      "productCatalogKey": "real-catalogue:product:0cc2741f188dcb9520b07c132eb72ec7e246612d8b5683b194c90956c2ed79c1",
+      "variantCatalogKey": "real-catalogue:variant:bdb0c714b53031a5713393da605846d8c5a2f1586d67428667c73839d0dc1cb1",
+      "productInternalCode": "GAGAN-INT-P-0cc2741f188dcb9520b07c132eb72ec7e246612d8b5683b194c90956c2ed79c1",
+      "variantInternalCode": "GAGAN-INT-V-bdb0c714b53031a5713393da605846d8c5a2f1586d67428667c73839d0dc1cb1"
+    },
+    {
+      "variantKey": "real-catalogue:variant:194ea2534b58dfb4f2b19b9d5c3a525ba90d7ebff2f5a230fb5bd9cccf45ad97",
+      "productCatalogKey": "real-catalogue:product:0cc2741f188dcb9520b07c132eb72ec7e246612d8b5683b194c90956c2ed79c1",
+      "variantCatalogKey": "real-catalogue:variant:194ea2534b58dfb4f2b19b9d5c3a525ba90d7ebff2f5a230fb5bd9cccf45ad97",
+      "productInternalCode": "GAGAN-INT-P-0cc2741f188dcb9520b07c132eb72ec7e246612d8b5683b194c90956c2ed79c1",
+      "variantInternalCode": "GAGAN-INT-V-194ea2534b58dfb4f2b19b9d5c3a525ba90d7ebff2f5a230fb5bd9cccf45ad97"
+    },
+    {
+      "variantKey": "real-catalogue:variant:e31a28a29799bb1c161fe12f15b39e88a46de7c17badc144b223b8c2039c4934",
+      "productCatalogKey": "real-catalogue:product:0cc2741f188dcb9520b07c132eb72ec7e246612d8b5683b194c90956c2ed79c1",
+      "variantCatalogKey": "real-catalogue:variant:e31a28a29799bb1c161fe12f15b39e88a46de7c17badc144b223b8c2039c4934",
+      "productInternalCode": "GAGAN-INT-P-0cc2741f188dcb9520b07c132eb72ec7e246612d8b5683b194c90956c2ed79c1",
+      "variantInternalCode": "GAGAN-INT-V-e31a28a29799bb1c161fe12f15b39e88a46de7c17badc144b223b8c2039c4934"
+    },
+    {
+      "variantKey": "real-catalogue:variant:e2fe23c7040a0dde1f9eac5e28788b4469ee9a907b7f56f87a54f9ad1dee6daa",
+      "productCatalogKey": "real-catalogue:product:6184e6efbe7b603ddfd5829c2b646590623eef51174e734b9243e4eb833272ba",
+      "variantCatalogKey": "real-catalogue:variant:e2fe23c7040a0dde1f9eac5e28788b4469ee9a907b7f56f87a54f9ad1dee6daa",
+      "productInternalCode": "GAGAN-INT-P-6184e6efbe7b603ddfd5829c2b646590623eef51174e734b9243e4eb833272ba",
+      "variantInternalCode": "GAGAN-INT-V-e2fe23c7040a0dde1f9eac5e28788b4469ee9a907b7f56f87a54f9ad1dee6daa"
+    },
+    {
+      "variantKey": "real-catalogue:variant:f37c4388f7b9f9504465fb10fdb80cc0a5cda791edb4d0ac055e07d2da2d3f89",
+      "productCatalogKey": "real-catalogue:product:6184e6efbe7b603ddfd5829c2b646590623eef51174e734b9243e4eb833272ba",
+      "variantCatalogKey": "real-catalogue:variant:f37c4388f7b9f9504465fb10fdb80cc0a5cda791edb4d0ac055e07d2da2d3f89",
+      "productInternalCode": "GAGAN-INT-P-6184e6efbe7b603ddfd5829c2b646590623eef51174e734b9243e4eb833272ba",
+      "variantInternalCode": "GAGAN-INT-V-f37c4388f7b9f9504465fb10fdb80cc0a5cda791edb4d0ac055e07d2da2d3f89"
+    },
+    {
+      "variantKey": "real-catalogue:variant:a2e1eda543dac53bdc28cba4923a8e921dd8e358a7e68e4c8ee3c3ffe7eca8ab",
+      "productCatalogKey": "real-catalogue:product:6184e6efbe7b603ddfd5829c2b646590623eef51174e734b9243e4eb833272ba",
+      "variantCatalogKey": "real-catalogue:variant:a2e1eda543dac53bdc28cba4923a8e921dd8e358a7e68e4c8ee3c3ffe7eca8ab",
+      "productInternalCode": "GAGAN-INT-P-6184e6efbe7b603ddfd5829c2b646590623eef51174e734b9243e4eb833272ba",
+      "variantInternalCode": "GAGAN-INT-V-a2e1eda543dac53bdc28cba4923a8e921dd8e358a7e68e4c8ee3c3ffe7eca8ab"
+    },
+    {
+      "variantKey": "real-catalogue:variant:9116b615447e3932b3749ace2c4db8ac77ca6a98382546db989e64776891a15a",
+      "productCatalogKey": "real-catalogue:product:3ff065e73c1054dc38c8d1de70b02accfc1e8238c568f318ee26ce984940a290",
+      "variantCatalogKey": "real-catalogue:variant:9116b615447e3932b3749ace2c4db8ac77ca6a98382546db989e64776891a15a",
+      "productInternalCode": "GAGAN-INT-P-3ff065e73c1054dc38c8d1de70b02accfc1e8238c568f318ee26ce984940a290",
+      "variantInternalCode": "GAGAN-INT-V-9116b615447e3932b3749ace2c4db8ac77ca6a98382546db989e64776891a15a"
+    },
+    {
+      "variantKey": "real-catalogue:variant:27bd998d310536154a1198575554caeb7d36909feb81d550aeb3c25ffb3a0b14",
+      "productCatalogKey": "real-catalogue:product:3ff065e73c1054dc38c8d1de70b02accfc1e8238c568f318ee26ce984940a290",
+      "variantCatalogKey": "real-catalogue:variant:27bd998d310536154a1198575554caeb7d36909feb81d550aeb3c25ffb3a0b14",
+      "productInternalCode": "GAGAN-INT-P-3ff065e73c1054dc38c8d1de70b02accfc1e8238c568f318ee26ce984940a290",
+      "variantInternalCode": "GAGAN-INT-V-27bd998d310536154a1198575554caeb7d36909feb81d550aeb3c25ffb3a0b14"
+    },
+    {
+      "variantKey": "real-catalogue:variant:f38f2d5b6bf7e83c53e2d80c8f12de4601b53bed50d2e1cdd4073b477862aa22",
+      "productCatalogKey": "real-catalogue:product:3ff065e73c1054dc38c8d1de70b02accfc1e8238c568f318ee26ce984940a290",
+      "variantCatalogKey": "real-catalogue:variant:f38f2d5b6bf7e83c53e2d80c8f12de4601b53bed50d2e1cdd4073b477862aa22",
+      "productInternalCode": "GAGAN-INT-P-3ff065e73c1054dc38c8d1de70b02accfc1e8238c568f318ee26ce984940a290",
+      "variantInternalCode": "GAGAN-INT-V-f38f2d5b6bf7e83c53e2d80c8f12de4601b53bed50d2e1cdd4073b477862aa22"
+    },
+    {
+      "variantKey": "real-catalogue:variant:7be120a2436e0c5443db6e0577364b89af20440707acbc262807fd5ce0dba5ad",
+      "productCatalogKey": "real-catalogue:product:2e5988029f06d6425ed5230727ac8d7ea9d522183122dd5d3a8223b666967df7",
+      "variantCatalogKey": "real-catalogue:variant:7be120a2436e0c5443db6e0577364b89af20440707acbc262807fd5ce0dba5ad",
+      "productInternalCode": "GAGAN-INT-P-2e5988029f06d6425ed5230727ac8d7ea9d522183122dd5d3a8223b666967df7",
+      "variantInternalCode": "GAGAN-INT-V-7be120a2436e0c5443db6e0577364b89af20440707acbc262807fd5ce0dba5ad"
+    },
+    {
+      "variantKey": "real-catalogue:variant:1c0513775d214034371c8a805f84f9e70fe14ff6f9a22dc8e10286e7b6180db5",
+      "productCatalogKey": "real-catalogue:product:2e5988029f06d6425ed5230727ac8d7ea9d522183122dd5d3a8223b666967df7",
+      "variantCatalogKey": "real-catalogue:variant:1c0513775d214034371c8a805f84f9e70fe14ff6f9a22dc8e10286e7b6180db5",
+      "productInternalCode": "GAGAN-INT-P-2e5988029f06d6425ed5230727ac8d7ea9d522183122dd5d3a8223b666967df7",
+      "variantInternalCode": "GAGAN-INT-V-1c0513775d214034371c8a805f84f9e70fe14ff6f9a22dc8e10286e7b6180db5"
+    },
+    {
+      "variantKey": "real-catalogue:variant:e1c3acce4d0e4e4bcf313adf455a1a532f1e8d7cf2bceae025b7c562ca89a875",
+      "productCatalogKey": "real-catalogue:product:2e5988029f06d6425ed5230727ac8d7ea9d522183122dd5d3a8223b666967df7",
+      "variantCatalogKey": "real-catalogue:variant:e1c3acce4d0e4e4bcf313adf455a1a532f1e8d7cf2bceae025b7c562ca89a875",
+      "productInternalCode": "GAGAN-INT-P-2e5988029f06d6425ed5230727ac8d7ea9d522183122dd5d3a8223b666967df7",
+      "variantInternalCode": "GAGAN-INT-V-e1c3acce4d0e4e4bcf313adf455a1a532f1e8d7cf2bceae025b7c562ca89a875"
+    },
+    {
+      "variantKey": "real-catalogue:variant:e535d7da3321fb6423fef606df3ecbf50204fc8abbe7a5d25bc6a5a91b3ac5f4",
+      "productCatalogKey": "real-catalogue:product:4c1df9c309a861410f84733a5f3a2686bec61247f1eade723c6fc7defd2b5265",
+      "variantCatalogKey": "real-catalogue:variant:e535d7da3321fb6423fef606df3ecbf50204fc8abbe7a5d25bc6a5a91b3ac5f4",
+      "productInternalCode": "GAGAN-INT-P-4c1df9c309a861410f84733a5f3a2686bec61247f1eade723c6fc7defd2b5265",
+      "variantInternalCode": "GAGAN-INT-V-e535d7da3321fb6423fef606df3ecbf50204fc8abbe7a5d25bc6a5a91b3ac5f4"
+    },
+    {
+      "variantKey": "real-catalogue:variant:da457c6ff0b76a0f673eb1cdac8e5b606e2bc402c795f0184bf9613be10fc698",
+      "productCatalogKey": "real-catalogue:product:4c1df9c309a861410f84733a5f3a2686bec61247f1eade723c6fc7defd2b5265",
+      "variantCatalogKey": "real-catalogue:variant:da457c6ff0b76a0f673eb1cdac8e5b606e2bc402c795f0184bf9613be10fc698",
+      "productInternalCode": "GAGAN-INT-P-4c1df9c309a861410f84733a5f3a2686bec61247f1eade723c6fc7defd2b5265",
+      "variantInternalCode": "GAGAN-INT-V-da457c6ff0b76a0f673eb1cdac8e5b606e2bc402c795f0184bf9613be10fc698"
+    },
+    {
+      "variantKey": "real-catalogue:variant:e7b7e9d68e498933ae261b7b1a96eea25929f7ca82fd2994d82465ed76ed1888",
+      "productCatalogKey": "real-catalogue:product:4c1df9c309a861410f84733a5f3a2686bec61247f1eade723c6fc7defd2b5265",
+      "variantCatalogKey": "real-catalogue:variant:e7b7e9d68e498933ae261b7b1a96eea25929f7ca82fd2994d82465ed76ed1888",
+      "productInternalCode": "GAGAN-INT-P-4c1df9c309a861410f84733a5f3a2686bec61247f1eade723c6fc7defd2b5265",
+      "variantInternalCode": "GAGAN-INT-V-e7b7e9d68e498933ae261b7b1a96eea25929f7ca82fd2994d82465ed76ed1888",
+      "image": {
+        "driveFileId": "1BEO2_kziBjyvbSdbbjjRxv4ZtR1pRpiP",
+        "mappingRevision": "drive-image-selection-2026-09-17-r1",
+        "evidence": "Owner-approved equivalent image selection for MOONG MOGAR (30 kg x 1); selected IMG_MOONG MOGAR (30 kg x 1)-13.jpg. Verified same brand, exact product and 30 kg pack as the alternative; selected the sharper, centered, more legible front-facing package.",
+        "sourceFileSha256": "4e8152e22770e650faab49f764b2eeda61d91aa1d2790d09f34171bb2c5708ae",
+        "assetPath": "/catalog-images/real/e7b7e9d68e498933ae261b7b1a96eea25929f7ca82fd2994d82465ed76ed1888.jpg"
+      }
+    },
+    {
+      "variantKey": "real-catalogue:variant:17ec761e26a7b2dd77e063a9b73469483d239a3fc01b3bfc549cefa352b56fd5",
+      "productCatalogKey": "real-catalogue:product:8997dea775bf8bb831a6a6fb1953e0697ac2a88c8024aef1f5ebfe8bd08f02ec",
+      "variantCatalogKey": "real-catalogue:variant:17ec761e26a7b2dd77e063a9b73469483d239a3fc01b3bfc549cefa352b56fd5",
+      "productInternalCode": "GAGAN-INT-P-8997dea775bf8bb831a6a6fb1953e0697ac2a88c8024aef1f5ebfe8bd08f02ec",
+      "variantInternalCode": "GAGAN-INT-V-17ec761e26a7b2dd77e063a9b73469483d239a3fc01b3bfc549cefa352b56fd5",
+      "image": {
+        "driveFileId": "1l0ptFDsDFrsGaRiQuuBtOWBx1YMJFMZS",
+        "mappingRevision": "drive-image-selection-2026-09-17-r1",
+        "evidence": "Owner-approved equivalent image selection for URAD CHILKA (30 kg x 1); selected IMG_URAD CHILKA (30 kg x 1)-14.jpg. Verified same brand, exact product and 30 kg pack as the alternative; selected the sharper, centered, more legible front-facing package.",
+        "sourceFileSha256": "b6a24ff38655b4f58ea1c3b90ac228222f12af4d1cb0c86336e1135dffed58f3",
+        "assetPath": "/catalog-images/real/17ec761e26a7b2dd77e063a9b73469483d239a3fc01b3bfc549cefa352b56fd5.jpg"
+      }
+    },
+    {
+      "variantKey": "real-catalogue:variant:2040a65ae112a76240b46c17d25e901a3c2bc8bbfdde6b1c6f2bcbf86ea0bffe",
+      "productCatalogKey": "real-catalogue:product:8997dea775bf8bb831a6a6fb1953e0697ac2a88c8024aef1f5ebfe8bd08f02ec",
+      "variantCatalogKey": "real-catalogue:variant:2040a65ae112a76240b46c17d25e901a3c2bc8bbfdde6b1c6f2bcbf86ea0bffe",
+      "productInternalCode": "GAGAN-INT-P-8997dea775bf8bb831a6a6fb1953e0697ac2a88c8024aef1f5ebfe8bd08f02ec",
+      "variantInternalCode": "GAGAN-INT-V-2040a65ae112a76240b46c17d25e901a3c2bc8bbfdde6b1c6f2bcbf86ea0bffe"
+    },
+    {
+      "variantKey": "real-catalogue:variant:0b0400883e8aa4ba6de01fc31bd61f3d9c927ddfb73bc4f207ee8261fe90ea60",
+      "productCatalogKey": "real-catalogue:product:8997dea775bf8bb831a6a6fb1953e0697ac2a88c8024aef1f5ebfe8bd08f02ec",
+      "variantCatalogKey": "real-catalogue:variant:0b0400883e8aa4ba6de01fc31bd61f3d9c927ddfb73bc4f207ee8261fe90ea60",
+      "productInternalCode": "GAGAN-INT-P-8997dea775bf8bb831a6a6fb1953e0697ac2a88c8024aef1f5ebfe8bd08f02ec",
+      "variantInternalCode": "GAGAN-INT-V-0b0400883e8aa4ba6de01fc31bd61f3d9c927ddfb73bc4f207ee8261fe90ea60"
+    },
+    {
+      "variantKey": "real-catalogue:variant:0a8307b2c0031235850351e866cdec67d8089e3117b3e51861d1bae82e3ab669",
+      "productCatalogKey": "real-catalogue:product:19445f20780bdc38b5a922ee890cd84f1b44f0710d4626af9c14cd43d71f5581",
+      "variantCatalogKey": "real-catalogue:variant:0a8307b2c0031235850351e866cdec67d8089e3117b3e51861d1bae82e3ab669",
+      "productInternalCode": "GAGAN-INT-P-19445f20780bdc38b5a922ee890cd84f1b44f0710d4626af9c14cd43d71f5581",
+      "variantInternalCode": "GAGAN-INT-V-0a8307b2c0031235850351e866cdec67d8089e3117b3e51861d1bae82e3ab669"
+    },
+    {
+      "variantKey": "real-catalogue:variant:e326ef4b062adb7b6bcc6f8c0d9d020c89b7d42e40d009c1696b0e099d2ced10",
+      "productCatalogKey": "real-catalogue:product:19445f20780bdc38b5a922ee890cd84f1b44f0710d4626af9c14cd43d71f5581",
+      "variantCatalogKey": "real-catalogue:variant:e326ef4b062adb7b6bcc6f8c0d9d020c89b7d42e40d009c1696b0e099d2ced10",
+      "productInternalCode": "GAGAN-INT-P-19445f20780bdc38b5a922ee890cd84f1b44f0710d4626af9c14cd43d71f5581",
+      "variantInternalCode": "GAGAN-INT-V-e326ef4b062adb7b6bcc6f8c0d9d020c89b7d42e40d009c1696b0e099d2ced10"
+    },
+    {
+      "variantKey": "real-catalogue:variant:680ea6d6c0a89653cb0d4bbadd6a88706c451a8fd18868c6e27c902d30c64d44",
+      "productCatalogKey": "real-catalogue:product:19445f20780bdc38b5a922ee890cd84f1b44f0710d4626af9c14cd43d71f5581",
+      "variantCatalogKey": "real-catalogue:variant:680ea6d6c0a89653cb0d4bbadd6a88706c451a8fd18868c6e27c902d30c64d44",
+      "productInternalCode": "GAGAN-INT-P-19445f20780bdc38b5a922ee890cd84f1b44f0710d4626af9c14cd43d71f5581",
+      "variantInternalCode": "GAGAN-INT-V-680ea6d6c0a89653cb0d4bbadd6a88706c451a8fd18868c6e27c902d30c64d44"
+    },
+    {
+      "variantKey": "real-catalogue:variant:ae99e992558d57bb70bf6db6c50f23411c26425bb29e6986efa79ec11bee81d7",
+      "productCatalogKey": "real-catalogue:product:87bd85820ec0deab7d21a1e34aaca5724dff9f97526833d1fa0123f400ca2dcc",
+      "variantCatalogKey": "real-catalogue:variant:ae99e992558d57bb70bf6db6c50f23411c26425bb29e6986efa79ec11bee81d7",
+      "productInternalCode": "GAGAN-INT-P-87bd85820ec0deab7d21a1e34aaca5724dff9f97526833d1fa0123f400ca2dcc",
+      "variantInternalCode": "GAGAN-INT-V-ae99e992558d57bb70bf6db6c50f23411c26425bb29e6986efa79ec11bee81d7"
+    },
+    {
+      "variantKey": "real-catalogue:variant:6ebd153a78f9777065491a58a8b5ac75baf07319f2fd1389d0556f4c2f213566",
+      "productCatalogKey": "real-catalogue:product:87bd85820ec0deab7d21a1e34aaca5724dff9f97526833d1fa0123f400ca2dcc",
+      "variantCatalogKey": "real-catalogue:variant:6ebd153a78f9777065491a58a8b5ac75baf07319f2fd1389d0556f4c2f213566",
+      "productInternalCode": "GAGAN-INT-P-87bd85820ec0deab7d21a1e34aaca5724dff9f97526833d1fa0123f400ca2dcc",
+      "variantInternalCode": "GAGAN-INT-V-6ebd153a78f9777065491a58a8b5ac75baf07319f2fd1389d0556f4c2f213566"
+    },
+    {
+      "variantKey": "real-catalogue:variant:7e4b829737c7ff0177bb72d66b4a26fecacd9c05b4eeeb452c7d4cf7668b8e46",
+      "productCatalogKey": "real-catalogue:product:87bd85820ec0deab7d21a1e34aaca5724dff9f97526833d1fa0123f400ca2dcc",
+      "variantCatalogKey": "real-catalogue:variant:7e4b829737c7ff0177bb72d66b4a26fecacd9c05b4eeeb452c7d4cf7668b8e46",
+      "productInternalCode": "GAGAN-INT-P-87bd85820ec0deab7d21a1e34aaca5724dff9f97526833d1fa0123f400ca2dcc",
+      "variantInternalCode": "GAGAN-INT-V-7e4b829737c7ff0177bb72d66b4a26fecacd9c05b4eeeb452c7d4cf7668b8e46"
+    },
+    {
+      "variantKey": "real-catalogue:variant:e286b520df0de2692f1d71691d5f13859d347fa920f87f3574df7c812c575a5d",
+      "productCatalogKey": "real-catalogue:product:07286493f7aa74abe977a435df4357bb74c613cfa062f6fcd530a1e66b3e04ad",
+      "variantCatalogKey": "real-catalogue:variant:e286b520df0de2692f1d71691d5f13859d347fa920f87f3574df7c812c575a5d",
+      "productInternalCode": "GAGAN-INT-P-07286493f7aa74abe977a435df4357bb74c613cfa062f6fcd530a1e66b3e04ad",
+      "variantInternalCode": "GAGAN-INT-V-e286b520df0de2692f1d71691d5f13859d347fa920f87f3574df7c812c575a5d"
+    },
+    {
+      "variantKey": "real-catalogue:variant:a19e7e942ed062cd56192d9e467e5f5615aab4578693274f7b81efbf24fb4f61",
+      "productCatalogKey": "real-catalogue:product:07286493f7aa74abe977a435df4357bb74c613cfa062f6fcd530a1e66b3e04ad",
+      "variantCatalogKey": "real-catalogue:variant:a19e7e942ed062cd56192d9e467e5f5615aab4578693274f7b81efbf24fb4f61",
+      "productInternalCode": "GAGAN-INT-P-07286493f7aa74abe977a435df4357bb74c613cfa062f6fcd530a1e66b3e04ad",
+      "variantInternalCode": "GAGAN-INT-V-a19e7e942ed062cd56192d9e467e5f5615aab4578693274f7b81efbf24fb4f61"
+    },
+    {
+      "variantKey": "real-catalogue:variant:9f517f5e06b12883efbb33d1e2192e143d19b5db155573cbf0c4539cc9601097",
+      "productCatalogKey": "real-catalogue:product:07286493f7aa74abe977a435df4357bb74c613cfa062f6fcd530a1e66b3e04ad",
+      "variantCatalogKey": "real-catalogue:variant:9f517f5e06b12883efbb33d1e2192e143d19b5db155573cbf0c4539cc9601097",
+      "productInternalCode": "GAGAN-INT-P-07286493f7aa74abe977a435df4357bb74c613cfa062f6fcd530a1e66b3e04ad",
+      "variantInternalCode": "GAGAN-INT-V-9f517f5e06b12883efbb33d1e2192e143d19b5db155573cbf0c4539cc9601097"
+    },
+    {
+      "variantKey": "real-catalogue:variant:6010fa8e5743e2dd2fca1103434eb6674eb9bca5787b9ec7e0daf66013badfbd",
+      "productCatalogKey": "real-catalogue:product:10e26b47b78efeb1d885aa3f548f1556b8c9e7d28ea0b6dccf51f418d2e9be2f",
+      "variantCatalogKey": "real-catalogue:variant:6010fa8e5743e2dd2fca1103434eb6674eb9bca5787b9ec7e0daf66013badfbd",
+      "productInternalCode": "GAGAN-INT-P-10e26b47b78efeb1d885aa3f548f1556b8c9e7d28ea0b6dccf51f418d2e9be2f",
+      "variantInternalCode": "GAGAN-INT-V-6010fa8e5743e2dd2fca1103434eb6674eb9bca5787b9ec7e0daf66013badfbd"
+    },
+    {
+      "variantKey": "real-catalogue:variant:f00f4d4bb554801e6eb3aef5854d7670ebe84210a42a2801d619eca5b057b446",
+      "productCatalogKey": "real-catalogue:product:10e26b47b78efeb1d885aa3f548f1556b8c9e7d28ea0b6dccf51f418d2e9be2f",
+      "variantCatalogKey": "real-catalogue:variant:f00f4d4bb554801e6eb3aef5854d7670ebe84210a42a2801d619eca5b057b446",
+      "productInternalCode": "GAGAN-INT-P-10e26b47b78efeb1d885aa3f548f1556b8c9e7d28ea0b6dccf51f418d2e9be2f",
+      "variantInternalCode": "GAGAN-INT-V-f00f4d4bb554801e6eb3aef5854d7670ebe84210a42a2801d619eca5b057b446"
+    },
+    {
+      "variantKey": "real-catalogue:variant:e55b88c7e690b2f818dc1538005acd2960a32d4464ab64febc878f902e2cdcdc",
+      "productCatalogKey": "real-catalogue:product:10e26b47b78efeb1d885aa3f548f1556b8c9e7d28ea0b6dccf51f418d2e9be2f",
+      "variantCatalogKey": "real-catalogue:variant:e55b88c7e690b2f818dc1538005acd2960a32d4464ab64febc878f902e2cdcdc",
+      "productInternalCode": "GAGAN-INT-P-10e26b47b78efeb1d885aa3f548f1556b8c9e7d28ea0b6dccf51f418d2e9be2f",
+      "variantInternalCode": "GAGAN-INT-V-e55b88c7e690b2f818dc1538005acd2960a32d4464ab64febc878f902e2cdcdc"
+    },
+    {
+      "variantKey": "real-catalogue:variant:7cffa46a3cec5bba30e45fd02cfc5a45a1c6f4fa7120bed1f3cce7303e315ce0",
+      "productCatalogKey": "real-catalogue:product:f6ce12b7a264c7cee2956740e7c345acd942fbcb2d42e98cee9087a93dcbd23b",
+      "variantCatalogKey": "real-catalogue:variant:7cffa46a3cec5bba30e45fd02cfc5a45a1c6f4fa7120bed1f3cce7303e315ce0",
+      "productInternalCode": "GAGAN-INT-P-f6ce12b7a264c7cee2956740e7c345acd942fbcb2d42e98cee9087a93dcbd23b",
+      "variantInternalCode": "GAGAN-INT-V-7cffa46a3cec5bba30e45fd02cfc5a45a1c6f4fa7120bed1f3cce7303e315ce0"
+    },
+    {
+      "variantKey": "real-catalogue:variant:5f437d090adde8bdc51c65fb9c94752b2f19aa45a60c537389e63e4e96ac8f6a",
+      "productCatalogKey": "real-catalogue:product:f6ce12b7a264c7cee2956740e7c345acd942fbcb2d42e98cee9087a93dcbd23b",
+      "variantCatalogKey": "real-catalogue:variant:5f437d090adde8bdc51c65fb9c94752b2f19aa45a60c537389e63e4e96ac8f6a",
+      "productInternalCode": "GAGAN-INT-P-f6ce12b7a264c7cee2956740e7c345acd942fbcb2d42e98cee9087a93dcbd23b",
+      "variantInternalCode": "GAGAN-INT-V-5f437d090adde8bdc51c65fb9c94752b2f19aa45a60c537389e63e4e96ac8f6a"
+    },
+    {
+      "variantKey": "real-catalogue:variant:c7e7409800cfd7478ca5b440a2d14a2f44b7460694f84bfa3bfd85c1cc27cd23",
+      "productCatalogKey": "real-catalogue:product:f6ce12b7a264c7cee2956740e7c345acd942fbcb2d42e98cee9087a93dcbd23b",
+      "variantCatalogKey": "real-catalogue:variant:c7e7409800cfd7478ca5b440a2d14a2f44b7460694f84bfa3bfd85c1cc27cd23",
+      "productInternalCode": "GAGAN-INT-P-f6ce12b7a264c7cee2956740e7c345acd942fbcb2d42e98cee9087a93dcbd23b",
+      "variantInternalCode": "GAGAN-INT-V-c7e7409800cfd7478ca5b440a2d14a2f44b7460694f84bfa3bfd85c1cc27cd23"
+    },
+    {
+      "variantKey": "real-catalogue:variant:e07b690239af24ab3366632ce47d47d69d0e761984a8ce9d0a9bae3abd9ef2db",
+      "productCatalogKey": "real-catalogue:product:66ba57f56bb2889f1b62d37ed88d13d0c525fabe2244ea55bcc02a9adb6a0373",
+      "variantCatalogKey": "real-catalogue:variant:e07b690239af24ab3366632ce47d47d69d0e761984a8ce9d0a9bae3abd9ef2db",
+      "productInternalCode": "GAGAN-INT-P-66ba57f56bb2889f1b62d37ed88d13d0c525fabe2244ea55bcc02a9adb6a0373",
+      "variantInternalCode": "GAGAN-INT-V-e07b690239af24ab3366632ce47d47d69d0e761984a8ce9d0a9bae3abd9ef2db"
+    },
+    {
+      "variantKey": "real-catalogue:variant:e6b3a1db092de8897ae66185c99e9908fa4d21ff9c786f04c2b55719578edcff",
+      "productCatalogKey": "real-catalogue:product:66ba57f56bb2889f1b62d37ed88d13d0c525fabe2244ea55bcc02a9adb6a0373",
+      "variantCatalogKey": "real-catalogue:variant:e6b3a1db092de8897ae66185c99e9908fa4d21ff9c786f04c2b55719578edcff",
+      "productInternalCode": "GAGAN-INT-P-66ba57f56bb2889f1b62d37ed88d13d0c525fabe2244ea55bcc02a9adb6a0373",
+      "variantInternalCode": "GAGAN-INT-V-e6b3a1db092de8897ae66185c99e9908fa4d21ff9c786f04c2b55719578edcff"
+    },
+    {
+      "variantKey": "real-catalogue:variant:8eb6927c2d12ecc7e108366787ec83e8555a359ac4dbc466c0b40362dedd2c8b",
+      "productCatalogKey": "real-catalogue:product:66ba57f56bb2889f1b62d37ed88d13d0c525fabe2244ea55bcc02a9adb6a0373",
+      "variantCatalogKey": "real-catalogue:variant:8eb6927c2d12ecc7e108366787ec83e8555a359ac4dbc466c0b40362dedd2c8b",
+      "productInternalCode": "GAGAN-INT-P-66ba57f56bb2889f1b62d37ed88d13d0c525fabe2244ea55bcc02a9adb6a0373",
+      "variantInternalCode": "GAGAN-INT-V-8eb6927c2d12ecc7e108366787ec83e8555a359ac4dbc466c0b40362dedd2c8b"
+    },
+    {
+      "variantKey": "real-catalogue:variant:fc7b151e5e427e6bed2fa2c5b603c9aa6f6c4fc349848b83e2e043a531590b0d",
+      "productCatalogKey": "real-catalogue:product:01caf1c9469fe4c4d84a8bb86005f50e0d3dfa72cd0f206b7f99974ed275e885",
+      "variantCatalogKey": "real-catalogue:variant:fc7b151e5e427e6bed2fa2c5b603c9aa6f6c4fc349848b83e2e043a531590b0d",
+      "productInternalCode": "GAGAN-INT-P-01caf1c9469fe4c4d84a8bb86005f50e0d3dfa72cd0f206b7f99974ed275e885",
+      "variantInternalCode": "GAGAN-INT-V-fc7b151e5e427e6bed2fa2c5b603c9aa6f6c4fc349848b83e2e043a531590b0d"
+    },
+    {
+      "variantKey": "real-catalogue:variant:ecca51fc7db600b244f642c03a0d28ffb02b40f0513cc12e3fba46402fa4ec16",
+      "productCatalogKey": "real-catalogue:product:01caf1c9469fe4c4d84a8bb86005f50e0d3dfa72cd0f206b7f99974ed275e885",
+      "variantCatalogKey": "real-catalogue:variant:ecca51fc7db600b244f642c03a0d28ffb02b40f0513cc12e3fba46402fa4ec16",
+      "productInternalCode": "GAGAN-INT-P-01caf1c9469fe4c4d84a8bb86005f50e0d3dfa72cd0f206b7f99974ed275e885",
+      "variantInternalCode": "GAGAN-INT-V-ecca51fc7db600b244f642c03a0d28ffb02b40f0513cc12e3fba46402fa4ec16"
+    },
+    {
+      "variantKey": "real-catalogue:variant:0d6ee8ae7ce4c66b7dde886989f7fb274af4081b5f06bc19b9934d74a728b691",
+      "productCatalogKey": "real-catalogue:product:01caf1c9469fe4c4d84a8bb86005f50e0d3dfa72cd0f206b7f99974ed275e885",
+      "variantCatalogKey": "real-catalogue:variant:0d6ee8ae7ce4c66b7dde886989f7fb274af4081b5f06bc19b9934d74a728b691",
+      "productInternalCode": "GAGAN-INT-P-01caf1c9469fe4c4d84a8bb86005f50e0d3dfa72cd0f206b7f99974ed275e885",
+      "variantInternalCode": "GAGAN-INT-V-0d6ee8ae7ce4c66b7dde886989f7fb274af4081b5f06bc19b9934d74a728b691"
+    },
+    {
+      "variantKey": "real-catalogue:variant:807e8ceb38a85431cef557c7cc131cfb0e20b02ab0fd7ab54c1eea12634e1ac8",
+      "productCatalogKey": "real-catalogue:product:3f8a3dd8202f56188940a07b8a8bc50accaf3a32693b6c712e8eadd734f285c1",
+      "variantCatalogKey": "real-catalogue:variant:807e8ceb38a85431cef557c7cc131cfb0e20b02ab0fd7ab54c1eea12634e1ac8",
+      "productInternalCode": "GAGAN-INT-P-3f8a3dd8202f56188940a07b8a8bc50accaf3a32693b6c712e8eadd734f285c1",
+      "variantInternalCode": "GAGAN-INT-V-807e8ceb38a85431cef557c7cc131cfb0e20b02ab0fd7ab54c1eea12634e1ac8"
+    },
+    {
+      "variantKey": "real-catalogue:variant:d6e3080a8d0cd0e1083ee075014b78f16ad75968bb3bdd6fe298dbd7524f6d66",
+      "productCatalogKey": "real-catalogue:product:3f8a3dd8202f56188940a07b8a8bc50accaf3a32693b6c712e8eadd734f285c1",
+      "variantCatalogKey": "real-catalogue:variant:d6e3080a8d0cd0e1083ee075014b78f16ad75968bb3bdd6fe298dbd7524f6d66",
+      "productInternalCode": "GAGAN-INT-P-3f8a3dd8202f56188940a07b8a8bc50accaf3a32693b6c712e8eadd734f285c1",
+      "variantInternalCode": "GAGAN-INT-V-d6e3080a8d0cd0e1083ee075014b78f16ad75968bb3bdd6fe298dbd7524f6d66"
+    },
+    {
+      "variantKey": "real-catalogue:variant:25a7a74513b8757b00911c1ffe89eaafbc73a3bda0df034bfde33f576ecd7c7a",
+      "productCatalogKey": "real-catalogue:product:3f8a3dd8202f56188940a07b8a8bc50accaf3a32693b6c712e8eadd734f285c1",
+      "variantCatalogKey": "real-catalogue:variant:25a7a74513b8757b00911c1ffe89eaafbc73a3bda0df034bfde33f576ecd7c7a",
+      "productInternalCode": "GAGAN-INT-P-3f8a3dd8202f56188940a07b8a8bc50accaf3a32693b6c712e8eadd734f285c1",
+      "variantInternalCode": "GAGAN-INT-V-25a7a74513b8757b00911c1ffe89eaafbc73a3bda0df034bfde33f576ecd7c7a"
+    },
+    {
+      "variantKey": "real-catalogue:variant:fd2a21905018938355fa25eb46c78fa771af2e92f0971c4e56189561cce7b24b",
+      "productCatalogKey": "real-catalogue:product:840b28b899b71bf2eb6bbe60c6f17397dd34acc31a3facef2542c57973ba9f60",
+      "variantCatalogKey": "real-catalogue:variant:fd2a21905018938355fa25eb46c78fa771af2e92f0971c4e56189561cce7b24b",
+      "productInternalCode": "GAGAN-INT-P-840b28b899b71bf2eb6bbe60c6f17397dd34acc31a3facef2542c57973ba9f60",
+      "variantInternalCode": "GAGAN-INT-V-fd2a21905018938355fa25eb46c78fa771af2e92f0971c4e56189561cce7b24b"
+    },
+    {
+      "variantKey": "real-catalogue:variant:907505f5f07be16d097b437af10ac8a046b8f656fcfb38f03d05a6e27633436a",
+      "productCatalogKey": "real-catalogue:product:840b28b899b71bf2eb6bbe60c6f17397dd34acc31a3facef2542c57973ba9f60",
+      "variantCatalogKey": "real-catalogue:variant:907505f5f07be16d097b437af10ac8a046b8f656fcfb38f03d05a6e27633436a",
+      "productInternalCode": "GAGAN-INT-P-840b28b899b71bf2eb6bbe60c6f17397dd34acc31a3facef2542c57973ba9f60",
+      "variantInternalCode": "GAGAN-INT-V-907505f5f07be16d097b437af10ac8a046b8f656fcfb38f03d05a6e27633436a"
+    },
+    {
+      "variantKey": "real-catalogue:variant:4bcef6423115851a638c141e9bd93fce632a304d757162366194592b59a3bbcd",
+      "productCatalogKey": "real-catalogue:product:840b28b899b71bf2eb6bbe60c6f17397dd34acc31a3facef2542c57973ba9f60",
+      "variantCatalogKey": "real-catalogue:variant:4bcef6423115851a638c141e9bd93fce632a304d757162366194592b59a3bbcd",
+      "productInternalCode": "GAGAN-INT-P-840b28b899b71bf2eb6bbe60c6f17397dd34acc31a3facef2542c57973ba9f60",
+      "variantInternalCode": "GAGAN-INT-V-4bcef6423115851a638c141e9bd93fce632a304d757162366194592b59a3bbcd"
+    },
+    {
+      "variantKey": "real-catalogue:variant:8d281b5782612923383d9e11495d32eccefbbf9f689bc6471b0d361f909f48aa",
+      "productCatalogKey": "real-catalogue:product:d50adaba4b0a4a8e6a0abb257fa35ee74a9cddc5ca7d457342ac4e746d3f35b2",
+      "variantCatalogKey": "real-catalogue:variant:8d281b5782612923383d9e11495d32eccefbbf9f689bc6471b0d361f909f48aa",
+      "productInternalCode": "GAGAN-INT-P-d50adaba4b0a4a8e6a0abb257fa35ee74a9cddc5ca7d457342ac4e746d3f35b2",
+      "variantInternalCode": "GAGAN-INT-V-8d281b5782612923383d9e11495d32eccefbbf9f689bc6471b0d361f909f48aa"
+    },
+    {
+      "variantKey": "real-catalogue:variant:e9a12ec8a7a2d566de1053d0b5ebd3d6f36e01b691f3751f15fbd7c9e05414ed",
+      "productCatalogKey": "real-catalogue:product:d50adaba4b0a4a8e6a0abb257fa35ee74a9cddc5ca7d457342ac4e746d3f35b2",
+      "variantCatalogKey": "real-catalogue:variant:e9a12ec8a7a2d566de1053d0b5ebd3d6f36e01b691f3751f15fbd7c9e05414ed",
+      "productInternalCode": "GAGAN-INT-P-d50adaba4b0a4a8e6a0abb257fa35ee74a9cddc5ca7d457342ac4e746d3f35b2",
+      "variantInternalCode": "GAGAN-INT-V-e9a12ec8a7a2d566de1053d0b5ebd3d6f36e01b691f3751f15fbd7c9e05414ed"
+    },
+    {
+      "variantKey": "real-catalogue:variant:b58b34ae3e925bae5fd174fe110a97f17e32dc32130ee03d46a75b987befd24c",
+      "productCatalogKey": "real-catalogue:product:d50adaba4b0a4a8e6a0abb257fa35ee74a9cddc5ca7d457342ac4e746d3f35b2",
+      "variantCatalogKey": "real-catalogue:variant:b58b34ae3e925bae5fd174fe110a97f17e32dc32130ee03d46a75b987befd24c",
+      "productInternalCode": "GAGAN-INT-P-d50adaba4b0a4a8e6a0abb257fa35ee74a9cddc5ca7d457342ac4e746d3f35b2",
+      "variantInternalCode": "GAGAN-INT-V-b58b34ae3e925bae5fd174fe110a97f17e32dc32130ee03d46a75b987befd24c"
+    },
+    {
+      "variantKey": "real-catalogue:variant:5142dbc86fef7844410565e2de5fbd59bc90751c634c243a5e5d653781f62cb1",
+      "productCatalogKey": "real-catalogue:product:1e458b6ad002f04de2bd5939abef78b249c316b810f46103a38d7e025ef324eb",
+      "variantCatalogKey": "real-catalogue:variant:5142dbc86fef7844410565e2de5fbd59bc90751c634c243a5e5d653781f62cb1",
+      "productInternalCode": "GAGAN-INT-P-1e458b6ad002f04de2bd5939abef78b249c316b810f46103a38d7e025ef324eb",
+      "variantInternalCode": "GAGAN-INT-V-5142dbc86fef7844410565e2de5fbd59bc90751c634c243a5e5d653781f62cb1"
+    },
+    {
+      "variantKey": "real-catalogue:variant:73c08c829a9fa6a347e548cd39e7ee279f0cdc32571cabdf1dfa35062b29dce6",
+      "productCatalogKey": "real-catalogue:product:729f1faef2db17987883a0b9f5edef35c5d76f00fa4c84112d753bd64169f0ca",
+      "variantCatalogKey": "real-catalogue:variant:73c08c829a9fa6a347e548cd39e7ee279f0cdc32571cabdf1dfa35062b29dce6",
+      "productInternalCode": "GAGAN-INT-P-729f1faef2db17987883a0b9f5edef35c5d76f00fa4c84112d753bd64169f0ca",
+      "variantInternalCode": "GAGAN-INT-V-73c08c829a9fa6a347e548cd39e7ee279f0cdc32571cabdf1dfa35062b29dce6"
+    },
+    {
+      "variantKey": "real-catalogue:variant:4d7f7f212ee8e5630b0b5554e485d3d14c6d87a5676c447f95852f2c164b5c5f",
+      "productCatalogKey": "real-catalogue:product:22d067c3d0ff856fffc0f63c35367318edc59abe844ed6e5f0d3fce844f67e4b",
+      "variantCatalogKey": "real-catalogue:variant:4d7f7f212ee8e5630b0b5554e485d3d14c6d87a5676c447f95852f2c164b5c5f",
+      "productInternalCode": "GAGAN-INT-P-22d067c3d0ff856fffc0f63c35367318edc59abe844ed6e5f0d3fce844f67e4b",
+      "variantInternalCode": "GAGAN-INT-V-4d7f7f212ee8e5630b0b5554e485d3d14c6d87a5676c447f95852f2c164b5c5f"
+    },
+    {
+      "variantKey": "real-catalogue:variant:e66d43225b783f94417cdbea41719e6561bac4bb04b8095ab7e98bea3d9a2f1d",
+      "productCatalogKey": "real-catalogue:product:6693a97905cb49702b894677075a9fe12ddf097be3b5b5e84801a99c20bc7de5",
+      "variantCatalogKey": "real-catalogue:variant:e66d43225b783f94417cdbea41719e6561bac4bb04b8095ab7e98bea3d9a2f1d",
+      "productInternalCode": "GAGAN-INT-P-6693a97905cb49702b894677075a9fe12ddf097be3b5b5e84801a99c20bc7de5",
+      "variantInternalCode": "GAGAN-INT-V-e66d43225b783f94417cdbea41719e6561bac4bb04b8095ab7e98bea3d9a2f1d"
+    },
+    {
+      "variantKey": "real-catalogue:variant:24819208c37690e1f89f76027f035d250653522b00e9e0c0ae9cc6303abff43a",
+      "productCatalogKey": "real-catalogue:product:2f88ef081b5e668456b4ccf3653f6e804139250a46e373eeb608af0904786932",
+      "variantCatalogKey": "real-catalogue:variant:24819208c37690e1f89f76027f035d250653522b00e9e0c0ae9cc6303abff43a",
+      "productInternalCode": "GAGAN-INT-P-2f88ef081b5e668456b4ccf3653f6e804139250a46e373eeb608af0904786932",
+      "variantInternalCode": "GAGAN-INT-V-24819208c37690e1f89f76027f035d250653522b00e9e0c0ae9cc6303abff43a"
+    },
+    {
+      "variantKey": "real-catalogue:variant:6cc465117077ec7230914f7fd55945c42fb3852ac914ff47dbb421612c20e679",
+      "productCatalogKey": "real-catalogue:product:e5d1a81cfa643b3c9a0bd776f1f7bd27f25437cf3e28827b7a809e08989b3ac0",
+      "variantCatalogKey": "real-catalogue:variant:6cc465117077ec7230914f7fd55945c42fb3852ac914ff47dbb421612c20e679",
+      "productInternalCode": "GAGAN-INT-P-e5d1a81cfa643b3c9a0bd776f1f7bd27f25437cf3e28827b7a809e08989b3ac0",
+      "variantInternalCode": "GAGAN-INT-V-6cc465117077ec7230914f7fd55945c42fb3852ac914ff47dbb421612c20e679"
+    },
+    {
+      "variantKey": "real-catalogue:variant:414f571010614e17a37e56f7b1e1369f081a33489c1bdf092e37da3b35b957e7",
+      "productCatalogKey": "real-catalogue:product:a8e3590b610e0dda3e4d7ceaa679142125e03bc6684f00d65c84f561892b460b",
+      "variantCatalogKey": "real-catalogue:variant:414f571010614e17a37e56f7b1e1369f081a33489c1bdf092e37da3b35b957e7",
+      "productInternalCode": "GAGAN-INT-P-a8e3590b610e0dda3e4d7ceaa679142125e03bc6684f00d65c84f561892b460b",
+      "variantInternalCode": "GAGAN-INT-V-414f571010614e17a37e56f7b1e1369f081a33489c1bdf092e37da3b35b957e7"
+    },
+    {
+      "variantKey": "real-catalogue:variant:8bad6ed3fc837ee549b59bd5f3a50787becb019a0c545d4c2824d94e10be1f24",
+      "productCatalogKey": "real-catalogue:product:7b595e22847a790023abf5e3f7ed0a35eb713cdab5b26ad3c900ea2a972d4fc8",
+      "variantCatalogKey": "real-catalogue:variant:8bad6ed3fc837ee549b59bd5f3a50787becb019a0c545d4c2824d94e10be1f24",
+      "productInternalCode": "GAGAN-INT-P-7b595e22847a790023abf5e3f7ed0a35eb713cdab5b26ad3c900ea2a972d4fc8",
+      "variantInternalCode": "GAGAN-INT-V-8bad6ed3fc837ee549b59bd5f3a50787becb019a0c545d4c2824d94e10be1f24"
+    },
+    {
+      "variantKey": "real-catalogue:variant:a343893ab6ef05ca8f035487f501a27e118264796c7626e71166c49ed210e2e8",
+      "productCatalogKey": "real-catalogue:product:1cc8fcc9a5bfffbbdfa35203bd0cf6238fd77f1fb7c3b6c19ccee4931302ae0a",
+      "variantCatalogKey": "real-catalogue:variant:a343893ab6ef05ca8f035487f501a27e118264796c7626e71166c49ed210e2e8",
+      "productInternalCode": "GAGAN-INT-P-1cc8fcc9a5bfffbbdfa35203bd0cf6238fd77f1fb7c3b6c19ccee4931302ae0a",
+      "variantInternalCode": "GAGAN-INT-V-a343893ab6ef05ca8f035487f501a27e118264796c7626e71166c49ed210e2e8"
+    },
+    {
+      "variantKey": "real-catalogue:variant:6eb1709651c3c1e0ae35b7095c1744c04a13ebe400d477c5aed4b8d006935035",
+      "productCatalogKey": "real-catalogue:product:94b41579eeaf98e55695330f3822e0051c07f14debc663335473faba1c0e53d5",
+      "variantCatalogKey": "real-catalogue:variant:6eb1709651c3c1e0ae35b7095c1744c04a13ebe400d477c5aed4b8d006935035",
+      "productInternalCode": "GAGAN-INT-P-94b41579eeaf98e55695330f3822e0051c07f14debc663335473faba1c0e53d5",
+      "variantInternalCode": "GAGAN-INT-V-6eb1709651c3c1e0ae35b7095c1744c04a13ebe400d477c5aed4b8d006935035"
+    }
+  ],
+  "retireCandidates": []
+}

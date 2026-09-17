@@ -1,7 +1,6 @@
 # Real catalogue field mapping — 16 September 2026 master
 
-Status: source audit and dry-run mapping only. No hosted catalogue write has
-been performed.
+Status: source audit plus owner-approval revision 1 mapping. No hosted catalogue write has been performed.
 
 ## Source identity
 
@@ -31,7 +30,7 @@ generated manifest. Spreadsheet formulas in `S.NO` are not used as identity.
 | `SKU NAME` | 3–113 | `Variant.unitSize`, `Product.name` label | The parenthetical pack notation is parsed only when it contains an explicit weight × case multiplier. |
 | `PACKING SIZE` | 3–113 | `Variant.unitSize` | Stored as the ordering pack label, e.g. `1 KG`, `30 KG`. It is not assumed to be the case weight. |
 | `MASTER BAG/BOX SIZE` | 3–113 | Readiness/routing evidence | Parsed as explicit master weight plus `BAG`/`BOX`; it does not overwrite the SKU's weight. |
-| `PRICE` + `PER QUINTAL` | 3–113 | Source evidence only | Recorded as `pricePerQuintal`, basis `quintal`. Not written to a price list because the workbook has no target tier, GST, ownership, or approved commercial configuration. |
+| `PRICE` + `PER QUINTAL` | 3–113 | Source evidence plus approval-level interpretation | Recorded as `pricePerQuintal`, basis `quintal`. Owner approval records the values as GST-exclusive. No target tier/list has been selected, so no price list is written. |
 
 ## Parsed conversion and routing treatment
 
@@ -62,18 +61,19 @@ configuration before any record can be promoted to `active` and orderable.
 
 ## Readiness outcome
 
-All 105 unique records are `pending_review` in the dry-run manifest. This is a
-deliberate fail-closed result, not a missing-feature shortcut:
+All 105 unique records remain non-orderable in the owner-approved dry-run
+manifest. This is a deliberate fail-closed result, not a missing-feature
+shortcut:
 
-- stable SKU/SAP identity missing: 105;
+- durable internal Gagan identity supplied: 105 variants / 46 products;
 - GST missing: 105;
 - inventory/SAP mapping missing: 105;
 - price tier missing: 105;
 - case conversion missing: 0; the ten former exceptions are explicitly
   derived as documented above;
-- approved routing-bag review required for non-Laxmi, non-Instant-Mix rows
-  without a source BAG/conversion basis;
-- image mapping: 89 exact, 5 ambiguous, 11 missing.
+- approved routing-bag review required: 0 for the twelve approved BOX rows;
+- image mapping: 89 exact, 2 equivalent selections now recorded, 3 ambiguous
+  selections unresolved, 11 missing.
 
 No MRP-derived price, default GST, fabricated stock, supplier, ownership, or
 conversion was created.

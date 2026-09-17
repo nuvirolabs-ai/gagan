@@ -1,9 +1,39 @@
 # Real catalogue owner decision pack
 
-Status: **OWNER INPUT REQUIRED — NOT APPROVED FOR PROMOTION**
+Status: **PARTIALLY APPROVED — ACTIVATION STILL BLOCKED**
 Prepared: 17 September 2026
 Feature branch: codex/gagan-real-catalogue-v1
 No hosted database or deployment was changed.
+
+## Revision 1 owner decision update
+
+The owner supplied explicit approvals for durable internal Gagan Product and
+Variant codes, GST-exclusive per-quintal workbook price interpretation, the
+twelve reviewed 20 KG BOX routing contributions, equivalent-image selection
+where the exact packaging is verified, and retirement of confirmed dummy/test
+products subject to the existing status-only and history guards.
+
+The supported approval file is
+`real-catalogue-decisions-owner-approved-r1.json`. It is bound to workbook
+SHA-256 `f9f69849c37421bd48a0326d50239cb2ebf0ff47b955bc56915556446fa9e5a6`,
+image-index SHA-256
+`41da39cf271c7cb37f363c39a128cb2d59b4205ee2359ff145cca898dcb3cc2d`, approval
+ID `gagan-real-catalogue-owner-approval-r1`, revision 1 and image mapping
+revision `drive-image-selection-2026-09-17-r1`.
+
+Current local application of this revision records 46 unique product
+internal codes and 105 unique variant internal codes, resolves all twelve
+BOX routing decisions, and selects equivalent images for Moong Mogar 30 KG
+and Urad Chilka 30 KG. The three remaining ambiguous groups and eleven
+missing exact images remain unresolved. The GST/HSN values, target tier/list,
+approved material/warehouse mappings and current inventory also remain
+unresolved, so every row remains non-orderable and no promotion is permitted.
+
+The row-level matrix below is retained as the original pre-approval evidence.
+Where it says that internal identity, BOX contribution or all five image
+choices need owner input, revision 1 supersedes that decision wording. The
+current status and open inputs are summarized in
+`REAL_CATALOGUE_BUSINESS_DECISION_REGISTER.md`.
 
 ## Source under review
 
@@ -18,29 +48,29 @@ No hosted database or deployment was changed.
 | Image index SHA-256 | <code>41da39cf271c7cb37f363c39a128cb2d59b4205ee2359ff145cca898dcb3cc2d</code> |
 | Source import result | 46 product identities / 105 variants; all remain pending_review |
 
-## Decisions required once, then recorded in the supplementary decisions file
+## Decisions recorded once in the supplementary decisions file
 
-1. **Internal catalogue identity.** Approve one durable internal product code and one durable internal variant code for each row. The proposed convention is GAGAN-INT-P-<product-key-suffix> and GAGAN-INT-V-<variant-key-suffix>; these are internal identifiers only, not SAP material codes. Do not regenerate them from row position or mutable names.
-2. **Commercial price destination.** Select the existing target tier/list for each row. The workbook supplies an INR/quintal amount, not a tier. Confirm whether the supplied rate is GST-exclusive; the accepted commercial convention recorded in prior Gagan work is pre-GST, but the approval must explicitly record the decision. Do not derive a rate from MRP.
+1. **Internal catalogue identity — APPROVED in revision 1.** One durable internal product code and one durable internal variant code are recorded for every unique row using GAGAN-INT-P-<product-key-suffix> and GAGAN-INT-V-<variant-key-suffix>. These are internal identifiers only, not SAP material codes. They are not regenerated from row position or mutable names.
+2. **Commercial price basis — GST-EXCLUSIVE APPROVED in revision 1.** Preserve each supplied INR/quintal amount. The existing target tier/list remains unresolved. Do not derive a rate from MRP or write the amount to every tier.
 3. **Tax.** Supply the approved GST percentage and HSN per variant. No default tax is applied.
 4. **Inventory/orderability.** Map each variant to an already approved material identifier and warehouse with a current stock snapshot. The current order engine reads inventory by Product.sapMaterialId plus warehouse; an internal code must never be written into that field as if it were SAP. If external SAP mapping is deferred, rows remain non-orderable until the current backend has a valid inventory path.
 5. **Ordering conversion.** The parser has resolved all ten previously flagged rows from explicit PACKING SIZE plus MASTER BAG/BOX SIZE. Any owner override must state the evidence and preserve unitsPerCase x unitWeightKg = caseWeightKg.
-6. **Dynamic Jain/Padam routing.** Approve only structural routing classification and, for BOX rows, the ordered-case contribution. Do not assign a permanent seller to every SKU. The runtime remains authoritative: Indore/Indore City override, Laxmi Toor always Jain and excluded, Instant Mix ordered kg / 5, exact aggregation, below five eligible bags Jain and five or more Padam. Keep sellingEntity null for dynamic rows.
-7. **Image mapping.** Exact matches may use the prepared derivative path. Ambiguous and missing images remain blocked until the owner selects/supplies the exact pack; see the image exception sheet.
-8. **Retirement.** Only the exact, separately listed legacy/test allowlist may be archived. No product is retired by absence from this workbook.
+6. **Dynamic Jain/Padam routing.** The runtime remains authoritative: Indore/Indore City override, Laxmi Toor always Jain and excluded, Instant Mix ordered kg / 5, exact aggregation, below five eligible bags Jain and five or more Padam. Revision 1 approves one ordered BOX = one routing BAG for rows 6, 7, 10, 13, 14, 18, 19, 22, 23, 26, 27 and 30. No permanent seller is assigned.
+7. **Image mapping.** Revision 1 selects the sharper equivalent exact-pack image for Moong Mogar 30 KG and Urad Chilka 30 KG. The other three ambiguous groups and eleven missing exact images remain blocked; see the image exception sheet.
+8. **Retirement.** Revision 1 approves replacement of confirmed dummy/test products in principle. Only the exact, separately listed allowlist may be archived after target-specific read-only re-resolution. No product is retired by absence from this workbook.
 
 ## Grouped decision and impact register
 
 | Decision group | Affected source rows | Proposed mapping/evidence | Genuinely missing decision | Impact if unresolved |
 |---|---:|---|---|---|
-| Durable internal identity | 3–113 / 105 unique variants | Use immutable source variantKey as the review key; proposed internal codes are derived from that key suffix and are not SAP codes | Approve product and variant internal codes, or provide the approved convention | The row can be imported for review but cannot be promoted as a stable orderable identity |
+| Durable internal identity | 3–113 / 105 unique variants | Immutable source variantKey remains the review key; revision 1 records GAGAN-INT-P/V codes derived from stable key suffixes and not SAP codes | None for internal-code assignment | Codes are still not SAP material IDs and do not satisfy inventory mapping |
 | GST and HSN | 3–113 / 105 unique variants | Workbook has no tax columns; current commercial engine requires a valid GST value | Supply GST percentage and HSN for each sellable variant | Quote, invoice tax and future SAP payload remain blocked; no default can be applied safely |
-| Price tier and tax basis | 3–113 / 105 unique variants | Preserve each supplied numeric INR/quintal amount; current validation rejects a changed amount when quintal basis is retained | Select the existing tier/list and confirm the supplied rates are GST-exclusive, or provide an evidence-backed case-rate interpretation | Backend-authoritative quote and checkout remain unavailable for the row |
+| Price tier and tax basis | 3–113 / 105 unique variants | Revision 1 records supplied numeric INR/quintal amounts as GST-exclusive; no target tier is selected | Select the existing tier/list for the applicable retailer population | Backend-authoritative quote and checkout remain unavailable for the row |
 | Inventory/material mapping | 3–113 / 105 unique variants | Current order path looks up Product.sapMaterialId plus a fresh available warehouse snapshot; no workbook material ID is present | Map to an approved existing material and warehouse with current stock | The product remains non-orderable even if catalogue metadata is complete; no fake stock or internal-code-as-SAP substitution is allowed |
-| BOX routing contribution | 6, 7, 10, 13, 14, 18, 19, 22, 23, 26, 27, 30 | SKU weight × case conversion is explicit, but MASTER BAG/BOX says BOX | Decide the routing-bag contribution for an ordered BOX | Dynamic Jain/Padam threshold routing must keep the row blocked rather than guessing one BOX equals one BAG |
-| Ambiguous images | 13, 28, 48, 64/70, 65/71 | Two exact-name candidates are shown in the image exception sheet; every file is byte-distinct | Select one candidate and approve the mapping revision plus prepared asset path | The row remains non-ready so the app cannot show the wrong pack image |
+| BOX routing contribution | 6, 7, 10, 13, 14, 18, 19, 22, 23, 26, 27, 30 | Revision 1 approves one ordered 20 KG master BOX = 1.000 routing BAG; weight and conversion remain unchanged | None for these twelve rows | Dynamic threshold can use the approved contribution; no static seller is assigned |
+| Ambiguous images | 13, 28, 48, 64/70, 65/71 | Every candidate is byte-distinct. Revision 1 selects the sharper equivalent exact-pack candidates for rows 64/70 and 65/71 | Select exact candidate for rows 13, 28 and 48 | Three rows remain non-ready so the app cannot show the wrong pack image |
 | Missing images | 15, 27, 43, 45, 47, 62/68, 63/69, 77, 101, 102, 103 | No exact Drive candidate exists for the stated product/pack | Supply the exact packaging image and add it to a versioned index | The row remains pending; no neighboring size/product image is substituted |
-| Retirement allowlist | Local seeded demo/test records only | Four DEMO-MAT identities are narrow local candidates; historical/ambiguous identities are excluded | Re-resolve exact hosted IDs and approve only the allowlist | Unapproved rows stay active or pending; no broad catalogue replacement or history rewrite occurs |
+| Retirement allowlist | Local seeded demo/test records only | Owner approves confirmed dummy/test replacement in principle; four DEMO-MAT semantic candidates are listed separately | Re-resolve exact hosted IDs and current references before execution | No broad retirement or history rewrite; no hosted candidate is executable yet |
 
 ## Readiness rule
 

@@ -151,6 +151,62 @@ describe("real catalogue source mapping", () => {
     })).toThrow("decision_price_does_not_match_source");
   });
 
+  it("rejects duplicate internal codes across different approved identities", () => {
+    const manifest = buildRealCatalogueManifest(workbookBuffer(), "catalogue.xlsx", imageIndex);
+    expect(() => resolveRealCatalogueDecisions(manifest, {
+      schemaVersion: 1,
+      approval: {
+        approvalId: "approval-test-identity-collision",
+        revision: 1,
+        approvedBy: "owner-test",
+        approvedAt: "2026-09-17T00:00:00.000Z",
+        scope: "duplicate identity test",
+        source: { workbookSha256: manifest.source.sha256, sourceVersion: manifest.source.version },
+      },
+      imageMappingRevision: "images-v1",
+      records: manifest.records.slice(0, 2).map((record, index) => ({
+        variantKey: record.variantKey,
+        productCatalogKey: `approved-product-${index}`,
+        productInternalCode: "GAGAN-INT-P-COLLISION",
+        variantInternalCode: `GAGAN-INT-V-${index}`,
+      })),
+    })).toThrow("duplicate_decisions_productInternalCode");
+  });
+
+  it("records GST-exclusive workbook interpretation without selecting a target tier", () => {
+    const manifest = buildRealCatalogueManifest(workbookBuffer(), "catalogue.xlsx", imageIndex);
+    const resolved = resolveRealCatalogueDecisions(manifest, {
+      schemaVersion: 1,
+      approval: {
+        approvalId: "approval-test-price-basis",
+        revision: 1,
+        approvedBy: "owner-test",
+        approvedAt: "2026-09-17T00:00:00.000Z",
+        decisionSource: "owner approval in current task",
+        scope: "workbook rates are GST-exclusive quintal rates; target tier remains unresolved",
+        source: { workbookSha256: manifest.source.sha256, sourceVersion: manifest.source.version },
+      },
+      pricing: {
+        sourceRateBasis: "quintal",
+        gstTreatment: "exclusive",
+        targetTierId: null,
+        targetTierStatus: "unresolved",
+        evidence: "owner approval: workbook prices are before GST and retain per-quintal basis",
+      },
+      imageMappingRevision: "images-v1",
+      records: [],
+    });
+
+    expect(resolved.decisions.pricing).toEqual({
+      sourceRateBasis: "quintal",
+      gstTreatment: "exclusive",
+      targetTierId: null,
+      targetTierStatus: "unresolved",
+      evidence: "owner approval: workbook prices are before GST and retain per-quintal basis",
+    });
+    expect(resolved.manifest.records.every((record) => record.catalogStatus === "pending_review")).toBe(true);
+  });
+
   it("keeps an explicit retirement allowlist narrow and durable", () => {
     const manifest = buildRealCatalogueManifest(workbookBuffer(), "catalogue.xlsx", imageIndex);
     const decisions = resolveRealCatalogueDecisions(manifest, {
@@ -266,6 +322,46 @@ describe("real catalogue source mapping", () => {
     if (variant) await prisma.variant.delete({ where: { id: variant.id } });
     const product = await prisma.product.findUnique({ where: { catalogKey: stableProductKey } });
     if (product) await prisma.product.delete({ where: { id: product.id } });
+  });
+
+  it("persists approved internal identity while deferring routing until promotion", async () => {
+    if (!process.env.DATABASE_URL) return;
+    const url = new URL(process.env.DATABASE_URL);
+    if (!(url.hostname === "localhost" || url.hostname === "127.0.0.1") || !url.pathname.includes("test")) return;
+    const base = buildRealCatalogueManifest(workbookBuffer(), "catalogue.xlsx", imageIndex);
+    const run = crypto.randomUUID();
+    const sourceSha256 = crypto.createHash("sha256").update(`${base.source.sha256}:approved-fields:${run}`).digest("hex");
+    const sourceRecord = {
+      ...base.records[0],
+      productKey: `real-catalogue:product:${run}`,
+      variantKey: `real-catalogue:variant:${run}`,
+      productInternalCode: `GAGAN-INT-P-${run}`,
+      variantInternalCode: `GAGAN-INT-V-${run}`,
+      routingClass: "OTHER" as const,
+      routingBagEquivalent: "1.000",
+      image: { ...base.records[0].image, assetPath: `/catalog-images/real/${run}.jpg` },
+    };
+    const manifest = {
+      ...base,
+      source: { ...base.source, sha256: sourceSha256, batchKey: `real-catalogue:approved-fields:${sourceSha256}` },
+      records: [sourceRecord],
+    };
+    const actor = await prisma.staffUser.findFirstOrThrow();
+    try {
+      await applyRealCatalogueManifest(prisma, manifest, { actorStaffId: actor.id, targetLabel: "disposable-local" });
+      expect(await prisma.product.findUniqueOrThrow({ where: { catalogKey: sourceRecord.productKey } })).toMatchObject({ internalCode: sourceRecord.productInternalCode });
+      expect(await prisma.variant.findUniqueOrThrow({ where: { catalogKey: sourceRecord.variantKey } })).toMatchObject({
+        internalCode: sourceRecord.variantInternalCode,
+        routingClass: null,
+        routingBagEquivalent: null,
+      });
+    } finally {
+      await prisma.catalogImportBatch.deleteMany({ where: { sourceSha256 } });
+      const variant = await prisma.variant.findUnique({ where: { catalogKey: sourceRecord.variantKey } });
+      if (variant) await prisma.variant.delete({ where: { id: variant.id } });
+      const product = await prisma.product.findUnique({ where: { catalogKey: sourceRecord.productKey } });
+      if (product) await prisma.product.delete({ where: { id: product.id } });
+    }
   });
 
   it("archives only an exact legacy retirement candidate during promotion", async () => {

@@ -28,9 +28,11 @@ const now = new Date();
 const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
 
-/** A real point in the past — baselines look back 180 days, not one month. */
-function daysAgo(days: number): Date {
-  return new Date(now.getTime() - days * 86_400_000);
+/** Keep the behavioural baseline outside the current calendar month. */
+function previousMonthDaysAgo(intervals: number): Date {
+  const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0));
+  date.setUTCDate(date.getUTCDate() - intervals * 12);
+  return date;
 }
 
 /** Inside the current period, for the metrics a monthly target counts. */
@@ -78,7 +80,7 @@ beforeAll(async () => {
   // Sharma Stores keeps a steady 12-day cycle and is now well past it. These
   // sit in the 180-day baseline window but outside the current month, so they
   // shape the behavioural baseline without moving this month's target.
-  for (const [index, offset] of [40, 28, 16].entries()) {
+  for (const [index, intervals] of [0, 1, 2].entries()) {
     await prisma.order.create({
       data: {
         retailerId: ids.retailerA1,
@@ -86,7 +88,7 @@ beforeAll(async () => {
         placedByRepId: ids.repA,
         orderTotal: 22400,
         status: "delivered",
-        createdAt: daysAgo(offset),
+        createdAt: previousMonthDaysAgo(intervals),
         items: { create: { variantId: ids.variant, qtyOrdered: index + 1, unitPrice: 3150 } },
       },
     });

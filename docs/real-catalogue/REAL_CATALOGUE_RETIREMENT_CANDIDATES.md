@@ -1,6 +1,13 @@
 # Real catalogue retirement candidates
 
-Status: **candidate allowlist only — nothing retired.** This list was derived from the fresh local rehearsal database after seed plus source import. It is not evidence about hosted staging until each identity is re-resolved read-only against the exact authorized target. The four DEMO material identities below are the only narrow automatic candidates proposed now.
+Status: **owner-approved scope prepared — nothing retired.** Revision 1 approves removing confirmed dummy/test products from active sale, but this list was derived from the fresh local rehearsal database after seed plus source import. It is not evidence about hosted staging until each identity is re-resolved read-only against the exact authorized target. The four DEMO material identities below are the only narrow automatic candidates proposed now.
+
+The executable approval file intentionally contains an empty retirement list:
+local IDs must not be replayed against hosted staging. Re-resolve the exact
+name/material/variant identities, status, active-cart or reorder use and
+historical OrderItem references on the authorized `gagan-api` target before
+adding any candidate to a promotion decisions file. The operation remains
+status-only, recoverable and history-preserving.
 
 ## Narrow candidates for owner approval
 

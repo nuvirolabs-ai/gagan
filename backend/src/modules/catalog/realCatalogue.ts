@@ -66,9 +66,23 @@ export type RealCatalogueDecisionRecord = {
     driveFileId: string;
     mappingRevision: string;
     evidence?: string;
+    sourceFileSha256?: string;
     /** Existing private application asset prepared from the selected source. */
     assetPath?: string;
   };
+};
+
+/**
+ * Workbook price interpretation is an approval-level fact, not a target
+ * price-list selection. Keeping the tier unresolved prevents a GST basis
+ * approval from making a row orderable or writing a price to every tier.
+ */
+export type RealCataloguePricingDecision = {
+  sourceRateBasis: "quintal";
+  gstTreatment: "exclusive";
+  targetTierId: string | null;
+  targetTierStatus: "unresolved";
+  evidence: string;
 };
 
 export type RealCatalogueRetirementCandidate = {
@@ -87,12 +101,14 @@ export type RealCatalogueDecisions = {
     approvedBy: string;
     approvedAt: string;
     scope: string;
+    decisionSource?: string;
     source: {
       workbookSha256: string;
       sourceVersion: string;
       imageIndexSha256?: string;
     };
   };
+  pricing?: RealCataloguePricingDecision;
   imageMappingRevision: string;
   records: RealCatalogueDecisionRecord[];
   retireCandidates?: RealCatalogueRetirementCandidate[];
@@ -596,11 +612,16 @@ function normalizeDecisionRecord(value: unknown, index: number): RealCatalogueDe
   }
   if (value.image !== undefined) {
     if (!isRecord(value.image)) throw new Error(`invalid_decisions_records_${index}_image`);
-    assertKeys(value.image, ["driveFileId", "mappingRevision", "evidence", "assetPath"], `record_${index}_image`);
+    assertKeys(value.image, ["driveFileId", "mappingRevision", "evidence", "sourceFileSha256", "assetPath"], `record_${index}_image`);
     result.image = {
       driveFileId: requireString(value.image.driveFileId, `records_${index}_image_driveFileId`),
       mappingRevision: requireString(value.image.mappingRevision, `records_${index}_image_mappingRevision`),
       ...(value.image.evidence === undefined ? {} : { evidence: requireString(value.image.evidence, `records_${index}_image_evidence`) }),
+      ...(value.image.sourceFileSha256 === undefined ? {} : (() => {
+        const sourceFileSha256 = requireString(value.image.sourceFileSha256, `records_${index}_image_sourceFileSha256`);
+        if (!/^[a-f0-9]{64}$/i.test(sourceFileSha256)) throw new Error(`invalid_decisions_records_${index}_image_sourceFileSha256`);
+        return { sourceFileSha256: sourceFileSha256.toLowerCase() };
+      })()),
       ...(value.image.assetPath === undefined ? {} : { assetPath: requireString(value.image.assetPath, `records_${index}_image_assetPath`) }),
     };
   }
@@ -609,10 +630,10 @@ function normalizeDecisionRecord(value: unknown, index: number): RealCatalogueDe
 
 export function validateRealCatalogueDecisions(manifest: RealCatalogueManifest, input: unknown): RealCatalogueDecisions {
   if (!isRecord(input)) throw new Error("invalid_decisions_file");
-  assertKeys(input, ["schemaVersion", "approval", "imageMappingRevision", "records", "retireCandidates"], "root");
+  assertKeys(input, ["schemaVersion", "approval", "pricing", "imageMappingRevision", "records", "retireCandidates"], "root");
   if (input.schemaVersion !== 1) throw new Error("unsupported_decisions_schema");
   if (!isRecord(input.approval)) throw new Error("invalid_decisions_approval");
-  assertKeys(input.approval, ["approvalId", "revision", "approvedBy", "approvedAt", "scope", "source"], "approval");
+  assertKeys(input.approval, ["approvalId", "revision", "approvedBy", "approvedAt", "scope", "decisionSource", "source"], "approval");
   if (!isRecord(input.approval.source)) throw new Error("invalid_decisions_approval_source");
   assertKeys(input.approval.source, ["workbookSha256", "sourceVersion", "imageIndexSha256"], "approval_source");
   if (input.approval.source.workbookSha256 !== manifest.source.sha256 || input.approval.source.sourceVersion !== manifest.source.version) throw new Error("decisions_source_does_not_match_manifest");
@@ -620,10 +641,40 @@ export function validateRealCatalogueDecisions(manifest: RealCatalogueManifest, 
   const approvalDate = new Date(requireString(input.approval.approvedAt, "approval_approvedAt"));
   if (Number.isNaN(approvalDate.getTime())) throw new Error("invalid_decisions_approvedAt");
   const revision = requirePositiveInteger(input.approval.revision, "approval_revision");
+  const decisionSource = input.approval.decisionSource === undefined ? undefined : requireString(input.approval.decisionSource, "approval_decisionSource");
+  let pricing: RealCataloguePricingDecision | undefined;
+  if (input.pricing !== undefined) {
+    if (!isRecord(input.pricing)) throw new Error("invalid_decisions_pricing");
+    assertKeys(input.pricing, ["sourceRateBasis", "gstTreatment", "targetTierId", "targetTierStatus", "evidence"], "pricing");
+    if (input.pricing.sourceRateBasis !== "quintal") throw new Error("invalid_decisions_pricing_sourceRateBasis");
+    if (input.pricing.gstTreatment !== "exclusive") throw new Error("invalid_decisions_pricing_gstTreatment");
+    if (input.pricing.targetTierId !== null) throw new Error("invalid_decisions_pricing_targetTierId");
+    if (input.pricing.targetTierStatus !== "unresolved") throw new Error("invalid_decisions_pricing_targetTierStatus");
+    pricing = {
+      sourceRateBasis: "quintal",
+      gstTreatment: "exclusive",
+      targetTierId: null,
+      targetTierStatus: "unresolved",
+      evidence: requireString(input.pricing.evidence, "pricing_evidence"),
+    };
+  }
   const imageMappingRevision = requireString(input.imageMappingRevision, "imageMappingRevision");
   if (!Array.isArray(input.records)) throw new Error("invalid_decisions_records");
   const records = input.records.map(normalizeDecisionRecord);
   if (new Set(records.map((record) => record.variantKey)).size !== records.length) throw new Error("duplicate_decisions_variantKey");
+  const productInternalCodes = new Map<string, string>();
+  const variantInternalCodes = new Map<string, string>();
+  for (const [index, record] of records.entries()) {
+    if (record.productInternalCode) {
+      const prior = productInternalCodes.get(record.productInternalCode);
+      if (prior && prior !== record.productCatalogKey) throw new Error(`duplicate_decisions_productInternalCode_${index}`);
+      productInternalCodes.set(record.productInternalCode, record.productCatalogKey ?? record.variantKey);
+    }
+    if (record.variantInternalCode) {
+      if (variantInternalCodes.has(record.variantInternalCode)) throw new Error(`duplicate_decisions_variantInternalCode_${index}`);
+      variantInternalCodes.set(record.variantInternalCode, record.variantKey);
+    }
+  }
   const manifestByKey = new Map(manifest.records.map((record) => [record.variantKey, record]));
   for (const record of records) {
     const source = manifestByKey.get(record.variantKey);
@@ -678,12 +729,14 @@ export function validateRealCatalogueDecisions(manifest: RealCatalogueManifest, 
       approvedBy: requireString(input.approval.approvedBy, "approval_approvedBy"),
       approvedAt: approvalDate.toISOString(),
       scope: requireString(input.approval.scope, "approval_scope"),
+      ...(decisionSource === undefined ? {} : { decisionSource }),
       source: {
         workbookSha256: manifest.source.sha256,
         sourceVersion: manifest.source.version,
         ...(input.approval.source.imageIndexSha256 === undefined ? {} : { imageIndexSha256: requireString(input.approval.source.imageIndexSha256, "approval_source_imageIndexSha256") }),
       },
     },
+    ...(pricing === undefined ? {} : { pricing }),
     imageMappingRevision,
     records,
     ...(retirement === undefined ? {} : {
@@ -903,6 +956,7 @@ export async function applyRealCatalogueManifest(
         category: record.category,
         catalogKey: productKey,
         catalogStatus: productStatus,
+        ...(record.productInternalCode ? { internalCode: record.productInternalCode } : {}),
         ...(record.image.assetPath && !product?.imageUrl ? { imageUrl: record.image.assetPath } : {}),
       };
       const target = product
@@ -926,6 +980,7 @@ export async function applyRealCatalogueManifest(
         unit: record.unit,
         unitsPerCase: record.unitsPerCase,
         unitWeightKg: record.unitWeightKg,
+        ...(record.variantInternalCode ? { internalCode: record.variantInternalCode } : {}),
         ...(record.image.assetPath ? { imageUrl: record.image.assetPath } : {}),
       };
       if (variant) {
@@ -937,7 +992,10 @@ export async function applyRealCatalogueManifest(
         await tx.variant.update({ where: { id: variant.id }, data: variantData });
         updatedVariants += 1;
       } else {
-        await tx.variant.create({ data: { ...variantData, routingClass: null, routingBagEquivalent: null } });
+        // Do not write reviewed routing metadata into an unconfigured row.
+        // The accepted commercial constraint requires GST alongside routing;
+        // promotion writes both together after all readiness gates pass.
+        await tx.variant.create({ data: variantData });
         createdVariants += 1;
       }
     }

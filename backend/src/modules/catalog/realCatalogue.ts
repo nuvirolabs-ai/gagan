@@ -195,7 +195,7 @@ export type RealCatalogueApplySummary = {
   blockedRows: number;
   skippedRows: number;
   preservedStatuses: number;
-  phase?: "import" | "promote" | "publish";
+  phase?: "import" | "promote" | "publish" | "retire";
   approvalRevision?: number;
   approvalSha256?: string;
   pendingReviewRows?: number;
@@ -1058,6 +1058,97 @@ export async function publishRealCatalogueManifest(
     await tx.catalogImportBatch.update({ where: { id: batch.id }, data: { status: "completed", completedAt: new Date(), summary: json(result) } });
     return result;
   }, { timeout: 180_000, maxWait: 10_000 });
+}
+
+/**
+ * Archive an explicit legacy/test allowlist without promoting the reviewed
+ * catalogue. Publication intentionally leaves rows non-orderable while tax
+ * and inventory setup is pending, so retirement must not be coupled to the
+ * promotion readiness gate. The same identity, history and target guards as
+ * promotion still apply; this operation only changes status and is
+ * recoverable by a reviewed status restoration.
+ */
+export async function retireRealCatalogueCandidates(
+  database: PrismaClient,
+  manifest: RealCatalogueManifest,
+  input: {
+    actorStaffId: string;
+    targetLabel: string;
+    decisions: unknown;
+    targetIdentity?: Partial<RealCatalogueTargetIdentity>;
+  },
+) {
+  assertRealCatalogueTarget(process.env.DATABASE_URL ?? "", input.targetLabel, input.targetIdentity);
+  const resolved = resolveRealCatalogueDecisions(manifest, input.decisions);
+  const candidates = resolved.decisions.retireCandidates ?? [];
+  if (candidates.length === 0) throw new Error("catalogue_retirement_candidates_missing");
+  const approvalSha256 = resolved.approvalSha256;
+  const batchKey = `${manifest.source.batchKey}:retirement:${resolved.decisions.approval.approvalId}:r${resolved.decisions.approval.revision}:${approvalSha256}`;
+  return database.$transaction(async (tx) => {
+    const existing = await tx.catalogImportBatch.findUnique({ where: { batchKey } });
+    if (existing?.status === "completed" || existing?.status === "completed_with_errors") {
+      return (existing.summary as unknown as RealCatalogueApplySummary) ?? summaryFor(resolved.manifest, { batchKey, phase: "retire", approvalRevision: resolved.decisions.approval.revision, approvalSha256 });
+    }
+    const batch = existing ?? await tx.catalogImportBatch.create({
+      data: {
+        batchKey,
+        sourceFileName: manifest.source.fileName,
+        sourceSha256: manifest.source.sha256,
+        sourceVersion: manifest.source.version,
+        targetLabel: input.targetLabel,
+        mode: "retirement",
+        status: "dry_run",
+        createdByStaffId: input.actorStaffId,
+        approvalId: resolved.decisions.approval.approvalId,
+        approvalRevision: resolved.decisions.approval.revision,
+        approvalSha256,
+        approvalSource: "reviewed_decisions_file",
+        approvalScope: json(resolved.decisions.approval.scope),
+        imageMappingRevision: resolved.decisions.imageMappingRevision,
+      },
+    });
+    await tx.catalogImportBatch.update({ where: { id: batch.id }, data: { status: "applying", summary: json(summaryFor(resolved.manifest, { batchKey, phase: "retire", approvalRevision: resolved.decisions.approval.revision, approvalSha256 })) } });
+
+    let retiredProducts = 0;
+    let retiredVariants = 0;
+    for (const candidate of candidates) {
+      const product = await tx.product.findUnique({
+        where: { id: candidate.productId },
+        include: { variants: { select: { id: true } } },
+      });
+      if (!product) throw new Error(`catalogue_retirement_product_not_found_${candidate.productId}`);
+      if (product.name !== candidate.expectedName || (product.sapMaterialId ?? null) !== candidate.expectedSapMaterialId) {
+        throw new Error(`catalogue_retirement_identity_mismatch_${candidate.productId}`);
+      }
+      if (product.catalogKey !== null) throw new Error(`catalogue_retirement_requires_legacy_product_${candidate.productId}`);
+      const actualVariantIds = product.variants.map((variant) => variant.id).sort();
+      const requestedVariantIds = [...candidate.variantIds].sort();
+      if (actualVariantIds.length !== requestedVariantIds.length || actualVariantIds.some((id, index) => id !== requestedVariantIds[index])) {
+        throw new Error(`catalogue_retirement_variant_scope_mismatch_${candidate.productId}`);
+      }
+      const historicalOrderItems = await tx.orderItem.count({ where: { variantId: { in: candidate.variantIds } } });
+      if (historicalOrderItems > 0) throw new Error(`catalogue_retirement_has_historical_orders_${candidate.productId}`);
+      const alreadyArchived = product.catalogStatus === "archived" && (await tx.variant.count({ where: { id: { in: candidate.variantIds }, catalogStatus: "archived" } })) === candidate.variantIds.length;
+      if (alreadyArchived) continue;
+      await tx.variant.updateMany({ where: { id: { in: candidate.variantIds }, productId: product.id }, data: { catalogStatus: "archived" } });
+      await tx.product.update({ where: { id: product.id }, data: { catalogStatus: "archived" } });
+      retiredProducts += 1;
+      retiredVariants += candidate.variantIds.length;
+    }
+    const result = summaryFor(resolved.manifest, {
+      batchKey,
+      phase: "retire",
+      approvalRevision: resolved.decisions.approval.revision,
+      approvalSha256,
+      blockedRows: 0,
+      skippedRows: 0,
+      pendingReviewRows: 0,
+      retiredProducts,
+      retiredVariants,
+    });
+    await tx.catalogImportBatch.update({ where: { id: batch.id }, data: { status: "completed", completedAt: new Date(), summary: json(result) } });
+    return result;
+  }, { timeout: 120_000, maxWait: 10_000 });
 }
 
 /**

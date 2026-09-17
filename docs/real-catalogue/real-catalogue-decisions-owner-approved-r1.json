@@ -844,5 +844,20 @@
       "variantInternalCode": "GAGAN-INT-V-6eb1709651c3c1e0ae35b7095c1744c04a13ebe400d477c5aed4b8d006935035"
     }
   ],
-  "retireCandidates": []
+  "retireCandidates": [
+    {
+      "productId": "530c6a1f-e512-4755-ae0c-be483fc0d752",
+      "expectedName": "Urad Dal",
+      "expectedSapMaterialId": "DEMO-MAT-URAD",
+      "variantIds": ["bda74096-b06c-4ba8-bf9a-a1e04900039c"],
+      "reason": "Confirmed staging dummy/test product with zero hosted OrderItem references; owner-approved reversible retirement."
+    },
+    {
+      "productId": "3710b619-bca9-4e51-bbd8-52562b73b3cd",
+      "expectedName": "Poha",
+      "expectedSapMaterialId": "DEMO-MAT-POHA",
+      "variantIds": ["e9e68b05-3655-4388-981c-8e0ae72db514"],
+      "reason": "Confirmed staging dummy/test product with zero hosted OrderItem references; owner-approved reversible retirement."
+    }
+  ]
 }

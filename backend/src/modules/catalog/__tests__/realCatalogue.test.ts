@@ -9,6 +9,7 @@ import {
   promoteRealCatalogueManifest,
   publishRealCatalogueManifest,
   realCatalogueDecisionsSha256,
+  retireRealCatalogueCandidates,
   resolveRealCatalogueDecisions,
   type DriveImageEntry,
 } from "../realCatalogue";
@@ -428,6 +429,45 @@ describe("real catalogue source mapping", () => {
       await prisma.catalogImportBatch.deleteMany({ where: { sourceSha256 } });
       if (sourceVariantId) await prisma.variant.delete({ where: { id: sourceVariantId } });
       if (sourceProductId) await prisma.product.delete({ where: { id: sourceProductId } });
+      await prisma.variant.delete({ where: { id: legacyVariant.id } });
+      await prisma.product.delete({ where: { id: legacyProduct.id } });
+    }
+  });
+
+  it("archives an explicit legacy retirement candidate without requiring promotion readiness", async () => {
+    if (!process.env.DATABASE_URL) return;
+    const url = new URL(process.env.DATABASE_URL);
+    if (!(url.hostname === "localhost" || url.hostname === "127.0.0.1") || !url.pathname.includes("test")) return;
+    const base = buildRealCatalogueManifest(workbookBuffer(), "catalogue.xlsx", imageIndex);
+    const run = crypto.randomUUID();
+    const sourceSha256 = crypto.createHash("sha256").update(`${base.source.sha256}:status-retirement:${run}`).digest("hex");
+    const manifest = { ...base, source: { ...base.source, sha256: sourceSha256, batchKey: `real-catalogue:status-retirement:${sourceSha256}` }, records: [] };
+    const actor = await prisma.staffUser.findFirstOrThrow();
+    const legacyProduct = await prisma.product.create({ data: { name: `Status retirement test ${run}`, category: "Daal", sapMaterialId: `DEMO-STATUS-${run}` } });
+    const legacyVariant = await prisma.variant.create({ data: { productId: legacyProduct.id, unitSize: "1 kg", unit: "kg", unitsPerCase: 30, unitWeightKg: "1", catalogStatus: "test" } });
+    const decisions = {
+      schemaVersion: 1,
+      approval: {
+        approvalId: `status-retirement-approval-${run}`,
+        revision: 1,
+        approvedBy: "owner-test",
+        approvedAt: "2026-09-17T00:00:00.000Z",
+        scope: "status-only retirement regression",
+        source: { workbookSha256: manifest.source.sha256, sourceVersion: manifest.source.version },
+      },
+      imageMappingRevision: "images-v1",
+      records: [],
+      retireCandidates: [{ productId: legacyProduct.id, expectedName: legacyProduct.name, expectedSapMaterialId: legacyProduct.sapMaterialId, variantIds: [legacyVariant.id], reason: "explicit status-only regression" }],
+    };
+    try {
+      const result = await retireRealCatalogueCandidates(prisma, manifest, { actorStaffId: actor.id, targetLabel: "disposable-local", decisions });
+      const replay = await retireRealCatalogueCandidates(prisma, manifest, { actorStaffId: actor.id, targetLabel: "disposable-local", decisions });
+      expect(result).toMatchObject({ phase: "retire", retiredProducts: 1, retiredVariants: 1 });
+      expect(replay).toEqual(result);
+      expect(await prisma.product.findUniqueOrThrow({ where: { id: legacyProduct.id } })).toMatchObject({ catalogStatus: "archived", catalogKey: null });
+      expect(await prisma.variant.findUniqueOrThrow({ where: { id: legacyVariant.id } })).toMatchObject({ catalogStatus: "archived" });
+    } finally {
+      await prisma.catalogImportBatch.deleteMany({ where: { sourceSha256 } });
       await prisma.variant.delete({ where: { id: legacyVariant.id } });
       await prisma.product.delete({ where: { id: legacyProduct.id } });
     }

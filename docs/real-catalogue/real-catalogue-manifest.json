@@ -21,7 +21,8 @@
   "imageSource": {
     "driveFolderUrl": "https://drive.google.com/drive/folders/1JJMyEPQSVtWstUaovGZCFMgpllnTg92e",
     "folderCount": 4,
-    "fileCount": 104
+    "fileCount": 104,
+    "indexSha256": "41da39cf271c7cb37f363c39a128cb2d59b4205ee2359ff145cca898dcb3cc2d"
   },
   "records": [
     {
@@ -47,6 +48,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "5400",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -65,10 +67,10 @@
         "assetPath": "/catalog-images/real/02231e3b302d337360ec2267a0651f8b3592c8c5a2374ca06f1b8521c3d5f84b.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -95,6 +97,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "8100",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -113,10 +116,10 @@
         "assetPath": "/catalog-images/real/6986bb1ebc542536524718be661a0a6a2fce3362cd7d5de3494298f74ce1e820.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -143,6 +146,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "9550",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -161,10 +165,10 @@
         "assetPath": "/catalog-images/real/a667124b440dc8dbda60a6e6a6b39902bdf280c0c1e08b1f2fbf02a365a38302.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -191,6 +195,7 @@
       "unitsPerCase": 20,
       "unitWeightKg": "1",
       "caseWeightKg": "20",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "9950",
       "priceBasis": "quintal",
       "masterContainer": "BOX",
@@ -209,10 +214,10 @@
         "assetPath": "/catalog-images/real/5384545e9b77a863445d7e860b611a9017fc3e9705a6024e035688d2a0f5727e.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "approved_routing_bag_equivalent_requires_review"
       ],
       "catalogStatus": "pending_review"
@@ -240,6 +245,7 @@
       "unitsPerCase": 4,
       "unitWeightKg": "5",
       "caseWeightKg": "20",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "9950",
       "priceBasis": "quintal",
       "masterContainer": "BOX",
@@ -258,10 +264,10 @@
         "assetPath": "/catalog-images/real/32f10132475d9334a9348831bdd6581692b2e8c6efe66f06aea4cfadcae95e72.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "approved_routing_bag_equivalent_requires_review"
       ],
       "catalogStatus": "pending_review"
@@ -289,6 +295,7 @@
       "unitsPerCase": 4,
       "unitWeightKg": "10",
       "caseWeightKg": "40",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "9750",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -307,10 +314,10 @@
         "assetPath": "/catalog-images/real/f682c314a576296a64b08cfda50d2dfad0b4805e65432324652f4fb9289d58f1.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -337,6 +344,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "10200",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -355,10 +363,10 @@
         "assetPath": "/catalog-images/real/f200ae837c0369ea38d9144aabf5f6f9509ea1a2c6ec5322e5dac940bc797b91.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -385,6 +393,7 @@
       "unitsPerCase": 4,
       "unitWeightKg": "5",
       "caseWeightKg": "20",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "10600",
       "priceBasis": "quintal",
       "masterContainer": "BOX",
@@ -403,10 +412,10 @@
         "assetPath": "/catalog-images/real/fb415e8a10496c88d0cab5d1c2bccef15245eaa93fbbbacc9e2fcf78394e7696.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "approved_routing_bag_equivalent_requires_review"
       ],
       "catalogStatus": "pending_review"
@@ -434,6 +443,7 @@
       "unitsPerCase": 4,
       "unitWeightKg": "10",
       "caseWeightKg": "40",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "10400",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -452,10 +462,10 @@
         "assetPath": "/catalog-images/real/e6a5be6d1aeb00c9feb3e792984f4baed74fcc81f2683d4ec4717e85a5afa893.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -482,6 +492,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "12600",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -500,10 +511,10 @@
         "assetPath": "/catalog-images/real/ba454310e612a4b8b761e28f18afdbf087966e693b76b3f5a301723fbd2afb72.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -530,6 +541,7 @@
       "unitsPerCase": 4,
       "unitWeightKg": "5",
       "caseWeightKg": "20",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "13000",
       "priceBasis": "quintal",
       "masterContainer": "BOX",
@@ -554,10 +566,10 @@
         "assetPath": null
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "approved_routing_bag_equivalent_requires_review",
         "image_mapping_ambiguous"
       ],
@@ -586,6 +598,7 @@
       "unitsPerCase": 20,
       "unitWeightKg": "1",
       "caseWeightKg": "20",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "13000",
       "priceBasis": "quintal",
       "masterContainer": "BOX",
@@ -604,10 +617,10 @@
         "assetPath": "/catalog-images/real/ac48b15265e81a4261e9727851db7849bbdddc21e33c7b86a76ebdd90e6e9d27.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "approved_routing_bag_equivalent_requires_review"
       ],
       "catalogStatus": "pending_review"
@@ -635,6 +648,7 @@
       "unitsPerCase": 4,
       "unitWeightKg": "10",
       "caseWeightKg": "40",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "12800",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -646,10 +660,10 @@
         "assetPath": null
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "image_missing"
       ],
       "catalogStatus": "pending_review"
@@ -677,6 +691,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "6350",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -695,10 +710,10 @@
         "assetPath": "/catalog-images/real/9431426f81359e45af2a791956b83e82c1f7f05680e441bd484617fd5843707b.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -725,6 +740,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "8950",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -743,10 +759,10 @@
         "assetPath": "/catalog-images/real/9160161df7d963295aac224961a4dcfb685dc0cdedc0a39be2a63d15bca731f4.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -773,6 +789,7 @@
       "unitsPerCase": 20,
       "unitWeightKg": "1",
       "caseWeightKg": "20",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "9350",
       "priceBasis": "quintal",
       "masterContainer": "BOX",
@@ -791,10 +808,10 @@
         "assetPath": "/catalog-images/real/2cd971929e1cacecddd274b692af8534da5cf017a222861511a8af45443bad1e.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "approved_routing_bag_equivalent_requires_review"
       ],
       "catalogStatus": "pending_review"
@@ -822,6 +839,7 @@
       "unitsPerCase": 4,
       "unitWeightKg": "5",
       "caseWeightKg": "20",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "9350",
       "priceBasis": "quintal",
       "masterContainer": "BOX",
@@ -840,10 +858,10 @@
         "assetPath": "/catalog-images/real/66427feb81cd4a9cdb2c69f9e096344cf415547f576f6d2973929727bb6ae230.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "approved_routing_bag_equivalent_requires_review"
       ],
       "catalogStatus": "pending_review"
@@ -871,6 +889,7 @@
       "unitsPerCase": 4,
       "unitWeightKg": "10",
       "caseWeightKg": "40",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "9150",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -889,10 +908,10 @@
         "assetPath": "/catalog-images/real/5276199c619107ea86179da2e297fc290e29f1e6251cd7d3a44a4f9106884fb6.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -919,6 +938,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "7250",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -937,10 +957,10 @@
         "assetPath": "/catalog-images/real/562de73d616384b084b22bc68f7bd0bcee03c9dd389b8aad78dce3d2cd7c3154.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -967,6 +987,7 @@
       "unitsPerCase": 20,
       "unitWeightKg": "1",
       "caseWeightKg": "20",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "7650",
       "priceBasis": "quintal",
       "masterContainer": "BOX",
@@ -985,10 +1006,10 @@
         "assetPath": "/catalog-images/real/6f2c8d8ab5a027d7d9a96b1cd2076aefb49ca2dc44911d84a90e5529fcf750ca.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "approved_routing_bag_equivalent_requires_review"
       ],
       "catalogStatus": "pending_review"
@@ -1016,6 +1037,7 @@
       "unitsPerCase": 4,
       "unitWeightKg": "5",
       "caseWeightKg": "20",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "7650",
       "priceBasis": "quintal",
       "masterContainer": "BOX",
@@ -1034,10 +1056,10 @@
         "assetPath": "/catalog-images/real/7fc553f8d04897225035690e6a955e3c17cc5d29f89e470b5ccc4cfec5503312.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "approved_routing_bag_equivalent_requires_review"
       ],
       "catalogStatus": "pending_review"
@@ -1065,6 +1087,7 @@
       "unitsPerCase": 4,
       "unitWeightKg": "10",
       "caseWeightKg": "40",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "7450",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -1083,10 +1106,10 @@
         "assetPath": "/catalog-images/real/a8d791dc48e1de04e289e18a168b7573f75f01f9b59193d6d280af177fc09611.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -1113,6 +1136,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "10600",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -1131,10 +1155,10 @@
         "assetPath": "/catalog-images/real/b333abec0be1339d3a5568003a29a5645ce1566e525233c8069583df7c717e77.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -1161,6 +1185,7 @@
       "unitsPerCase": 20,
       "unitWeightKg": "1",
       "caseWeightKg": "20",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "11000",
       "priceBasis": "quintal",
       "masterContainer": "BOX",
@@ -1179,10 +1204,10 @@
         "assetPath": "/catalog-images/real/6b5e5c560082615e81ab69edb1045ce7f90a9859121635bd20c9c98ef22dd1e4.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "approved_routing_bag_equivalent_requires_review"
       ],
       "catalogStatus": "pending_review"
@@ -1210,6 +1235,7 @@
       "unitsPerCase": 4,
       "unitWeightKg": "5",
       "caseWeightKg": "20",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "11000",
       "priceBasis": "quintal",
       "masterContainer": "BOX",
@@ -1221,10 +1247,10 @@
         "assetPath": null
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "approved_routing_bag_equivalent_requires_review",
         "image_missing"
       ],
@@ -1253,6 +1279,7 @@
       "unitsPerCase": 4,
       "unitWeightKg": "10",
       "caseWeightKg": "40",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "10800",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -1277,10 +1304,10 @@
         "assetPath": null
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "image_mapping_ambiguous"
       ],
       "catalogStatus": "pending_review"
@@ -1308,6 +1335,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "12100",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -1326,10 +1354,10 @@
         "assetPath": "/catalog-images/real/5852d46bbfef7e77ecbf1adebdf1cdbbef47497c6e0d557f0dde71df56b6f2a1.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -1356,6 +1384,7 @@
       "unitsPerCase": 4,
       "unitWeightKg": "5",
       "caseWeightKg": "20",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "12500",
       "priceBasis": "quintal",
       "masterContainer": "BOX",
@@ -1374,10 +1403,10 @@
         "assetPath": "/catalog-images/real/3d450edb9dd9c87ccbe85ce183366c594ea5b8af02782cab3b273d1854427b46.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "approved_routing_bag_equivalent_requires_review"
       ],
       "catalogStatus": "pending_review"
@@ -1405,6 +1434,7 @@
       "unitsPerCase": 4,
       "unitWeightKg": "10",
       "caseWeightKg": "40",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "12300",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -1423,10 +1453,10 @@
         "assetPath": "/catalog-images/real/de3389cdcad81d7438de03f4fc7678d389a6ef581b940f602956edd31569390b.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -1450,14 +1480,15 @@
       "category": "Rice",
       "unitSize": "30 KG",
       "unit": "kg",
-      "unitsPerCase": null,
-      "unitWeightKg": null,
-      "caseWeightKg": null,
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "packing_size_and_master_bag",
       "pricePerQuintal": "9300",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
       "routingClass": "OTHER",
-      "routingBagEquivalent": null,
+      "routingBagEquivalent": "1.000",
       "image": {
         "status": "matched",
         "candidates": [
@@ -1471,12 +1502,10 @@
         "assetPath": "/catalog-images/real/de19f250eb9d5c96ba3ae973e5c6f609f7be2901a388cf7ec4bd0ab14ef48a8f.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
-        "case_conversion_missing_from_source",
-        "approved_routing_bag_equivalent_requires_review"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -1500,14 +1529,15 @@
       "category": "Rice",
       "unitSize": "30 KG",
       "unit": "kg",
-      "unitsPerCase": null,
-      "unitWeightKg": null,
-      "caseWeightKg": null,
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "packing_size_and_master_bag",
       "pricePerQuintal": "7000",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
       "routingClass": "OTHER",
-      "routingBagEquivalent": null,
+      "routingBagEquivalent": "1.000",
       "image": {
         "status": "matched",
         "candidates": [
@@ -1521,12 +1551,10 @@
         "assetPath": "/catalog-images/real/6d206958c53ff8fb010afe096fe2b4b06552e965b3b221b15d8a70877a05534c.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
-        "case_conversion_missing_from_source",
-        "approved_routing_bag_equivalent_requires_review"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -1550,14 +1578,15 @@
       "category": "Rice",
       "unitSize": "30 KG",
       "unit": "kg",
-      "unitsPerCase": null,
-      "unitWeightKg": null,
-      "caseWeightKg": null,
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "packing_size_and_master_bag",
       "pricePerQuintal": "5950",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
       "routingClass": "OTHER",
-      "routingBagEquivalent": null,
+      "routingBagEquivalent": "1.000",
       "image": {
         "status": "matched",
         "candidates": [
@@ -1571,12 +1600,10 @@
         "assetPath": "/catalog-images/real/568b4bdca50e981478ef6151ecd95f88ac0d2d312c04687915603852dd305b26.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
-        "case_conversion_missing_from_source",
-        "approved_routing_bag_equivalent_requires_review"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -1600,14 +1627,15 @@
       "category": "Rice",
       "unitSize": "30 KG",
       "unit": "kg",
-      "unitsPerCase": null,
-      "unitWeightKg": null,
-      "caseWeightKg": null,
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "packing_size_and_master_bag",
       "pricePerQuintal": "5650",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
       "routingClass": "OTHER",
-      "routingBagEquivalent": null,
+      "routingBagEquivalent": "1.000",
       "image": {
         "status": "matched",
         "candidates": [
@@ -1621,12 +1649,10 @@
         "assetPath": "/catalog-images/real/b660ebaa5399a7c55f842630ce7ed878911a2aded6338f97d481f92df06a98ae.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
-        "case_conversion_missing_from_source",
-        "approved_routing_bag_equivalent_requires_review"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -1650,14 +1676,15 @@
       "category": "Rice",
       "unitSize": "30 KG",
       "unit": "kg",
-      "unitsPerCase": null,
-      "unitWeightKg": null,
-      "caseWeightKg": null,
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "packing_size_and_master_bag",
       "pricePerQuintal": "4350",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
       "routingClass": "OTHER",
-      "routingBagEquivalent": null,
+      "routingBagEquivalent": "1.000",
       "image": {
         "status": "matched",
         "candidates": [
@@ -1671,12 +1698,10 @@
         "assetPath": "/catalog-images/real/f429cca02881590b7b4c639f0136be955b6ff72f6e374ddc2e70bd76042361da.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
-        "case_conversion_missing_from_source",
-        "approved_routing_bag_equivalent_requires_review"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -1700,14 +1725,15 @@
       "category": "Rice",
       "unitSize": "30 KG",
       "unit": "kg",
-      "unitsPerCase": null,
-      "unitWeightKg": null,
-      "caseWeightKg": null,
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "packing_size_and_master_bag",
       "pricePerQuintal": "3850",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
       "routingClass": "OTHER",
-      "routingBagEquivalent": null,
+      "routingBagEquivalent": "1.000",
       "image": {
         "status": "matched",
         "candidates": [
@@ -1721,12 +1747,10 @@
         "assetPath": "/catalog-images/real/6813b24c7629a6e9c18ad9eba36654c9c0c9ac633af5e3a3ecf992bb69dcad29.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
-        "case_conversion_missing_from_source",
-        "approved_routing_bag_equivalent_requires_review"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -1753,6 +1777,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "13150",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -1771,10 +1796,10 @@
         "assetPath": "/catalog-images/real/6a41827096499accb29beb4d9dfe78daee0abeb9710099e6077089bf09607b97.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -1801,6 +1826,7 @@
       "unitsPerCase": 6,
       "unitWeightKg": "5",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "13500",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -1819,10 +1845,10 @@
         "assetPath": "/catalog-images/real/0e4bbca5e1e21210f914a589fccdc2d888c060985e1d2e2b2b67108b73504192.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -1849,6 +1875,7 @@
       "unitsPerCase": 30,
       "unitWeightKg": "1",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "13550",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -1867,10 +1894,10 @@
         "assetPath": "/catalog-images/real/9c31a2091770a1c75ef53d180ed7426fcf79b7cca832973c888ae5915bb761a9.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -1897,6 +1924,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "13900",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -1915,10 +1943,10 @@
         "assetPath": "/catalog-images/real/47c6b982b6a1218c6ddb266333ce677950ff1bca15fb740fe6db107f610ab406.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -1945,6 +1973,7 @@
       "unitsPerCase": 30,
       "unitWeightKg": "1",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "14300",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -1963,10 +1992,10 @@
         "assetPath": "/catalog-images/real/915fbc612b0b708b9b729583ed176d0b1eda61b982ff3412adeef4a490b3b6a8.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -1993,6 +2022,7 @@
       "unitsPerCase": 10,
       "unitWeightKg": "5",
       "caseWeightKg": "50",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "14300",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -2004,10 +2034,10 @@
         "assetPath": null
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "image_missing"
       ],
       "catalogStatus": "pending_review"
@@ -2035,6 +2065,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "35",
       "caseWeightKg": "35",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "5750",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -2053,10 +2084,10 @@
         "assetPath": "/catalog-images/real/f6860bdd651fdb8af3479af70abb9dc5002f190d864c1d234127126e02f80112.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -2083,6 +2114,7 @@
       "unitsPerCase": 30,
       "unitWeightKg": "1",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "6150",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -2094,10 +2126,10 @@
         "assetPath": null
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "image_missing"
       ],
       "catalogStatus": "pending_review"
@@ -2125,6 +2157,7 @@
       "unitsPerCase": 60,
       "unitWeightKg": "0.5",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "6250",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -2143,10 +2176,10 @@
         "assetPath": "/catalog-images/real/45eabfdce8b7cf4b20634fa0f25cf87131924822728fed0d0b6009ed62a9f7cc.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -2173,6 +2206,7 @@
       "unitsPerCase": 30,
       "unitWeightKg": "1",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "5600",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -2184,10 +2218,10 @@
         "assetPath": null
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "image_missing"
       ],
       "catalogStatus": "pending_review"
@@ -2215,6 +2249,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "35",
       "caseWeightKg": "35",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "5200",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -2239,10 +2274,10 @@
         "assetPath": null
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "image_mapping_ambiguous"
       ],
       "catalogStatus": "pending_review"
@@ -2270,6 +2305,7 @@
       "unitsPerCase": 60,
       "unitWeightKg": "0.5",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "5700",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -2288,10 +2324,10 @@
         "assetPath": "/catalog-images/real/e5665b9329870f9a8717c348600a79a6c8cec024ee204d9ee00e2f1d6f64dbac.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -2318,6 +2354,7 @@
       "unitsPerCase": 60,
       "unitWeightKg": "0.5",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "8260",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -2336,10 +2373,10 @@
         "assetPath": "/catalog-images/real/bdb0c714b53031a5713393da605846d8c5a2f1586d67428667c73839d0dc1cb1.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -2366,6 +2403,7 @@
       "unitsPerCase": 30,
       "unitWeightKg": "1",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "8200",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -2384,10 +2422,10 @@
         "assetPath": "/catalog-images/real/194ea2534b58dfb4f2b19b9d5c3a525ba90d7ebff2f5a230fb5bd9cccf45ad97.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -2414,6 +2452,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "7800",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -2432,10 +2471,10 @@
         "assetPath": "/catalog-images/real/e31a28a29799bb1c161fe12f15b39e88a46de7c17badc144b223b8c2039c4934.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -2462,6 +2501,7 @@
       "unitsPerCase": 30,
       "unitWeightKg": "1",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "10100",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -2480,10 +2520,10 @@
         "assetPath": "/catalog-images/real/e2fe23c7040a0dde1f9eac5e28788b4469ee9a907b7f56f87a54f9ad1dee6daa.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -2510,6 +2550,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "9700",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -2528,10 +2569,10 @@
         "assetPath": "/catalog-images/real/f37c4388f7b9f9504465fb10fdb80cc0a5cda791edb4d0ac055e07d2da2d3f89.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -2558,6 +2599,7 @@
       "unitsPerCase": 10,
       "unitWeightKg": "1",
       "caseWeightKg": "10",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "10100",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -2576,10 +2618,10 @@
         "assetPath": "/catalog-images/real/a2e1eda543dac53bdc28cba4923a8e921dd8e358a7e68e4c8ee3c3ffe7eca8ab.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -2606,6 +2648,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "8600",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -2624,10 +2667,10 @@
         "assetPath": "/catalog-images/real/9116b615447e3932b3749ace2c4db8ac77ca6a98382546db989e64776891a15a.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -2654,6 +2697,7 @@
       "unitsPerCase": 60,
       "unitWeightKg": "0.5",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "9350",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -2672,10 +2716,10 @@
         "assetPath": "/catalog-images/real/27bd998d310536154a1198575554caeb7d36909feb81d550aeb3c25ffb3a0b14.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -2702,6 +2746,7 @@
       "unitsPerCase": 20,
       "unitWeightKg": "0.5",
       "caseWeightKg": "10",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "9350",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -2720,10 +2765,10 @@
         "assetPath": "/catalog-images/real/f38f2d5b6bf7e83c53e2d80c8f12de4601b53bed50d2e1cdd4073b477862aa22.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -2750,6 +2795,7 @@
       "unitsPerCase": 30,
       "unitWeightKg": "1",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "10900",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -2768,10 +2814,10 @@
         "assetPath": "/catalog-images/real/7be120a2436e0c5443db6e0577364b89af20440707acbc262807fd5ce0dba5ad.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -2798,6 +2844,7 @@
       "unitsPerCase": 10,
       "unitWeightKg": "1",
       "caseWeightKg": "10",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "10900",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -2816,10 +2863,10 @@
         "assetPath": "/catalog-images/real/1c0513775d214034371c8a805f84f9e70fe14ff6f9a22dc8e10286e7b6180db5.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -2846,6 +2893,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "10500",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -2864,10 +2912,10 @@
         "assetPath": "/catalog-images/real/e1c3acce4d0e4e4bcf313adf455a1a532f1e8d7cf2bceae025b7c562ca89a875.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -2895,6 +2943,7 @@
       "unitsPerCase": 30,
       "unitWeightKg": "1",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "12400",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -2906,10 +2955,10 @@
         "assetPath": null
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "image_missing"
       ],
       "catalogStatus": "pending_review"
@@ -2938,6 +2987,7 @@
       "unitsPerCase": 10,
       "unitWeightKg": "1",
       "caseWeightKg": "10",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "12400",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -2949,10 +2999,10 @@
         "assetPath": null
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "image_missing"
       ],
       "catalogStatus": "pending_review"
@@ -2981,6 +3031,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "12000",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -3005,10 +3056,10 @@
         "assetPath": null
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "image_mapping_ambiguous"
       ],
       "catalogStatus": "pending_review"
@@ -3037,6 +3088,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "12400",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -3061,10 +3113,10 @@
         "assetPath": null
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "image_mapping_ambiguous"
       ],
       "catalogStatus": "pending_review"
@@ -3093,6 +3145,7 @@
       "unitsPerCase": 60,
       "unitWeightKg": "0.5",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "12850",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -3111,10 +3164,10 @@
         "assetPath": "/catalog-images/real/2040a65ae112a76240b46c17d25e901a3c2bc8bbfdde6b1c6f2bcbf86ea0bffe.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -3142,6 +3195,7 @@
       "unitsPerCase": 20,
       "unitWeightKg": "0.5",
       "caseWeightKg": "10",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "12850",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -3160,10 +3214,10 @@
         "assetPath": "/catalog-images/real/0b0400883e8aa4ba6de01fc31bd61f3d9c927ddfb73bc4f207ee8261fe90ea60.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -3190,6 +3244,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "14200",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -3208,10 +3263,10 @@
         "assetPath": "/catalog-images/real/0a8307b2c0031235850351e866cdec67d8089e3117b3e51861d1bae82e3ab669.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -3238,6 +3293,7 @@
       "unitsPerCase": 60,
       "unitWeightKg": "0.5",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "14650",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -3256,10 +3312,10 @@
         "assetPath": "/catalog-images/real/e326ef4b062adb7b6bcc6f8c0d9d020c89b7d42e40d009c1696b0e099d2ced10.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -3286,6 +3342,7 @@
       "unitsPerCase": 20,
       "unitWeightKg": "0.5",
       "caseWeightKg": "10",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "14650",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -3304,10 +3361,10 @@
         "assetPath": "/catalog-images/real/680ea6d6c0a89653cb0d4bbadd6a88706c451a8fd18868c6e27c902d30c64d44.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -3334,6 +3391,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "9900",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -3345,10 +3403,10 @@
         "assetPath": null
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "image_missing"
       ],
       "catalogStatus": "pending_review"
@@ -3376,6 +3434,7 @@
       "unitsPerCase": 60,
       "unitWeightKg": "0.5",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "10350",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -3394,10 +3453,10 @@
         "assetPath": "/catalog-images/real/6ebd153a78f9777065491a58a8b5ac75baf07319f2fd1389d0556f4c2f213566.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -3424,6 +3483,7 @@
       "unitsPerCase": 20,
       "unitWeightKg": "0.5",
       "caseWeightKg": "10",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "10350",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -3442,10 +3502,10 @@
         "assetPath": "/catalog-images/real/7e4b829737c7ff0177bb72d66b4a26fecacd9c05b4eeeb452c7d4cf7668b8e46.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -3472,6 +3532,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "10700",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -3490,10 +3551,10 @@
         "assetPath": "/catalog-images/real/e286b520df0de2692f1d71691d5f13859d347fa920f87f3574df7c812c575a5d.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -3520,6 +3581,7 @@
       "unitsPerCase": 60,
       "unitWeightKg": "0.5",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "11150",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -3538,10 +3600,10 @@
         "assetPath": "/catalog-images/real/a19e7e942ed062cd56192d9e467e5f5615aab4578693274f7b81efbf24fb4f61.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -3568,6 +3630,7 @@
       "unitsPerCase": 20,
       "unitWeightKg": "0.5",
       "caseWeightKg": "10",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "11150",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -3586,10 +3649,10 @@
         "assetPath": "/catalog-images/real/9f517f5e06b12883efbb33d1e2192e143d19b5db155573cbf0c4539cc9601097.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -3616,6 +3679,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "8100",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -3634,10 +3698,10 @@
         "assetPath": "/catalog-images/real/6010fa8e5743e2dd2fca1103434eb6674eb9bca5787b9ec7e0daf66013badfbd.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -3664,6 +3728,7 @@
       "unitsPerCase": 60,
       "unitWeightKg": "0.5",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "8550",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -3682,10 +3747,10 @@
         "assetPath": "/catalog-images/real/f00f4d4bb554801e6eb3aef5854d7670ebe84210a42a2801d619eca5b057b446.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -3712,6 +3777,7 @@
       "unitsPerCase": 20,
       "unitWeightKg": "0.5",
       "caseWeightKg": "10",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "8700",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -3730,10 +3796,10 @@
         "assetPath": "/catalog-images/real/e55b88c7e690b2f818dc1538005acd2960a32d4464ab64febc878f902e2cdcdc.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -3760,6 +3826,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "10800",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -3778,10 +3845,10 @@
         "assetPath": "/catalog-images/real/7cffa46a3cec5bba30e45fd02cfc5a45a1c6f4fa7120bed1f3cce7303e315ce0.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -3808,6 +3875,7 @@
       "unitsPerCase": 60,
       "unitWeightKg": "0.5",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "11250",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -3826,10 +3894,10 @@
         "assetPath": "/catalog-images/real/5f437d090adde8bdc51c65fb9c94752b2f19aa45a60c537389e63e4e96ac8f6a.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -3856,6 +3924,7 @@
       "unitsPerCase": 20,
       "unitWeightKg": "0.5",
       "caseWeightKg": "10",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "11250",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -3874,10 +3943,10 @@
         "assetPath": "/catalog-images/real/c7e7409800cfd7478ca5b440a2d14a2f44b7460694f84bfa3bfd85c1cc27cd23.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -3904,6 +3973,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "9800",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -3922,10 +3992,10 @@
         "assetPath": "/catalog-images/real/e07b690239af24ab3366632ce47d47d69d0e761984a8ce9d0a9bae3abd9ef2db.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -3952,6 +4022,7 @@
       "unitsPerCase": 60,
       "unitWeightKg": "0.5",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "10250",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -3970,10 +4041,10 @@
         "assetPath": "/catalog-images/real/e6b3a1db092de8897ae66185c99e9908fa4d21ff9c786f04c2b55719578edcff.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -4000,6 +4071,7 @@
       "unitsPerCase": 20,
       "unitWeightKg": "0.5",
       "caseWeightKg": "10",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "10250",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -4018,10 +4090,10 @@
         "assetPath": "/catalog-images/real/8eb6927c2d12ecc7e108366787ec83e8555a359ac4dbc466c0b40362dedd2c8b.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -4048,6 +4120,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "13400",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -4066,10 +4139,10 @@
         "assetPath": "/catalog-images/real/fc7b151e5e427e6bed2fa2c5b603c9aa6f6c4fc349848b83e2e043a531590b0d.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -4096,6 +4169,7 @@
       "unitsPerCase": 60,
       "unitWeightKg": "0.5",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "13850",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -4114,10 +4188,10 @@
         "assetPath": "/catalog-images/real/ecca51fc7db600b244f642c03a0d28ffb02b40f0513cc12e3fba46402fa4ec16.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -4144,6 +4218,7 @@
       "unitsPerCase": 20,
       "unitWeightKg": "0.5",
       "caseWeightKg": "10",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "13850",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -4162,10 +4237,10 @@
         "assetPath": "/catalog-images/real/0d6ee8ae7ce4c66b7dde886989f7fb274af4081b5f06bc19b9934d74a728b691.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -4192,6 +4267,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "14200",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -4210,10 +4286,10 @@
         "assetPath": "/catalog-images/real/807e8ceb38a85431cef557c7cc131cfb0e20b02ab0fd7ab54c1eea12634e1ac8.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -4240,6 +4316,7 @@
       "unitsPerCase": 60,
       "unitWeightKg": "0.5",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "14650",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -4258,10 +4335,10 @@
         "assetPath": "/catalog-images/real/d6e3080a8d0cd0e1083ee075014b78f16ad75968bb3bdd6fe298dbd7524f6d66.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -4288,6 +4365,7 @@
       "unitsPerCase": 20,
       "unitWeightKg": "0.5",
       "caseWeightKg": "10",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "14650",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -4306,10 +4384,10 @@
         "assetPath": "/catalog-images/real/25a7a74513b8757b00911c1ffe89eaafbc73a3bda0df034bfde33f576ecd7c7a.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -4336,6 +4414,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "9400",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -4354,10 +4433,10 @@
         "assetPath": "/catalog-images/real/fd2a21905018938355fa25eb46c78fa771af2e92f0971c4e56189561cce7b24b.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -4384,6 +4463,7 @@
       "unitsPerCase": 60,
       "unitWeightKg": "0.5",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "9850",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -4402,10 +4482,10 @@
         "assetPath": "/catalog-images/real/907505f5f07be16d097b437af10ac8a046b8f656fcfb38f03d05a6e27633436a.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -4432,6 +4512,7 @@
       "unitsPerCase": 20,
       "unitWeightKg": "0.5",
       "caseWeightKg": "10",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "9850",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -4450,10 +4531,10 @@
         "assetPath": "/catalog-images/real/4bcef6423115851a638c141e9bd93fce632a304d757162366194592b59a3bbcd.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -4480,6 +4561,7 @@
       "unitsPerCase": 1,
       "unitWeightKg": "30",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "12500",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -4491,10 +4573,10 @@
         "assetPath": null
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "image_missing"
       ],
       "catalogStatus": "pending_review"
@@ -4522,6 +4604,7 @@
       "unitsPerCase": 60,
       "unitWeightKg": "0.5",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "12950",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -4533,10 +4616,10 @@
         "assetPath": null
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "image_missing"
       ],
       "catalogStatus": "pending_review"
@@ -4564,6 +4647,7 @@
       "unitsPerCase": 20,
       "unitWeightKg": "0.5",
       "caseWeightKg": "10",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "12950",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -4575,10 +4659,10 @@
         "assetPath": null
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
         "image_missing"
       ],
       "catalogStatus": "pending_review"
@@ -4603,14 +4687,15 @@
       "category": "Daal",
       "unitSize": "30 KG",
       "unit": "kg",
-      "unitsPerCase": null,
-      "unitWeightKg": null,
-      "caseWeightKg": null,
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "packing_size_and_master_bag",
       "pricePerQuintal": "8800",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
       "routingClass": "OTHER",
-      "routingBagEquivalent": null,
+      "routingBagEquivalent": "1.000",
       "image": {
         "status": "matched",
         "candidates": [
@@ -4624,12 +4709,10 @@
         "assetPath": "/catalog-images/real/5142dbc86fef7844410565e2de5fbd59bc90751c634c243a5e5d653781f62cb1.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
-        "case_conversion_missing_from_source",
-        "approved_routing_bag_equivalent_requires_review"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -4653,14 +4736,15 @@
       "category": "Daal",
       "unitSize": "30 KG",
       "unit": "kg",
-      "unitsPerCase": null,
-      "unitWeightKg": null,
-      "caseWeightKg": null,
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "packing_size_and_master_bag",
       "pricePerQuintal": "9000",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
       "routingClass": "OTHER",
-      "routingBagEquivalent": null,
+      "routingBagEquivalent": "1.000",
       "image": {
         "status": "matched",
         "candidates": [
@@ -4674,12 +4758,10 @@
         "assetPath": "/catalog-images/real/73c08c829a9fa6a347e548cd39e7ee279f0cdc32571cabdf1dfa35062b29dce6.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
-        "case_conversion_missing_from_source",
-        "approved_routing_bag_equivalent_requires_review"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -4703,14 +4785,15 @@
       "category": "Daal",
       "unitSize": "30 KG",
       "unit": "kg",
-      "unitsPerCase": null,
-      "unitWeightKg": null,
-      "caseWeightKg": null,
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "packing_size_and_master_bag",
       "pricePerQuintal": "10600",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
       "routingClass": "OTHER",
-      "routingBagEquivalent": null,
+      "routingBagEquivalent": "1.000",
       "image": {
         "status": "matched",
         "candidates": [
@@ -4724,12 +4807,10 @@
         "assetPath": "/catalog-images/real/4d7f7f212ee8e5630b0b5554e485d3d14c6d87a5676c447f95852f2c164b5c5f.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
-        "case_conversion_missing_from_source",
-        "approved_routing_bag_equivalent_requires_review"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -4753,14 +4834,15 @@
       "category": "Daal",
       "unitSize": "30 KG",
       "unit": "kg",
-      "unitsPerCase": null,
-      "unitWeightKg": null,
-      "caseWeightKg": null,
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "packing_size_and_master_bag",
       "pricePerQuintal": "13100",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
       "routingClass": "OTHER",
-      "routingBagEquivalent": null,
+      "routingBagEquivalent": "1.000",
       "image": {
         "status": "matched",
         "candidates": [
@@ -4774,12 +4856,10 @@
         "assetPath": "/catalog-images/real/e66d43225b783f94417cdbea41719e6561bac4bb04b8095ab7e98bea3d9a2f1d.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source",
-        "case_conversion_missing_from_source",
-        "approved_routing_bag_equivalent_requires_review"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -4806,6 +4886,7 @@
       "unitsPerCase": 60,
       "unitWeightKg": "0.5",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "16000",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -4824,10 +4905,10 @@
         "assetPath": "/catalog-images/real/24819208c37690e1f89f76027f035d250653522b00e9e0c0ae9cc6303abff43a.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -4854,6 +4935,7 @@
       "unitsPerCase": 75,
       "unitWeightKg": "0.4",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "12300",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -4872,10 +4954,10 @@
         "assetPath": "/catalog-images/real/6cc465117077ec7230914f7fd55945c42fb3852ac914ff47dbb421612c20e679.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -4902,6 +4984,7 @@
       "unitsPerCase": 75,
       "unitWeightKg": "0.4",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "12700",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -4920,10 +5003,10 @@
         "assetPath": "/catalog-images/real/414f571010614e17a37e56f7b1e1369f081a33489c1bdf092e37da3b35b957e7.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -4950,6 +5033,7 @@
       "unitsPerCase": 75,
       "unitWeightKg": "0.4",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "14500",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -4968,10 +5052,10 @@
         "assetPath": "/catalog-images/real/8bad6ed3fc837ee549b59bd5f3a50787becb019a0c545d4c2824d94e10be1f24.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -4998,6 +5082,7 @@
       "unitsPerCase": 60,
       "unitWeightKg": "0.5",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "16400",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -5016,10 +5101,10 @@
         "assetPath": "/catalog-images/real/a343893ab6ef05ca8f035487f501a27e118264796c7626e71166c49ed210e2e8.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     },
@@ -5046,6 +5131,7 @@
       "unitsPerCase": 75,
       "unitWeightKg": "0.4",
       "caseWeightKg": "30",
+      "conversionSource": "sku_name",
       "pricePerQuintal": "11600",
       "priceBasis": "quintal",
       "masterContainer": "BAG",
@@ -5064,10 +5150,10 @@
         "assetPath": "/catalog-images/real/6eb1709651c3c1e0ae35b7095c1744c04a13ebe400d477c5aed4b8d006935035.jpg"
       },
       "readinessBlockers": [
-        "stable_sku_or_sap_code_missing_from_source",
-        "gst_percent_missing_from_source",
-        "inventory_mapping_missing_from_source",
-        "price_tier_missing_from_source"
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
       ],
       "catalogStatus": "pending_review"
     }

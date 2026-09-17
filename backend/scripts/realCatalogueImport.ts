@@ -7,6 +7,7 @@ import {
   buildRealCatalogueManifest,
   promoteRealCatalogueManifest,
   publishRealCatalogueManifest,
+  retireRealCatalogueCandidates,
   readImageIndex,
   resolveRealCatalogueDecisions,
   type RealCatalogueManifest,
@@ -51,7 +52,7 @@ async function main() {
   if (imageIndexBuffer) manifest.imageSource.indexSha256 = crypto.createHash("sha256").update(imageIndexBuffer).digest("hex");
   const decisionsPath = argument("--decisions");
   const phase = argument("--phase") ?? "import";
-  if (phase !== "import" && phase !== "promote" && phase !== "publish") throw new Error("--phase must be import, promote or publish");
+  if (phase !== "import" && phase !== "promote" && phase !== "publish" && phase !== "retire") throw new Error("--phase must be import, promote, publish or retire");
   let reviewedManifest = manifest;
   let decisions: unknown;
   let approvalSha256: string | undefined;
@@ -85,7 +86,7 @@ async function main() {
   const targetLabel = argument("--target");
   if (!actorStaffId || !targetLabel) throw new Error("--apply requires --actor=<staff-id> and --target=<disposable-local|gagan-staging>");
   if (process.env.REAL_CATALOGUE_CONFIRM !== "REAL_CATALOGUE_V1") throw new Error("explicit catalogue apply confirmation required");
-  if ((phase === "promote" || phase === "publish") && !decisions) throw new Error(`--phase=${phase} requires --decisions=<approved-decisions.json>`);
+  if ((phase === "promote" || phase === "publish" || phase === "retire") && !decisions) throw new Error(`--phase=${phase} requires --decisions=<approved-decisions.json>`);
   const targetIdentity = {
     serviceName: argument("--service"),
     serviceId: argument("--service-id"),
@@ -99,7 +100,9 @@ async function main() {
       ? await promoteRealCatalogueManifest(database, manifest, { actorStaffId, targetLabel, decisions, targetIdentity })
       : phase === "publish"
         ? await publishRealCatalogueManifest(database, manifest, { actorStaffId, targetLabel, decisions, targetIdentity })
-        : await applyRealCatalogueManifest(database, reviewedManifest, { actorStaffId, targetLabel, targetIdentity, approval: approvalMetadata });
+        : phase === "retire"
+          ? await retireRealCatalogueCandidates(database, manifest, { actorStaffId, targetLabel, decisions, targetIdentity })
+          : await applyRealCatalogueManifest(database, reviewedManifest, { actorStaffId, targetLabel, targetIdentity, approval: approvalMetadata });
     console.log(JSON.stringify({ applied: true, result }, null, 2));
   } finally {
     await database.$disconnect();

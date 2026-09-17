@@ -1,14 +1,15 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "../api/client";
-import { colors, radius, spacing, TAB_BAR_SPACE } from "../theme";
+import { colors, radius, spacing, tabBarContentSpace } from "../theme";
 import ProductGroupCard, { type ProductGroupLike, type Sku } from "../components/ProductGroupCard";
 import { ScreenHeader, SearchBar, ChipRow, EmptyState, ScreenSkeleton } from "../components/ui";
 import { useCart } from "../context/CartContext";
 import { useLanguage } from "../i18n/LanguageContext";
+import { canChangeCatalogQuantity, resolveCatalogCategory } from "../lib/catalogInteractions";
 
 const ALL = "All";
 const CATEGORY_LABELS: Record<string, string> = {
@@ -21,7 +22,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   Breakfast: "Breakfast",
 };
 
-export default function CatalogScreen({ navigation }: any) {
+export default function CatalogScreen({ navigation, route }: any) {
   const { lines, addLine, updateQty } = useCart();
   const { t } = useLanguage();
   const [groups, setGroups] = useState<ProductGroupLike[]>([]);
@@ -51,6 +52,13 @@ export default function CatalogScreen({ navigation }: any) {
     }, [load])
   );
 
+  useEffect(() => {
+    const requested = route?.params?.category;
+    if (typeof requested !== "string") return;
+    setCategory(resolveCatalogCategory(requested, categories));
+    setQuery("");
+  }, [route?.params?.category, categories]);
+
   const onRefresh = async () => {
     setRefreshing(true);
     await load().catch(() => {});
@@ -75,18 +83,11 @@ export default function CatalogScreen({ navigation }: any) {
   const qtyFor = (variantId: string) => lines.find((l) => l.variantId === variantId)?.qty ?? 0;
 
   const setQty = (group: ProductGroupLike, sku: Sku, next: number) => {
-    if (sku.price == null) return;
     const current = qtyFor(sku.id);
-    if (next > current && sku.orderable === false) return;
-    const availability = sku.availability;
-    const orderable =
-      !availability || availability.status == null || availability.status === "unknown"
-        ? true
-        : availability.status === "available" && Number(availability.available ?? 0) > 0;
     // Inventory is authoritative in the API. Allow a shopper to remove an
     // already-saved line, but never add a new case when SAP has not supplied
     // usable stock for it.
-    if (next > current && !orderable) return;
+    if (!canChangeCatalogQuantity(sku, current, next)) return;
     if (current === 0 && next > 0) {
       addLine({
         variantId: sku.id,
@@ -134,7 +135,7 @@ export default function CatalogScreen({ navigation }: any) {
         <FlatList
           data={rows}
           keyExtractor={(group) => group.id}
-          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: TAB_BAR_SPACE }}
+          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: tabBarContentSpace(cartCount) }}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.green} />
           }

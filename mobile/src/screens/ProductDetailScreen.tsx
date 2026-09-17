@@ -14,6 +14,7 @@ import { colors, radius, spacing, inr } from "../theme";
 import ProductThumb from "../components/ProductThumb";
 import { QtyStepper, EmptyState, ScreenSkeleton, SectionTitle } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
+import { canChangeCatalogQuantity } from "../lib/catalogInteractions";
 
 export default function ProductDetailScreen({ route, navigation }: any) {
   const { productId } = route.params;
@@ -85,13 +86,7 @@ export default function ProductDetailScreen({ route, navigation }: any) {
   const inCart = selected ? (lines.find((l) => l.variantId === selected.id)?.qty ?? 0) : 0;
 
   const setQty = (next: number) => {
-    if (!selected || selected.price == null) return;
-    const availability = selected.availability;
-    const stockReady = !availability || availability.status == null || availability.status === "unknown"
-      ? true
-      : availability.status === "available" && Number(availability.available ?? 0) > 0;
-    const orderable = selected.orderable !== false && stockReady;
-    if (next > inCart && !orderable) return;
+    if (!selected || !canChangeCatalogQuantity(selected, inCart, next)) return;
     if (inCart === 0 && next > 0) {
       addLine({
         variantId: selected.id,

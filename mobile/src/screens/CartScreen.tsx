@@ -16,7 +16,7 @@ import { Ionicons, Feather } from "@expo/vector-icons";
 
 import { useCart } from "../context/CartContext";
 import { api, ApiError } from "../api/client";
-import { colors, radius, spacing, inr, TAB_BAR_SPACE } from "../theme";
+import { colors, radius, spacing, inr, TAB_BAR_SPACE, tabBarContentSpace } from "../theme";
 import { ScreenHeader, QtyStepper, EmptyState, SectionTitle } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 import { canSubmitQuote, classifyQuoteRefresh } from "../lib/commercialQuoteState";
@@ -106,6 +106,7 @@ export default function CartScreen({ navigation }: any) {
   },[refreshQuote]);
 
   const payable = quote ? Number(quote.snapshot.total) : total;
+  const cartCount = lines.reduce((count, line) => count + line.qty, 0);
   const belowMin = payable > 0 && payable < (config.minOrderValue ?? 0);
   const overCredit = credit != null && payable > credit.available;
   const canCheckout = canSubmitQuote({lineCount:lines.length,quoteReady,placing,belowMinimum:belowMin,overCredit,quote});
@@ -195,7 +196,7 @@ export default function CartScreen({ navigation }: any) {
       />
 
       <ScrollView
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: TAB_BAR_SPACE + 150 }}
+        contentContainerStyle={{ padding: spacing.lg, paddingBottom: tabBarContentSpace(cartCount) + 150 }}
         showsVerticalScrollIndicator={false}
       >
         {quoteError ? <><Text>{quoteError}</Text><TouchableOpacity accessibilityRole="button" style={{padding:16}} onPress={()=>setQuoteAttempt(a=>a+1)} disabled={placing}><Text>Retry pricing</Text></TouchableOpacity></> : null}

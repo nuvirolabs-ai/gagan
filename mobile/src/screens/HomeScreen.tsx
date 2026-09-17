@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -16,10 +16,11 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { api } from "../api/client";
 import { HomePayload, HomeProductGroup } from "../types/home";
 import { useCart } from "../context/CartContext";
-import { colors, radius, spacing, inr, TAB_BAR_SPACE } from "../theme";
+import { colors, radius, spacing, inr, tabBarContentSpace } from "../theme";
 import ProductGroupCard, { type ProductGroupLike, type Sku } from "../components/ProductGroupCard";
 import HomeSkeleton from "../components/home/HomeSkeleton";
 import HomeHero from "../components/home/HomeHero";
+import RetailerPromoCarousel from "../components/home/RetailerPromoCarousel";
 import AccountStrip from "../components/home/AccountStrip";
 import { useLanguage } from "../i18n/LanguageContext";
 import { formatOrderRef } from "../lib/orderRef";
@@ -35,6 +36,8 @@ import {
   selectHero,
   TIMELINE,
 } from "../lib/homePresentation";
+import { buildRetailerPromotions, promotionDestination } from "../lib/retailerPromotions";
+import { canChangeCatalogQuantity } from "../lib/catalogInteractions";
 
 const ALL_CATEGORY = "All";
 const CATEGORY_LABELS: Record<string, string> = {
@@ -57,6 +60,7 @@ export default function HomeScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const narrow = useWindowDimensions().width < 360;
   const { lines, addLine, updateQty } = useCart();
+  const cartCount = lines.reduce((count, line) => count + line.qty, 0);
   const { t } = useLanguage();
   const [data, setData] = useState<HomePayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -64,6 +68,7 @@ export default function HomeScreen({ navigation }: any) {
   const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORY);
   const dataRef = useRef<HomePayload | null>(null);
   dataRef.current = data;
+  const promotions = useMemo(() => buildRetailerPromotions(data?.productGroups ?? []), [data?.productGroups]);
 
   const load = useCallback(async () => {
     const res = await api.getHome();
@@ -97,7 +102,7 @@ export default function HomeScreen({ navigation }: any) {
   const qtyFor = (variantId: string) => lines.find((l) => l.variantId === variantId)?.qty ?? 0;
 
   if (loading && !data) {
-    return <HomeSkeleton top={insets.top + spacing.sm} />;
+    return <HomeSkeleton top={insets.top + spacing.sm} bottomSpace={tabBarContentSpace(cartCount)} />;
   }
   if (!data) {
     return (
@@ -130,9 +135,8 @@ export default function HomeScreen({ navigation }: any) {
   const addableUsual = reorderLines(lastOrder, productGroups);
 
   const setSkuQty = (sku: Sku, next: number) => {
-    if (sku.price == null) return;
     const current = qtyFor(sku.id);
-    if (next > current && sku.orderable === false) return;
+    if (!canChangeCatalogQuantity(sku, current, next)) return;
     if (current === 0 && next > 0) {
       addLine({
         variantId: sku.id,
@@ -168,7 +172,7 @@ export default function HomeScreen({ navigation }: any) {
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={{ paddingTop: insets.top + spacing.sm, paddingBottom: TAB_BAR_SPACE + 16 }}
+      contentContainerStyle={{ paddingTop: insets.top + spacing.sm, paddingBottom: tabBarContentSpace(cartCount) + 16 }}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.green} />}
@@ -221,6 +225,14 @@ export default function HomeScreen({ navigation }: any) {
       </TouchableOpacity>
 
       {hero ? <HomeHero hero={hero} onPress={onHeroPress} /> : null}
+
+      <RetailerPromoCarousel
+        promotions={promotions}
+        onPress={(promotion) => {
+          const destination = promotionDestination(promotion);
+          navigation.navigate(destination.screen, destination.params);
+        }}
+      />
 
       <View style={styles.sectionSpace}>
         <AccountStrip

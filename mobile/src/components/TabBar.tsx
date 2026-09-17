@@ -4,9 +4,10 @@ import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
-import { colors, radius, shadow, spacing } from "../theme";
+import { colors, radius, shadow, spacing, inr } from "../theme";
 import { useCart } from "../context/CartContext";
 import { useLanguage } from "../i18n/LanguageContext";
+import { getMiniCartModel } from "../lib/miniCart";
 
 const ICONS: Record<string, { on: string; off: string; label: string }> = {
   Home: { on: "home", off: "home-outline", label: "Home" },
@@ -17,9 +18,10 @@ const ICONS: Record<string, { on: string; off: string; label: string }> = {
 
 export default function TabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
-  const { lines } = useCart();
+  const { lines, total } = useCart();
   const { t } = useLanguage();
   const cartCount = lines.reduce((n, l) => n + l.qty, 0);
+  const miniCart = getMiniCartModel(lines, total);
 
   const cartRoute = state.routes.find((r) => r.name === "Cart");
   const sideRoutes = state.routes.filter((r) => r.name !== "Cart");
@@ -60,6 +62,28 @@ export default function TabBar({ state, navigation }: BottomTabBarProps) {
 
   return (
     <View style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
+      {miniCart.visible ? (
+        <TouchableOpacity
+          style={styles.miniCart}
+          onPress={() => go("Cart")}
+          activeOpacity={0.9}
+          accessibilityRole="button"
+          accessibilityLabel={`${t("cart.itemCount", { count: miniCart.itemCount })}. ${t("cart.catalogueSubtotal")} ${inr(miniCart.subtotal)}. View cart`}
+        >
+          <View style={styles.miniCartIcon}>
+            <Ionicons name="cart-outline" size={19} color={colors.onDark} />
+          </View>
+          <View style={styles.miniCartCopy}>
+            <Text style={styles.miniCartCount}>{t("cart.itemCount", { count: miniCart.itemCount })}</Text>
+            <Text style={styles.miniCartLabel}>{t("cart.catalogueSubtotal")}</Text>
+          </View>
+          <Text style={styles.miniCartAmount}>{inr(miniCart.subtotal)}</Text>
+          <View style={styles.miniCartView}>
+            <Text style={styles.miniCartViewText}>View cart</Text>
+            <Ionicons name="chevron-forward" size={15} color={colors.greenDeep} />
+          </View>
+        </TouchableOpacity>
+      ) : null}
       <View style={styles.bar}>
         {left.map((r) => renderTab(r.name))}
 
@@ -106,6 +130,27 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadow.card,
   },
+  miniCart: {
+    minHeight: 60,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.greenDeep,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.green,
+    ...shadow.card,
+  },
+  miniCartIcon: { width: 34, height: 34, borderRadius: radius.pill, alignItems: "center", justifyContent: "center", backgroundColor: colors.greenMid },
+  miniCartCopy: { flex: 1, minWidth: 0 },
+  miniCartCount: { color: colors.onDark, fontSize: 12.5, fontWeight: "800" },
+  miniCartLabel: { color: colors.onDarkMuted, fontSize: 10.5, fontWeight: "600", marginTop: 2 },
+  miniCartAmount: { color: colors.onDark, fontSize: 13.5, fontWeight: "800", maxWidth: 92, textAlign: "right" },
+  miniCartView: { flexDirection: "row", alignItems: "center", gap: 2, minHeight: 34, paddingHorizontal: spacing.sm, borderRadius: radius.pill, backgroundColor: colors.accentPrimary },
+  miniCartViewText: { color: colors.onAccent, fontSize: 10.5, fontWeight: "800" },
   tab: { flex: 1, alignItems: "center", justifyContent: "center", gap: 2, minHeight: 44 },
   tabLabel: { fontSize: 10, fontWeight: "600", color: colors.inkFaint },
   tabLabelActive: { color: colors.greenDeep, fontWeight: "700" },

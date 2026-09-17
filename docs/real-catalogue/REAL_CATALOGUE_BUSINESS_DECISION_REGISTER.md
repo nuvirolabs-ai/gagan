@@ -1,9 +1,28 @@
 # Real catalogue business decision register
 
-Revision: **R2 — owner approvals recorded; local publication rehearsal complete; hosted activation remains pending**
+Revision: **R2 — owner approvals recorded; hosted publication complete; full ordering remains intentionally pending**
 Recorded: 17 September 2026
 Branch: `codex/gagan-canonical-product-v1` (source checkpoint `2a8e2d2e9288fb9ff4fb1d5e2f38802e50a172a8`)
-Hosted writes: **none**
+
+## Hosted publication addendum — 17 September 2026
+
+The previously pending hosted step has now completed on the authorized
+`gagan-api` / `srv-dak1ppu1egvs7397s9c0` service at
+`https://gagan-srat.onrender.com`, using backend deployment
+`dep-dalovlqd0e5s7385k2jg` from source
+`571292a1015d27e7d9e92639d52009619a8ecb21`.
+
+The publication result is 46 products and 105 variants, with 91 exact images,
+11 approved labelled placeholders, 3 pending image confirmations and 105
+price rows. The server reports 0 orderable variants until approved tax and
+inventory/material configuration is present. This is intentional: visibility
+was published separately from checkout eligibility.
+
+The exact hosted retirement allowlist archived Urad Dal (`DEMO-MAT-URAD`) and
+Poha (`DEMO-MAT-POHA`) by status only after zero historical line checks.
+Moong Dal and Sona Masoori Rice were not retired because they have historical
+order-item references. No historical commercial records were rewritten.
+Hosted writes: **targeted publication and guarded status-only retirement only; no unrelated business-data mutation**
 
 ## Approval provenance
 

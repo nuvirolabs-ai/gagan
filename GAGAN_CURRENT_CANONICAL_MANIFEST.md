@@ -10,8 +10,8 @@ The canonical runtime source in this folder is the clean consolidated staging ca
 
 ```text
 Branch: codex/gagan-canonical-product-v1 (pushed feature branch)
-Canonical HEAD: 9b1b6f76839c4530928c844dde1cd608e2ad5f68
-Canonical HEAD subject: docs: record real catalogue publication checkpoint
+Canonical HEAD: 571292a1015d27e7d9e92639d52009619a8ecb21
+Canonical HEAD subject: fix: add guarded real catalogue retirement phase
 Runtime source parent: 2a8e2d2e9288fb9ff4fb1d5e2f38802e50a172a8
 Runtime source subject: feat: publish reviewed real catalogue safely
 Remote: https://github.com/nuvirolabs-ai/gagan.git
@@ -21,8 +21,8 @@ This is the active canonical branch head:
 
 ```text
 Active branch: codex/gagan-canonical-product-v1
-Active branch SHA: 9b1b6f76839c4530928c844dde1cd608e2ad5f68
-Active branch remote SHA: 9b1b6f76839c4530928c844dde1cd608e2ad5f68
+Active branch SHA: 571292a1015d27e7d9e92639d52009619a8ecb21
+Active branch remote SHA: 571292a1015d27e7d9e92639d52009619a8ecb21
 ```
 
 The prior immutable `gagan-canonical-product-v1` tag remains at
@@ -71,14 +71,27 @@ configuration is present. The exact review APK candidates, hashes, package
 metadata and physical smoke evidence are recorded in
 `/Users/tanutejas/Documents/GAGAN/CURRENT/BUILDS/CANDIDATES/2a8e2d2/RELEASE_MANIFEST.md`.
 
-The intended hosted target is `https://gagan-srat.onrender.com`. Its public
-health endpoints returned HTTP 200, but the authorized Render service,
-database, migration ledger and recovery boundary were not available in the
-accessible browser session. No hosted catalogue migration/import/promotion,
-dummy retirement, backend deployment or Admin deployment was performed. The
-Moto E13 review apps are installed and launch, but the device still shows the
-pre-publication staging catalogue; real-catalogue physical acceptance is
-therefore pending hosted activation.
+The source-only note above was recorded before the authorized Render session
+was available. The current hosted checkpoint is documented in
+`docs/real-catalogue/REAL_CATALOGUE_PUBLICATION_ACCEPTANCE.md`.
+
+Current hosted state: Render service `gagan-api` (`srv-dak1ppu1egvs7397s9c0`),
+deployment `dep-dalovlqd0e5s7385k2jg`, source
+`571292a1015d27e7d9e92639d52009619a8ecb21`, and API
+`https://gagan-srat.onrender.com`. The attached `gagan_staging_9ftt` database
+is at 43 migrations and up to date. Read-only verification found 46 published
+products, 105 published variants, 91 exact images, 11 approved placeholders,
+3 pending image choices and 105 priced variants. A separate guarded,
+status-only retirement archived only Urad Dal and Poha after exact hosted
+identity and zero-history checks; Moong Dal and Sona Masoori remain active due
+historical references. No historical orders, invoices, payments or accepted
+UAT records were rewritten.
+
+The installed Moto E13 review apps were reopened after publication and showed
+representative real products, images, pack choices, GST-exclusive per-quintal
+labels and `Ordering setup pending`. Full checkout orderability is not claimed:
+the server correctly reports zero orderable variants pending approved tax and
+inventory/material configuration.
 
 ## Frozen Salesperson template reference
 
@@ -96,7 +109,7 @@ The canonical source retains `GAGAN_SALESPERSON_TEMPLATE_V1.md` and `SALESPERSON
 
 ## Verification performed in this checkout
 
-- Canonical HEAD is a documentation-only local consolidation commit; its runtime parent is the accepted `dcbc7a933da76eeb10599d757aca8207f7cfaa0f`.
+- Canonical HEAD is the clean pushed catalogue-publication checkpoint at `571292a1015d27e7d9e92639d52009619a8ecb21`.
 - `git diff dcbc7a933da76eeb10599d757aca8207f7cfaa0f..HEAD` is documentation-only; all runtime scopes listed above are unchanged.
 - Backend, Admin, Retailer, and Salesperson roots exist at `backend/`, `admin/`, `mobile/`, and `rep/`.
 - Component tree IDs and tracked-file counts were checked against the accepted commit.

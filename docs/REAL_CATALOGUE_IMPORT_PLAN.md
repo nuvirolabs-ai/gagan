@@ -1,6 +1,27 @@
 # Real catalogue import and activation plan
 
-Status: **owner approval revision 2 recorded locally; source import, reviewed publication path and local rehearsal complete; hosted activation remains pending exact Render service/database/recovery access and unresolved tax/inventory/image exceptions.** Prepared 17 September 2026 on codex/gagan-canonical-product-v1. No hosted database, deployment, production, main, Dogkart, GNV or SAP resource was changed.
+Status: **owner approval revision 2 recorded; hosted catalogue publication and guarded retirement complete; checkout eligibility remains intentionally pending tax/inventory configuration and image exceptions.** Prepared 17 September 2026 on codex/gagan-canonical-product-v1.
+
+## Hosted publication update — 17 September 2026
+
+The authorized target was verified and updated after the source-only planning
+record below: `gagan-api` / `srv-dak1ppu1egvs7397s9c0`,
+`https://gagan-srat.onrender.com`, database `gagan_staging_9ftt` / `public`.
+Render deployment `dep-dalovlqd0e5s7385k2jg` runs source
+`571292a1015d27e7d9e92639d52009619a8ecb21`; the database reports 43 migrations
+and is up to date.
+
+Hosted publication produced 46 products, 105 variants, 91 exact images, 11
+`Image coming soon` placeholders, 3 `Image pending confirmation` entries and
+105 priced variants. All 105 remain non-orderable until the backend's required
+tax and inventory/material configuration is valid. A separate guarded
+status-only retirement archived only the target-resolved Urad Dal and Poha
+DEMO records, each with zero historical order-item references. Moong Dal and
+Sona Masoori Rice remain active because they have historical references.
+
+The original source-only boundary and no-hosted-write statements later in this
+document are preserved as historical planning context. The current acceptance
+record is `docs/real-catalogue/REAL_CATALOGUE_PUBLICATION_ACCEPTANCE.md`.
 
 ## Verified input
 

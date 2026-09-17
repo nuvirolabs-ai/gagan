@@ -2,7 +2,69 @@
 
 Recorded: 17 September 2026 (Asia/Kolkata)
 
-Status: **LOCAL SOURCE + REHEARSAL PASS; HOSTED PUBLICATION BLOCKED**
+Status: **HOSTED PUBLICATION + TARGETED RETIREMENT PASS; FULL ORDERING NOT CLAIMED**
+
+> Current-state addendum recorded after the historical pre-publication review
+> below. The earlier blocked result is intentionally preserved as history and
+> must not be read as the current hosted state.
+
+## Current hosted publication checkpoint — 17 September 2026
+
+| Field | Result |
+|---|---|
+| Canonical source branch | `codex/gagan-canonical-product-v1` |
+| Exact source used for the hosted backend deployment | `571292a1015d27e7d9e92639d52009619a8ecb21` |
+| Render deployment | `dep-dalovlqd0e5s7385k2jg` |
+| Render service | `gagan-api` / `srv-dak1ppu1egvs7397s9c0` |
+| Hosted API | `https://gagan-srat.onrender.com` |
+| Database | `gagan_staging_9ftt` / `public` |
+| Migration state | 43 migrations found; schema up to date |
+| Public health | `/health`, `/health/live`, `/health/ready`: HTTP 200 |
+| Source/import batch | `real-catalogue:sku-wise-item-list-2026-09-16-v1` using workbook SHA below |
+| Publication result | 46 products and 105 variants visible; 0 orderable pending tax/inventory readiness |
+| Hosted image result | 91 exact; 11 `Image coming soon`; 3 `Image pending confirmation` |
+| Hosted pricing result | 105 published variants have a price row; workbook basis remains GST-exclusive INR per quintal |
+| Confirmed retirement result | 2 products / 2 variants archived: Urad Dal (`DEMO-MAT-URAD`) and Poha (`DEMO-MAT-POHA`) |
+| Historical records | Orders 85, 86 and 87 remain readable; order-item/invoice counts were unchanged by retirement |
+| Admin deployment | Existing Admin deployment was not rebuilt; the public Admin entry point returned HTTP 200 and continues to target the same backend configuration |
+
+The first hosted publication attempt was rejected by the readiness guard for
+10 source rows with missing case conversions. The reviewed source manifest was
+corrected using explicit `packing_size_and_master_bag` evidence for those rows,
+then the same approved publication completed. This is retained as a source
+readiness correction, not hidden as a successful first attempt.
+
+The retirement operation was a separate guarded status-only phase. It required
+the exact hosted product and variant identities, expected demo material IDs,
+null catalogue keys and zero historical `OrderItem` references. Moong Dal and
+Sona Masoori Rice were not retired because each has historical order-item
+references. No accepted orders, invoices, payments, snapshots, ownership data
+or UAT records were rewritten.
+
+## Physical publication evidence — current checkpoint
+
+Evidence is retained under
+`/Users/tanutejas/Documents/GAGAN/ARCHIVE/real-catalogue-publication-20260917/`.
+
+| Surface | Result |
+|---|---|
+| Retailer review app | PASS — existing `com.gagan.retailer.review` v1.0.5/code 6 was reopened against `gagan-srat`; the Products screen showed the real catalogue, packaging choices, product images, GST-exclusive per-quintal labels and `Ordering setup pending` guards |
+| Salesperson review app | PASS — existing `com.gagan.sales.review` v1.0.10/code 10 was reopened against `gagan-srat`; New order showed real product images, pack choices, GST-exclusive per-quintal labels and the server-controlled pending setup state |
+| Exact image path | PASS — a hosted real catalogue image returned HTTP 200 with `image/jpeg` |
+| Placeholder evidence | PASS — the loaded catalogue accessibility data included `Image coming soon` entries; the full hosted count is the authoritative 11 above |
+| Admin data surface | PASS at the shared-backend/data boundary; direct authenticated Admin visual capture was not available in the currently focused Render browser window, so no stronger visual claim is made |
+
+The two review APKs were reused; no rebuild, uninstall or app-data clearing was
+performed. The strongest screenshots are:
+
+- `/Users/tanutejas/Documents/GAGAN/ARCHIVE/real-catalogue-publication-20260917/retailer-real-catalogue-topward.png`
+- `/Users/tanutejas/Documents/GAGAN/ARCHIVE/real-catalogue-publication-20260917/sales-catalogue-scrolled.png`
+
+The physical run proves representative discovery and the guarded display state
+on both installed apps. It does not claim that every one of the 105 variants
+was independently photographed on-device, nor does it claim checkout
+orderability while the hosted configuration correctly reports zero orderable
+variants.
 
 ## Candidate
 

@@ -19,6 +19,7 @@ import { ScreenHeader, SectionTitle } from "../components/ui";
 import AccountStrip from "../components/home/AccountStrip";
 import { accountModel } from "../lib/homePresentation";
 import { useLanguage } from "../i18n/LanguageContext";
+import { buildInfo } from "../buildInfo";
 
 export default function ProfileScreen({ navigation }: any) {
   const { logout } = useAuth();
@@ -207,7 +208,7 @@ export default function ProfileScreen({ navigation }: any) {
         <Text style={styles.logoutText}>{t("profile.logout")}</Text>
       </TouchableOpacity>
 
-      <Text style={styles.version}>Gagan Retailer · v1.0.0</Text>
+      <Text style={styles.version} accessibilityLabel={`Retailer build ${buildInfo.sourceSha}`}>Gagan Retailer · v{buildInfo.version}</Text>
     </ScrollView>
   );
 }

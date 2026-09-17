@@ -132,7 +132,7 @@ export default function RepAccountScreen({ navigation }: any) {
   return (
     <AppScreen>
       <View style={[styles.moreHeader, { paddingTop: headerPaddingTop }]}>
-        <Text style={styles.moreKicker}>GAGAN FIELD COMPANION</Text>
+        <Text style={styles.moreKicker}>GAGAN SALES COMPANION</Text>
         <View style={styles.moreTitleRow}>
           <Text style={styles.moreTitle}>{t("more.title")}</Text>
           <StatusChip label={onDuty ? t("more.onDuty") : t("more.offDuty")} tone={onDuty ? "green" : "neutral"} />

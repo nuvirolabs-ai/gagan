@@ -203,7 +203,7 @@ function CompactDayStatus({ minutes, onPress }: { minutes: number | null | undef
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={styles.dayCompleteTitle}>Day complete</Text>
-        <Text style={styles.dayCompleteMeta}>{duration(minutes)} in field · View activity</Text>
+        <Text style={styles.dayCompleteMeta}>{duration(minutes)} on the road · View activity</Text>
       </View>
       <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
     </Pressable>
@@ -388,7 +388,7 @@ export default function TodayScreen({ navigation }: any) {
             <View style={styles.calmHeroContent}>
               <View style={styles.calmHeroMark}><Ionicons name="calendar-outline" size={20} color={colors.blueInk} /></View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.eyebrow}>FIELD DAY</Text>
+                <Text style={styles.eyebrow}>SALES DAY</Text>
                 <Text style={styles.calmTitle}>No next visit assigned</Text>
                 <Text style={styles.caption}>{banner.body}</Text>
               </View>
@@ -475,7 +475,7 @@ export default function TodayScreen({ navigation }: any) {
           </View>
         ) : null}
 
-        {dayOpen ? <Surface style={styles.daySurface}><View style={styles.between}><View style={{ flex: 1 }}><Text style={styles.eyebrow}>FIELD DAY</Text><Text style={styles.dayTitle}>On duty since {formatClock(attendance.startedAt)}</Text><Text style={styles.caption}>{banner.body}</Text></View><TextButton label="End day" onPress={() => setEodOpen(true)} /></View></Surface> : null}
+        {dayOpen ? <Surface style={styles.daySurface}><View style={styles.between}><View style={{ flex: 1 }}><Text style={styles.eyebrow}>SALES DAY</Text><Text style={styles.dayTitle}>On duty since {formatClock(attendance.startedAt)}</Text><Text style={styles.caption}>{banner.body}</Text></View><TextButton label="End day" onPress={() => setEodOpen(true)} /></View></Surface> : null}
       </ScrollView>
 
       {eodOpen && dayOpen ? (
@@ -484,7 +484,7 @@ export default function TodayScreen({ navigation }: any) {
             <KeyboardSafeScrollView containerStyle={styles.sheetKeyboard} contentContainerStyle={styles.sheetScroll}>
             <View style={styles.eodSheet}>
               <View style={styles.between}><Text style={styles.sheetTitle}>End-of-day summary</Text><TextButton label="Close" onPress={() => setEodOpen(false)} /></View>
-              <Text style={styles.sheetMessage}>Review your field day before sending the handoff.</Text>
+              <Text style={styles.sheetMessage}>Review your sales day before sending the handoff.</Text>
               <MetricStrip items={[{ label: "Visits", value: String(safeCount(metrics.visits)) }, { label: "Orders", value: String(safeCount(metrics.orders)) }, { label: "Order value", value: inr(safeCount(metrics.orderValue)) }]} />
               <Text style={styles.noteLabel}>Manager note <Text style={styles.optional}>Optional</Text></Text>
               <TextInput value={managerNote} onChangeText={setManagerNote} placeholder="Add a short handoff note" placeholderTextColor={colors.inkFaint} multiline maxLength={1000} style={styles.noteInput} />

@@ -17,8 +17,8 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://gagan-srat.onrender.com",
         "GAGAN_HOSTED_REVIEW": "1",
-        "GAGAN_REVIEW_VERSION_NAME": "1.0.8",
-        "GAGAN_REVIEW_VERSION_CODE": "9"
+        "GAGAN_REVIEW_VERSION_NAME": "1.0.9",
+        "GAGAN_REVIEW_VERSION_CODE": "10"
       }
     }
   }

@@ -104,7 +104,7 @@ export function FieldCompanionHeader({
           <Text style={styles.brandName}>Gagan</Text>
           <View style={styles.brandDot} />
         </View>
-        <Text style={styles.brandSubtitle}>FIELD COMPANION</Text>
+        <Text style={styles.brandSubtitle}>SALES COMPANION</Text>
       </View>
       {onNotifications ? (
         <Pressable

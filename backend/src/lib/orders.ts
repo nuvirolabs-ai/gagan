@@ -171,7 +171,14 @@ export async function createOrderForRetailer(
           catalogStatus: "active",
           product: { catalogStatus: "active" },
         },
-        select: { id: true, unitsPerCase: true, unitWeightKg: true, sellingEntity:true },
+        select: {
+          id: true,
+          unitsPerCase: true,
+          unitWeightKg: true,
+          sellingEntity: true,
+          routingClass: true,
+          gstPendingOrderAllowed: true,
+        },
       }),
     ]);
     if (variants.length !== variantIds.length) {
@@ -185,7 +192,13 @@ export async function createOrderForRetailer(
     const overridePrice = new Map(overrides.map((override) => [override.variantId, override.price]));
     let orderAmount = new Prisma.Decimal(0);
     const conversionById = new Map(variants.map(variant => [variant.id, variant.unitWeightKg.mul(variant.unitsPerCase)]));
-    if (!accepted && variants.some(v=>v.sellingEntity!==null)) return {ok:false,status:409,body:{error:"commercial_quote_required"}};
+    // Routed rows and the explicit pending-GST staging exception must always
+    // travel through the backend-authoritative quote path. Never let a direct
+    // legacy case-price request bypass routing or create an order that cannot
+    // later be invoiced safely.
+    if (!accepted && variants.some(v => v.sellingEntity !== null || v.routingClass !== null || v.gstPendingOrderAllowed)) {
+      return {ok:false,status:409,body:{error:"commercial_quote_required"}};
+    }
     const lineItems: { variantId: string; qtyOrdered: number; unitPrice: number; caseWeightKgSnapshot: Prisma.Decimal; commercialSnapshot?:Prisma.InputJsonValue }[] = [];
     for (const item of items) {
       const commercialLine=accepted?.lines.find(l=>l.variantId===item.variantId);

@@ -86,7 +86,7 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
       rateBasis: overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case",
       rateLabel: (overrideByVariant.get(v.id) ?? priceByVariant.get(v.id)) != null ? `${(overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case") === "quintal" ? "per quintal" : "per case"} · Excluding GST` : null,
       catalogStatus: v.catalogStatus,
-      ...catalogueOrderingState(v.catalogStatus),
+      ...catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed),
       ...catalogueImageState(v),
     }))
   );
@@ -114,7 +114,7 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
         rateBasis: overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case",
         rateLabel: (overrideByVariant.get(v.id) ?? priceByVariant.get(v.id)) != null ? `${(overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case") === "quintal" ? "per quintal" : "per case"} · Excluding GST` : null,
         catalogStatus: v.catalogStatus,
-        ...catalogueOrderingState(v.catalogStatus),
+        ...catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed),
         ...catalogueImageState(v),
         isOverride: overrideByVariant.get(v.id) != null,
       })),

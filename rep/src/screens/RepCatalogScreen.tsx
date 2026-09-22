@@ -20,6 +20,8 @@ import ProductThumb from "../components/ProductThumb";
 import { SearchBar, ChipRow, QtyStepper, EmptyState, SecondaryButton } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 import { catalogGroups, selectedCatalogSku, type CatalogGroup } from "../lib/catalogSelection";
+import { catalogOrderingState, canChangeCatalogQuantity } from "../lib/catalogOrdering";
+import { catalogPricePresentation } from "../lib/catalogPricePresentation";
 
 const ALL = "All";
 
@@ -74,13 +76,10 @@ export default function RepCatalogScreen({ route, navigation }: any) {
   const qtyFor = (variantId: string) => lines.find((l) => l.variantId === variantId)?.qty ?? 0;
 
   const setQty = (product: any, variant: any, next: number) => {
-    if (variant.price == null) return;
     const current = qtyFor(variant.id);
-    if (next > current && variant.orderable === false) return;
-    const orderable = variant.availability?.status === "available" && Number(variant.availability.available) > 0;
     // The API owns inventory. A rep can reduce a saved line, but cannot add
     // stock that SAP has marked unavailable or stale.
-    if (next > current && !orderable) return;
+    if (!canChangeCatalogQuantity(variant, current, next)) return;
     if (current === 0 && next > 0) {
       addLine({
         variantId: variant.id,
@@ -126,6 +125,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
             const product = item;
             const variant = selectedCatalogSku(product, selectedSkus[product.id], qtyFor);
             const qty = qtyFor(variant.id);
+            const ordering = catalogOrderingState(variant);
             return (
               <View style={[styles.card, product.skus.some(sku => qtyFor(sku.id) > 0) && styles.cardSelected]}>
                 <View style={styles.productRow}>
@@ -147,16 +147,18 @@ export default function RepCatalogScreen({ route, navigation }: any) {
                   <View style={styles.priceStack}>
                     <View style={styles.priceRow}>
                       <Text style={styles.price}>
-                        {variant.price != null ? `${inr(variant.price)}/case` : "—"}
+                        {catalogPricePresentation(variant).primary}
                       </Text>
                     </View>
-                    {variant.rateLabel ? <Text style={styles.rateLabel}>{variant.rateLabel}</Text> : null}
-                    {variant.pricePerKg != null ? <Text style={styles.perKg}>{inr(variant.pricePerKg)}/kg</Text> : null}
+                    {catalogPricePresentation(variant).perKg ? <Text style={styles.perKg}>{catalogPricePresentation(variant).perKg}</Text> : null}
+                    {catalogPricePresentation(variant).caseEquivalent ? <Text style={styles.rateLabel}>{catalogPricePresentation(variant).caseEquivalent}</Text> : null}
+                    {variant.rateLabel ? <Text style={styles.rateLabel}>Excluding GST</Text> : null}
                   </View>
-                  {variant.orderable === false ? <Text style={styles.pendingOrder}>{variant.orderingReason ?? "Ordering setup pending"}</Text> : null}
+                  {variant.gstPending ? <Text style={styles.pendingOrder}>GST pending · invoice blocked until configured</Text> : null}
+                  {ordering.message ? <Text style={styles.pendingOrder}>{ordering.message}</Text> : null}
                   {variant.isOverride && <Text style={styles.override}>{t("catalog.specialRate")}</Text>}
                 </View>
-                {qty === 0 && variant.orderable !== false ? <QtyStepper qty={qty} onChange={(next) => setQty(product, variant, next)} compact /> : null}
+                {qty === 0 && ordering.canIncrease ? <QtyStepper qty={qty} onChange={(next) => setQty(product, variant, next)} compact /> : null}
                 </View>
                 {product.skus.length > 1 || qty > 0 ? <View style={styles.controlsRow}>
                 {product.skus.length > 1 ? <View style={styles.packOptions}>

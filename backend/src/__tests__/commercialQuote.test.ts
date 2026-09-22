@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateCommercialQuote, CommercialQuoteLine, ManagerFreight } from "../lib/commercialQuote";
+import { assertCommercialInvoiceable, calculateCommercialQuote, CommercialQuoteLine, hasPendingGst, ManagerFreight } from "../lib/commercialQuote";
 
 const line: CommercialQuoteLine = {
   variantId: "test-sku", entity: "jain_traders", cases: 2, caseWeightKg: "30",
@@ -10,6 +10,15 @@ const freight: ManagerFreight = {
 };
 
 describe("commercial quote foundation", () => {
+  it("creates an explicitly pre-tax quote when a line is approved for pending GST", () => {
+    const quote = calculateCommercialQuote({ lines: [{ ...line, gstPercent: null }] });
+    expect(quote.gstPending).toBe(true);
+    expect(quote.lines[0]).toMatchObject({ gstPercent: null, gstPending: true, base: "600.00", gst: "0.00", total: "600.00" });
+    expect(quote.total).toBe("600.00");
+    expect(hasPendingGst(quote)).toBe(true);
+    expect(() => assertCommercialInvoiceable(quote)).toThrow("GST configuration required before invoice");
+  });
+
   it("converts accepted case weight to quintals and adds explicit SKU GST", () => {
     const quote = calculateCommercialQuote({ lines: [line] });
     expect(quote.lines[0]).toMatchObject({ quintals: "0.6", base: "600.00", gst: "30.00", total: "630.00" });

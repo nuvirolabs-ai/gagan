@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import * as XLSX from "xlsx";
 import { Prisma, type PrismaClient } from "@prisma/client";
+import { internalStagingInventoryEnabled } from "../inventory/inventoryService";
 
 export const REAL_CATALOGUE_VERSION = "sku-wise-item-list-2026-09-16-v1";
 export const REAL_CATALOGUE_SOURCE_FILE = "SKU WISE ITEM LIST – 16-09-26-UPDATED.xlsx";
@@ -34,8 +35,10 @@ export type RealCataloguePriceDecision = {
 };
 
 export type RealCatalogueInventoryDecision = {
-  /** This is an approved external mapping, never an internal code. */
-  sapMaterialId: string;
+  /** Exactly one identity is allowed. Internal IDs are staging-only and are
+   * never copied into Product.sapMaterialId or an SAP payload. */
+  sapMaterialId?: string;
+  internalMaterialId?: string;
   warehouseCode: string;
   evidence: string;
 };
@@ -49,6 +52,8 @@ export type RealCatalogueDecisionRecord = {
   variantInternalCode?: string;
   hsnCode?: string;
   gstPercent?: string | number;
+  /** Explicit owner-approved staging exception; never means GST is 0%. */
+  gstPendingOrderAllowed?: boolean;
   ordering?: {
     unit?: "kg";
     unitsPerCase?: number;
@@ -113,6 +118,12 @@ export type RealCatalogueDecisions = {
     };
   };
   pricing?: RealCataloguePricingDecision;
+  gstPendingOrdering?: {
+    allowOrderBeforeGstFinalized: boolean;
+    invoiceBlockedUntilGstConfigured: boolean;
+    variantKeys: string[];
+    evidence: string;
+  };
   imageMappingRevision: string;
   records: RealCatalogueDecisionRecord[];
   retireCandidates?: RealCatalogueRetirementCandidate[];
@@ -139,6 +150,7 @@ export type RealCatalogueRecord = {
   variantInternalCode?: string | null;
   hsnCode?: string | null;
   gstPercent?: string | null;
+  gstPendingOrderAllowed?: boolean;
   sellingEntity?: "jain_traders" | "padam_international" | null;
   priceLists?: RealCataloguePriceDecision[];
   inventoryMapping?: RealCatalogueInventoryDecision | null;
@@ -353,7 +365,11 @@ function decimalText(value: string | number, field: string, options: { positive?
 function readinessBlockersFor(record: RealCatalogueRecord) {
   const blockers: string[] = [];
   if (!record.productInternalCode || !record.variantInternalCode) blockers.push("stable_internal_catalogue_identity_requires_approval");
-  if (record.gstPercent === null || record.gstPercent === undefined) blockers.push("gst_percent_requires_approval");
+  // The owner-approved six-variant staging exception allows an order quote
+  // before GST is finalized, but it never makes the row invoiceable. The
+  // resolved record carries the explicit per-variant grant; absent that grant
+  // a missing GST value remains a readiness blocker.
+  if ((record.gstPercent === null || record.gstPercent === undefined) && record.gstPendingOrderAllowed !== true) blockers.push("gst_percent_requires_approval");
   if (!record.inventoryMapping) blockers.push("inventory_mapping_requires_approval");
   if (!record.priceLists?.length) blockers.push("price_tier_requires_approval");
   if (record.priceLists?.some((price) => price.gstIncluded)) blockers.push("price_gst_basis_incompatible_with_current_engine");
@@ -546,7 +562,7 @@ function normalizeDecisionRecord(value: unknown, index: number): RealCatalogueDe
   if (!isRecord(value)) throw new Error(`invalid_decisions_records_${index}`);
   assertKeys(value, [
     "variantKey", "productCatalogKey", "variantCatalogKey", "productInternalCode", "variantInternalCode",
-    "hsnCode", "gstPercent", "ordering", "priceLists", "inventory", "routing", "image",
+    "hsnCode", "gstPercent", "gstPendingOrderAllowed", "ordering", "priceLists", "inventory", "routing", "image",
   ], `record_${index}`);
   const result: RealCatalogueDecisionRecord = { variantKey: requireString(value.variantKey, `records_${index}_variantKey`) };
   for (const key of ["productCatalogKey", "variantCatalogKey", "productInternalCode", "variantInternalCode", "hsnCode"] as const) {
@@ -556,6 +572,10 @@ function normalizeDecisionRecord(value: unknown, index: number): RealCatalogueDe
     const gst = new Prisma.Decimal(decimalText(value.gstPercent as string | number, `records_${index}_gstPercent`, { maxPlaces: 2 }));
     if (gst.gt(100)) throw new Error(`invalid_decisions_records_${index}_gstPercent`);
     result.gstPercent = gst.toString();
+  }
+  if (value.gstPendingOrderAllowed !== undefined) {
+    if (typeof value.gstPendingOrderAllowed !== "boolean") throw new Error(`invalid_decisions_records_${index}_gstPendingOrderAllowed`);
+    result.gstPendingOrderAllowed = value.gstPendingOrderAllowed;
   }
   if (value.ordering !== undefined) {
     if (!isRecord(value.ordering)) throw new Error(`invalid_decisions_records_${index}_ordering`);
@@ -596,9 +616,13 @@ function normalizeDecisionRecord(value: unknown, index: number): RealCatalogueDe
   }
   if (value.inventory !== undefined) {
     if (!isRecord(value.inventory)) throw new Error(`invalid_decisions_records_${index}_inventory`);
-    assertKeys(value.inventory, ["sapMaterialId", "warehouseCode", "evidence"], `record_${index}_inventory`);
+    assertKeys(value.inventory, ["sapMaterialId", "internalMaterialId", "warehouseCode", "evidence"], `record_${index}_inventory`);
+    const sapMaterialId = value.inventory.sapMaterialId === undefined ? undefined : requireString(value.inventory.sapMaterialId, `records_${index}_inventory_sapMaterialId`);
+    const internalMaterialId = value.inventory.internalMaterialId === undefined ? undefined : requireString(value.inventory.internalMaterialId, `records_${index}_inventory_internalMaterialId`);
+    if ((sapMaterialId === undefined) === (internalMaterialId === undefined)) throw new Error(`invalid_decisions_records_${index}_inventory_identity`);
     result.inventory = {
-      sapMaterialId: requireString(value.inventory.sapMaterialId, `records_${index}_inventory_sapMaterialId`),
+      ...(sapMaterialId === undefined ? {} : { sapMaterialId }),
+      ...(internalMaterialId === undefined ? {} : { internalMaterialId }),
       warehouseCode: requireString(value.inventory.warehouseCode, `records_${index}_inventory_warehouseCode`),
       evidence: requireString(value.inventory.evidence, `records_${index}_inventory_evidence`),
     };
@@ -649,7 +673,7 @@ function normalizeDecisionRecord(value: unknown, index: number): RealCatalogueDe
 
 export function validateRealCatalogueDecisions(manifest: RealCatalogueManifest, input: unknown): RealCatalogueDecisions {
   if (!isRecord(input)) throw new Error("invalid_decisions_file");
-  assertKeys(input, ["schemaVersion", "approval", "pricing", "imageMappingRevision", "records", "retireCandidates"], "root");
+  assertKeys(input, ["schemaVersion", "approval", "pricing", "gstPendingOrdering", "imageMappingRevision", "records", "retireCandidates"], "root");
   if (input.schemaVersion !== 1) throw new Error("unsupported_decisions_schema");
   if (!isRecord(input.approval)) throw new Error("invalid_decisions_approval");
   assertKeys(input.approval, ["approvalId", "revision", "approvedBy", "approvedAt", "scope", "decisionSource", "source"], "approval");
@@ -677,6 +701,26 @@ export function validateRealCatalogueDecisions(manifest: RealCatalogueManifest, 
       targetTierStatus: input.pricing.targetTierStatus,
       ...(input.pricing.scope === undefined ? {} : { scope: input.pricing.scope as "all_retailers" }),
       evidence: requireString(input.pricing.evidence, "pricing_evidence"),
+    };
+  }
+  let gstPendingOrdering: RealCatalogueDecisions["gstPendingOrdering"] | undefined;
+  if (input.gstPendingOrdering !== undefined) {
+    if (!isRecord(input.gstPendingOrdering)) throw new Error("invalid_decisions_gstPendingOrdering");
+    assertKeys(input.gstPendingOrdering, ["allowOrderBeforeGstFinalized", "invoiceBlockedUntilGstConfigured", "variantKeys", "evidence"], "gstPendingOrdering");
+    if (input.gstPendingOrdering.allowOrderBeforeGstFinalized !== true || input.gstPendingOrdering.invoiceBlockedUntilGstConfigured !== true) {
+      throw new Error("invalid_decisions_gstPendingOrdering_policy");
+    }
+    if (!Array.isArray(input.gstPendingOrdering.variantKeys) || input.gstPendingOrdering.variantKeys.length === 0 || input.gstPendingOrdering.variantKeys.some((key) => typeof key !== "string" || !key)) {
+      throw new Error("invalid_decisions_gstPendingOrdering_variantKeys");
+    }
+    if (new Set(input.gstPendingOrdering.variantKeys as string[]).size !== input.gstPendingOrdering.variantKeys.length) throw new Error("invalid_decisions_gstPendingOrdering_duplicate_variant");
+    const manifestKeys = new Set(manifest.records.map((record) => record.variantKey));
+    if ((input.gstPendingOrdering.variantKeys as string[]).some((key) => !manifestKeys.has(key))) throw new Error("gstPendingOrdering_variant_not_in_manifest");
+    gstPendingOrdering = {
+      allowOrderBeforeGstFinalized: true,
+      invoiceBlockedUntilGstConfigured: true,
+      variantKeys: [...input.gstPendingOrdering.variantKeys] as string[],
+      evidence: requireString(input.gstPendingOrdering.evidence, "gstPendingOrdering_evidence"),
     };
   }
   const imageMappingRevision = requireString(input.imageMappingRevision, "imageMappingRevision");
@@ -762,6 +806,7 @@ export function validateRealCatalogueDecisions(manifest: RealCatalogueManifest, 
       },
     },
     ...(pricing === undefined ? {} : { pricing }),
+    ...(gstPendingOrdering === undefined ? {} : { gstPendingOrdering }),
     imageMappingRevision,
     records,
     ...(retirement === undefined ? {} : {
@@ -820,6 +865,9 @@ export function resolveRealCatalogueDecisions(manifest: RealCatalogueManifest, i
       variantInternalCode: decision.variantInternalCode ?? source.variantInternalCode ?? null,
       hsnCode: decision.hsnCode ?? source.hsnCode ?? null,
       gstPercent: decision.gstPercent === undefined ? source.gstPercent ?? null : decimalText(decision.gstPercent, `records_${source.variantKey}_gstPercent`, { maxPlaces: 2 }),
+      gstPendingOrderAllowed: decision.gstPendingOrderAllowed === true
+        && decisions.gstPendingOrdering?.allowOrderBeforeGstFinalized === true
+        && decisions.gstPendingOrdering.variantKeys.includes(source.variantKey),
       sellingEntity: routing?.sellingEntity === undefined ? source.sellingEntity ?? null : routing.sellingEntity,
       priceLists: decision.priceLists ?? source.priceLists ?? [],
       inventoryMapping: decision.inventory ?? source.inventoryMapping ?? null,
@@ -1341,11 +1389,24 @@ export async function promoteRealCatalogueManifest(
     const productMapping = new Map<string, string>();
     for (const record of resolved.manifest.records) {
       const productKey = targetCatalogKey(record, "product");
+      const variantKey = targetCatalogKey(record, "variant");
       const inventory = record.inventoryMapping;
       if (!inventory || !tierIds.size) throw new Error(`catalogue_promotion_configuration_missing_${record.variantKey}`);
-      if (productMapping.has(productKey) && productMapping.get(productKey) !== inventory.sapMaterialId) throw new Error(`catalogue_product_inventory_mapping_conflict_${productKey}`);
-      productMapping.set(productKey, inventory.sapMaterialId);
-      const snapshot = await tx.inventorySnapshot.findUnique({ where: { sapMaterialId_warehouseCode: { sapMaterialId: inventory.sapMaterialId, warehouseCode: inventory.warehouseCode } } });
+      const product = await tx.product.findUnique({ where: { catalogKey: productKey } });
+      const variant = await tx.variant.findUnique({ where: { catalogKey: variantKey } });
+      if (!product || !variant || variant.productId !== product.id) throw new Error(`catalogue_source_import_required_${record.variantKey}`);
+      const usesInternalIdentity = inventory.internalMaterialId !== undefined;
+      if (usesInternalIdentity && (!internalStagingInventoryEnabled() || product.sapMaterialId !== null)) {
+        throw new Error(`catalogue_internal_inventory_requires_staging_mock_${record.variantKey}`);
+      }
+      const identity = usesInternalIdentity ? `internal:${inventory.internalMaterialId}` : `sap:${inventory.sapMaterialId}`;
+      const mappingKey = usesInternalIdentity ? `${productKey}:${variantKey}` : productKey;
+      if (productMapping.has(mappingKey) && productMapping.get(mappingKey) !== identity) throw new Error(`catalogue_product_inventory_mapping_conflict_${productKey}`);
+      productMapping.set(mappingKey, identity);
+      const snapshot = usesInternalIdentity
+        ? await tx.inventorySnapshot.findUnique({ where: { internalMaterialId_warehouseCode: { internalMaterialId: inventory.internalMaterialId!, warehouseCode: inventory.warehouseCode } } })
+        : await tx.inventorySnapshot.findUnique({ where: { sapMaterialId_warehouseCode: { sapMaterialId: inventory.sapMaterialId!, warehouseCode: inventory.warehouseCode } } });
+      if (usesInternalIdentity && (!snapshot || snapshot.productId !== product.id || snapshot.variantId !== variant.id)) throw new Error(`catalogue_inventory_identity_mismatch_${record.variantKey}`);
       if (!snapshot || snapshot.status === "unavailable" || Number(snapshot.available) <= 0 || Date.now() - snapshot.syncedAt.getTime() > 60 * 60 * 1000) throw new Error(`catalogue_inventory_not_ready_${record.variantKey}`);
       for (const price of record.priceLists ?? []) if (!tierIds.has(price.tierId)) throw new Error(`catalogue_price_tier_not_found_${price.tierId}`);
     }
@@ -1364,7 +1425,7 @@ export async function promoteRealCatalogueManifest(
         data: {
           catalogKey: productKey,
           internalCode: record.productInternalCode!,
-          sapMaterialId: inventory.sapMaterialId,
+          ...(inventory.sapMaterialId === undefined ? {} : { sapMaterialId: inventory.sapMaterialId }),
           catalogStatus: "active",
           name: record.productName,
           category: record.category,
@@ -1382,6 +1443,7 @@ export async function promoteRealCatalogueManifest(
           hsnCode: record.hsnCode,
           sellingEntity: record.sellingEntity ?? null,
           gstPercent: record.gstPercent,
+          gstPendingOrderAllowed: record.gstPendingOrderAllowed ?? false,
           routingClass: record.routingClass,
           routingBagEquivalent: record.routingBagEquivalent,
           unitSize: record.unitSize,

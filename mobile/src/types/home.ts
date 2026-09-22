@@ -35,6 +35,7 @@ export interface QuickOrderItem {
   rateBasis?: string;
   rateLabel?: string | null;
   orderable?: boolean;
+  gstPending?: boolean;
   orderingReason?: string | null;
   imageStatus?: "exact" | "placeholder" | "pending";
   imageLabel?: string | null;
@@ -67,6 +68,7 @@ export interface HomeSku {
   isOverride?: boolean;
   catalogStatus?: string;
   orderable?: boolean;
+  gstPending?: boolean;
   orderingStatus?: string;
   orderingReason?: string | null;
   imageUrl?: string | null;

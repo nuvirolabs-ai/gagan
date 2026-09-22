@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { snapshot, asJson, quoteDelivery } from "../commercial/service";
+import { hasPendingGst } from "../../lib/commercialQuote";
 import { addDays, paymentTermDays, recomputeOverdue } from "../../lib/ageing";
 import { buildInvoice } from "../../lib/invoicing";
 import { prisma } from "../../lib/prisma";
@@ -119,6 +120,10 @@ async function createOnce(input: CreateInvoiceForDeliveryInput): Promise<Invoice
         input.lines
       );
 
+      const accepted=snapshot(order.commercialSnapshot);
+      if (hasPendingGst(accepted)) throw new InvoiceCreationError("gst_configuration_required_before_invoice");
+      const commercial=accepted ? quoteDelivery(accepted,order.items.map(item=>{const r=resolutions.get(item.id)!;return {variantId:item.variantId,cases:r.deliveredCases,weightKg:r.deliveredWeightKg};})) : null;
+
       for (const item of order.items) {
         const resolution = resolutions.get(item.id)!;
         await tx.orderItem.update({
@@ -142,8 +147,6 @@ async function createOnce(input: CreateInvoiceForDeliveryInput): Promise<Invoice
         };
       });
       const breakdown = buildInvoice(resolvedItems);
-      const accepted=snapshot(order.commercialSnapshot);
-      const commercial=accepted ? quoteDelivery(accepted,order.items.map(item=>{const r=resolutions.get(item.id)!;return {variantId:item.variantId,cases:r.deliveredCases,weightKg:r.deliveredWeightKg};})) : null;
       if (commercial) {
         breakdown.total=Number(commercial.total);
         for (const line of breakdown.lines) {

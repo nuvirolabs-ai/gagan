@@ -182,7 +182,7 @@ export async function validateRows(db: Db, type: ImportType, rawRows: RawImportR
         if (committed !== null && onHand !== null && committed > onHand) row.warnings.push("committed exceeds on_hand; available will be zero.");
         const match = productMatch(ctx, text(values, "product_name"), text(values, "unit_size"), text(values, "sap_material_id"));
         if (!match?.product) row.errors.push("product_name + unit_size (or sap_material_id) does not match an existing product variant.");
-        const existing = ctx.inventory.find((item) => lower(item.sapMaterialId) === lower(text(values, "sap_material_id")) && lower(item.warehouseCode) === lower(text(values, "warehouse_code")));
+        const existing = ctx.inventory.find((item) => item.sapMaterialId !== null && lower(item.sapMaterialId) === lower(text(values, "sap_material_id")) && lower(item.warehouseCode) === lower(text(values, "warehouse_code")));
         row.action = existing ? "update" : "create";
         if (existing) row.match = { id: existing.id, label: `${existing.sapMaterialId} / ${existing.warehouseCode}` };
         row.resolved = { productId: match?.product.id ?? null, variantId: match?.variant?.id ?? null, existingId: existing?.id ?? null };

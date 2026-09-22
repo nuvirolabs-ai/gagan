@@ -108,7 +108,10 @@ router.put("/admin/commercial/skus/:id",requireAdmin,async(req:AdminRequest,res)
     routingBagEquivalent: req.body.routingBagEquivalent || null,
   });
   const result=await prisma.$transaction(async tx=>{
-    const variant=await tx.variant.update({where:{id:req.params.id},data:{sellingEntity:body.sellingEntity,gstPercent:body.gstPercent,routingClass:body.routingClass,routingBagEquivalent:body.routingBagEquivalent}});
+    // Finalizing GST retires the narrowly-scoped pre-GST ordering exception.
+    // The invoice guard remains fail-closed if a caller does not supply a
+    // configured GST value.
+    const variant=await tx.variant.update({where:{id:req.params.id},data:{sellingEntity:body.sellingEntity,gstPercent:body.gstPercent,gstPendingOrderAllowed:false,routingClass:body.routingClass,routingBagEquivalent:body.routingBagEquivalent}});
     await tx.priceList.upsert({where:{tierId_variantId:{tierId:body.tierId,variantId:variant.id}},update:{price:body.rate,rateBasis:body.rateBasis},create:{tierId:body.tierId,variantId:variant.id,productId:variant.productId,price:body.rate,rateBasis:body.rateBasis}});
     await tx.auditEvent.create({data:{actorStaffId:req.staffAuth!.staffId,action:"commercial.sku_configured",subjectType:"variant",subjectId:variant.id,metadata:body}});
     return variant;

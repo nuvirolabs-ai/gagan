@@ -116,6 +116,47 @@ describe("real catalogue source mapping", () => {
     expect(resolved.approvalSha256).toMatch(/^[a-f0-9]{64}$/);
   });
 
+  it("allows only explicitly approved pending-GST rows to become orderable", () => {
+    const manifest = buildRealCatalogueManifest(workbookBuffer(), "catalogue.xlsx", imageIndex);
+    const row = manifest.records[0];
+    const resolved = resolveRealCatalogueDecisions(manifest, {
+      schemaVersion: 1,
+      approval: {
+        approvalId: "approval-test-pending-gst",
+        revision: 2,
+        approvedBy: "owner-test",
+        approvedAt: "2026-09-22T00:00:00.000Z",
+        scope: "one controlled staging row may be ordered before GST is finalized",
+        source: { workbookSha256: manifest.source.sha256, sourceVersion: manifest.source.version },
+      },
+      gstPendingOrdering: {
+        allowOrderBeforeGstFinalized: true,
+        invoiceBlockedUntilGstConfigured: true,
+        variantKeys: [row.variantKey],
+        evidence: "owner explicitly approved ordering before GST finalization without inventing a tax rate",
+      },
+      imageMappingRevision: "images-v1",
+      records: [{
+        variantKey: row.variantKey,
+        productInternalCode: "GAGAN-INT-BROKEN",
+        variantInternalCode: "GAGAN-INT-BROKEN-30KG",
+        gstPendingOrderAllowed: true,
+        priceLists: [{ tierId: "tier-gold", rate: "5400", rateBasis: "quintal", gstIncluded: false }],
+        inventory: { sapMaterialId: "reviewed-material", warehouseCode: "WH-001", evidence: "disposable pending-GST test" },
+        routing: { routingClass: "OTHER", routingBagEquivalent: "1.000", sellingEntity: null },
+        image: { driveFileId: "drive-broken", mappingRevision: "images-v1", evidence: "exact SKU filename" },
+      }],
+    });
+
+    expect(resolved.manifest.records[0]).toMatchObject({
+      catalogStatus: "active",
+      gstPercent: null,
+      gstPendingOrderAllowed: true,
+      readinessBlockers: [],
+    });
+    expect(resolved.manifest.records[1].readinessBlockers).toContain("stable_internal_catalogue_identity_requires_approval");
+  });
+
   it("rejects an image decision outside the exact candidate set", () => {
     const manifest = buildRealCatalogueManifest(workbookBuffer(), "catalogue.xlsx", imageIndex);
     expect(() => resolveRealCatalogueDecisions(manifest, {

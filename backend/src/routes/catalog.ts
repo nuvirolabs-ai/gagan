@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../lib/auth";
-import { DEFAULT_WAREHOUSE_CODE, INVENTORY_STALE_AFTER_MS } from "../modules/inventory/inventoryService";
+import { DEFAULT_WAREHOUSE_CODE, INVENTORY_STALE_AFTER_MS, selectInventorySnapshot } from "../modules/inventory/inventoryService";
 import { publicMediaUrl } from "../lib/media";
 import { groupCatalog } from "../modules/catalog/catalogGrouping";
 import { catalogueImageState, catalogueOrderingState, catalogueStatusWhere } from "../modules/catalog/catalogueVisibility";
@@ -40,7 +40,7 @@ function shapeVariant(v: any, resolve: ReturnType<typeof priceResolver>, invento
     price,
     isOverride,
     catalogStatus: v.catalogStatus,
-    ...catalogueOrderingState(v.catalogStatus),
+    ...catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed),
     ...catalogueImageState(v),
     rateLabel: rate !== null ? `${rateBasis === "quintal" ? "per quintal" : "per case"} · Excluding GST` : null,
     // Retailers compare commodities on rate per kg, and it's what the invoice
@@ -77,7 +77,6 @@ router.get("/catalog", requireAuth, async (req: AuthedRequest, res) => {
   ]);
 
   const resolve = priceResolver(priceList, overrides);
-  const inventoryByMaterial = new Map(inventory.map((snapshot) => [snapshot.sapMaterialId, snapshot]));
 
   const catalog = products.map((product) => ({
     id: product.id,
@@ -85,7 +84,7 @@ router.get("/catalog", requireAuth, async (req: AuthedRequest, res) => {
     category: product.category,
     imageUrl: publicMediaUrl(req, product.imageUrl),
     description: product.description,
-    variants: product.variants.map((v) => shapeVariant(v, resolve, product.sapMaterialId ? inventoryByMaterial.get(product.sapMaterialId) : undefined, req)),
+    variants: product.variants.map((v) => shapeVariant(v, resolve, selectInventorySnapshot(product, v, inventory), req)),
   }));
 
   const categories = [...new Set(products.map((p) => p.category))].sort();
@@ -103,7 +102,7 @@ router.get("/catalog", requireAuth, async (req: AuthedRequest, res) => {
       description: product.description,
       sapMaterialId: product.sapMaterialId,
       variants: product.variants.map((v) =>
-        shapeVariant(v, resolve, product.sapMaterialId ? inventoryByMaterial.get(product.sapMaterialId) : undefined, req)
+        shapeVariant(v, resolve, selectInventorySnapshot(product, v, inventory), req)
       ),
     }))
   );
@@ -157,7 +156,6 @@ router.get("/products/:id", requireAuth, async (req: AuthedRequest, res) => {
   ]);
 
   const resolve = priceResolver(priceList, overrides);
-  const inventoryByMaterial = new Map(inventory.map((snapshot) => [snapshot.sapMaterialId, snapshot]));
 
   const [group] = groupCatalog(
     members.map((member) => ({
@@ -168,7 +166,7 @@ router.get("/products/:id", requireAuth, async (req: AuthedRequest, res) => {
       description: member.description,
       sapMaterialId: member.sapMaterialId,
       variants: member.variants.map((v) =>
-        shapeVariant(v, resolve, member.sapMaterialId ? inventoryByMaterial.get(member.sapMaterialId) : undefined, req)
+        shapeVariant(v, resolve, selectInventorySnapshot(member, v, inventory), req)
       ),
     }))
   );

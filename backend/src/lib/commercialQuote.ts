@@ -13,7 +13,8 @@ export interface CommercialQuoteLine {
   caseWeightKg: DecimalInput;
   rate: DecimalInput;
   rateBasis: "case" | "quintal";
-  gstPercent: DecimalInput;
+  gstPercent: DecimalInput | null;
+  gstPending?: boolean;
   /** Delivery-only accepted weight. Absent for checkout. */
   deliveredWeightKg?: string;
 }
@@ -82,11 +83,12 @@ export function calculateCommercialQuote(input: { lines: CommercialQuoteLine[]; 
     const quintals = kilograms.div(100);
     const basisQuantity = line.rateBasis === "case" ? kilograms.div(caseWeight) : quintals;
     const base = rounded(money(line.rate, "rate").mul(basisQuantity));
-    const gst = rounded(base.mul(taxRate(line.gstPercent)).div(100));
+    const gstPending = line.gstPercent === null;
+    const gst = gstPending ? new Prisma.Decimal(0) : rounded(base.mul(taxRate(line.gstPercent!)).div(100));
     const group = bucket(line.entity);
     group.goods = group.goods.add(base);
     group.tax = group.tax.add(gst);
-    return { ...line, weightKg: kilograms.toString(), quintals: quintals.toString(), discount: "0.00", base: serialized(base), gst: serialized(gst), total: serialized(base.add(gst)) };
+    return { ...line, gstPending, weightKg: kilograms.toString(), quintals: quintals.toString(), discount: "0.00", base: serialized(base), gst: serialized(gst), total: serialized(base.add(gst)) };
   });
   let freight;
   if (input.freight) {
@@ -107,6 +109,14 @@ export function calculateCommercialQuote(input: { lines: CommercialQuoteLine[]; 
     goods: serialized(group.goods), freight: serialized(group.freight), gst: serialized(group.tax),
     total: serialized(group.goods.add(group.freight).add(group.tax)),
   }));
-  return { lines, freight: freight ?? null, entities,
+  return { lines, gstPending: lines.some(line => line.gstPending), freight: freight ?? null, entities,
     total: serialized(entities.reduce((sum, group) => sum.add(group.total), new Prisma.Decimal(0))) };
+}
+
+export function hasPendingGst(value: { lines?: Array<{ gstPercent?: string | null; gstPending?: boolean }> } | null | undefined) {
+  return value?.lines?.some(line => line.gstPending === true || line.gstPercent === null) ?? false;
+}
+
+export function assertCommercialInvoiceable(value: { lines?: Array<{ gstPercent?: string | null; gstPending?: boolean }> } | null | undefined) {
+  if (hasPendingGst(value)) throw new Error("GST configuration required before invoice");
 }

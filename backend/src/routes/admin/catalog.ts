@@ -39,7 +39,7 @@ router.get("/products", async (req, res) => {
         catalogKey: v.catalogKey,
         internalCode: v.internalCode,
         catalogStatus: v.catalogStatus,
-        ...catalogueOrderingState(v.catalogStatus),
+        ...catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed),
         ...catalogueImageState(v),
         imageUrl: publicMediaUrl(req, v.imageUrl),
         unitSize: v.unitSize,

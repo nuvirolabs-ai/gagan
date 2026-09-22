@@ -122,6 +122,24 @@ describe("Wave 1B authoritative commercial lifecycle",()=>{
   const ready=await setFreight(q!.id,1,{entity:"jain_traders",amount:"0",gstPercent:"0",recordedQuintals:"0.3",recordedKilometres:"0"},staff);
   expect(await createOrderForRetailer(retailer,[{variantId:variants[0],qty:1}],"retailer",undefined,undefined,randomUUID(),{quoteId:ready.id,revision:1})).toMatchObject({ok:false,body:{error:"quote_changed_or_expired"}});
  });
+ it("permits an explicitly approved pre-GST order but blocks invoice creation before mutation",async()=>{
+  await prisma.retailer.update({where:{id:retailer},data:{deliveryCity:"Bhopal"}});
+  await prisma.variant.update({where:{id:variants[0]},data:{sellingEntity:null,routingClass:"OTHER",routingBagEquivalent:"1",gstPercent:null,gstPendingOrderAllowed:true}});
+  try {
+   const q=await quoteFor(retailer,[{variantId:variants[0],qty:1}]);
+   expect(q).not.toBeNull();
+   expect(snapshot(q!.snapshot)).toMatchObject({gstPending:true,total:"3000.00"});
+   const ready=await setFreight(q!.id,q!.revision,{entity:"jain_traders",amount:"0",gstPercent:"0",recordedQuintals:"0.30",recordedKilometres:"0"},staff);
+   const created=await order(ready);
+   await prisma.order.update({where:{id:created.id},data:{status:"out_for_delivery"}});
+   await expect(deliver(created)).rejects.toThrow("gst_configuration_required_before_invoice");
+   expect(await prisma.invoice.count({where:{orderId:created.id}})).toBe(0);
+   expect((await prisma.order.findUniqueOrThrow({where:{id:created.id}})).status).toBe("out_for_delivery");
+  } finally {
+   await prisma.retailer.update({where:{id:retailer},data:{deliveryCity:null}});
+   await prisma.variant.update({where:{id:variants[0]},data:{sellingEntity:"jain_traders",routingClass:null,routingBagEquivalent:null,gstPercent:5,gstPendingOrderAllowed:false}});
+  }
+ });
  it("parallel duplicate checkout and delivery produce exactly one order and invoice",async()=>{
   const q=await quote();const key=randomUUID();const results=await Promise.all([order(q,key),order(q,key)]);
   expect(results[0].id).toBe(results[1].id);

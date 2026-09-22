@@ -1128,6 +1128,9 @@ model Variant {
   hsnCode            String?
   sellingEntity      String?
   gstPercent         Decimal?            @db.Decimal(5, 2)
+  /// Explicit staging-only permission to accept an order before GST is finalized.
+  /// Invoice creation still requires a non-null GST snapshot.
+  gstPendingOrderAllowed Boolean          @default(false)
   /// Explicit routing classification. Null preserves legacy static/ungrouped
   /// catalog behavior until a SKU is deliberately configured for routing.
   routingClass       String?
@@ -1173,7 +1176,9 @@ model InventorySnapshot {
   product       Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
   variantId     String?
   variant       Variant?        @relation(fields: [variantId], references: [id], onDelete: Cascade)
-  sapMaterialId String
+  sapMaterialId String?
+  /// Internal staging identity is never written into the external SAP field.
+  internalMaterialId String?
   warehouseCode String
   onHand        Decimal         @db.Decimal(14, 3)
   committed     Decimal         @default(0) @db.Decimal(14, 3)
@@ -1185,6 +1190,7 @@ model InventorySnapshot {
   updatedAt     DateTime        @updatedAt
 
   @@unique([sapMaterialId, warehouseCode])
+  @@unique([internalMaterialId, warehouseCode])
   @@index([productId, warehouseCode])
   @@index([status, syncedAt])
 }

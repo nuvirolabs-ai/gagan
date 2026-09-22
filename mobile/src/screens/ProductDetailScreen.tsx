@@ -14,6 +14,7 @@ import { colors, radius, spacing, inr } from "../theme";
 import ProductThumb from "../components/ProductThumb";
 import { QtyStepper, EmptyState, ScreenSkeleton, SectionTitle } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
+import { catalogPricePresentation } from "../lib/catalogPricePresentation";
 
 export default function ProductDetailScreen({ route, navigation }: any) {
   const { productId } = route.params;
@@ -152,25 +153,26 @@ export default function ProductDetailScreen({ route, navigation }: any) {
           {selected && (
             <View style={styles.priceBand}>
               <View>
-                <Text style={styles.priceLabel}>{t("product.pricePerCase")}</Text>
+                <Text style={styles.priceLabel}>{selected.rateBasis === "quintal" ? "Commercial rate" : t("product.pricePerCase")}</Text>
                 <Text
                   style={styles.price}
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.7}
                 >
-                  {selected.price != null ? inr(selected.price) : t("product.onRequest")}
+                  {catalogPricePresentation(selected).primary}
                 </Text>
               </View>
               {selected.pricePerKg != null && (
                 <View style={styles.perKgBox}>
-                  <Text style={styles.perKgValue}>{inr(selected.pricePerKg)}</Text>
-                  <Text style={styles.perKgLabel}>{t("product.perKg")}</Text>
+                  <Text style={styles.perKgValue}>{catalogPricePresentation(selected).perKg}</Text>
                 </View>
               )}
             </View>
           )}
-          {selected?.rateLabel ? <Text style={styles.rateLabel}>{selected.rateLabel}</Text> : null}
+          {catalogPricePresentation(selected).caseEquivalent ? <Text style={styles.rateLabel}>{catalogPricePresentation(selected).caseEquivalent}</Text> : null}
+          {selected?.rateLabel ? <Text style={styles.rateLabel}>Excluding GST</Text> : null}
+          {selected?.gstPending ? <Text style={styles.pendingOrder}>GST pending · invoice blocked until configured</Text> : null}
           {selected?.orderable === false ? <Text style={styles.pendingOrder}>{selected.orderingReason ?? "Ordering setup pending"}</Text> : null}
           {selected?.isOverride ? (
             <View style={styles.override}>

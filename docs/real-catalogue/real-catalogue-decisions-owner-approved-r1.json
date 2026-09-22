@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "approval": {
-    "approvalId": "gagan-real-catalogue-owner-approval-r2",
-    "revision": 2,
+    "approvalId": "gagan-real-catalogue-owner-approval-r3",
+    "revision": 3,
     "approvedBy": "Gagan owner",
-    "approvedAt": "2026-09-17T00:00:00.000Z",
-    "decisionSource": "Explicit owner decisions in the current Gagan real-catalogue activation task",
-    "scope": "Publish all 105 reviewed real variants visibly on the existing Gagan staging catalogue; use permanent internal Gagan identifiers; apply workbook prices to all existing retailer tiers as GST-exclusive INR per-quintal rates; resolve the twelve exact reviewed 20 KG BOX rows as one ordered BOX equals one routing BAG for threshold contribution only; choose sharper images only for verified identical packaging; use an Image coming soon placeholder for exact photographs that are missing; keep unresolved image alternatives pending confirmation; keep rows without approved tax or inventory non-orderable; retire only the exact confirmed dummy/test allowlist. No GST, stock, SAP mapping or dynamic routing override is invented.",
+    "approvedAt": "2026-09-22T00:00:00.000Z",
+    "decisionSource": "Explicit owner decision in the current six-variant ordering-readiness task",
+    "scope": "Publish all 105 reviewed real variants visibly on the existing Gagan staging catalogue; use permanent internal Gagan identifiers; apply workbook prices to all existing retailer tiers as GST-exclusive INR per-quintal rates; resolve the twelve exact reviewed 20 KG BOX rows as one ordered BOX equals one routing BAG for threshold contribution only; choose sharper images only for verified identical packaging; use an Image coming soon placeholder for exact photographs that are missing; keep unresolved image alternatives pending confirmation; allow the six named rice variants to be ordered before GST is finalized while blocking invoice creation until GST is configured; keep rows without approved inventory non-orderable; retire only the exact confirmed dummy/test allowlist. No GST rate, stock, SAP mapping or dynamic routing override is invented.",
     "source": {
       "workbookSha256": "f9f69849c37421bd48a0326d50239cb2ebf0ff47b955bc56915556446fa9e5a6",
       "sourceVersion": "sku-wise-item-list-2026-09-16-v1",
@@ -21,6 +21,19 @@
     "scope": "all_retailers",
     "evidence": "Owner decision: workbook numeric prices are before GST, retain their per-quintal basis and apply to all retailers through every existing price tier. No GST percentage, HSN or stock mapping is invented."
   },
+  "gstPendingOrdering": {
+    "allowOrderBeforeGstFinalized": true,
+    "invoiceBlockedUntilGstConfigured": true,
+    "variantKeys": [
+      "real-catalogue:variant:02231e3b302d337360ec2267a0651f8b3592c8c5a2374ca06f1b8521c3d5f84b",
+      "real-catalogue:variant:6986bb1ebc542536524718be661a0a6a2fce3362cd7d5de3494298f74ce1e820",
+      "real-catalogue:variant:a667124b440dc8dbda60a6e6a6b39902bdf280c0c1e08b1f2fbf02a365a38302",
+      "real-catalogue:variant:5384545e9b77a863445d7e860b611a9017fc3e9705a6024e035688d2a0f5727e",
+      "real-catalogue:variant:32f10132475d9334a9348831bdd6581692b2e8c6efe66f06aea4cfadcae95e72",
+      "real-catalogue:variant:f682c314a576296a64b08cfda50d2dfad0b4805e65432324652f4fb9289d58f1"
+    ],
+    "evidence": "Owner decision dated 2026-09-22: make ordering work without GST constraint for these six reviewed rice variants; GST will be added later. No zero GST value is inferred, and invoice creation remains blocked until the actual GST configuration is supplied."
+  },
   "imageMappingRevision": "drive-image-selection-2026-09-17-r2",
   "records": [
     {
@@ -28,21 +41,24 @@
       "productCatalogKey": "real-catalogue:product:724e5996749c901ed4779afe64cbd20ae9eceac8031a52d6ffccc46b84dd4655",
       "variantCatalogKey": "real-catalogue:variant:02231e3b302d337360ec2267a0651f8b3592c8c5a2374ca06f1b8521c3d5f84b",
       "productInternalCode": "GAGAN-INT-P-724e5996749c901ed4779afe64cbd20ae9eceac8031a52d6ffccc46b84dd4655",
-      "variantInternalCode": "GAGAN-INT-V-02231e3b302d337360ec2267a0651f8b3592c8c5a2374ca06f1b8521c3d5f84b"
+      "variantInternalCode": "GAGAN-INT-V-02231e3b302d337360ec2267a0651f8b3592c8c5a2374ca06f1b8521c3d5f84b",
+      "gstPendingOrderAllowed": true
     },
     {
       "variantKey": "real-catalogue:variant:6986bb1ebc542536524718be661a0a6a2fce3362cd7d5de3494298f74ce1e820",
       "productCatalogKey": "real-catalogue:product:e73d3c95716118514a064a096ca2418860f650b92cfcc66d4112a2203e90d939",
       "variantCatalogKey": "real-catalogue:variant:6986bb1ebc542536524718be661a0a6a2fce3362cd7d5de3494298f74ce1e820",
       "productInternalCode": "GAGAN-INT-P-e73d3c95716118514a064a096ca2418860f650b92cfcc66d4112a2203e90d939",
-      "variantInternalCode": "GAGAN-INT-V-6986bb1ebc542536524718be661a0a6a2fce3362cd7d5de3494298f74ce1e820"
+      "variantInternalCode": "GAGAN-INT-V-6986bb1ebc542536524718be661a0a6a2fce3362cd7d5de3494298f74ce1e820",
+      "gstPendingOrderAllowed": true
     },
     {
       "variantKey": "real-catalogue:variant:a667124b440dc8dbda60a6e6a6b39902bdf280c0c1e08b1f2fbf02a365a38302",
       "productCatalogKey": "real-catalogue:product:23d9b875ea0fa163648bb45cd9dccac12f7e0946a7b5ce357228011a0d7f2c8b",
       "variantCatalogKey": "real-catalogue:variant:a667124b440dc8dbda60a6e6a6b39902bdf280c0c1e08b1f2fbf02a365a38302",
       "productInternalCode": "GAGAN-INT-P-23d9b875ea0fa163648bb45cd9dccac12f7e0946a7b5ce357228011a0d7f2c8b",
-      "variantInternalCode": "GAGAN-INT-V-a667124b440dc8dbda60a6e6a6b39902bdf280c0c1e08b1f2fbf02a365a38302"
+      "variantInternalCode": "GAGAN-INT-V-a667124b440dc8dbda60a6e6a6b39902bdf280c0c1e08b1f2fbf02a365a38302",
+      "gstPendingOrderAllowed": true
     },
     {
       "variantKey": "real-catalogue:variant:5384545e9b77a863445d7e860b611a9017fc3e9705a6024e035688d2a0f5727e",
@@ -50,6 +66,7 @@
       "variantCatalogKey": "real-catalogue:variant:5384545e9b77a863445d7e860b611a9017fc3e9705a6024e035688d2a0f5727e",
       "productInternalCode": "GAGAN-INT-P-23d9b875ea0fa163648bb45cd9dccac12f7e0946a7b5ce357228011a0d7f2c8b",
       "variantInternalCode": "GAGAN-INT-V-5384545e9b77a863445d7e860b611a9017fc3e9705a6024e035688d2a0f5727e",
+      "gstPendingOrderAllowed": true,
       "routing": {
         "routingClass": "OTHER",
         "routingBagEquivalent": "1.000",
@@ -62,6 +79,7 @@
       "variantCatalogKey": "real-catalogue:variant:32f10132475d9334a9348831bdd6581692b2e8c6efe66f06aea4cfadcae95e72",
       "productInternalCode": "GAGAN-INT-P-23d9b875ea0fa163648bb45cd9dccac12f7e0946a7b5ce357228011a0d7f2c8b",
       "variantInternalCode": "GAGAN-INT-V-32f10132475d9334a9348831bdd6581692b2e8c6efe66f06aea4cfadcae95e72",
+      "gstPendingOrderAllowed": true,
       "routing": {
         "routingClass": "OTHER",
         "routingBagEquivalent": "1.000",
@@ -73,7 +91,8 @@
       "productCatalogKey": "real-catalogue:product:23d9b875ea0fa163648bb45cd9dccac12f7e0946a7b5ce357228011a0d7f2c8b",
       "variantCatalogKey": "real-catalogue:variant:f682c314a576296a64b08cfda50d2dfad0b4805e65432324652f4fb9289d58f1",
       "productInternalCode": "GAGAN-INT-P-23d9b875ea0fa163648bb45cd9dccac12f7e0946a7b5ce357228011a0d7f2c8b",
-      "variantInternalCode": "GAGAN-INT-V-f682c314a576296a64b08cfda50d2dfad0b4805e65432324652f4fb9289d58f1"
+      "variantInternalCode": "GAGAN-INT-V-f682c314a576296a64b08cfda50d2dfad0b4805e65432324652f4fb9289d58f1",
+      "gstPendingOrderAllowed": true
     },
     {
       "variantKey": "real-catalogue:variant:f200ae837c0369ea38d9144aabf5f6f9509ea1a2c6ec5322e5dac940bc797b91",

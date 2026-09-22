@@ -6,7 +6,7 @@ import { groupCatalog } from "../modules/catalog/catalogGrouping";
 import { catalogueImageState, catalogueOrderingState, catalogueStatusWhere } from "../modules/catalog/catalogueVisibility";
 import { financialLedgerFor } from "../modules/finance/financialQueries";
 import { financialSummaryFor } from "../modules/finance/financialSummary";
-import { DEFAULT_WAREHOUSE_CODE, INVENTORY_STALE_AFTER_MS } from "../modules/inventory/inventoryService";
+import { DEFAULT_WAREHOUSE_CODE, INVENTORY_STALE_AFTER_MS, selectInventorySnapshot } from "../modules/inventory/inventoryService";
 import { requireRep, assignedRetailer, RepRequest } from "../lib/repAuth";
 import { createOrderForRetailer } from "../lib/orders";
 import { createRateLimiter } from "../platform/http/rateLimit";
@@ -214,7 +214,6 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
 
   const tierPrice = new Map(priceList.map((p) => [p.variantId, Number(p.price)]));
   const overridePrice = new Map(overrides.map((o) => [o.variantId, Number(o.price)]));
-  const inventoryByMaterial = new Map(inventory.map((snapshot) => [snapshot.sapMaterialId, snapshot]));
 
   const catalog = products.map((product) => ({
     id: product.id,
@@ -223,6 +222,7 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
       imageUrl: publicMediaUrl(req, product.imageUrl),
     description: product.description,
     variants: product.variants.map((v) => {
+      const inventorySnapshot = selectInventorySnapshot(product, v, inventory);
       const override = overridePrice.get(v.id);
       const rate = override ?? tierPrice.get(v.id) ?? null;
       const caseWeightKg = Number(v.unitWeightKg) * v.unitsPerCase;
@@ -238,15 +238,15 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
         commercialRate:rate,rateBasis,sellingEntity:v.sellingEntity,gstPercent:v.gstPercent,
         price,
         catalogStatus: v.catalogStatus,
-        ...catalogueOrderingState(v.catalogStatus),
+        ...catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed),
         ...catalogueImageState(v),
         rateLabel: rate !== null ? `${rateBasis === "quintal" ? "per quintal" : "per case"} · Excluding GST` : null,
         isOverride: override != null,
         pricePerKg:
           price != null && caseWeightKg > 0 ? Math.round((price / caseWeightKg) * 100) / 100 : null,
-        availability: product.sapMaterialId && inventoryByMaterial.has(product.sapMaterialId)
+        availability: inventorySnapshot
           ? (() => {
-              const snapshot = inventoryByMaterial.get(product.sapMaterialId)!;
+              const snapshot = inventorySnapshot;
               return {
                 available: Number(snapshot.available),
                 warehouseCode: snapshot.warehouseCode,

@@ -75,13 +75,13 @@ export async function quoteFor(retailerId: string, input: {variantId:string;qty:
     const lines: CommercialQuoteLine[] = items.map(item=>{
       const v = variants.find(v=>v.id===item.variantId)!;
       const selectedEntity = routedEntity.get(v.id) ?? v.sellingEntity;
-      if (!selectedEntity || v.gstPercent===null) throw new CommercialError("sku_commercial_configuration_required");
+      if (!selectedEntity) throw new CommercialError("sku_commercial_configuration_required");
       const price = overrides.find(p=>p.variantId===v.id) ?? prices.find(p=>p.variantId===v.id);
       if (!price) throw new CommercialError("sku_price_required");
       return {variantId:v.id, productName:v.product.name, pack:`${v.unitSize} × ${v.unitsPerCase}`, itemCode:v.product.sapMaterialId,
         entity:selectedEntity as CommercialQuoteLine["entity"], cases:item.qty,
         caseWeightKg:v.unitWeightKg.mul(v.unitsPerCase).toString(),rate:price.price.toString(),
-        rateBasis:price.rateBasis as "case"|"quintal",gstPercent:v.gstPercent.toString()};
+        rateBasis:price.rateBasis as "case"|"quintal",gstPercent:v.gstPercent?.toString() ?? null};
     });
     const commercial = calculateCommercialQuote({lines});
     const commercialSnapshot: CommercialSnapshot = routing ? { ...commercial, routing } : commercial;

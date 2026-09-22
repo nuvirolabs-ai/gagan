@@ -20,6 +20,8 @@ import ProductThumb from "../components/ProductThumb";
 import { SearchBar, ChipRow, QtyStepper, EmptyState, SecondaryButton } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 import { catalogGroups, selectedCatalogSku, type CatalogGroup } from "../lib/catalogSelection";
+import { canChangeRepCatalogQuantity } from "../lib/catalogOrdering";
+import { catalogPricePresentation } from "../lib/catalogPricePresentation";
 
 const ALL = "All";
 
@@ -74,13 +76,10 @@ export default function RepCatalogScreen({ route, navigation }: any) {
   const qtyFor = (variantId: string) => lines.find((l) => l.variantId === variantId)?.qty ?? 0;
 
   const setQty = (product: any, variant: any, next: number) => {
-    if (variant.price == null) return;
     const current = qtyFor(variant.id);
-    if (next > current && variant.orderable === false) return;
-    const orderable = variant.availability?.status === "available" && Number(variant.availability.available) > 0;
     // The API owns inventory. A rep can reduce a saved line, but cannot add
     // stock that SAP has marked unavailable or stale.
-    if (next > current && !orderable) return;
+    if (!canChangeRepCatalogQuantity(variant, current, next)) return;
     if (current === 0 && next > 0) {
       addLine({
         variantId: variant.id,
@@ -126,6 +125,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
             const product = item;
             const variant = selectedCatalogSku(product, selectedSkus[product.id], qtyFor);
             const qty = qtyFor(variant.id);
+            const priceDisplay = catalogPricePresentation(variant);
             return (
               <View style={[styles.card, product.skus.some(sku => qtyFor(sku.id) > 0) && styles.cardSelected]}>
                 <View style={styles.productRow}>
@@ -147,16 +147,18 @@ export default function RepCatalogScreen({ route, navigation }: any) {
                   <View style={styles.priceStack}>
                     <View style={styles.priceRow}>
                       <Text style={styles.price}>
-                        {variant.price != null ? `${inr(variant.price)}/case` : "—"}
+                        {priceDisplay.primary}
                       </Text>
                     </View>
-                    {variant.rateLabel ? <Text style={styles.rateLabel}>{variant.rateLabel}</Text> : null}
-                    {variant.pricePerKg != null ? <Text style={styles.perKg}>{inr(variant.pricePerKg)}/kg</Text> : null}
+                    {priceDisplay.perKg ? <Text style={styles.perKg}>{priceDisplay.perKg}</Text> : null}
+                    {priceDisplay.caseEquivalent ? <Text style={styles.rateLabel}>{priceDisplay.caseEquivalent}</Text> : null}
+                    {variant.rateBasis?.toLowerCase() === "quintal" || variant.rateLabel ? <Text style={styles.rateLabel}>Excluding GST</Text> : null}
                   </View>
+                  {variant.gstPending || variant.taxStatus === "PENDING" ? <Text style={styles.pendingOrder}>GST pending — final tax will be applied before invoicing.</Text> : null}
                   {variant.orderable === false ? <Text style={styles.pendingOrder}>{variant.orderingReason ?? "Ordering setup pending"}</Text> : null}
                   {variant.isOverride && <Text style={styles.override}>{t("catalog.specialRate")}</Text>}
                 </View>
-                {qty === 0 && variant.orderable !== false ? <QtyStepper qty={qty} onChange={(next) => setQty(product, variant, next)} compact /> : null}
+                {qty === 0 && canChangeRepCatalogQuantity(variant, qty, qty + 1) ? <QtyStepper qty={qty} onChange={(next) => setQty(product, variant, next)} compact /> : null}
                 </View>
                 {product.skus.length > 1 || qty > 0 ? <View style={styles.controlsRow}>
                 {product.skus.length > 1 ? <View style={styles.packOptions}>
@@ -187,7 +189,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
               {cartCount} case{cartCount > 1 ? "s" : ""} · {lines.length} line
               {lines.length > 1 ? "s" : ""}
             </Text>
-            <Text style={styles.barValue}>{inr(cartTotal)}</Text>
+            <Text style={styles.barValue}>Catalogue subtotal · {inr(cartTotal)}</Text>
           </View>
           <TouchableOpacity style={styles.placeBtn} accessibilityRole="button" onPress={() => navigation.navigate("RepReviewOrder", { retailerId, retailerName })}>
             <Text style={styles.placeText}>Review order</Text>

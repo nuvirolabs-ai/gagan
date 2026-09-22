@@ -13,6 +13,21 @@ describe("catalog interactions", () => {
     expect(canChangeCatalogQuantity({ price: 100, orderable: true, availability: { status: "unknown" } }, 0, 1)).toBe(true);
   });
 
+  it("allows an API-approved GST-pending variant but still blocks other pending rows", () => {
+    expect(canChangeCatalogQuantity({
+      price: 1620,
+      orderable: true,
+      gstPending: true,
+      availability: { status: "available", available: 100 },
+    }, 0, 1)).toBe(true);
+    expect(canChangeCatalogQuantity({
+      price: 2500,
+      orderable: false,
+      gstPending: true,
+      availability: { status: "available", available: 100 },
+    }, 0, 1)).toBe(false);
+  });
+
   it("accepts a banner category only when the current catalogue exposes it", () => {
     expect(resolveCatalogCategory("Daal", ["Daal", "Rice"])).toBe("Daal");
     expect(resolveCatalogCategory("Pulses", ["Pulses", "Rice"])).toBe("Pulses");

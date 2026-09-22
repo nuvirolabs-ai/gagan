@@ -1,6 +1,7 @@
 type CatalogSkuLike = {
   price: number | null;
   orderable?: boolean;
+  gstPending?: boolean;
   availability?: { status?: string; available?: number | null } | null;
 };
 

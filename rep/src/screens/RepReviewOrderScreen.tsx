@@ -6,6 +6,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { ApiError, repApi } from "../api/repClient";
 import { useRep } from "../context/RepContext";
 import CommercialBreakdown from "../components/CommercialBreakdown";
+import { commercialTaxPresentation } from "../lib/commercialTaxPresentation";
 import { AppScreen, KeyboardSafeScrollView, PrimaryButton, SectionHeader, SecondaryButton, Surface } from "../components/ui";
 import { haptic } from "../feedback/haptics";
 import { canSubmitQuote, classifyQuoteRefresh } from "../lib/commercialQuoteState";
@@ -201,7 +202,7 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
           <View style={styles.quoteHeader}>
             <View style={styles.quoteCopy}>
               <Text style={styles.quoteTitle}>{quote?.acceptedAt ? "Order already placed" : quote?.freightConfirmedByStaffId ? "Manager freight confirmed" : quote ? "Waiting for manager freight" : quoteReady ? "Standard case pricing" : "Checking pricing"}</Text>
-              <Text style={styles.muted}>{refreshingQuote ? "Checking the latest quote…" : quoteReady && !quote ? "This basket uses existing case prices. The backend validates the final order total." : "The backend quote is the source of truth for GST, freight and the final total."}</Text>
+              <Text style={styles.muted}>{refreshingQuote ? "Checking the latest quote…" : quoteReady && !quote ? "This basket uses existing catalogue prices. The backend validates the order before submission." : quote && commercialTaxPresentation(quote.snapshot).pending ? "GST pending — final tax will be applied before invoicing." : "The backend quote is the source of truth for GST, freight and the final total."}</Text>
             </View>
             {quote ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh manager freight" style={styles.refreshButton} disabled={placing || refreshingQuote} onPress={() => void refreshQuote()}>
               {refreshingQuote ? <ActivityIndicator size="small" color={colors.onDark} /> : <Text style={styles.refreshText}>Refresh</Text>}
@@ -209,7 +210,7 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
           </View>
           {!quoteReady && !quoteError ? <ActivityIndicator color={colors.blue} /> : null}
           {quoteError ? <Text style={styles.error}>{quoteError}</Text> : null}
-          {quote ? <CommercialBreakdown value={quote.snapshot} /> : quoteReady ? <Text style={styles.muted}>Basket total {inr(cartTotal)}</Text> : null}
+          {quote ? <CommercialBreakdown value={quote.snapshot} /> : quoteReady ? <Text style={styles.muted}>Catalogue subtotal {inr(cartTotal)}</Text> : null}
           {quote ? <TouchableOpacity accessibilityRole="button" style={styles.rateButton} disabled={rateApprovalSubmitting || !!quote.acceptedAt} onPress={() => void sendRateForApproval()}><Text style={styles.rateButtonText}>{rateApprovalSubmitting ? "Sending…" : "Send rate for approval"}</Text></TouchableOpacity> : null}
         </Surface>
 

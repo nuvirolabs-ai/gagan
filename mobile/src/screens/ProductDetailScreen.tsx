@@ -16,6 +16,7 @@ import MiniCartBar from "../components/MiniCartBar";
 import { QtyStepper, EmptyState, ScreenSkeleton, SectionTitle } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 import { canChangeCatalogQuantity } from "../lib/catalogInteractions";
+import { catalogPricePresentation } from "../lib/catalogPricePresentation";
 
 export default function ProductDetailScreen({ route, navigation }: any) {
   const { productId } = route.params;
@@ -102,6 +103,8 @@ export default function ProductDetailScreen({ route, navigation }: any) {
   };
 
   const lineTotal = selected?.price != null ? Number(selected.price) * Math.max(inCart, 1) : 0;
+  const priceDisplay = catalogPricePresentation(selected);
+  const canAddSelected = selected ? canChangeCatalogQuantity(selected, inCart, inCart + 1) : false;
 
   return (
     <View style={styles.screen}>
@@ -148,25 +151,27 @@ export default function ProductDetailScreen({ route, navigation }: any) {
           {selected && (
             <View style={styles.priceBand}>
               <View>
-                <Text style={styles.priceLabel}>{t("product.pricePerCase")}</Text>
+                <Text style={styles.priceLabel}>{selected.rateBasis?.toLowerCase() === "quintal" ? "Commercial rate" : t("product.pricePerCase")}</Text>
                 <Text
                   style={styles.price}
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.7}
                 >
-                  {selected.price != null ? inr(selected.price) : t("product.onRequest")}
+                  {priceDisplay.primary}
                 </Text>
               </View>
-              {selected.pricePerKg != null && (
+              {priceDisplay.perKg && (
                 <View style={styles.perKgBox}>
-                  <Text style={styles.perKgValue}>{inr(selected.pricePerKg)}</Text>
-                  <Text style={styles.perKgLabel}>{t("product.perKg")}</Text>
+                  <Text style={styles.perKgValue}>{priceDisplay.perKg}</Text>
                 </View>
               )}
             </View>
           )}
-          {selected?.rateLabel ? <Text style={styles.rateLabel}>{selected.rateLabel}</Text> : null}
+          {priceDisplay.caseEquivalent ? <Text style={styles.rateLabel}>{priceDisplay.caseEquivalent}</Text> : null}
+          {selected?.rateBasis?.toLowerCase() === "quintal" || selected?.rateLabel ? <Text style={styles.rateLabel}>Excluding GST</Text> : null}
+          {selected?.gstPending || selected?.taxStatus === "PENDING" ? <Text style={styles.pendingOrder}>GST pending — final tax will be applied before invoicing.</Text> : null}
+          {selected?.rateBasis?.toLowerCase() === "quintal" || selected?.rateLabel ? <Text style={styles.rateLabel}>Excluding GST</Text> : null}
           {selected?.orderable === false ? <Text style={styles.pendingOrder}>{selected.orderingReason ?? "Ordering setup pending"}</Text> : null}
           {selected?.isOverride ? (
             <View style={styles.override}>
@@ -212,8 +217,8 @@ export default function ProductDetailScreen({ route, navigation }: any) {
             </View>
           ) : (
             <TouchableOpacity
-              style={[styles.addBtn, (selected?.price == null || selected?.orderable === false) && styles.addBtnDisabled]}
-              disabled={selected?.price == null || selected?.orderable === false}
+              style={[styles.addBtn, !canAddSelected && styles.addBtnDisabled]}
+              disabled={!canAddSelected}
               onPress={() => setQty(1)}
             >
               <Ionicons name="cart-outline" size={17} color={colors.onDark} />

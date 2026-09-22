@@ -20,6 +20,7 @@ import { colors, radius, spacing, inr, TAB_BAR_SPACE, tabBarContentSpace } from 
 import { ScreenHeader, QtyStepper, EmptyState, SectionTitle } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 import { canSubmitQuote, classifyQuoteRefresh } from "../lib/commercialQuoteState";
+import { commercialTaxPresentation } from "../lib/commercialTaxPresentation";
 
 export default function CartScreen({ navigation }: any) {
   const { lines, updateQty, clear, total, reconcile, staleNotice, dismissStaleNotice } = useCart();
@@ -106,6 +107,7 @@ export default function CartScreen({ navigation }: any) {
   },[refreshQuote]);
 
   const payable = quote ? Number(quote.snapshot.total) : total;
+  const quoteTax = commercialTaxPresentation(quote?.snapshot);
   const cartCount = lines.reduce((count, line) => count + line.qty, 0);
   const belowMin = payable > 0 && payable < (config.minOrderValue ?? 0);
   const overCredit = credit != null && payable > credit.available;
@@ -258,7 +260,7 @@ export default function CartScreen({ navigation }: any) {
             <Text style={[styles.sumValue, { color: colors.green }]}>{t("cart.deliveryIncluded")}</Text>
           </View>
           <View style={styles.sumRow}>
-            <Text style={styles.totalLabel}>{t("cart.totalPayable")}</Text>
+            <Text style={styles.totalLabel}>{quote ? quoteTax.totalLabel : "Catalogue subtotal"}</Text>
             <Text
               style={styles.totalValue}
               numberOfLines={1}
@@ -273,7 +275,7 @@ export default function CartScreen({ navigation }: any) {
             <View style={styles.hint}>
               <Feather name="truck" size={13} color={colors.accentStrong} />
               <Text style={styles.hintText}>
-                Typical free-delivery guidance is {inr(config.freeDeliveryThreshold)}. This order total is what you will be billed.
+                Typical free-delivery guidance is {inr(config.freeDeliveryThreshold)}. This catalogue subtotal is not a final payable; applicable tax and final charges are confirmed by the backend.
               </Text>
             </View>
           ) : null}
@@ -301,7 +303,7 @@ export default function CartScreen({ navigation }: any) {
 
       <View style={styles.bar}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.barLabel}>{t("cart.totalPayable")}</Text>
+          <Text style={styles.barLabel}>{quote ? quoteTax.totalLabel : "Catalogue subtotal"}</Text>
           <Text style={styles.barValue}>{inr(payable)}</Text>
         </View>
         <TouchableOpacity

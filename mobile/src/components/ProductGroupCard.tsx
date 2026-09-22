@@ -3,8 +3,9 @@ import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import ProductThumb from "./ProductThumb";
+import { catalogPricePresentation } from "../lib/catalogPricePresentation";
 import { QtyStepper } from "./ui";
-import { colors, radius, spacing, shadow, inr } from "../theme";
+import { colors, radius, spacing, shadow } from "../theme";
 
 /**
  * One logical product, with its packs.
@@ -23,11 +24,15 @@ export interface Sku {
   unitSize: string;
   unitsPerCase: number;
   price: number | null;
+  caseWeightKg?: number | null;
+  pricePerKg?: number | null;
   commercialRate?: number | null;
   rateBasis?: string;
   rateLabel?: string | null;
   catalogStatus?: string;
   orderable?: boolean;
+  gstPending?: boolean;
+  taxStatus?: "PENDING" | "READY" | "NOT_READY";
   orderingStatus?: string;
   orderingReason?: string | null;
   availability?: { status?: string; available?: number | null } | null;
@@ -82,6 +87,7 @@ export default function ProductGroupCard({
   const selected = group.skus.find((sku) => sku.id === selectedId) ?? group.skus[0];
   const qty = selected ? qtyFor(selected.id) : 0;
   const orderable = isOrderable(selected);
+  const priceDisplay = catalogPricePresentation(selected);
   const row = appearance === "row";
   const featured = appearance === "featured";
   const thumb = row ? 56 : featured ? 96 : compact ? 60 : 72;
@@ -110,9 +116,12 @@ export default function ProductGroupCard({
             {selected ? selected.packDetail : "—"}
           </Text>
           <Text style={styles.price} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
-            {selected?.price != null ? `${inr(selected.price)} / case` : "Price on request"}
+            {priceDisplay.primary}
           </Text>
-          {selected?.rateLabel ? <Text style={styles.rateLabel}>{selected.rateLabel}</Text> : null}
+          {priceDisplay.perKg ? <Text style={styles.rateLabel}>{priceDisplay.perKg}</Text> : null}
+          {priceDisplay.caseEquivalent ? <Text style={styles.rateLabel}>{priceDisplay.caseEquivalent}</Text> : null}
+          {selected?.rateBasis?.toLowerCase() === "quintal" || selected?.rateLabel ? <Text style={styles.rateLabel}>Excluding GST</Text> : null}
+          {selected?.gstPending || selected?.taxStatus === "PENDING" ? <Text style={styles.outOfStock}>GST pending — final tax will be applied before invoicing.</Text> : null}
           {!orderable && selected ? <Text style={styles.outOfStock}>{selected.orderingReason ?? "Out of stock"}</Text> : null}
         </View>
       </TouchableOpacity>

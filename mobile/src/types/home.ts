@@ -34,7 +34,11 @@ export interface QuickOrderItem {
   commercialRate?: string | number | null;
   rateBasis?: string;
   rateLabel?: string | null;
+  caseWeightKg?: number | null;
+  pricePerKg?: number | null;
   orderable?: boolean;
+  gstPending?: boolean;
+  taxStatus?: "PENDING" | "READY" | "NOT_READY";
   orderingReason?: string | null;
   imageStatus?: "exact" | "placeholder" | "pending";
   imageLabel?: string | null;
@@ -61,12 +65,16 @@ export interface HomeSku {
   unit: string;
   unitsPerCase: number;
   price: number | null;
+  caseWeightKg?: number | null;
+  pricePerKg?: number | null;
   commercialRate?: number | null;
   rateBasis?: string;
   rateLabel?: string | null;
   isOverride?: boolean;
   catalogStatus?: string;
   orderable?: boolean;
+  gstPending?: boolean;
+  taxStatus?: "PENDING" | "READY" | "NOT_READY";
   orderingStatus?: string;
   orderingReason?: string | null;
   imageUrl?: string | null;

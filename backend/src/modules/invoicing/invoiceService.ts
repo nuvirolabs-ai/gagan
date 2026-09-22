@@ -123,6 +123,12 @@ async function createOnce(input: CreateInvoiceForDeliveryInput): Promise<Invoice
       const accepted=snapshot(order.commercialSnapshot);
       if (hasPendingGst(accepted)) throw new InvoiceCreationError("gst_configuration_required_before_invoice");
       const commercial=accepted ? quoteDelivery(accepted,order.items.map(item=>{const r=resolutions.get(item.id)!;return {variantId:item.variantId,cases:r.deliveredCases,weightKg:r.deliveredWeightKg};})) : null;
+      const commercialTax = commercial
+        ? commercial.entities.reduce((sum, entity) => {
+            if (entity.gst === null) throw new InvoiceCreationError("gst_configuration_required_before_invoice");
+            return sum.plus(entity.gst);
+          }, new Prisma.Decimal(0))
+        : null;
 
       for (const item of order.items) {
         const resolution = resolutions.get(item.id)!;
@@ -187,8 +193,8 @@ async function createOnce(input: CreateInvoiceForDeliveryInput): Promise<Invoice
           orderId: order.id,
           invoiceDate: input.occurredAt,
           dueDate,
-          subtotal: commercial ? new Prisma.Decimal(commercial.total).minus(commercial.entities.reduce((s,e)=>s.plus(e.gst),new Prisma.Decimal(0))) : breakdown.total,
-          taxTotal: commercial ? commercial.entities.reduce((s,e)=>s.plus(e.gst),new Prisma.Decimal(0)) : 0,
+          subtotal: commercial ? new Prisma.Decimal(commercial.total).minus(commercialTax!) : breakdown.total,
+          taxTotal: commercial ? commercialTax! : 0,
           ...(commercial ? {commercialSnapshot:asJson(commercial)}:{}),
           total: breakdown.total,
           outstandingAmount: breakdown.total,

@@ -10,12 +10,12 @@ export function catalogueOrderingState(
   gstPendingOrderAllowed = false,
 ) {
   if (catalogStatus !== "active") {
-    return { orderable: false, orderingStatus: "pending_setup", orderingReason: "Ordering setup pending", gstPending: false };
+    return { orderable: false, orderingStatus: "pending_setup", orderingReason: "Ordering setup pending", gstPending: false, taxStatus: "NOT_READY" as const };
   }
   const gstPending = (gstPercent === null || gstPercent === undefined) && gstPendingOrderAllowed;
   return gstPending
-    ? { orderable: true, orderingStatus: "gst_pending", orderingReason: "GST pending — invoice blocked until configured", gstPending: true }
-    : { orderable: true, orderingStatus: "ready", orderingReason: null, gstPending: false };
+    ? { orderable: true, orderingStatus: "ready", orderingReason: "GST pending — final tax will be applied before invoicing", gstPending: true, taxStatus: "PENDING" as const }
+    : { orderable: true, orderingStatus: "ready", orderingReason: null, gstPending: false, taxStatus: "READY" as const };
 }
 
 export function catalogueImageState(variant: {

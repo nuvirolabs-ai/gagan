@@ -2,9 +2,10 @@
 
 ## Scope and result
 
-This is an incomplete readiness checkpoint, not ordering acceptance. No hosted
-product activation, stock insertion, tax update, backend migration or backend
-deployment was performed in this investigation. Numeric stored rates were not changed.
+This is an incomplete readiness checkpoint, not ordering acceptance. At the time
+of the initial investigation no hosted product activation, stock insertion, tax
+update, backend migration or backend deployment had been performed. Numeric
+stored rates were not changed.
 
 The owner approved ordering without a numeric GST constraint for the six named
 rice variants, with GST to be added later. This is an explicit pending-GST
@@ -84,8 +85,15 @@ working tree or describe the inventory correction as hosted.
 
 - Decision register revision: `gagan-real-catalogue-owner-approval-r3`.
 - Scope is limited to the six named rice variants in the approved decision file.
-- The API marks these rows `gst_pending` and the Retailer/Salesperson surfaces
-  show `GST pending · invoice blocked until configured`.
+- The API marks these rows `orderable: true`, `orderingStatus: ready`, and
+  `taxStatus: PENDING`; the Retailer/Salesperson surfaces show
+  `GST pending — final tax will be applied before invoicing`.
+- The approved staging fixture is now represented in source as six exact
+  `internalMaterialId` mappings, warehouse `WH-001`, source `staging_uat`, and
+  100 master packs per variant. This is synthetic UAT stock only; it is not
+  physical stock and never populates a SAP material field.
+- Activation is deliberately scoped to the six approved variant keys. The
+  remaining published rows stay visible but non-orderable.
 - The commercial quote is explicitly pre-tax for this exception and retains a
   null GST snapshot; it is not a substitute for a configured tax rate.
 - Invoice creation rejects the accepted quote before any delivery/invoice
@@ -95,11 +103,13 @@ working tree or describe the inventory correction as hosted.
 
 ## Exact remaining gates
 
-1. Obtain a legitimate warehouse/quantity/freshness source for these six, or an
-   explicit bounded mock-stock decision; none was found in matching hosted rows.
-2. Complete and verify the separated internal inventory configuration path.
-3. Verify recovery before hosted schema/configuration writes.
-4. Activate only the scoped variants that pass the revised approved gates;
-   test backend quotes/cart and replays, then physical apps when connected.
+1. Apply the two reviewed source migrations to the authorized staging database
+   only after the recovery boundary is verified.
+2. Seed the six exact 100-pack synthetic UAT snapshots through the guarded
+   staging-only script, then promote only those six variant keys.
+3. Verify hosted quotes/cart/order replay and invoice blocking; no hosted order
+   is accepted as complete until this is independently evidenced.
+4. Install a rebuilt review APK only if the final source/API contract requires
+   it, then complete the Moto E13 flow when the device is connected.
 
 Production, main, Dogkart, GNV, real SAP and historical commerce remain untouched.

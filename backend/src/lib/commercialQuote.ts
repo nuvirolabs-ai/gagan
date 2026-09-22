@@ -88,7 +88,19 @@ export function calculateCommercialQuote(input: { lines: CommercialQuoteLine[]; 
     const group = bucket(line.entity);
     group.goods = group.goods.add(base);
     group.tax = group.tax.add(gst);
-    return { ...line, gstPending, weightKg: kilograms.toString(), quintals: quintals.toString(), discount: "0.00", base: serialized(base), gst: serialized(gst), total: serialized(base.add(gst)) };
+    return {
+      ...line,
+      gstPending,
+      weightKg: kilograms.toString(),
+      quintals: quintals.toString(),
+      discount: "0.00",
+      base: serialized(base),
+      // Pending GST is intentionally represented as unknown rather than a
+      // fabricated 0% tax amount. The pre-tax total remains quoteable, while
+      // invoice creation is blocked until a real rate is configured.
+      gst: gstPending ? null : serialized(gst),
+      total: serialized(base.add(gst)),
+    };
   });
   let freight;
   if (input.freight) {
@@ -104,19 +116,20 @@ export function calculateCommercialQuote(input: { lines: CommercialQuoteLine[]; 
     group.tax = group.tax.add(gst);
     freight = { ...source, gst: serialized(gst), total: serialized(amount.add(gst)) };
   }
+  const gstPending = lines.some(line => line.gstPending);
   const entities = [...totals].map(([sellingEntity, group]) => ({
     entity: sellingEntity,
-    goods: serialized(group.goods), freight: serialized(group.freight), gst: serialized(group.tax),
+    goods: serialized(group.goods), freight: serialized(group.freight), gst: gstPending ? null : serialized(group.tax),
     total: serialized(group.goods.add(group.freight).add(group.tax)),
   }));
-  return { lines, gstPending: lines.some(line => line.gstPending), freight: freight ?? null, entities,
+  return { lines, gstPending, taxStatus: gstPending ? "PENDING" as const : "READY" as const, freight: freight ?? null, entities,
     total: serialized(entities.reduce((sum, group) => sum.add(group.total), new Prisma.Decimal(0))) };
 }
 
-export function hasPendingGst(value: { lines?: Array<{ gstPercent?: string | null; gstPending?: boolean }> } | null | undefined) {
-  return value?.lines?.some(line => line.gstPending === true || line.gstPercent === null) ?? false;
+export function hasPendingGst(value: { taxStatus?: string; lines?: Array<{ gstPercent?: string | null; gstPending?: boolean }> } | null | undefined) {
+  return value?.taxStatus === "PENDING" || (value?.lines?.some(line => line.gstPending === true || line.gstPercent === null) ?? false);
 }
 
-export function assertCommercialInvoiceable(value: { lines?: Array<{ gstPercent?: string | null; gstPending?: boolean }> } | null | undefined) {
+export function assertCommercialInvoiceable(value: { taxStatus?: string; lines?: Array<{ gstPercent?: string | null; gstPending?: boolean }> } | null | undefined) {
   if (hasPendingGst(value)) throw new Error("GST configuration required before invoice");
 }

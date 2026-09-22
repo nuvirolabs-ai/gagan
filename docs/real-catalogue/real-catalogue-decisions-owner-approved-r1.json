@@ -42,7 +42,17 @@
       "variantCatalogKey": "real-catalogue:variant:02231e3b302d337360ec2267a0651f8b3592c8c5a2374ca06f1b8521c3d5f84b",
       "productInternalCode": "GAGAN-INT-P-724e5996749c901ed4779afe64cbd20ae9eceac8031a52d6ffccc46b84dd4655",
       "variantInternalCode": "GAGAN-INT-V-02231e3b302d337360ec2267a0651f8b3592c8c5a2374ca06f1b8521c3d5f84b",
-      "gstPendingOrderAllowed": true
+      "gstPendingOrderAllowed": true,
+      "routing": {
+        "routingClass": "OTHER",
+        "routingBagEquivalent": "1.000",
+        "sellingEntity": null
+      },
+      "inventory": {
+        "internalMaterialId": "GAGAN-INT-V-02231e3b302d337360ec2267a0651f8b3592c8c5a2374ca06f1b8521c3d5f84b",
+        "warehouseCode": "WH-001",
+        "evidence": "Owner-approved staging UAT fixture: 100 master packs, source staging_uat; no SAP material ID"
+      }
     },
     {
       "variantKey": "real-catalogue:variant:6986bb1ebc542536524718be661a0a6a2fce3362cd7d5de3494298f74ce1e820",
@@ -50,7 +60,17 @@
       "variantCatalogKey": "real-catalogue:variant:6986bb1ebc542536524718be661a0a6a2fce3362cd7d5de3494298f74ce1e820",
       "productInternalCode": "GAGAN-INT-P-e73d3c95716118514a064a096ca2418860f650b92cfcc66d4112a2203e90d939",
       "variantInternalCode": "GAGAN-INT-V-6986bb1ebc542536524718be661a0a6a2fce3362cd7d5de3494298f74ce1e820",
-      "gstPendingOrderAllowed": true
+      "gstPendingOrderAllowed": true,
+      "routing": {
+        "routingClass": "OTHER",
+        "routingBagEquivalent": "1.000",
+        "sellingEntity": null
+      },
+      "inventory": {
+        "internalMaterialId": "GAGAN-INT-V-6986bb1ebc542536524718be661a0a6a2fce3362cd7d5de3494298f74ce1e820",
+        "warehouseCode": "WH-001",
+        "evidence": "Owner-approved staging UAT fixture: 100 master packs, source staging_uat; no SAP material ID"
+      }
     },
     {
       "variantKey": "real-catalogue:variant:a667124b440dc8dbda60a6e6a6b39902bdf280c0c1e08b1f2fbf02a365a38302",
@@ -58,7 +78,17 @@
       "variantCatalogKey": "real-catalogue:variant:a667124b440dc8dbda60a6e6a6b39902bdf280c0c1e08b1f2fbf02a365a38302",
       "productInternalCode": "GAGAN-INT-P-23d9b875ea0fa163648bb45cd9dccac12f7e0946a7b5ce357228011a0d7f2c8b",
       "variantInternalCode": "GAGAN-INT-V-a667124b440dc8dbda60a6e6a6b39902bdf280c0c1e08b1f2fbf02a365a38302",
-      "gstPendingOrderAllowed": true
+      "gstPendingOrderAllowed": true,
+      "routing": {
+        "routingClass": "OTHER",
+        "routingBagEquivalent": "1.000",
+        "sellingEntity": null
+      },
+      "inventory": {
+        "internalMaterialId": "GAGAN-INT-V-a667124b440dc8dbda60a6e6a6b39902bdf280c0c1e08b1f2fbf02a365a38302",
+        "warehouseCode": "WH-001",
+        "evidence": "Owner-approved staging UAT fixture: 100 master packs, source staging_uat; no SAP material ID"
+      }
     },
     {
       "variantKey": "real-catalogue:variant:5384545e9b77a863445d7e860b611a9017fc3e9705a6024e035688d2a0f5727e",
@@ -71,6 +101,11 @@
         "routingClass": "OTHER",
         "routingBagEquivalent": "1.000",
         "sellingEntity": null
+      },
+      "inventory": {
+        "internalMaterialId": "GAGAN-INT-V-5384545e9b77a863445d7e860b611a9017fc3e9705a6024e035688d2a0f5727e",
+        "warehouseCode": "WH-001",
+        "evidence": "Owner-approved staging UAT fixture: 100 master packs, source staging_uat; no SAP material ID"
       }
     },
     {
@@ -84,6 +119,11 @@
         "routingClass": "OTHER",
         "routingBagEquivalent": "1.000",
         "sellingEntity": null
+      },
+      "inventory": {
+        "internalMaterialId": "GAGAN-INT-V-32f10132475d9334a9348831bdd6581692b2e8c6efe66f06aea4cfadcae95e72",
+        "warehouseCode": "WH-001",
+        "evidence": "Owner-approved staging UAT fixture: 100 master packs, source staging_uat; no SAP material ID"
       }
     },
     {
@@ -92,7 +132,17 @@
       "variantCatalogKey": "real-catalogue:variant:f682c314a576296a64b08cfda50d2dfad0b4805e65432324652f4fb9289d58f1",
       "productInternalCode": "GAGAN-INT-P-23d9b875ea0fa163648bb45cd9dccac12f7e0946a7b5ce357228011a0d7f2c8b",
       "variantInternalCode": "GAGAN-INT-V-f682c314a576296a64b08cfda50d2dfad0b4805e65432324652f4fb9289d58f1",
-      "gstPendingOrderAllowed": true
+      "gstPendingOrderAllowed": true,
+      "routing": {
+        "routingClass": "OTHER",
+        "routingBagEquivalent": "1.000",
+        "sellingEntity": null
+      },
+      "inventory": {
+        "internalMaterialId": "GAGAN-INT-V-f682c314a576296a64b08cfda50d2dfad0b4805e65432324652f4fb9289d58f1",
+        "warehouseCode": "WH-001",
+        "evidence": "Owner-approved staging UAT fixture: 100 master packs, source staging_uat; no SAP material ID"
+      }
     },
     {
       "variantKey": "real-catalogue:variant:f200ae837c0369ea38d9144aabf5f6f9509ea1a2c6ec5322e5dac940bc797b91",

@@ -8,9 +8,10 @@ describe("Salesperson catalogue ordering controls", () => {
   it("marks the approved pre-GST staging state without disabling ordering", () => {
     expect(catalogueOrderingState("active", null, true)).toEqual({
       orderable: true,
-      orderingStatus: "gst_pending",
-      orderingReason: "GST pending — invoice blocked until configured",
+      orderingStatus: "ready",
+      orderingReason: "GST pending — final tax will be applied before invoicing",
       gstPending: true,
+      taxStatus: "PENDING",
     });
   });
 

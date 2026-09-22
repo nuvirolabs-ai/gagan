@@ -39,17 +39,23 @@ function printSummary(manifest: RealCatalogueManifest) {
 
 async function main() {
   const inputPath = argument("--input") ?? process.env.REAL_CATALOGUE_XLSX;
-  if (!inputPath) throw new Error("--input=<workbook-path> is required");
+  const manifestInputPath = argument("--manifest-input");
+  if (!inputPath && !manifestInputPath) throw new Error("--input=<workbook-path> or --manifest-input=<manifest.json> is required");
   const imageIndexPath = argument("--image-index");
   const outputPath = argument("--manifest");
-  const buffer = fs.readFileSync(path.resolve(inputPath));
-  const imageIndexBuffer = imageIndexPath ? fs.readFileSync(path.resolve(imageIndexPath)) : null;
-  const manifest = buildRealCatalogueManifest(
-    buffer,
-    path.basename(inputPath),
-    readImageIndex(imageIndexPath ? path.resolve(imageIndexPath) : undefined),
-  );
-  if (imageIndexBuffer) manifest.imageSource.indexSha256 = crypto.createHash("sha256").update(imageIndexBuffer).digest("hex");
+  const manifest: RealCatalogueManifest = manifestInputPath
+    ? JSON.parse(fs.readFileSync(path.resolve(manifestInputPath), "utf8")) as RealCatalogueManifest
+    : (() => {
+      const buffer = fs.readFileSync(path.resolve(inputPath!));
+      const imageIndexBuffer = imageIndexPath ? fs.readFileSync(path.resolve(imageIndexPath)) : null;
+      const built = buildRealCatalogueManifest(
+        buffer,
+        path.basename(inputPath!),
+        readImageIndex(imageIndexPath ? path.resolve(imageIndexPath) : undefined),
+      );
+      if (imageIndexBuffer) built.imageSource.indexSha256 = crypto.createHash("sha256").update(imageIndexBuffer).digest("hex");
+      return built;
+    })();
   const decisionsPath = argument("--decisions");
   const phase = argument("--phase") ?? "import";
   if (phase !== "import" && phase !== "promote" && phase !== "publish" && phase !== "retire") throw new Error("--phase must be import, promote, publish or retire");
@@ -94,10 +100,13 @@ async function main() {
     databaseName: argument("--database"),
     schema: argument("--schema"),
   };
+  const approvedPendingGstScope = hasFlag("--approved-pending-gst-scope")
+    ? (resolvedPendingGstKeys(decisions) ?? (() => { throw new Error("approved_pending_gst_scope_missing"); })())
+    : undefined;
   const database = new PrismaClient();
   try {
     const result = phase === "promote"
-      ? await promoteRealCatalogueManifest(database, manifest, { actorStaffId, targetLabel, decisions, targetIdentity })
+      ? await promoteRealCatalogueManifest(database, manifest, { actorStaffId, targetLabel, decisions, targetIdentity, variantKeys: approvedPendingGstScope, includeRetireCandidates: approvedPendingGstScope === undefined })
       : phase === "publish"
         ? await publishRealCatalogueManifest(database, manifest, { actorStaffId, targetLabel, decisions, targetIdentity })
         : phase === "retire"
@@ -107,6 +116,14 @@ async function main() {
   } finally {
     await database.$disconnect();
   }
+}
+
+function resolvedPendingGstKeys(value: unknown) {
+  if (!value || typeof value !== "object" || !("gstPendingOrdering" in value)) return undefined;
+  const scope = (value as { gstPendingOrdering?: { variantKeys?: unknown } }).gstPendingOrdering;
+  return Array.isArray(scope?.variantKeys) && scope.variantKeys.every((key): key is string => typeof key === "string")
+    ? scope.variantKeys
+    : undefined;
 }
 
 main().catch((error) => {

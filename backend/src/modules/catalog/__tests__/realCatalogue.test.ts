@@ -11,6 +11,7 @@ import {
   realCatalogueDecisionsSha256,
   retireRealCatalogueCandidates,
   resolveRealCatalogueDecisions,
+  scopeRealCataloguePromotionManifest,
   type DriveImageEntry,
 } from "../realCatalogue";
 
@@ -157,6 +158,42 @@ describe("real catalogue source mapping", () => {
     expect(resolved.manifest.records[1].readinessBlockers).toContain("stable_internal_catalogue_identity_requires_approval");
   });
 
+  it("applies an owner-approved all-existing-tier price interpretation without requiring row-local tier IDs", () => {
+    const manifest = buildRealCatalogueManifest(workbookBuffer(), "catalogue.xlsx", imageIndex);
+    const row = manifest.records[0];
+    const resolved = resolveRealCatalogueDecisions(manifest, {
+      schemaVersion: 1,
+      approval: {
+        approvalId: "approval-test-all-existing-tiers",
+        revision: 3,
+        approvedBy: "owner-test",
+        approvedAt: "2026-09-22T00:00:00.000Z",
+        scope: "all existing retailer tiers",
+        source: { workbookSha256: manifest.source.sha256, sourceVersion: manifest.source.version },
+      },
+      pricing: {
+        sourceRateBasis: "quintal",
+        gstTreatment: "exclusive",
+        targetTierId: null,
+        targetTierStatus: "all_existing_tiers",
+        scope: "all_retailers",
+        evidence: "owner-approved all-existing-tier interpretation",
+      },
+      imageMappingRevision: "images-v1",
+      records: [{
+        variantKey: row.variantKey,
+        productInternalCode: "GAGAN-INT-BROKEN",
+        variantInternalCode: "GAGAN-INT-BROKEN-30KG",
+        gstPercent: "5",
+        inventory: { sapMaterialId: "reviewed-material", warehouseCode: "WH-001", evidence: "disposable price test" },
+        routing: { routingClass: "OTHER", routingBagEquivalent: "1.000", sellingEntity: null },
+        image: { driveFileId: "drive-broken", mappingRevision: "images-v1", evidence: "exact SKU filename" },
+      }],
+    });
+
+    expect(resolved.manifest.records[0]).toMatchObject({ catalogStatus: "active", readinessBlockers: [] });
+  });
+
   it("rejects an image decision outside the exact candidate set", () => {
     const manifest = buildRealCatalogueManifest(workbookBuffer(), "catalogue.xlsx", imageIndex);
     expect(() => resolveRealCatalogueDecisions(manifest, {
@@ -172,6 +209,13 @@ describe("real catalogue source mapping", () => {
       imageMappingRevision: "images-v1",
       records: [{ variantKey: manifest.records[0].variantKey, image: { driveFileId: "not-a-candidate", mappingRevision: "images-v1" } }],
     })).toThrow("decision_image_not_a_candidate");
+  });
+
+  it("scopes a reviewed promotion to explicit variants and rejects unknown scope", () => {
+    const manifest = buildRealCatalogueManifest(workbookBuffer(), "catalogue.xlsx", imageIndex);
+    const key = manifest.records[0].variantKey;
+    expect(scopeRealCataloguePromotionManifest(manifest, [key]).records.map(record => record.variantKey)).toEqual([key]);
+    expect(() => scopeRealCataloguePromotionManifest(manifest, ["not-in-manifest"])).toThrow("catalogue_promotion_scope_variant_not_in_manifest");
   });
 
   it("rejects a reviewed quintal rate that changes the supplied workbook amount", () => {

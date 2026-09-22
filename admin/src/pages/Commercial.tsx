@@ -5,7 +5,7 @@ import { useAuth } from "../useAuth";
 type Row = Record<string, any>;
 const entityName=(id:string)=>id==="jain_traders"?"Jain Traders":"Padam International";
 export function Breakdown({value}:{value:Row}) {
-  return <div>{value.routing && <p><strong>Routing:</strong> {value.routing.explanation} · {value.routing.eligibleContributionBags} eligible bags</p>}{value.lines.map((l:Row)=><p key={l.variantId}>{l.productName} · {l.pack} · {entityName(l.entity)} · {l.cases} cases / {l.weightKg} kg · ₹{l.rate}/{l.rateBasis} · Base ₹{l.base} · GST {l.gstPercent}% ₹{l.gst} · Discount ₹{l.discount} · Total ₹{l.total}</p>)}
+  return <div>{value.taxStatus === "PENDING" || value.gstPending ? <p><strong>GST pending:</strong> final tax will be applied before invoicing. This order is not tax-final.</p> : null}{value.routing && <p><strong>Routing:</strong> {value.routing.explanation} · {value.routing.eligibleContributionBags} eligible bags</p>}{value.lines.map((l:Row)=><p key={l.variantId}>{l.productName} · {l.pack} · {entityName(l.entity)} · {l.cases} cases / {l.weightKg} kg · ₹{l.rate}/{l.rateBasis} · Base ₹{l.base} · {l.gstPending || l.gstPercent == null ? "GST pending — final tax will be applied before invoicing" : `GST ${l.gstPercent}% ₹${l.gst}`} · Discount ₹{l.discount} · Total ₹{l.total}</p>)}
     {value.freight && <p>Freight {entityName(value.freight.entity)} ₹{value.freight.amount} + GST ₹{value.freight.gst} · {value.freight.recordedQuintals} quintals / {value.freight.recordedKilometres} km</p>}
     <strong>Grand total ₹{value.total}</strong></div>;
 }

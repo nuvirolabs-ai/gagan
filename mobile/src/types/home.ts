@@ -36,6 +36,7 @@ export interface QuickOrderItem {
   rateLabel?: string | null;
   orderable?: boolean;
   gstPending?: boolean;
+  taxStatus?: "PENDING" | "READY" | "NOT_READY";
   orderingReason?: string | null;
   imageStatus?: "exact" | "placeholder" | "pending";
   imageLabel?: string | null;
@@ -69,6 +70,7 @@ export interface HomeSku {
   catalogStatus?: string;
   orderable?: boolean;
   gstPending?: boolean;
+  taxStatus?: "PENDING" | "READY" | "NOT_READY";
   orderingStatus?: string;
   orderingReason?: string | null;
   imageUrl?: string | null;

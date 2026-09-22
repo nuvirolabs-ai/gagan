@@ -362,7 +362,7 @@ function decimalText(value: string | number, field: string, options: { positive?
   return result.toString();
 }
 
-function readinessBlockersFor(record: RealCatalogueRecord) {
+function readinessBlockersFor(record: RealCatalogueRecord, options: { allExistingTiersApproved?: boolean } = {}) {
   const blockers: string[] = [];
   if (!record.productInternalCode || !record.variantInternalCode) blockers.push("stable_internal_catalogue_identity_requires_approval");
   // The owner-approved six-variant staging exception allows an order quote
@@ -371,7 +371,7 @@ function readinessBlockersFor(record: RealCatalogueRecord) {
   // a missing GST value remains a readiness blocker.
   if ((record.gstPercent === null || record.gstPercent === undefined) && record.gstPendingOrderAllowed !== true) blockers.push("gst_percent_requires_approval");
   if (!record.inventoryMapping) blockers.push("inventory_mapping_requires_approval");
-  if (!record.priceLists?.length) blockers.push("price_tier_requires_approval");
+  if (!record.priceLists?.length && options.allExistingTiersApproved !== true) blockers.push("price_tier_requires_approval");
   if (record.priceLists?.some((price) => price.gstIncluded)) blockers.push("price_gst_basis_incompatible_with_current_engine");
   if (record.unitsPerCase === null || record.unitWeightKg === null || record.caseWeightKg === null) blockers.push("case_conversion_requires_approval");
   if (!record.routingClass) blockers.push("routing_class_requires_approval");
@@ -825,8 +825,19 @@ function targetCatalogKey(record: RealCatalogueRecord, kind: "product" | "varian
   return kind === "product" ? record.catalogProductKey ?? record.productKey : record.catalogVariantKey ?? record.variantKey;
 }
 
+export function scopeRealCataloguePromotionManifest(manifest: RealCatalogueManifest, variantKeys?: string[]) {
+  if (variantKeys === undefined) return manifest;
+  if (variantKeys.length === 0 || new Set(variantKeys).size !== variantKeys.length) throw new Error("catalogue_promotion_scope_invalid");
+  const manifestKeys = new Set(manifest.records.map(record => record.variantKey));
+  if (variantKeys.some(key => !manifestKeys.has(key))) throw new Error("catalogue_promotion_scope_variant_not_in_manifest");
+  const selected = new Set(variantKeys);
+  return { ...manifest, records: manifest.records.filter(record => selected.has(record.variantKey)) };
+}
+
 export function resolveRealCatalogueDecisions(manifest: RealCatalogueManifest, input: unknown): { manifest: RealCatalogueManifest; decisions: RealCatalogueDecisions; approvalSha256: string } {
   const decisions = validateRealCatalogueDecisions(manifest, input);
+  const allExistingTiersApproved = decisions.pricing?.targetTierStatus === "all_existing_tiers"
+    && decisions.pricing.scope === "all_retailers";
   const byVariant = new Map(decisions.records.map((record) => [record.variantKey, record]));
   const records = manifest.records.map((source) => {
     const decision = byVariant.get(source.variantKey);
@@ -891,7 +902,7 @@ export function resolveRealCatalogueDecisions(manifest: RealCatalogueManifest, i
       readinessBlockers: [],
       catalogStatus: "pending_review",
     };
-    record.readinessBlockers = readinessBlockersFor(record);
+    record.readinessBlockers = readinessBlockersFor(record, { allExistingTiersApproved });
     record.catalogStatus = record.readinessBlockers.length ? "pending_review" : "active";
     return record;
   });
@@ -1339,16 +1350,25 @@ export async function promoteRealCatalogueManifest(
     targetLabel: string;
     decisions: unknown;
     targetIdentity?: Partial<RealCatalogueTargetIdentity>;
+    /** A reviewed release may promote a narrow approved subset while the
+     * remainder stays published/non-orderable. */
+    variantKeys?: string[];
+    /** Full-catalogue callers retain the existing retirement behavior. A
+     * scoped activation never retires unrelated legacy/test rows. */
+    includeRetireCandidates?: boolean;
   },
 ) {
   assertRealCatalogueTarget(process.env.DATABASE_URL ?? "", input.targetLabel, input.targetIdentity);
   const resolved = resolveRealCatalogueDecisions(manifest, input.decisions);
-  const notReady = resolved.manifest.records.filter((record) => record.readinessBlockers.length > 0);
+  const scopedManifest = scopeRealCataloguePromotionManifest(resolved.manifest, input.variantKeys);
+  const notReady = scopedManifest.records.filter((record) => record.readinessBlockers.length > 0);
   if (notReady.length) {
     throw new Error(`real_catalogue_not_ready_${notReady.length}_rows`);
   }
   const approvalSha256 = resolved.approvalSha256;
-  const batchKey = `${manifest.source.batchKey}:promotion:${resolved.decisions.approval.approvalId}:r${resolved.decisions.approval.revision}:${approvalSha256}`;
+  const scopedVariantKeys = input.variantKeys ? [...input.variantKeys].sort() : null;
+  const scopeSha256 = scopedVariantKeys ? crypto.createHash("sha256").update(JSON.stringify(scopedVariantKeys)).digest("hex") : "all";
+  const batchKey = `${manifest.source.batchKey}:promotion:${resolved.decisions.approval.approvalId}:r${resolved.decisions.approval.revision}:${approvalSha256}:scope-${scopeSha256}`;
   return database.$transaction(async (tx) => {
     const prior = await tx.catalogImportBatch.findFirst({
       where: {
@@ -1362,7 +1382,7 @@ export async function promoteRealCatalogueManifest(
       throw new Error("catalogue_approval_revision_conflict");
     }
     if (prior?.status === "completed" || prior?.status === "completed_with_errors") {
-      return (prior.summary as unknown as RealCatalogueApplySummary) ?? summaryFor(resolved.manifest, { batchKey, phase: "promote", approvalRevision: resolved.decisions.approval.revision, approvalSha256 });
+      return (prior.summary as unknown as RealCatalogueApplySummary) ?? summaryFor(scopedManifest, { batchKey, phase: "promote", approvalRevision: resolved.decisions.approval.revision, approvalSha256 });
     }
     const batch = prior ?? await tx.catalogImportBatch.create({
       data: {
@@ -1382,12 +1402,19 @@ export async function promoteRealCatalogueManifest(
         createdByStaffId: input.actorStaffId,
       },
     });
-    await tx.catalogImportBatch.update({ where: { id: batch.id }, data: { status: "applying", summary: json(summaryFor(resolved.manifest, { batchKey, phase: "promote", approvalRevision: resolved.decisions.approval.revision, approvalSha256 })) } });
+    await tx.catalogImportBatch.update({ where: { id: batch.id }, data: { status: "applying", summary: json(summaryFor(scopedManifest, { batchKey, phase: "promote", approvalRevision: resolved.decisions.approval.revision, approvalSha256 })) } });
 
     const tiers = await tx.tier.findMany({ select: { id: true } });
     const tierIds = new Set(tiers.map((tier) => tier.id));
+    const allExistingTiersApproved = resolved.decisions.pricing?.targetTierStatus === "all_existing_tiers"
+      && resolved.decisions.pricing.scope === "all_retailers";
+    const priceChoicesFor = (record: RealCatalogueRecord) => record.priceLists?.length
+      ? record.priceLists
+      : allExistingTiersApproved
+        ? tiers.map((tier) => ({ tierId: tier.id, rate: record.pricePerQuintal, rateBasis: "quintal" as const, gstIncluded: false }))
+        : [];
     const productMapping = new Map<string, string>();
-    for (const record of resolved.manifest.records) {
+    for (const record of scopedManifest.records) {
       const productKey = targetCatalogKey(record, "product");
       const variantKey = targetCatalogKey(record, "variant");
       const inventory = record.inventoryMapping;
@@ -1408,12 +1435,12 @@ export async function promoteRealCatalogueManifest(
         : await tx.inventorySnapshot.findUnique({ where: { sapMaterialId_warehouseCode: { sapMaterialId: inventory.sapMaterialId!, warehouseCode: inventory.warehouseCode } } });
       if (usesInternalIdentity && (!snapshot || snapshot.productId !== product.id || snapshot.variantId !== variant.id)) throw new Error(`catalogue_inventory_identity_mismatch_${record.variantKey}`);
       if (!snapshot || snapshot.status === "unavailable" || Number(snapshot.available) <= 0 || Date.now() - snapshot.syncedAt.getTime() > 60 * 60 * 1000) throw new Error(`catalogue_inventory_not_ready_${record.variantKey}`);
-      for (const price of record.priceLists ?? []) if (!tierIds.has(price.tierId)) throw new Error(`catalogue_price_tier_not_found_${price.tierId}`);
+      for (const price of priceChoicesFor(record)) if (!tierIds.has(price.tierId)) throw new Error(`catalogue_price_tier_not_found_${price.tierId}`);
     }
 
     let updatedProducts = 0;
     let updatedVariants = 0;
-    for (const record of resolved.manifest.records) {
+    for (const record of scopedManifest.records) {
       const productKey = targetCatalogKey(record, "product");
       const variantKey = targetCatalogKey(record, "variant");
       const product = await tx.product.findUnique({ where: { catalogKey: productKey } });
@@ -1453,7 +1480,7 @@ export async function promoteRealCatalogueManifest(
         },
       });
       updatedVariants += 1;
-      for (const price of record.priceLists ?? []) {
+      for (const price of priceChoicesFor(record)) {
         await tx.priceList.upsert({
           where: { tierId_variantId: { tierId: price.tierId, variantId: variant.id } },
           update: { price: price.rate, rateBasis: price.rateBasis, productId: product.id },
@@ -1463,7 +1490,8 @@ export async function promoteRealCatalogueManifest(
     }
     let retiredProducts = 0;
     let retiredVariants = 0;
-    for (const candidate of resolved.decisions.retireCandidates ?? []) {
+    const includeRetireCandidates = input.includeRetireCandidates ?? input.variantKeys === undefined;
+    for (const candidate of includeRetireCandidates ? (resolved.decisions.retireCandidates ?? []) : []) {
       const product = await tx.product.findUnique({
         where: { id: candidate.productId },
         include: { variants: { select: { id: true } } },
@@ -1488,7 +1516,7 @@ export async function promoteRealCatalogueManifest(
       retiredProducts += 1;
       retiredVariants += candidate.variantIds.length;
     }
-    const result = summaryFor(resolved.manifest, {
+    const result = summaryFor(scopedManifest, {
       batchKey,
       phase: "promote",
       approvalRevision: resolved.decisions.approval.revision,

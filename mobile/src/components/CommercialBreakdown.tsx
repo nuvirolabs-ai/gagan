@@ -12,6 +12,7 @@ export default function CommercialBreakdown({value}:{value:any}) {
   })).filter(group => group.lines.length);
   return <View style={styles.panel}>
     <Text style={styles.heading}>Commercial breakdown</Text>
+    {value.taxStatus === "PENDING" || value.gstPending ? <Text style={styles.text}>GST pending — final tax will be applied before invoicing.</Text> : null}
     {value.routing ? <View style={styles.routing}>
       <Text style={styles.heading}>Routing · {value.routing.destination === "INDORE_CITY" ? "Indore City" : "Outside Indore"}</Text>
       <Text style={styles.text}>{value.routing.explanation}</Text>
@@ -24,7 +25,7 @@ export default function CommercialBreakdown({value}:{value:any}) {
         <Text style={styles.text}>{line.pack}</Text>
         <Text style={styles.text}>{line.cases} cases · {line.weightKg} kg · {line.quintals} quintals</Text>
         <Text style={styles.text}>₹{line.rate} / {line.rateBasis} · Base ₹{line.base}</Text>
-        <Text style={styles.text}>GST {line.gstPercent}%: ₹{line.gst} · Discount ₹{line.discount}</Text>
+        {line.gstPending || line.gstPercent == null ? <Text style={styles.text}>GST pending — final tax will be applied before invoicing.</Text> : <Text style={styles.text}>GST {line.gstPercent}%: ₹{line.gst} · Discount ₹{line.discount}</Text>}
         <Text style={styles.heading}>Line total ₹{line.total}</Text>
       </View>)}
     </View>)}

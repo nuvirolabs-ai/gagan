@@ -12,8 +12,8 @@ const freight: ManagerFreight = {
 describe("commercial quote foundation", () => {
   it("creates an explicitly pre-tax quote when a line is approved for pending GST", () => {
     const quote = calculateCommercialQuote({ lines: [{ ...line, gstPercent: null }] });
-    expect(quote.gstPending).toBe(true);
-    expect(quote.lines[0]).toMatchObject({ gstPercent: null, gstPending: true, base: "600.00", gst: "0.00", total: "600.00" });
+    expect(quote).toMatchObject({ gstPending: true, taxStatus: "PENDING" });
+    expect(quote.lines[0]).toMatchObject({ gstPercent: null, gstPending: true, base: "600.00", gst: null, total: "600.00" });
     expect(quote.total).toBe("600.00");
     expect(hasPendingGst(quote)).toBe(true);
     expect(() => assertCommercialInvoiceable(quote)).toThrow("GST configuration required before invoice");

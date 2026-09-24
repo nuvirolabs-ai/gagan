@@ -180,7 +180,7 @@ export class CollectionService {
       include: submissionInclude,
       orderBy: [{ submittedAt: "asc" }, { id: "asc" }],
     });
-    return Promise.all(submissions.map((submission) => this.publicSubmission(submission)));
+    return this.publicSubmissions(submissions);
   }
 
   async assignedRetailers(collectorStaffId: string, actorPermissions: string[]) {
@@ -393,14 +393,24 @@ export class CollectionService {
     }
   }
 
-  private async publicSubmission<T extends { evidence: Array<{ objectKey: string; checksum: string; contentType: string; sizeBytes: number }> }>(submission: T) {
-    return {
+  private async publicSubmission<T extends { collectorStaffId: string; evidence: Array<{ objectKey: string; checksum: string; contentType: string; sizeBytes: number }> }>(submission: T) {
+    return (await this.publicSubmissions([submission]))[0];
+  }
+
+  private async publicSubmissions<T extends { collectorStaffId: string; evidence: Array<{ objectKey: string; checksum: string; contentType: string; sizeBytes: number }> }>(submissions: T[]) {
+    const collectorIds = [...new Set(submissions.map((submission) => submission.collectorStaffId))];
+    const collectors = collectorIds.length
+      ? await prisma.staffUser.findMany({ where: { id: { in: collectorIds } }, select: { id: true, name: true } })
+      : [];
+    const collectorNames = new Map(collectors.map((collector) => [collector.id, collector.name]));
+    return Promise.all(submissions.map(async (submission) => ({
       ...submission,
+      collectorName: collectorNames.get(submission.collectorStaffId) ?? null,
       evidence: await Promise.all(submission.evidence.map(async ({ objectKey, ...evidence }) => {
         const signedUrl = await this.storageAdapter().signedReadUrl(objectKey, 300).catch(() => null);
         return { ...evidence, signedUrl };
       })),
-    };
+    })));
   }
 }
 

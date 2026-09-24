@@ -111,6 +111,8 @@ The initial issue table, counts, and Top 20 ranking above describe the forensic 
 
 The initial issue row, counts, and Top 20 ranking above preserve the source-audit finding. The current execution status for GGN-ORD-02 is `IMPLEMENTED BUT NOT VERIFIED`; this does not change the initial audit totals.
 
+Implementation checkpoint: commit `b31a955` on `codex/gagan-client-feedback-v2-reconciled`.
+
 - Rep now presents pending proposals for unpriced demand capture. Catalog, punch, detail, and conversion API routes require both `RETAILER_PROPOSE` and `ORDER_CREATE_FOR_RETAILER`; proposal ownership is scoped to the authenticated salesperson. Admin approval review indicates pending punched demand without implying it is a canonical order.
 - `RetailerProposalOrderIntent` and item snapshots persist proposal, submitting salesperson, idempotency key, variant, product/pack snapshot, quantity, and conversion link/timestamps. Price is intentionally absent while tier assignment is not authoritative. The additive migration is `20260925100000_pending_retailer_order_intents`.
 - Conversion rejects pending proposals and checks active salesperson/retailer assignment. After approval it delegates to the existing official order service using a stable intent idempotency key, retaining standard commercial quote, credit, dispatch authorization, and SAP/outbox controls. Automated tests cover unpriced catalog/demand, replay/conflicting idempotency, preapproval rejection, route permissions, standard-engine delegation, and local DB persistence/readback of the captured intent. They do not yet establish the complete authenticated UI → approved proposal → canonical order readback path.

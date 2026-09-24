@@ -33,6 +33,7 @@ function fakePrisma(overrides: Record<string, any> = {}) {
     },
     tier: { findUnique: vi.fn().mockResolvedValue({ id: "tier-1" }) },
     auditEvent: { create: vi.fn() },
+    $queryRaw: vi.fn().mockResolvedValue([{ id: "proposal-1" }]),
     ...overrides,
   };
   db.$transaction = vi.fn(async (callback: (tx: any) => unknown) => callback(db));
@@ -63,6 +64,183 @@ const submission = {
 function serviceFor(prisma: any) {
   return new RetailerProposalService(prisma, testStorage as any);
 }
+
+describe("punching demand for a proposed retailer", () => {
+  const pendingProposal = {
+    id: "proposal-pending",
+    status: "pending",
+    submittedByStaffId: "staff-1",
+    retailerId: null,
+  };
+
+  it("captures normalized SKU demand for the proposal owner without pricing it", async () => {
+    const intent = { id: "intent-1", proposalId: pendingProposal.id, items: [{ variantId: "sku-1", qty: 3 }] };
+    const prisma = fakePrisma({
+      retailerProposal: {
+        ...fakePrisma().retailerProposal,
+        findUnique: vi.fn().mockResolvedValue(pendingProposal),
+      },
+      retailerProposalOrderIntent: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue(intent),
+      },
+      variant: {
+        findMany: vi.fn().mockResolvedValue([{
+          id: "sku-1", unitSize: "1 kg", unitsPerCase: 12,
+          product: { name: "Toor Dal", catalogStatus: "active" }, catalogStatus: "active",
+        }]),
+      },
+    });
+
+    const result = await (serviceFor(prisma) as any).punchOrderIntent({
+      proposalId: pendingProposal.id,
+      salespersonId: "staff-1",
+      idempotencyKey: "punch-once",
+      items: [{ variantId: "sku-1", qty: 1 }, { variantId: "sku-1", qty: 2 }],
+    });
+
+    expect(result).toEqual(intent);
+    expect(prisma.retailerProposalOrderIntent.create.mock.calls[0][0].data).toMatchObject({
+      proposalId: pendingProposal.id,
+      submittedByStaffId: "staff-1",
+      idempotencyKey: "punch-once",
+      items: { create: [{ variantId: "sku-1", qty: 3, productName: "Toor Dal", unitSize: "1 kg", unitsPerCase: 12 }] },
+    });
+    expect(prisma.retailerProposalOrderIntent.create.mock.calls[0][0].data.items.create[0]).not.toHaveProperty("price");
+  });
+
+  it("replays the same demand after approval but rejects reuse for a different basket", async () => {
+    const existing = {
+      id: "intent-replay",
+      proposalId: pendingProposal.id,
+      idempotencyKey: "punch-once",
+      items: [{ variantId: "sku-1", qty: 3 }],
+    };
+    const prisma = fakePrisma({
+      retailerProposal: {
+        ...fakePrisma().retailerProposal,
+        findUnique: vi.fn().mockResolvedValue({ ...pendingProposal, status: "approved" }),
+      },
+      retailerProposalOrderIntent: {
+        ...fakePrisma().retailerProposalOrderIntent,
+        findUnique: vi.fn().mockResolvedValue(existing),
+        create: vi.fn(),
+      },
+    });
+    const service = serviceFor(prisma) as any;
+    const input = {
+      proposalId: pendingProposal.id,
+      salespersonId: "staff-1",
+      idempotencyKey: "punch-once",
+      items: [{ variantId: "sku-1", qty: 3 }],
+    };
+
+    await expect(service.punchOrderIntent(input)).resolves.toBe(existing);
+    await expect(service.punchOrderIntent({ ...input, items: [{ variantId: "sku-1", qty: 4 }] }))
+      .rejects.toMatchObject({ code: "idempotency_key_conflict", status: 409 });
+    expect(prisma.retailerProposalOrderIntent.create).not.toHaveBeenCalled();
+  });
+
+  it("does not create canonical orders before proposal approval", async () => {
+    const createOfficialOrder = vi.fn();
+    const prisma = fakePrisma({
+      retailerProposalOrderIntent: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "intent-1",
+          proposalId: pendingProposal.id,
+          submittedByStaffId: "staff-1",
+          proposal: pendingProposal,
+          items: [{ variantId: "sku-1", qty: 3 }],
+          convertedOrder: null,
+        }),
+      },
+      staffUser: { findUnique: vi.fn().mockResolvedValue({ status: "active", salesRepId: "rep-1" }) },
+    });
+    const service = new RetailerProposalService(prisma, testStorage as any, createOfficialOrder as any);
+
+    await expect((service as any).convertOrderIntent({ intentId: "intent-1", salespersonId: "staff-1" }))
+      .rejects.toMatchObject({ code: "retailer_approval_required", status: 409 });
+    expect(createOfficialOrder).not.toHaveBeenCalled();
+  });
+
+  it("converts an approved demand through the official order engine exactly once", async () => {
+    const intent = {
+      id: "intent-1",
+      proposalId: "proposal-approved",
+      submittedByStaffId: "staff-1",
+      proposal: { id: "proposal-approved", status: "approved", retailerId: "retailer-1", submittedBy: { salesRepId: "rep-1" } },
+      items: [{ variantId: "sku-1", qty: 3 }],
+      convertedOrder: null,
+    };
+    const order = { id: "order-1", orderNo: 17 };
+    const createOfficialOrder = vi.fn().mockResolvedValue({ ok: true, order, decision: { result: "allowed", reasons: [] } });
+    const prisma = fakePrisma({
+      retailerProposalOrderIntent: {
+        findFirst: vi.fn().mockResolvedValue(intent),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      staffUser: { findUnique: vi.fn().mockResolvedValue({ status: "active", salesRepId: "rep-1" }) },
+      retailer: { findFirst: vi.fn().mockResolvedValue({ id: "retailer-1" }) },
+    });
+    const service = new RetailerProposalService(prisma, testStorage as any, createOfficialOrder as any);
+
+    const result = await (service as any).convertOrderIntent({
+      intentId: "intent-1",
+      salespersonId: "staff-1",
+      commercial: { quoteId: "quote-1", revision: 2 },
+    });
+
+    expect(createOfficialOrder).toHaveBeenCalledWith(
+      "retailer-1", [{ variantId: "sku-1", qty: 3 }], "rep", "rep-1", "staff-1",
+      "retailer-proposal-intent:intent-1", { quoteId: "quote-1", revision: 2 },
+    );
+    expect(prisma.retailerProposalOrderIntent.updateMany).toHaveBeenLastCalledWith({
+      where: { id: "intent-1", convertedOrderId: null },
+      data: { convertedOrderId: "order-1", convertedAt: expect.any(Date) },
+    });
+    expect(result).toMatchObject({ order });
+  });
+
+  it("replaces an expired pinned quote before converting an approved demand", async () => {
+    const intent = {
+      id: "intent-expired-quote",
+      proposalId: "proposal-approved",
+      submittedByStaffId: "staff-1",
+      conversionCommercialQuoteId: "quote-expired",
+      proposal: { id: "proposal-approved", status: "approved", retailerId: "retailer-1", submittedBy: { salesRepId: "rep-1" } },
+      items: [{ variantId: "sku-1", qty: 3 }],
+      convertedOrder: null,
+    };
+    const createOfficialOrder = vi.fn().mockResolvedValue({
+      ok: true, order: { id: "order-2" }, decision: { result: "allowed", reasons: [] },
+    });
+    const prisma = fakePrisma({
+      retailerProposalOrderIntent: {
+        findFirst: vi.fn().mockResolvedValue(intent),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      commercialQuote: { findUnique: vi.fn().mockResolvedValue({ acceptedAt: null, expiresAt: new Date(0) }) },
+      staffUser: { findUnique: vi.fn().mockResolvedValue({ status: "active", salesRepId: "rep-1" }) },
+      retailer: { findFirst: vi.fn().mockResolvedValue({ id: "retailer-1" }) },
+    });
+    const service = new RetailerProposalService(prisma, testStorage as any, createOfficialOrder as any);
+
+    await service.convertOrderIntent({
+      intentId: intent.id,
+      salespersonId: "staff-1",
+      commercial: { quoteId: "quote-fresh", revision: 1 },
+    });
+
+    expect(prisma.retailerProposalOrderIntent.updateMany).toHaveBeenNthCalledWith(1, {
+      where: { id: intent.id, convertedOrderId: null, conversionCommercialQuoteId: "quote-expired" },
+      data: { conversionCommercialQuoteId: "quote-fresh" },
+    });
+    expect(createOfficialOrder).toHaveBeenCalledWith(
+      "retailer-1", [{ variantId: "sku-1", qty: 3 }], "rep", "rep-1", "staff-1",
+      `retailer-proposal-intent:${intent.id}`, { quoteId: "quote-fresh", revision: 1 },
+    );
+  });
+});
 
 describe("submitting a proposal", () => {
   it("records the store with the salesperson who put it forward", async () => {

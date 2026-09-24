@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { currentSellingVisit, type SellingVisit } from "./sellingFlow";
@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -26,7 +27,8 @@ import { catalogPricePresentation } from "../lib/catalogPricePresentation";
 const ALL = "All";
 
 export default function RepCatalogScreen({ route, navigation }: any) {
-  const { retailerId, retailerName } = route.params;
+  const { retailerId, retailerName, proposalId } = route.params;
+  const proposalDemandMode = Boolean(proposalId);
   const { lines, addLine, updateQty, cartTotal, staff } = useRep();
   const insets = useSafeAreaInsets();
   const [sellingVisit, setSellingVisit] = useState<SellingVisit | null>(null);
@@ -34,7 +36,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
   useFocusEffect(useCallback(() => {
     let active = true;
     setSellingVisit(null);
-    if (canLogActivity) {
+    if (canLogActivity && !proposalDemandMode) {
       void Promise.all([repApi.visits(), repApi.customerActivities(retailerId), repApi.retailer(retailerId)])
         .then(([visits, activities, retailer]) => {
           if (active) setSellingVisit(currentSellingVisit({
@@ -45,7 +47,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
         }).catch(() => { if (active) setSellingVisit(null); });
     }
     return () => { active = false; };
-  }, [retailerId, route.params?.visitId, staff?.id, canLogActivity]));
+  }, [retailerId, route.params?.visitId, staff?.id, canLogActivity, proposalDemandMode]));
   const { t } = useLanguage();
 
   const [products, setProducts] = useState<CatalogGroup[]>([]);
@@ -54,17 +56,19 @@ export default function RepCatalogScreen({ route, navigation }: any) {
   const [category, setCategory] = useState(ALL);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [proposalLines, setProposalLines] = useState<Record<string, { productName: string; packSize: string; qty: number }>>({});
+  const [punching, setPunching] = useState(false);
+  const punchKey = useRef<string | null>(null);
 
   useEffect(() => {
-    repApi
-      .catalogFor(retailerId)
+    (proposalDemandMode ? repApi.proposalDemandCatalog(proposalId) : repApi.catalogFor(retailerId))
       .then((res) => {
         setProducts(catalogGroups(res));
         setCategories(res.categories ?? []);
       })
       .catch(() => setProducts([]))
       .finally(() => setLoading(false));
-  }, [retailerId]);
+  }, [retailerId, proposalDemandMode, proposalId]);
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -73,10 +77,28 @@ export default function RepCatalogScreen({ route, navigation }: any) {
       .filter((p) => !q || p.name.toLowerCase().includes(q) || p.skus.some(sku => sku.unitSize.toLowerCase().includes(q)));
   }, [products, category, query]);
 
-  const qtyFor = (variantId: string) => lines.find((l) => l.variantId === variantId)?.qty ?? 0;
+  const qtyFor = (variantId: string) => proposalDemandMode
+    ? proposalLines[variantId]?.qty ?? 0
+    : lines.find((l) => l.variantId === variantId)?.qty ?? 0;
 
   const setQty = (product: any, variant: any, next: number) => {
+    if (punching) return;
     const current = qtyFor(variant.id);
+    if (proposalDemandMode) {
+      if (next > 0 && variant.orderable === false) return;
+      punchKey.current = null;
+      setProposalLines((previous) => {
+        const nextLines = { ...previous };
+        if (next <= 0) delete nextLines[variant.id];
+        else nextLines[variant.id] = {
+          productName: product.name,
+          packSize: `${variant.unitSize} × ${variant.unitsPerCase}`,
+          qty: next,
+        };
+        return nextLines;
+      });
+      return;
+    }
     // The API owns inventory. A rep can reduce a saved line, but cannot add
     // stock that SAP has marked unavailable or stale.
     if (!canChangeRepCatalogQuantity(variant, current, next)) return;
@@ -93,7 +115,31 @@ export default function RepCatalogScreen({ route, navigation }: any) {
     }
   };
 
-  const cartCount = lines.reduce((n, l) => n + l.qty, 0);
+  const demandLines = Object.entries(proposalLines).map(([variantId, line]) => ({ variantId, ...line }));
+  const selectedLines = proposalDemandMode ? demandLines : lines;
+  const cartCount = selectedLines.reduce((n, l) => n + l.qty, 0);
+
+  const punchDemand = async () => {
+    if (!proposalId || demandLines.length === 0 || punching) return;
+    setPunching(true);
+    try {
+      punchKey.current ??= `proposal-punch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      await repApi.punchProposalOrderIntent(
+        proposalId,
+        demandLines.map(({ variantId, qty }) => ({ variantId, qty })),
+        punchKey.current,
+      );
+      punchKey.current = null;
+      setProposalLines({});
+      Alert.alert("Order punched", "Demand is recorded without pricing. It will be available for official order review after the retailer is approved.", [
+        { text: "Done", onPress: () => navigation.goBack() },
+      ], { cancelable: false });
+    } catch (error) {
+      Alert.alert("Could not punch order", error instanceof Error ? error.message : "Please retry when connected.");
+    } finally {
+      setPunching(false);
+    }
+  };
 
   return (
     <View style={styles.screen}>
@@ -101,8 +147,8 @@ export default function RepCatalogScreen({ route, navigation }: any) {
         <View style={styles.bannerIcon}>
           <Ionicons name="storefront-outline" size={16} color={colors.blue} />
         </View>
-        <Text style={styles.bannerText} numberOfLines={1}>
-          Ordering for {retailerName}
+        <Text style={styles.bannerText} numberOfLines={2}>
+          {proposalDemandMode ? `Demand for ${retailerName} · retailer pending` : `Ordering for ${retailerName}`}
         </Text>
       </View>
 
@@ -144,7 +190,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
                   <Text style={styles.pack}>
                     {variant.unitSize} × {variant.unitsPerCase}
                   </Text>
-                  <View style={styles.priceStack}>
+                  {proposalDemandMode ? <Text style={styles.pendingOrder}>Price after retailer approval</Text> : <View style={styles.priceStack}>
                     <View style={styles.priceRow}>
                       <Text style={styles.price}>
                         {priceDisplay.primary}
@@ -153,12 +199,12 @@ export default function RepCatalogScreen({ route, navigation }: any) {
                     {priceDisplay.perKg ? <Text style={styles.perKg}>{priceDisplay.perKg}</Text> : null}
                     {priceDisplay.caseEquivalent ? <Text style={styles.rateLabel}>{priceDisplay.caseEquivalent}</Text> : null}
                     {variant.rateBasis?.toLowerCase() === "quintal" || variant.rateLabel ? <Text style={styles.rateLabel}>Excluding GST</Text> : null}
-                  </View>
+                  </View>}
                   {variant.gstPending || variant.taxStatus === "PENDING" ? <Text style={styles.pendingOrder}>GST pending — final tax will be applied before invoicing.</Text> : null}
                   {variant.orderable === false ? <Text style={styles.pendingOrder}>{variant.orderingReason ?? "Ordering setup pending"}</Text> : null}
                   {variant.isOverride && <Text style={styles.override}>{t("catalog.specialRate")}</Text>}
                 </View>
-                {qty === 0 && canChangeRepCatalogQuantity(variant, qty, qty + 1) ? <QtyStepper qty={qty} onChange={(next) => setQty(product, variant, next)} compact /> : null}
+                {qty === 0 && (proposalDemandMode || canChangeRepCatalogQuantity(variant, qty, qty + 1)) ? <QtyStepper qty={qty} onChange={(next) => setQty(product, variant, next)} compact /> : null}
                 </View>
                 {product.skus.length > 1 || qty > 0 ? <View style={styles.controlsRow}>
                 {product.skus.length > 1 ? <View style={styles.packOptions}>
@@ -186,13 +232,13 @@ export default function RepCatalogScreen({ route, navigation }: any) {
         <View style={styles.bar}>
           <View style={{ flex: 1 }}>
             <Text style={styles.barLabel}>
-              {cartCount} case{cartCount > 1 ? "s" : ""} · {lines.length} line
-              {lines.length > 1 ? "s" : ""}
+              {cartCount} case{cartCount > 1 ? "s" : ""} · {selectedLines.length} line
+              {selectedLines.length > 1 ? "s" : ""}
             </Text>
-            <Text style={styles.barValue}>Catalogue subtotal · {inr(cartTotal)}</Text>
+            <Text style={styles.barValue}>{proposalDemandMode ? "Unpriced demand · pending approval" : `Catalogue subtotal · ${inr(cartTotal)}`}</Text>
           </View>
-          <TouchableOpacity style={styles.placeBtn} accessibilityRole="button" onPress={() => navigation.navigate("RepReviewOrder", { retailerId, retailerName })}>
-            <Text style={styles.placeText}>Review order</Text>
+          <TouchableOpacity style={styles.placeBtn} accessibilityRole="button" disabled={punching} onPress={() => proposalDemandMode ? void punchDemand() : navigation.navigate("RepReviewOrder", { retailerId, retailerName })}>
+            <Text style={styles.placeText}>{proposalDemandMode ? punching ? "Punching…" : "Punch order" : "Review order"}</Text>
             <Ionicons name="arrow-forward" size={16} color={colors.onDark} />
           </TouchableOpacity>
         </View>
@@ -228,7 +274,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  bannerText: { color: colors.blueInk, fontWeight: "700", fontSize: 13.5 },
+  bannerText: { flex: 1, minWidth: 0, color: colors.blueInk, fontWeight: "700", fontSize: 13.5, lineHeight: 18 },
   quoteStatus: {
     flexDirection: "row",
     alignItems: "center",

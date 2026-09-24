@@ -1,11 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "../../../lib/prisma";
 import { RetailerProposalService } from "../retailerProposalService";
 
 const run = randomUUID();
 const submitter = randomUUID(), reviewer = randomUUID(), tier = randomUUID();
 const proposalIds: string[] = [];
+const intentIds: string[] = [];
+const products: string[] = [];
+const variants: string[] = [];
 const phones: string[] = [];
 const service = new RetailerProposalService(prisma);
 beforeAll(async () => {
@@ -15,10 +18,14 @@ beforeAll(async () => {
   } });
 });
 afterAll(async () => {
+  await prisma.auditEvent.deleteMany({ where: { subjectType: "retailer_proposal_order_intent", subjectId: { in: intentIds } } });
+  await prisma.retailerProposalOrderIntent.deleteMany({ where: { id: { in: intentIds } } });
   await prisma.auditEvent.deleteMany({ where: { subjectType: "retailer_proposal", subjectId: { in: proposalIds } } });
   await prisma.retailerProposal.deleteMany({ where: { id: { in: proposalIds } } });
   await prisma.retailerLocation.deleteMany({ where: { retailer: { phone: { in: phones } } } });
   await prisma.retailer.deleteMany({ where: { phone: { in: phones } } });
+  await prisma.variant.deleteMany({ where: { id: { in: variants } } });
+  await prisma.product.deleteMany({ where: { id: { in: products } } });
   await prisma.staffUser.deleteMany({ where: { id: { in: [submitter, reviewer] } } });
   await prisma.tier.deleteMany({ where: { id: tier } });
 });
@@ -49,5 +56,60 @@ describe("proposal decisions are atomic", () => {
       const event = await prisma.auditEvent.findFirstOrThrow({ where: { subjectId: proposal.id } });
       expect(event.metadata).toMatchObject({ from: "pending", to: "withdrawn" });
     }
+  });
+
+  it("persists an unpriced order punch for a pending proposal without creating an official order", async () => {
+    const phone = randomUUID();
+    const productId = randomUUID();
+    const variantId = randomUUID();
+    phones.push(phone);
+    products.push(productId);
+    variants.push(variantId);
+    const proposal = await prisma.retailerProposal.create({ data: {
+      businessName: `Pending demand ${run}`,
+      phone,
+      shopAddress: "Local fixture",
+      submittedByStaffId: submitter,
+    } });
+    proposalIds.push(proposal.id);
+    await prisma.product.create({ data: {
+      id: productId,
+      name: "Test demand item",
+      category: "Test",
+      variants: { create: { id: variantId, unitSize: "1 kg", unit: "kg", unitsPerCase: 12 } },
+    } });
+    const createOfficialOrder = vi.fn();
+    const demandService = new RetailerProposalService(prisma, undefined, createOfficialOrder as any);
+
+    const intent = await demandService.punchOrderIntent({
+      proposalId: proposal.id,
+      salespersonId: submitter,
+      idempotencyKey: "pending-demand-once",
+      items: [{ variantId, qty: 2 }],
+    });
+    intentIds.push(intent.id);
+
+    const saved = await prisma.retailerProposalOrderIntent.findUniqueOrThrow({
+      where: { id: intent.id },
+      include: { items: true },
+    });
+    expect(saved.items).toMatchObject([{ variantId, qty: 2, productName: "Test demand item", unitSize: "1 kg" }]);
+    expect(saved.items[0]).not.toHaveProperty("unitPrice");
+    await expect(demandService.punchOrderIntent({
+      proposalId: proposal.id,
+      salespersonId: submitter,
+      idempotencyKey: "pending-demand-once",
+      items: [{ variantId, qty: 2 }],
+    })).resolves.toMatchObject({ id: intent.id });
+    await expect(demandService.punchOrderIntent({
+      proposalId: proposal.id,
+      salespersonId: submitter,
+      idempotencyKey: "pending-demand-once",
+      items: [{ variantId, qty: 3 }],
+    })).rejects.toMatchObject({ code: "idempotency_key_conflict", status: 409 });
+    await expect(demandService.convertOrderIntent({ intentId: intent.id, salespersonId: submitter }))
+      .rejects.toMatchObject({ code: "retailer_approval_required", status: 409 });
+    expect(createOfficialOrder).not.toHaveBeenCalled();
+    expect(await prisma.retailer.count({ where: { phone } })).toBe(0);
   });
 });

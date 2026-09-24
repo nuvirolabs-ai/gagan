@@ -325,11 +325,11 @@ enum LegalDecisionType {
 
 model Payment {
   invoiceScopeId        String?
-  scopedInvoice Invoice? @relation("InvoiceScopedPayments", fields:[invoiceScopeId], references:[id], onDelete:NoAction, onUpdate:NoAction)
+  scopedInvoice         Invoice?              @relation("InvoiceScopedPayments", fields: [invoiceScopeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   confirmedJainAmount   Decimal?              @db.Decimal(14, 2)
   confirmedPadamAmount  Decimal?              @db.Decimal(14, 2)
   confirmedByStaffId    String?
-  confirmedBy StaffUser? @relation("CommercialPaymentConfirmer", fields:[confirmedByStaffId],references:[id],onDelete:NoAction,onUpdate:NoAction)
+  confirmedBy           StaffUser?            @relation("CommercialPaymentConfirmer", fields: [confirmedByStaffId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   confirmedMethod       String?
   confirmedReference    String?
   requestKey            String?               @unique
@@ -377,7 +377,7 @@ model Tier {
 }
 
 model Retailer {
-  commercialQuotes CommercialQuote[]
+  commercialQuotes          CommercialQuote[]
   id                        String                     @id @default(uuid())
   name                      String
   shopAddress               String
@@ -541,16 +541,16 @@ model SalesRep {
 }
 
 model StaffUser {
-  freightQuotes CommercialQuote[]
-  commercialPayments Payment[] @relation("CommercialPaymentConfirmer")
+  freightQuotes          CommercialQuote[]
+  commercialPayments     Payment[]               @relation("CommercialPaymentConfirmer")
   commercialStatusEvents CommercialStatusEvent[] @relation("CommercialStatusActor")
-  commercialHolds Order[] @relation("CommercialHoldActor")
-  id          String      @id @default(uuid())
-  name        String
-  phone       String      @unique
-  email       String      @unique
-  employeeRef String?     @unique
-  status      StaffStatus @default(active)
+  commercialHolds        Order[]                 @relation("CommercialHoldActor")
+  id                     String                  @id @default(uuid())
+  name                   String
+  phone                  String                  @unique
+  email                  String                  @unique
+  employeeRef            String?                 @unique
+  status                 StaffStatus             @default(active)
 
   // The reporting line. One nullable self-relation is the whole hierarchy:
   // null means top of the tree, depth is unbounded, and no job title appears
@@ -560,33 +560,34 @@ model StaffUser {
   manager       StaffUser?  @relation("StaffReporting", fields: [managerId], references: [id], onDelete: SetNull)
   directReports StaffUser[] @relation("StaffReporting")
 
-  salesRepId                 String?            @unique
-  salesRep                   SalesRep?          @relation(fields: [salesRepId], references: [id])
-  adminUserId                String?            @unique
-  adminUser                  AdminUser?         @relation(fields: [adminUserId], references: [id])
-  roles                      StaffRole[]
-  salesVisits                SalesVisit[]       @relation("SalespersonVisits")
-  delegationsGiven           RoleDelegation[]   @relation("Delegator")
-  delegationsHeld            RoleDelegation[]   @relation("Delegatee")
-  workdaySessions            WorkdaySession[]   @relation("SalespersonWorkdays")
-  leaveRequests              LeaveRequest[]     @relation("SalespersonLeave")
-  leaveDecisions             LeaveRequest[]     @relation("LeaveDecisions")
-  routePlans                 RoutePlan[]        @relation("SalespersonRoutePlans")
-  customerActivities         CustomerActivity[] @relation("SalespersonActivities")
-  fieldTasksAssigned         FieldTask[]        @relation("FieldTasksAssigned")
-  fieldTasksCreated          FieldTask[]        @relation("FieldTasksCreated")
-  locationPings              LocationPing[]     @relation("SalespersonPings")
-  fieldExpenses              FieldExpense[]     @relation("SalespersonExpenses")
-  expenseDecisions           FieldExpense[]     @relation("ExpenseDecisions")
-  serviceIssues              ServiceIssue[]     @relation("ServiceIssuesRaised")
-  salesTargets               SalesTarget[]      @relation("SalespersonTargets")
-  retailerProposalsSubmitted RetailerProposal[] @relation("RetailerProposalsSubmitted")
-  retailerProposalsReviewed  RetailerProposal[] @relation("RetailerProposalsReviewed")
-  surveysCreated             Survey[]           @relation("SurveyCreatedBy")
-  surveyAssignments          SurveyAssignment[] @relation("SurveyAssignedSalesperson")
-  surveyResponses            SurveyResponse[]   @relation("SurveyRespondentStaff")
-  createdAt                  DateTime           @default(now())
-  updatedAt                  DateTime           @updatedAt
+  salesRepId                   String?                       @unique
+  salesRep                     SalesRep?                     @relation(fields: [salesRepId], references: [id])
+  adminUserId                  String?                       @unique
+  adminUser                    AdminUser?                    @relation(fields: [adminUserId], references: [id])
+  roles                        StaffRole[]
+  salesVisits                  SalesVisit[]                  @relation("SalespersonVisits")
+  delegationsGiven             RoleDelegation[]              @relation("Delegator")
+  delegationsHeld              RoleDelegation[]              @relation("Delegatee")
+  workdaySessions              WorkdaySession[]              @relation("SalespersonWorkdays")
+  leaveRequests                LeaveRequest[]                @relation("SalespersonLeave")
+  leaveDecisions               LeaveRequest[]                @relation("LeaveDecisions")
+  routePlans                   RoutePlan[]                   @relation("SalespersonRoutePlans")
+  customerActivities           CustomerActivity[]            @relation("SalespersonActivities")
+  fieldTasksAssigned           FieldTask[]                   @relation("FieldTasksAssigned")
+  fieldTasksCreated            FieldTask[]                   @relation("FieldTasksCreated")
+  locationPings                LocationPing[]                @relation("SalespersonPings")
+  fieldExpenses                FieldExpense[]                @relation("SalespersonExpenses")
+  expenseDecisions             FieldExpense[]                @relation("ExpenseDecisions")
+  serviceIssues                ServiceIssue[]                @relation("ServiceIssuesRaised")
+  salesTargets                 SalesTarget[]                 @relation("SalespersonTargets")
+  retailerProposalsSubmitted   RetailerProposal[]            @relation("RetailerProposalsSubmitted")
+  retailerProposalsReviewed    RetailerProposal[]            @relation("RetailerProposalsReviewed")
+  retailerProposalOrderIntents RetailerProposalOrderIntent[] @relation("RetailerProposalOrderIntentSubmitter")
+  surveysCreated               Survey[]                      @relation("SurveyCreatedBy")
+  surveyAssignments            SurveyAssignment[]            @relation("SurveyAssignedSalesperson")
+  surveyResponses              SurveyResponse[]              @relation("SurveyRespondentStaff")
+  createdAt                    DateTime                      @default(now())
+  updatedAt                    DateTime                      @updatedAt
 
   @@index([status])
   @@index([managerId])
@@ -959,24 +960,24 @@ model ImportJob {
 /// checksum is the batch identity; no catalogue row is matched by display
 /// name alone and a repeat run reuses the same technical source keys.
 model CatalogImportBatch {
-  id             String   @id @default(uuid())
-  batchKey       String   @unique
-  sourceFileName String
-  sourceSha256   String
-  sourceVersion  String
-  targetLabel    String
-  mode           String
-  status         String   @default("dry_run")
-  approvalId       String?
-  approvalRevision Int?
-  approvalSha256   String?
-  approvalSource   String?
-  approvalScope    Json?
+  id                   String    @id @default(uuid())
+  batchKey             String    @unique
+  sourceFileName       String
+  sourceSha256         String
+  sourceVersion        String
+  targetLabel          String
+  mode                 String
+  status               String    @default("dry_run")
+  approvalId           String?
+  approvalRevision     Int?
+  approvalSha256       String?
+  approvalSource       String?
+  approvalScope        Json?
   imageMappingRevision String?
-  summary        Json?
-  createdByStaffId String?
-  createdAt      DateTime @default(now())
-  completedAt    DateTime?
+  summary              Json?
+  createdByStaffId     String?
+  createdAt            DateTime  @default(now())
+  completedAt          DateTime?
 
   @@index([sourceSha256, sourceVersion])
   @@index([sourceVersion, approvalRevision])
@@ -1101,9 +1102,9 @@ model AppConfig {
 }
 
 model Product {
-  catalogKey         String?              @unique
-  internalCode       String?              @unique
-  catalogStatus      String               @default("active")
+  catalogKey         String?             @unique
+  internalCode       String?             @unique
+  catalogStatus      String              @default("active")
   id                 String              @id @default(uuid())
   name               String
   category           String
@@ -1118,77 +1119,79 @@ model Product {
 // A variant is one sellable case: `unitSize` x `unitsPerCase` (e.g. "1 kg" x 30).
 // PriceList.price is the price of the whole case.
 model Variant {
-  catalogKey         String?              @unique
-  internalCode       String?              @unique
-  catalogStatus      String               @default("active")
-  imageUrl           String?
+  catalogKey               String?                           @unique
+  internalCode             String?                           @unique
+  catalogStatus            String                            @default("active")
+  imageUrl                 String?
   /// Publication can intentionally show a labelled placeholder while the
   /// sellable variant remains non-orderable until commercial setup is valid.
-  catalogImageStatus String               @default("exact")
-  catalogImageLabel  String?
-  hsnCode            String?
-  sellingEntity      String?
-  gstPercent         Decimal?            @db.Decimal(5, 2)
+  catalogImageStatus       String                            @default("exact")
+  catalogImageLabel        String?
+  hsnCode                  String?
+  sellingEntity            String?
+  gstPercent               Decimal?                          @db.Decimal(5, 2)
   /// Explicit staging-only permission to accept an order before GST is finalized.
   /// Invoice creation still requires a non-null GST snapshot.
-  gstPendingOrderAllowed Boolean          @default(false)
+  gstPendingOrderAllowed   Boolean                           @default(false)
   /// Explicit routing classification. Null preserves legacy static/ungrouped
   /// catalog behavior until a SKU is deliberately configured for routing.
-  routingClass       String?
+  routingClass             String?
   /// Approved ordered-case contribution to the five-bag threshold. Laxmi may
   /// remain null; Instant Mix may remain null only for the documented weight
   /// exception or an unresolved mixed-unit review.
-  routingBagEquivalent Decimal?          @db.Decimal(12, 3)
-  id                 String              @id @default(uuid())
-  productId          String
-  product            Product             @relation(fields: [productId], references: [id])
-  unitSize           String
-  unit               String
-  unitsPerCase       Int                 @default(1)
+  routingBagEquivalent     Decimal?                          @db.Decimal(12, 3)
+  id                       String                            @id @default(uuid())
+  productId                String
+  product                  Product                           @relation(fields: [productId], references: [id])
+  unitSize                 String
+  unit                     String
+  unitsPerCase             Int                               @default(1)
   // Numeric weight of a single unit. Needed to invoice off delivered weight
   // (spec §5.6): price/kg = casePrice / (unitWeightKg * unitsPerCase).
-  unitWeightKg       Decimal             @default(1) @db.Decimal(10, 3)
-  priceList          PriceList[]
-  orderItems         OrderItem[]
-  priceOverrides     PriceOverride[]
-  inventorySnapshots InventorySnapshot[]
+  unitWeightKg             Decimal                           @default(1) @db.Decimal(10, 3)
+  priceList                PriceList[]
+  orderItems               OrderItem[]
+  priceOverrides           PriceOverride[]
+  inventorySnapshots       InventorySnapshot[]
+  proposalOrderIntentItems RetailerProposalOrderIntentItem[]
 }
 
 /// Server-priced draft; manager freight edits stop at acceptance.
 model CommercialQuote {
-  id String @id @default(uuid())
-  retailerId String
-  retailer Retailer @relation(fields:[retailerId],references:[id],onDelete:NoAction,onUpdate:NoAction)
-  snapshot Json
-  revision Int @default(1)
+  id                        String                  @id @default(uuid())
+  retailerId                String
+  retailer                  Retailer                @relation(fields: [retailerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  snapshot                  Json
+  revision                  Int                     @default(1)
   freightConfirmedByStaffId String?
-  freightConfirmedBy StaffUser? @relation(fields:[freightConfirmedByStaffId],references:[id],onDelete:NoAction,onUpdate:NoAction)
-  order Order?
-  commercialStatusEvents CommercialStatusEvent[]
-  expiresAt DateTime
-  acceptedAt DateTime?
-  createdAt DateTime @default(now())
+  freightConfirmedBy        StaffUser?              @relation(fields: [freightConfirmedByStaffId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  order                     Order?
+  commercialStatusEvents    CommercialStatusEvent[]
+  expiresAt                 DateTime
+  acceptedAt                DateTime?
+  createdAt                 DateTime                @default(now())
+
   @@index([retailerId, createdAt])
 }
 
 model InventorySnapshot {
-  id            String          @id @default(uuid())
-  productId     String
-  product       Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
-  variantId     String?
-  variant       Variant?        @relation(fields: [variantId], references: [id], onDelete: Cascade)
-  sapMaterialId String?
+  id                 String          @id @default(uuid())
+  productId          String
+  product            Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId          String?
+  variant            Variant?        @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  sapMaterialId      String?
   /// Internal staging identity is never written into the external SAP field.
   internalMaterialId String?
-  warehouseCode String
-  onHand        Decimal         @db.Decimal(14, 3)
-  committed     Decimal         @default(0) @db.Decimal(14, 3)
-  available     Decimal         @db.Decimal(14, 3)
-  status        InventoryStatus @default(unknown)
-  source        String          @default("sap")
-  syncedAt      DateTime
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  warehouseCode      String
+  onHand             Decimal         @db.Decimal(14, 3)
+  committed          Decimal         @default(0) @db.Decimal(14, 3)
+  available          Decimal         @db.Decimal(14, 3)
+  status             InventoryStatus @default(unknown)
+  source             String          @default("sap")
+  syncedAt           DateTime
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 
   @@unique([sapMaterialId, warehouseCode])
   @@unique([internalMaterialId, warehouseCode])
@@ -1197,7 +1200,7 @@ model InventorySnapshot {
 }
 
 model PriceList {
-  rateBasis String @default("case")
+  rateBasis String  @default("case")
   id        String  @id @default(uuid())
   tierId    String
   tier      Tier    @relation(fields: [tierId], references: [id])
@@ -1210,7 +1213,7 @@ model PriceList {
 }
 
 model PriceOverride {
-  rateBasis String @default("case")
+  rateBasis  String   @default("case")
   id         String   @id @default(uuid())
   retailerId String
   retailer   Retailer @relation(fields: [retailerId], references: [id])
@@ -1222,33 +1225,33 @@ model PriceOverride {
 }
 
 model Order {
-  commercialQuoteId         String?                    @unique
-  commercialQuote CommercialQuote? @relation(fields:[commercialQuoteId],references:[id],onDelete:NoAction,onUpdate:NoAction)
+  commercialQuoteId         String?                      @unique
+  commercialQuote           CommercialQuote?             @relation(fields: [commercialQuoteId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   commercialSnapshot        Json?
-  id                        String                     @id @default(uuid())
+  id                        String                       @id @default(uuid())
   // Human-facing reference shown to retailers (rendered as GGN-00000001).
-  orderNo                   Int                        @unique @default(autoincrement())
+  orderNo                   Int                          @unique @default(autoincrement())
   retailerId                String
-  retailer                  Retailer                   @relation(fields: [retailerId], references: [id])
+  retailer                  Retailer                     @relation(fields: [retailerId], references: [id])
   idempotencyKey            String?
-  placedBy                  PlacedBy                   @default(retailer)
+  placedBy                  PlacedBy                     @default(retailer)
   placedByRepId             String?
-  status                    OrderStatus                @default(placed)
-  orderTotal                Decimal                    @db.Decimal(12, 2)
+  status                    OrderStatus                  @default(placed)
+  orderTotal                Decimal                      @db.Decimal(12, 2)
   expectedDeliveryAt        DateTime?
   sapSalesOrderId           String?
   sapDocEntry               Int?
   sapDocNum                 Int?
-  sapExternalReference      String?                    @unique
-  sapSyncStatus             SapOrderSyncStatus         @default(pending)
+  sapExternalReference      String?                      @unique
+  sapSyncStatus             SapOrderSyncStatus           @default(pending)
   sapLastSyncedAt           DateTime?
   sapErrorCode              String?
   sapErrorMessage           String?
-  isOnHold                  Boolean                    @default(false)
+  isOnHold                  Boolean                      @default(false)
   holdReason                String?
   heldAt                    DateTime?
   heldByStaffId             String?
-  heldBy                    StaffUser?                 @relation("CommercialHoldActor", fields: [heldByStaffId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  heldBy                    StaffUser?                   @relation("CommercialHoldActor", fields: [heldByStaffId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   items                     OrderItem[]
   delivery                  Delivery?
   invoice                   Invoice?
@@ -1260,7 +1263,8 @@ model Order {
   customerActivities        CustomerActivity[]
   serviceIssues             ServiceIssue[]
   commercialStatusEvents    CommercialStatusEvent[]
-  createdAt                 DateTime                   @default(now())
+  proposalOrderIntent       RetailerProposalOrderIntent?
+  createdAt                 DateTime                     @default(now())
 
   @@unique([retailerId, idempotencyKey])
   @@index([sapSyncStatus, createdAt])
@@ -1293,19 +1297,19 @@ model CommercialStatusEvent {
 }
 
 model OrderItem {
-  commercialSnapshot Json?
-  id              String        @id @default(uuid())
-  orderId         String
-  order           Order         @relation(fields: [orderId], references: [id])
-  variantId       String
-  variant         Variant       @relation(fields: [variantId], references: [id])
-  qtyOrdered      Int
-  unitPrice       Decimal       @db.Decimal(12, 2)
+  commercialSnapshot   Json?
+  id                   String        @id @default(uuid())
+  orderId              String
+  order                Order         @relation(fields: [orderId], references: [id])
+  variantId            String
+  variant              Variant       @relation(fields: [variantId], references: [id])
+  qtyOrdered           Int
+  unitPrice            Decimal       @db.Decimal(12, 2)
   /// Accepted kilograms per priced case; null only for pre-snapshot orders.
-  caseWeightKgSnapshot Decimal? @db.Decimal(24, 3)
-  qtyDelivered    Int?
-  weightDelivered Decimal?      @db.Decimal(12, 3)
-  invoiceLines    InvoiceLine[]
+  caseWeightKgSnapshot Decimal?      @db.Decimal(24, 3)
+  qtyDelivered         Int?
+  weightDelivered      Decimal?      @db.Decimal(12, 3)
+  invoiceLines         InvoiceLine[]
 }
 
 model Delivery {
@@ -1342,35 +1346,35 @@ model LedgerEntry {
 }
 
 model Invoice {
-  scopedPayments Payment[] @relation("InvoiceScopedPayments")
-  scopedCollections CollectionSubmission[]
+  scopedPayments      Payment[]              @relation("InvoiceScopedPayments")
+  scopedCollections   CollectionSubmission[]
   commercialSnapshot  Json?
-  id                  String                @id @default(uuid())
-  invoiceNumber       Int                   @unique @default(autoincrement())
+  id                  String                 @id @default(uuid())
+  invoiceNumber       Int                    @unique @default(autoincrement())
   retailerId          String
-  retailer            Retailer              @relation(fields: [retailerId], references: [id])
-  orderId             String?               @unique
-  order               Order?                @relation(fields: [orderId], references: [id])
-  legacyLedgerEntryId String?               @unique
-  legacyLedgerEntry   LedgerEntry?          @relation(fields: [legacyLedgerEntryId], references: [id], onDelete: Restrict)
+  retailer            Retailer               @relation(fields: [retailerId], references: [id])
+  orderId             String?                @unique
+  order               Order?                 @relation(fields: [orderId], references: [id])
+  legacyLedgerEntryId String?                @unique
+  legacyLedgerEntry   LedgerEntry?           @relation(fields: [legacyLedgerEntryId], references: [id], onDelete: Restrict)
   invoiceDate         DateTime
   dueDate             DateTime
-  currency            String                @default("INR")
-  subtotal            Decimal               @db.Decimal(14, 2)
-  taxTotal            Decimal               @default(0) @db.Decimal(14, 2)
-  total               Decimal               @db.Decimal(14, 2)
-  outstandingAmount   Decimal               @db.Decimal(14, 2)
-  status              InvoiceStatus         @default(open)
-  idempotencyKey      String                @unique
-  sapInvoiceId        String?               @unique
+  currency            String                 @default("INR")
+  subtotal            Decimal                @db.Decimal(14, 2)
+  taxTotal            Decimal                @default(0) @db.Decimal(14, 2)
+  total               Decimal                @db.Decimal(14, 2)
+  outstandingAmount   Decimal                @db.Decimal(14, 2)
+  status              InvoiceStatus          @default(open)
+  idempotencyKey      String                 @unique
+  sapInvoiceId        String?                @unique
   lines               InvoiceLine[]
   allocations         PaymentAllocation[]
   ledgerEntry         FinancialLedgerEntry?
   creditNotes         CreditNote[]
   recoveryCase        RecoveryCase?
   serviceIssues       ServiceIssue[]
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
 
   @@index([retailerId, status, dueDate])
 }
@@ -1544,16 +1548,16 @@ model InvoiceLine {
 }
 
 model PaymentAllocation {
-  jainAmount Decimal? @db.Decimal(14, 2)
-  padamAmount Decimal? @db.Decimal(14, 2)
-  id        String                      @id @default(uuid())
-  paymentId String
-  payment   Payment                     @relation(fields: [paymentId], references: [id], onDelete: Restrict)
-  invoiceId String
-  invoice   Invoice                     @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
-  amount    Decimal                     @db.Decimal(14, 2)
-  reversals PaymentReversalAllocation[]
-  createdAt DateTime                    @default(now())
+  jainAmount  Decimal?                    @db.Decimal(14, 2)
+  padamAmount Decimal?                    @db.Decimal(14, 2)
+  id          String                      @id @default(uuid())
+  paymentId   String
+  payment     Payment                     @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  invoiceId   String
+  invoice     Invoice                     @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  amount      Decimal                     @db.Decimal(14, 2)
+  reversals   PaymentReversalAllocation[]
+  createdAt   DateTime                    @default(now())
 
   @@unique([paymentId, invoiceId])
   @@index([invoiceId, createdAt])
@@ -1600,10 +1604,10 @@ model PaymentEvidence {
 /// A field-collected payment remains outside the financial ledger until Accounts
 /// verifies the evidence and confirms it. Collectors never create Payment rows.
 model CollectionSubmission {
-  invoiceScopeId String?
-  scopedInvoice Invoice? @relation(fields:[invoiceScopeId],references:[id],onDelete:NoAction,onUpdate:NoAction)
-  jainAmount Decimal? @db.Decimal(14, 2)
-  padamAmount Decimal? @db.Decimal(14, 2)
+  invoiceScopeId     String?
+  scopedInvoice      Invoice?                   @relation(fields: [invoiceScopeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  jainAmount         Decimal?                   @db.Decimal(14, 2)
+  padamAmount        Decimal?                   @db.Decimal(14, 2)
   id                 String                     @id @default(uuid())
   retailerId         String
   retailer           Retailer                   @relation(fields: [retailerId], references: [id])
@@ -2294,37 +2298,37 @@ model FieldExpense {
 }
 
 model ServiceIssue {
-  id              String               @id @default(uuid())
-  retailerId      String
-  retailer        Retailer             @relation(fields: [retailerId], references: [id], onDelete: Restrict)
-  raisedByStaffId String?
-  raisedBy        StaffUser?           @relation("ServiceIssuesRaised", fields: [raisedByStaffId], references: [id], onDelete: Restrict)
-  orderId         String?
-  order           Order?               @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  invoiceId       String?
-  invoice         Invoice?             @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
-  visitId         String?
-  visit           SalesVisit?          @relation(fields: [visitId], references: [id], onDelete: SetNull)
-  type            ServiceIssueType
-  priority        ServiceIssuePriority @default(normal)
-  description     String
-  status          ServiceIssueStatus   @default(open)
-  assignedTeam    String?
-  resolutionNote  String?
-  resolvedAt      DateTime?
+  id                    String               @id @default(uuid())
+  retailerId            String
+  retailer              Retailer             @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  raisedByStaffId       String?
+  raisedBy              StaffUser?           @relation("ServiceIssuesRaised", fields: [raisedByStaffId], references: [id], onDelete: Restrict)
+  orderId               String?
+  order                 Order?               @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  invoiceId             String?
+  invoice               Invoice?             @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  visitId               String?
+  visit                 SalesVisit?          @relation(fields: [visitId], references: [id], onDelete: SetNull)
+  type                  ServiceIssueType
+  priority              ServiceIssuePriority @default(normal)
+  description           String
+  status                ServiceIssueStatus   @default(open)
+  assignedTeam          String?
+  resolutionNote        String?
+  resolvedAt            DateTime?
   /// Retailer-origin requests use the owning retailer identity, never a fake staff actor.
-  clientReference String?
-  withdrawnAt     DateTime?
+  clientReference       String?
+  withdrawnAt           DateTime?
   withdrawnByRetailerId String?
-  withdrawnFromStatus ServiceIssueStatus?
-  activities      CustomerActivity[]
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
+  withdrawnFromStatus   ServiceIssueStatus?
+  activities            CustomerActivity[]
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
 
+  @@unique([retailerId, clientReference])
   @@index([retailerId, createdAt])
   @@index([status, priority, createdAt])
   @@index([raisedByStaffId, createdAt])
-  @@unique([retailerId, clientReference])
 }
 
 /// A target set for one salesperson over one period. Target-versus-achievement
@@ -2423,8 +2427,8 @@ enum RetailerProposalStatus {
 /// creates one canonical `Retailer` and links back to it. Nothing reads a
 /// proposal as if it were a customer.
 model RetailerProposal {
-  id                  String                 @id @default(uuid())
-  status              RetailerProposalStatus @default(pending)
+  id                  String                        @id @default(uuid())
+  status              RetailerProposalStatus        @default(pending)
   businessName        String
   groupName           String?
   ownerName           String?
@@ -2444,29 +2448,64 @@ model RetailerProposal {
   /// Encrypted with the application PII key. Never expose this field in an API response.
   aadhaarEncrypted    String?
   aadhaarLast4        String?
-  aadhaarPhotoAssetId String?                @unique
-  aadhaarPhotoAsset   EvidenceAsset?         @relation("RetailerProposalAadhaar", fields: [aadhaarPhotoAssetId], references: [id], onDelete: SetNull)
+  aadhaarPhotoAssetId String?                       @unique
+  aadhaarPhotoAsset   EvidenceAsset?                @relation("RetailerProposalAadhaar", fields: [aadhaarPhotoAssetId], references: [id], onDelete: SetNull)
   /// Captured at the storefront where the device could provide it.
-  latitude            Decimal?               @db.Decimal(10, 7)
-  longitude           Decimal?               @db.Decimal(10, 7)
-  accuracyMeters      Decimal?               @db.Decimal(8, 2)
+  latitude            Decimal?                      @db.Decimal(10, 7)
+  longitude           Decimal?                      @db.Decimal(10, 7)
+  accuracyMeters      Decimal?                      @db.Decimal(8, 2)
   /// Proposed classification. The reviewer decides the tier that is applied.
   proposedTierId      String?
-  proposedTier        Tier?                  @relation(fields: [proposedTierId], references: [id], onDelete: SetNull)
+  proposedTier        Tier?                         @relation(fields: [proposedTierId], references: [id], onDelete: SetNull)
   notes               String?
   submittedByStaffId  String
-  submittedBy         StaffUser              @relation("RetailerProposalsSubmitted", fields: [submittedByStaffId], references: [id], onDelete: Restrict)
-  submittedAt         DateTime               @default(now())
+  submittedBy         StaffUser                     @relation("RetailerProposalsSubmitted", fields: [submittedByStaffId], references: [id], onDelete: Restrict)
+  submittedAt         DateTime                      @default(now())
   reviewedByStaffId   String?
-  reviewedBy          StaffUser?             @relation("RetailerProposalsReviewed", fields: [reviewedByStaffId], references: [id], onDelete: Restrict)
+  reviewedBy          StaffUser?                    @relation("RetailerProposalsReviewed", fields: [reviewedByStaffId], references: [id], onDelete: Restrict)
   reviewedAt          DateTime?
   rejectionReason     String?
   /// Set when approval created the customer.
-  retailerId          String?                @unique
-  retailer            Retailer?              @relation(fields: [retailerId], references: [id], onDelete: SetNull)
-  createdAt           DateTime               @default(now())
-  updatedAt           DateTime               @updatedAt
+  retailerId          String?                       @unique
+  retailer            Retailer?                     @relation(fields: [retailerId], references: [id], onDelete: SetNull)
+  orderIntents        RetailerProposalOrderIntent[]
+  createdAt           DateTime                      @default(now())
+  updatedAt           DateTime                      @updatedAt
 
   @@index([status, submittedAt])
   @@index([submittedByStaffId, submittedAt])
+}
+
+/// Unpriced salesperson demand captured while customer-master admission is pending.
+/// Conversion links this record to the canonical Order only after proposal approval.
+model RetailerProposalOrderIntent {
+  id                          String                            @id @default(uuid())
+  proposalId                  String
+  proposal                    RetailerProposal                  @relation(fields: [proposalId], references: [id], onDelete: Restrict)
+  submittedByStaffId          String
+  submittedBy                 StaffUser                         @relation("RetailerProposalOrderIntentSubmitter", fields: [submittedByStaffId], references: [id], onDelete: Restrict)
+  idempotencyKey              String
+  items                       RetailerProposalOrderIntentItem[]
+  convertedOrderId            String?                           @unique
+  convertedOrder              Order?                            @relation(fields: [convertedOrderId], references: [id], onDelete: Restrict)
+  conversionCommercialQuoteId String?
+  punchedAt                   DateTime                          @default(now())
+  convertedAt                 DateTime?
+
+  @@unique([proposalId, idempotencyKey])
+  @@index([submittedByStaffId, punchedAt])
+}
+
+model RetailerProposalOrderIntentItem {
+  id           String                      @id @default(uuid())
+  intentId     String
+  intent       RetailerProposalOrderIntent @relation(fields: [intentId], references: [id], onDelete: Cascade)
+  variantId    String
+  variant      Variant                     @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  productName  String
+  unitSize     String
+  unitsPerCase Int
+  qty          Int
+
+  @@unique([intentId, variantId])
 }

@@ -22,6 +22,10 @@ vi.mock("../../api", () => ({
           notes: "Buys weekly",
           status: "pending",
           submittedBy: { id: "s1", name: "Ravi Kumar" },
+          orderIntents: [
+            { id: "intent-1", items: [{ variantId: "sku-1", qty: 2 }] },
+            { id: "intent-2", items: [{ variantId: "sku-2", qty: 1 }] },
+          ],
         },
       ],
     }),
@@ -37,6 +41,13 @@ describe("New retailer approvals", () => {
     expect(await screen.findByText("New Bharat Kirana")).toBeInTheDocument();
     expect(screen.getByText("Ravi Kumar")).toBeInTheDocument();
     expect(screen.getByText("18.51670, 73.85620")).toBeInTheDocument();
+  });
+
+  it("shows pending unpriced demand without presenting it as an official order", async () => {
+    render(<RetailerApprovals />);
+    expect(await screen.findByText("New Bharat Kirana")).toBeInTheDocument();
+    expect(screen.getByText("2 punched demands · unpriced until retailer approval")).toBeInTheDocument();
+    expect(screen.queryByText(/GGN-/)).not.toBeInTheDocument();
   });
 
   it("admits the store to the customer master on approval", async () => {

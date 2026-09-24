@@ -14,10 +14,10 @@ Updated: 2026-09-25
 ## Local Test Environment
 
 - Disposable database: `gagan_goal_test_20260924_7b6ea1fc`, PostgreSQL 16.15 on local `127.0.0.1:5432`, owned by local role `tanutejas`.
-- `gagan_goal_test_20260924_7b6ea1fc` began at 46 migrations with the local seed, then upgraded additively to 47. The separate empty `gagan_goal_fresh_20260925_8f9e2a` database deployed all 47 migrations from scratch. Both local migration histories report up to date.
+- `gagan_goal_test_20260924_7b6ea1fc` began at 46 migrations with the local seed, then upgraded additively to 47 for GGN-ORD-01 and 48 for GGN-ORD-02. The separate empty `gagan_goal_fresh_20260925_8f9e2a` database deployed all 48 migrations from scratch. Both local migration histories report up to date.
 - The existing `prisma/seed.ts` ran only against this newly created empty disposable database to populate local test/reference fixtures. It must not be run against any shared, staging, or production database; it clears transactional tables.
 - Ignored `backend/.env.test.local` contains only the local DB URL, dummy JWT/refresh/PII keys, `SMS_PROVIDER=mock`, `PAYMENT_PROVIDER=mock`, `SAP_MODE=disabled`, local storage, and `DISABLE_JOBS=true`. Load it explicitly with `DOTENV_CONFIG_PATH=.env.test.local node -r dotenv/config`; normal runtime commands do not implicitly use this file.
-- Initial backend baseline after correcting the local test config: 140 test files passed, 982 tests passed. The GGN-ORD-01 checkpoint later passed 140 files / 987 tests; see its execution update below.
+- Initial backend baseline after correcting the local test config: 140 test files passed, 982 tests passed. The GGN-ORD-01 checkpoint later passed 140 files / 987 tests. The fresh GGN-ORD-02 run passed 141 files / 995 tests; see its execution update below.
 
 ## Execution Evidence
 
@@ -36,7 +36,7 @@ Updated: 2026-09-25
 
 ## Per-Issue Verification Register
 
-The source files, tests and original gap statements are retained in the matching issue row in `GAGAN_FORENSIC_COMPLETENESS_AUDIT.md`. This register tracks execution gates independently; `global suite PASS` is not issue acceptance. The table records the state at this initial checkpoint; later commit references are recorded chronologically below.
+The source files, tests and original gap statements are retained in the matching issue row in `GAGAN_FORENSIC_COMPLETENESS_AUDIT.md`. This register tracks execution gates independently; `global suite PASS` is not issue acceptance. Issue rows are updated as batches execute, with the original forensic baseline retained in the audit and chronological implementation evidence recorded below.
 
 | Issue ID | Current status | Source / automated evidence | Local DB/API verification | Hosted | Physical | Commit | Remaining limitation |
 |---|---|---|---|---|---|---|---|
@@ -44,7 +44,7 @@ The source files, tests and original gap statements are retained in the matching
 | GGN-VIS-02 | IMPLEMENTED BUT NOT VERIFIED | See audit row; route integration and Rep flow tests passed. | Check-in/out plus order-in-active-visit API persistence/readback passed. | NOT RUN | NOT RUN | None | Physical order→checkout→next-retailer and relaunch acceptance remain open. |
 | GGN-VIS-03 | IMPLEMENTED BUT NOT VERIFIED | See audit row; existing outcome tests are part of backend baseline. | Backend DB tests in baseline passed; configurable date/future-task readback not individually accepted. | NOT RUN | NOT RUN | None | Verify chosen follow-up persists and appears in future work. |
 | GGN-ORD-01 | IMPLEMENTED BUT NOT VERIFIED | Punched and created milestones now appear in the protected Rep/Admin timeline; Retailer gets only a safe derived state. | Captured, approval-held, approved, idempotent retry, and unauthorized/expired enqueue flows passed on local PostgreSQL. | NOT RUN | NOT RUN | `be9b0f9` | Hosted SAP/runtime and exact-source physical app acceptance remain open; legacy event rows were not reclassified. |
-| GGN-ORD-02 | PARTIAL | See audit row; proposal/order tests in backend baseline passed. | Pending-proposal order capture not implemented or verified. | NOT RUN | NOT RUN | None | Capture demand against pending proposal without bypassing approval. |
+| GGN-ORD-02 | IMPLEMENTED BUT NOT VERIFIED | Unpriced proposal-demand catalog and basket are available in Rep; pending status and manager cue are visible. | Local DB persists idempotent intent snapshots; pre-approval conversion is rejected; approved conversion delegates to the normal order engine and its existing approval/dispatch/SAP gates. Full post-approval end-to-end conversion readback is not yet accepted. | NOT RUN | NOT RUN | See execution update | Hosted and physical acceptance remain open; no live downstream creation was attempted. |
 | GGN-ORD-03 | PARTIAL | See audit row; no complete source-display acceptance. | Existing attribution fields only; UI/Admin readback incomplete. | NOT RUN | NOT RUN | None | Display app source and salesperson identity on required surfaces. |
 | GGN-ORD-04 | IMPLEMENTED BUT NOT VERIFIED | See audit row; app tests not rerun in this checkpoint. | Not applicable beyond baseline. | NOT RUN | NOT RUN | None | Verify native detail navigation/back behavior on final apps. |
 | GGN-ORD-05 | PARTIAL | See audit row; backend baseline passed. | No warehouse-role acceptance. | NOT RUN | NOT RUN | None | Establish least-privilege warehouse queue and transitions. |
@@ -89,9 +89,9 @@ The source files, tests and original gap statements are retained in the matching
 
 ## Next Actions
 
-1. Continue Batch A with GGN-ORD-02, which depends on the now explicit GGN-ORD-01 lifecycle. Keep pending retailer demand separate from canonical retailer approval and official order authorization.
+1. Continue Batch A with GGN-ORD-03. GGN-ORD-02 now has an unpriced pending-proposal demand path and an approval-gated conversion path; keep the official downstream and hosted/device acceptance gates open.
 2. Proceed in the product goal's exact sequence through Batch A, then Batch B onward. Keep deferred/withdrawn IDs unchanged; retain native/hosted acceptance gates for VIS-01, VIS-02, and ORD-01.
-3. For schema changes, use new disposable databases to verify fresh install and upgrade from the preceding accepted schema. GGN-ORD-01 passed 0→47 and 46→47 locally; never reset an existing DB.
+3. For schema changes, use new disposable databases to verify fresh install and upgrade from the preceding accepted schema. GGN-ORD-01 passed 0→47 and 46→47 locally; GGN-ORD-02 passed 0→48 and 47→48 locally; never reset an existing DB.
 4. Before hosted writes, re-verify the exact authorized GAGAN staging service/workspace/database and deployed/source identity. No hosted writes are authorized merely by this checkpoint.
 5. Build candidate APKs only when needed for physical acceptance; final pair must come from the exact clean, committed, pushed final SHA and go only to the existing authoritative delivery location.
 
@@ -114,3 +114,12 @@ The source files, tests and original gap statements are retained in the matching
 - Local PostgreSQL coverage passed for capture → approval-held → approval → created, retry/idempotency, and absent/expired authorization rejection. The authenticated Rep readback asserts the event sequence; Retailer history/detail tests assert the safe state and no internal event leakage.
 - Verification: backend 140 files / 987 tests, typecheck and build passed; Retailer app 26 files / 114 tests and typecheck passed; Salesperson app 40 files / 207 tests and typecheck passed; Admin 23 files / 62 tests and build passed. The additive enum migration passed upgrade from the prior 46-migration database to 47 and a separate empty-database 0→47 deploy.
 - Hosted SAP, authenticated staging, native app/device flow, physical install, and final APK/source identity were not run. No hosted service, live provider, APK, or production system was touched. These are remaining verification gates, not claimed passes.
+
+## Execution Update — GGN-ORD-02 (2026-09-25)
+
+- Current source status: `IMPLEMENTED BUT NOT VERIFIED`. A pending salesperson retailer proposal has a separate unpriced order-intent path; proposal approval still creates the canonical retailer, and only an approved proposal can enter official order conversion.
+- Rep loads active catalog variants with `price: null` for a pending proposal, keeps proposal demand in a separate basket, displays the pending state, and allows review only after approval. Admin's pending retailer approval queue shows when demand has been punched. Intent item rows snapshot product/pack/quantity only; they contain no price or invented tier.
+- Backend routes require both proposal and order-create permissions and scope reads/writes to the submitting salesperson. Idempotency keys protect punch retries; the proposal row is locked while a new intent is persisted, serializing capture against approval/rejection. Conversion checks current salesperson and retailer assignment and delegates to the existing `createOrderForRetailer` path with a stable intent key, preserving its quote, credit, dispatch, and SAP/outbox gates. An intent links to at most one canonical order, with audit events for punch/conversion.
+- Local automated verification: full backend suite 141 files / 995 tests, backend typecheck/build and Prisma schema validation passed; Rep suite 40 files / 208 tests and typecheck passed; Admin suite 23 files / 63 tests, typecheck and production build passed. Admin tests emitted Node's `localStorage` ExperimentalWarning but completed with zero failures. `git diff --check` passed after this documentation update.
+- Migration `20260925100000_pending_retailer_order_intents` is additive. The existing disposable local database upgraded from 47 to 48; the separate empty local database deployed 0 to 48. Both `prisma migrate status` checks report up to date. No hosted database was touched.
+- These checks establish source contracts and local persistence/gating, not a full authenticated UI-to-approved-order readback: that conversion flow still needs explicit runtime acceptance. The DB test covers persistence/replay but does not force simultaneous approval-versus-punch or competing-conversion races; row locking, the shared order idempotency key, and the conditional unique intent link are source-reviewed. An independent code review found no Critical/Important finding and noted this as a minor coverage gap. Hosted/staging, SAP, authenticated browser, physical device, installed-app, and APK/source identity checks remain NOT RUN. No live downstream order, production service, device state, or APK was changed.

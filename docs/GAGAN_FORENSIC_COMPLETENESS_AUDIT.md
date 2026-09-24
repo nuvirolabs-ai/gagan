@@ -94,7 +94,7 @@ These checks are included because the audit brief explicitly named them. They do
 
 ## Audit Boundary
 
-This audit changed only this report. No source, schema, migration, database, hosted service, APK, deployment, or business record was modified during this audit. No APK build/install, hosted read/write, authenticated browser session, production check, app launch, or database access was performed. The currently installed APKs are recorded above, but their source SHA and feature completeness remain unverified.
+During the initial forensic audit, only this report was changed; no source, schema, migration, database, hosted service, APK, deployment, or business record was modified. No APK build/install, hosted read/write, authenticated browser session, production check, app launch, or database access was performed for that audit. The currently installed APKs recorded there had unverified source SHA and feature completeness. Subsequent authorized implementation checkpoints are recorded below and in `docs/GAGAN_GOAL_STATE.md`.
 
 ## Execution Update — GGN-ORD-01 (2026-09-25)
 
@@ -106,6 +106,17 @@ The initial issue table, counts, and Top 20 ranking above describe the forensic 
 - Migration `20260925090000_order_punch_lifecycle` adds one `CommercialStatusCode` value. It upgraded the authorized disposable database from 46 to 47 migrations; a separate empty local PostgreSQL database deployed all 47 from scratch. No hosted database or SAP call was made; local SAP mode remains disabled.
 - Implementation checkpoint: commit `be9b0f9` on `codex/gagan-client-feedback-v2-reconciled`.
 - Hosted/staging, native UI, physical-device, final APK, and exact-release-SHA acceptance remain NOT RUN. Do not promote this issue to `VERIFIED IMPLEMENTED` until the required authorized runtime and device gates pass.
+
+## Execution Update — GGN-ORD-02 (2026-09-25)
+
+The initial issue row, counts, and Top 20 ranking above preserve the source-audit finding. The current execution status for GGN-ORD-02 is `IMPLEMENTED BUT NOT VERIFIED`; this does not change the initial audit totals.
+
+- Rep now presents pending proposals for unpriced demand capture. Catalog, punch, detail, and conversion API routes require both `RETAILER_PROPOSE` and `ORDER_CREATE_FOR_RETAILER`; proposal ownership is scoped to the authenticated salesperson. Admin approval review indicates pending punched demand without implying it is a canonical order.
+- `RetailerProposalOrderIntent` and item snapshots persist proposal, submitting salesperson, idempotency key, variant, product/pack snapshot, quantity, and conversion link/timestamps. Price is intentionally absent while tier assignment is not authoritative. The additive migration is `20260925100000_pending_retailer_order_intents`.
+- Conversion rejects pending proposals and checks active salesperson/retailer assignment. After approval it delegates to the existing official order service using a stable intent idempotency key, retaining standard commercial quote, credit, dispatch authorization, and SAP/outbox controls. Automated tests cover unpriced catalog/demand, replay/conflicting idempotency, preapproval rejection, route permissions, standard-engine delegation, and local DB persistence/readback of the captured intent. They do not yet establish the complete authenticated UI → approved proposal → canonical order readback path.
+- Fresh local verification: backend 141 files / 995 tests plus typecheck/build/Prisma validation; Rep 40 files / 208 tests plus typecheck; Admin 23 files / 63 tests plus typecheck/build. Existing disposable DB upgraded 47→48, fresh DB deployed 0→48, and both report up to date. No hosted environment or production system was used.
+- An independent read-only code review found no Critical/Important issues; it noted as a minor test gap that simultaneous approval-versus-punch and competing-conversion races are not forced by the current DB tests. The implementation's proposal-row lock, canonical order idempotency key, and conditional intent link were reviewed in source.
+- Hosted, full approved-conversion runtime, native device, physical install, and exact-release APK/source identity remain NOT RUN. Do not classify as `VERIFIED IMPLEMENTED` until the required full-flow/runtime and device gates are evidenced.
 
 ## Counts
 

@@ -10,6 +10,7 @@ import { commercialTaxPresentation } from "../lib/commercialTaxPresentation";
 import { AppScreen, KeyboardSafeScrollView, PrimaryButton, SectionHeader, SecondaryButton, Surface } from "../components/ui";
 import { haptic } from "../feedback/haptics";
 import { canSubmitQuote, classifyQuoteRefresh } from "../lib/commercialQuoteState";
+import { catalogGroups } from "../lib/catalogSelection";
 import { colors, inr, spacing } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
 
@@ -20,9 +21,13 @@ import { useLanguage } from "../i18n/LanguageContext";
  * request once the salesperson confirms it.
  */
 export default function RepReviewOrderScreen({ route, navigation }: any) {
-  const { retailerId, retailerName } = route.params ?? {};
+  const { retailerId, retailerName, intentId } = route.params ?? {};
+  const proposalDemandMode = Boolean(intentId);
   const { lines, cartTotal, clearCart } = useRep();
   const { t } = useLanguage();
+  const [proposalIntent, setProposalIntent] = useState<any>(null);
+  const [intentLoading, setIntentLoading] = useState(Boolean(intentId));
+  const [standardPrices, setStandardPrices] = useState<Record<string, number>>({});
   const [quote, setQuote] = useState<any>(null);
   const [quoteReady, setQuoteReady] = useState(false);
   const [quoteError, setQuoteError] = useState("");
@@ -34,7 +39,27 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
   const checkoutKey = useRef<string | null>(null);
   const submitLock = useRef(false);
   const appState = useRef<AppStateStatus>(AppState.currentState);
-  const basket = JSON.stringify(lines.map((line) => ({ variantId: line.variantId, qty: line.qty })));
+  const replaceExpiredIntentQuote = useRef(false);
+  const demandLines = (proposalIntent?.items ?? []).map((line: any) => ({
+    variantId: line.variantId,
+    productName: line.productName,
+    packSize: `${line.unitSize} × ${line.unitsPerCase}`,
+    qty: line.qty,
+    unitPrice: 0,
+  }));
+  const activeLines = proposalDemandMode ? demandLines : lines;
+  const displayLines = activeLines.map((line: any) => {
+    const quoteLine = quote?.snapshot?.lines?.find((candidate: any) => candidate.variantId === line.variantId);
+    const quoteCasePrice = quoteLine
+      ? Number(quoteLine.rate) * (quoteLine.rateBasis === "quintal" ? Number(quoteLine.caseWeightKg) / 100 : 1)
+      : undefined;
+    return { ...line, unitPrice: quoteCasePrice ?? standardPrices[line.variantId] ?? line.unitPrice };
+  });
+  const displayTotal = proposalDemandMode
+    ? displayLines.reduce((total: number, line: any) => total + line.unitPrice * line.qty, 0)
+    : cartTotal;
+  const demandPricesReady = !proposalDemandMode || displayLines.every((line: any) => Number.isFinite(line.unitPrice) && line.unitPrice > 0);
+  const basket = JSON.stringify(activeLines.map((line: any) => ({ variantId: line.variantId, qty: line.qty })));
   const basketRef = useRef(basket);
   basketRef.current = basket;
 
@@ -45,19 +70,58 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
     setQuoteError("");
   }, []);
 
+  useEffect(() => {
+    if (!intentId) return;
+    let active = true;
+    setIntentLoading(true);
+    repApi.proposalOrderIntent(intentId)
+      .then(({ intent: nextIntent }) => {
+        if (!active) return;
+        setProposalIntent(nextIntent);
+        if (nextIntent.demandState !== "ready_for_official_order" && nextIntent.demandState !== "converted") {
+          Alert.alert("Retailer approval required", "This demand can be converted only after the retailer is approved.", [
+            { text: "OK", onPress: () => navigation.goBack() },
+          ], { cancelable: false });
+        }
+      })
+      .catch(() => {
+        if (active) Alert.alert("Could not load punched demand", "Refresh the retailer request and try again.", [
+          { text: "OK", onPress: () => navigation.goBack() },
+        ], { cancelable: false });
+      })
+      .finally(() => { if (active) setIntentLoading(false); });
+    return () => { active = false; };
+  }, [intentId, navigation]);
+
   const requestQuote = useCallback(async () => {
     const requestedBasket = basket;
+    const requestedItems = JSON.parse(requestedBasket);
+    if (requestedItems.length === 0) return;
     quoteRef.current = null;
     setQuote(null);
     setQuoteReady(false);
     setQuoteError("");
     try {
-      const result = await repApi.commercialQuote(retailerId, JSON.parse(requestedBasket));
-      if (basketRef.current === requestedBasket) applyQuote(result.quote);
+      const pinnedQuoteId = proposalIntent?.conversionCommercialQuoteId;
+      const result = pinnedQuoteId && !replaceExpiredIntentQuote.current
+        ? await repApi.refreshCommercialQuote(pinnedQuoteId)
+        : await repApi.commercialQuote(retailerId, requestedItems);
+      if (basketRef.current !== requestedBasket) return;
+      applyQuote(result.quote);
+      if (proposalDemandMode && !result.quote) {
+        const catalog = await repApi.catalogFor(retailerId);
+        if (basketRef.current !== requestedBasket) return;
+        const prices: Record<string, number> = {};
+        for (const group of catalogGroups(catalog)) {
+          for (const sku of group.skus) if (sku.price != null) prices[sku.id] = Number(sku.price);
+        }
+        setStandardPrices(prices);
+      }
+      replaceExpiredIntentQuote.current = false;
     } catch {
       if (basketRef.current === requestedBasket) setQuoteError("Unable to price this basket. Return to products and retry.");
     }
-  }, [applyQuote, basket, retailerId]);
+  }, [applyQuote, basket, proposalDemandMode, proposalIntent?.conversionCommercialQuoteId, retailerId]);
 
   useEffect(() => {
     void requestQuote();
@@ -74,10 +138,11 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
       const classification = classifyQuoteRefresh(result.quote);
       if (classification.kind === "accepted") {
         applyQuote(result.quote);
-        if (!silent) Alert.alert("Order already placed", "Check this retailer's recent orders before starting another checkout.");
+        if (!silent && !proposalDemandMode) Alert.alert("Order already placed", "Check this retailer's recent orders before starting another checkout.");
         return "accepted";
       }
       if (classification.kind === "expired") {
+        if (proposalDemandMode) replaceExpiredIntentQuote.current = true;
         void requestQuote();
         if (!silent) Alert.alert("Quote expired", "Review the fresh quote and ask the manager to confirm freight again.");
         return "expired";
@@ -91,7 +156,7 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
       refreshInFlight.current = false;
       setRefreshingQuote(false);
     }
-  }, [applyQuote, requestQuote]);
+  }, [applyQuote, proposalDemandMode, requestQuote]);
 
   useFocusEffect(useCallback(() => {
     if (quote) void refreshQuote({ silent: true });
@@ -120,8 +185,15 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
   }, [quote, rateApprovalSubmitting]);
 
   const submit = useCallback(async () => {
-    if (submitLock.current || lines.length === 0) return;
-    const canSubmit = canSubmitQuote({ lineCount: lines.length, quoteReady, placing, quote });
+    if (submitLock.current || activeLines.length === 0) return;
+    if (proposalIntent?.demandState === "converted" && proposalIntent.convertedOrderId) {
+      navigation.replace("OrderDetail", { orderId: proposalIntent.convertedOrderId });
+      return;
+    }
+    const replayAcceptedConversion = proposalDemandMode
+      && Boolean(proposalIntent?.conversionCommercialQuoteId)
+      && Boolean(quote?.acceptedAt);
+    const canSubmit = replayAcceptedConversion || canSubmitQuote({ lineCount: activeLines.length, quoteReady, placing, quote });
     if (!canSubmit) {
       Alert.alert("Quote needs attention", quoteError || "Wait for the manager-confirmed quote before placing this order.");
       return;
@@ -129,15 +201,20 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
     submitLock.current = true;
     setPlacing(true);
     try {
-      checkoutKey.current ??= `rep-checkout-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const result = await repApi.createOrder(
-        retailerId,
-        lines.map((line) => ({ variantId: line.variantId, qty: line.qty })),
-        checkoutKey.current,
-        checkoutCommercialReference(quote),
-      );
+      let result: any;
+      if (proposalDemandMode) {
+        result = await repApi.convertProposalOrderIntent(intentId, checkoutCommercialReference(quote));
+      } else {
+        checkoutKey.current ??= `rep-checkout-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        result = await repApi.createOrder(
+          retailerId,
+          activeLines.map((line: any) => ({ variantId: line.variantId, qty: line.qty })),
+          checkoutKey.current,
+          checkoutCommercialReference(quote),
+        );
+      }
       if (!result.order?.id) throw new Error("order_response_missing_id");
-      clearCart();
+      if (!proposalDemandMode) clearCart();
       checkoutKey.current = null;
       haptic("success");
       openCreatedOrder(result, (screen, params) => navigation.replace(screen, params), openOrder => {
@@ -159,9 +236,13 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
       submitLock.current = false;
       setPlacing(false);
     }
-  }, [clearCart, lines, navigation, quote, quoteError, quoteReady, refreshQuote, retailerId, retailerName, t, placing]);
+  }, [activeLines, clearCart, intentId, navigation, proposalDemandMode, proposalIntent, quote, quoteError, quoteReady, refreshQuote, retailerId, retailerName, t, placing]);
 
-  if (lines.length === 0) {
+  if (proposalDemandMode && intentLoading) {
+    return <AppScreen><View style={styles.empty}><ActivityIndicator color={colors.blue} /></View></AppScreen>;
+  }
+
+  if (activeLines.length === 0) {
     return (
       <AppScreen>
         <View style={styles.empty}>
@@ -181,19 +262,21 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
         <View style={styles.context}>
           <Text style={styles.kicker}>REVIEW ORDER</Text>
           <Text style={styles.title}>{retailerName ?? "Retailer"}</Text>
-          <Text style={styles.muted}>Check quantities and the manager-confirmed commercial quote before placing.</Text>
+          <Text style={styles.muted}>{proposalDemandMode
+            ? "This demand was punched before retailer approval. Confirm the current tier pricing and continue through the normal order checks."
+            : "Check quantities and the manager-confirmed commercial quote before placing."}</Text>
         </View>
 
         <Surface>
-          <SectionHeader title={`${lines.length} line${lines.length === 1 ? "" : "s"}`} />
-          {lines.map((line, index) => (
+          <SectionHeader title={`${activeLines.length} line${activeLines.length === 1 ? "" : "s"}`} />
+          {displayLines.map((line: any, index: number) => (
             <View key={line.variantId} style={[styles.line, index > 0 && styles.divider]}>
               <View style={styles.lineNumber}><Text style={styles.lineNumberText}>{index + 1}</Text></View>
               <View style={styles.lineBody}>
                 <Text style={styles.lineName}>{line.productName}</Text>
                 <Text style={styles.meta}>{line.packSize} · Qty {line.qty}</Text>
               </View>
-              <Text style={styles.lineAmount}>{inr(line.unitPrice * line.qty)}</Text>
+              <Text style={styles.lineAmount}>{line.unitPrice > 0 ? inr(line.unitPrice * line.qty) : "Price pending"}</Text>
             </View>
           ))}
         </Surface>
@@ -210,13 +293,15 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
           </View>
           {!quoteReady && !quoteError ? <ActivityIndicator color={colors.blue} /> : null}
           {quoteError ? <Text style={styles.error}>{quoteError}</Text> : null}
-          {quote ? <CommercialBreakdown value={quote.snapshot} /> : quoteReady ? <Text style={styles.muted}>Catalogue subtotal {inr(cartTotal)}</Text> : null}
+          {quote ? <CommercialBreakdown value={quote.snapshot} /> : quoteReady ? <Text style={styles.muted}>{proposalDemandMode && !demandPricesReady
+            ? "Current retailer tier has no price for every punched item. Ask a manager to configure pricing before continuing."
+            : `${proposalDemandMode ? "Current catalogue subtotal " : "Catalogue subtotal "}${inr(displayTotal)}`}</Text> : null}
           {quote ? <TouchableOpacity accessibilityRole="button" style={styles.rateButton} disabled={rateApprovalSubmitting || !!quote.acceptedAt} onPress={() => void sendRateForApproval()}><Text style={styles.rateButtonText}>{rateApprovalSubmitting ? "Sending…" : "Send rate for approval"}</Text></TouchableOpacity> : null}
         </Surface>
 
         <View style={styles.actions}>
           <SecondaryButton label="Back to products" onPress={() => navigation.goBack()} disabled={placing} />
-          <PrimaryButton label={placing ? "Placing…" : "Place order"} icon={placing ? undefined : "checkmark-circle-outline"} disabled={placing || !canSubmitQuote({ lineCount: lines.length, quoteReady, placing, quote })} onPress={() => void submit()} />
+          <PrimaryButton label={placing ? "Placing…" : proposalDemandMode ? "Complete order" : "Place order"} icon={placing ? undefined : "checkmark-circle-outline"} disabled={placing || !demandPricesReady || !(proposalDemandMode && proposalIntent?.conversionCommercialQuoteId && quote?.acceptedAt) && !canSubmitQuote({ lineCount: activeLines.length, quoteReady, placing, quote })} onPress={() => void submit()} />
         </View>
       </KeyboardSafeScrollView>
     </AppScreen>

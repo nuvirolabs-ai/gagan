@@ -77,6 +77,29 @@ describe("staff auth API", () => {
     expect(request).toHaveBeenNthCalledWith(2, "/rep/kyc/case-1/submit", expect.objectContaining({ method: "POST" }), true);
   });
 
+  it("punches pending retailer demand idempotently and converts only through the review endpoint", async () => {
+    const request = vi.fn().mockResolvedValue({ intent: { id: "intent-1" } });
+    const store = { load: vi.fn(), save: vi.fn(), clear: vi.fn() };
+    const api = createStaffApi(request, store);
+
+    await api.proposalDemandCatalog("proposal-1");
+    await api.punchProposalOrderIntent("proposal-1", [{ variantId: "sku-1", qty: 2 }], "punch-1");
+    await api.proposalOrderIntent("intent-1");
+    await api.convertProposalOrderIntent("intent-1", { quoteId: "quote-1", revision: 3 });
+
+    expect(request).toHaveBeenNthCalledWith(1, "/rep/retailer-proposals/proposal-1/catalog");
+    expect(request).toHaveBeenNthCalledWith(2, "/rep/retailer-proposals/proposal-1/order-intents", expect.objectContaining({
+      method: "POST",
+      headers: { "Idempotency-Key": "punch-1" },
+      body: JSON.stringify({ items: [{ variantId: "sku-1", qty: 2 }] }),
+    }));
+    expect(request).toHaveBeenNthCalledWith(3, "/rep/retailer-proposal-order-intents/intent-1");
+    expect(request).toHaveBeenNthCalledWith(4, "/rep/retailer-proposal-order-intents/intent-1/convert", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ commercial: { quoteId: "quote-1", revision: 3 } }),
+    }), true);
+  });
+
   it("sends receipt bytes without exposing a storage key", async () => {
     const request = vi.fn().mockResolvedValue({ submission: { id: "submission-1" } });
     const store = { load: vi.fn(), save: vi.fn(), clear: vi.fn() };

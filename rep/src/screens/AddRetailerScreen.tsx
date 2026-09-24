@@ -19,6 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { repApi } from "../api/repClient";
 import { captureForegroundLocation } from "../location/deviceLocation";
 import { useRep } from "../context/RepContext";
+import { staffCapabilities } from "../auth/staffCapabilities";
 import { colors, control, radius, spacing } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
 import { KeyboardSafeScrollView } from "../components/ui";
@@ -104,9 +105,10 @@ function mobileIsValid(value: string) {
   return /^[6-9]\d{9}$/.test(digits);
 }
 
-export default function AddRetailerScreen() {
+export default function AddRetailerScreen({ navigation }: any) {
   const { t } = useLanguage();
   const { staff, rep } = useRep();
+  const canOrderForRetailers = staffCapabilities(staff?.permissions ?? []).canOrderForRetailers;
   const [form, setForm] = useState<Draft>(EMPTY_DRAFT);
   const [aadhaarNumber, setAadhaarNumber] = useState("");
   const [photo, setPhoto] = useState<Photo | null>(null);
@@ -431,7 +433,52 @@ export default function AddRetailerScreen() {
         {error ? <View style={styles.errorBanner}><Ionicons name="alert-circle-outline" size={18} color={colors.danger} /><Text style={styles.errorBannerText}>{error}</Text></View> : null}
         <View style={styles.formSurface}><Text style={styles.formHeading}>{STEPS[step]}</Text><Text style={styles.formProgress}>Step {step + 1} of {STEPS.length}</Text>{stepContent}</View>
         <View style={styles.navigation}>{step > 0 ? <Pressable accessibilityRole="button" onPress={() => { Keyboard.dismiss(); setError(""); setStep((current) => current - 1); }} style={styles.backButton}><Text style={styles.backText}>Back</Text></Pressable> : <View />}{step < STEPS.length - 1 ? <Pressable accessibilityRole="button" onPress={() => { const issue = validateStep(step); if (issue) setError(issue); else { Keyboard.dismiss(); setError(""); setStep((current) => current + 1); } }} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}><Text style={styles.primaryText}>Continue</Text><Ionicons name="arrow-forward" size={18} color={colors.onDark} /></Pressable> : <Pressable accessibilityRole="button" disabled={saving} onPress={() => void submit()} style={({ pressed }) => [styles.primaryButton, saving && styles.disabled, pressed && styles.pressed]}><Text style={styles.primaryText}>{saving ? "Sending…" : "Send for review"}</Text><Ionicons name="paper-plane-outline" size={18} color={colors.onDark} /></Pressable>}</View>
-        <View style={styles.requests}><Text style={styles.sectionTitle}>My requests</Text>{proposals.length === 0 ? <Text style={styles.fieldHint}>Submitted stores and their review status will appear here.</Text> : proposals.map((proposal) => <View key={proposal.id} style={styles.requestRow}><View style={styles.requestIcon}><Ionicons name="storefront-outline" size={18} color={colors.primary} /></View><View style={styles.requestMain}><Text style={styles.requestName}>{proposal.businessName}</Text><Text style={styles.fieldHint} numberOfLines={1}>{proposal.deliveryCity ?? proposal.shopAddress}</Text></View><View style={[styles.status, STATUS_TONE[proposal.status] ?? STATUS_TONE.pending]}><Text style={[styles.statusText, { color: (STATUS_TONE[proposal.status] ?? STATUS_TONE.pending).color }]}>{proposal.status}</Text></View>{proposal.status === "pending" ? <Pressable disabled={withdrawing === proposal.id} onPress={() => void withdraw(proposal.id)}><Text style={[styles.remove, withdrawing === proposal.id && { opacity: 0.45 }]}>{withdrawing === proposal.id ? "Withdrawing…" : "Withdraw"}</Text></Pressable> : null}</View>)}</View>
+        <View style={styles.requests}>
+          <Text style={styles.sectionTitle}>My requests</Text>
+          {proposals.length === 0 ? <Text style={styles.fieldHint}>Submitted stores and their review status will appear here.</Text> : proposals.map((proposal) => (
+            <View key={proposal.id}>
+              <View style={styles.requestRow}>
+                <View style={styles.requestIcon}><Ionicons name="storefront-outline" size={18} color={colors.primary} /></View>
+                <View style={styles.requestMain}>
+                  <Text style={styles.requestName}>{proposal.businessName}</Text>
+                  <Text style={styles.fieldHint} numberOfLines={1}>{proposal.deliveryCity ?? proposal.shopAddress}</Text>
+                </View>
+                <View style={[styles.status, STATUS_TONE[proposal.status] ?? STATUS_TONE.pending]}>
+                  <Text style={[styles.statusText, { color: (STATUS_TONE[proposal.status] ?? STATUS_TONE.pending).color }]}>{proposal.status}</Text>
+                </View>
+              </View>
+              {proposal.status === "pending" ? <View style={styles.proposalActions}>
+                {canOrderForRetailers ? <Pressable accessibilityRole="button" onPress={() => navigation.navigate("RepCatalog", {
+                  proposalId: proposal.id, retailerName: proposal.businessName,
+                })}>
+                  <Text style={styles.orderAction}>Punch order</Text>
+                </Pressable> : null}
+                <Pressable disabled={withdrawing === proposal.id} onPress={() => void withdraw(proposal.id)}>
+                  <Text style={[styles.remove, withdrawing === proposal.id && { opacity: 0.45 }]}>{withdrawing === proposal.id ? "Withdrawing…" : "Withdraw"}</Text>
+                </Pressable>
+              </View> : null}
+              {(proposal.orderIntents ?? []).map((intent: any) => (
+                <View key={intent.id} style={styles.demandRow}>
+                  <View style={styles.requestMain}>
+                    <Text style={styles.requestName}>Punched demand · {intent.items?.length ?? 0} line{intent.items?.length === 1 ? "" : "s"}</Text>
+                    <Text style={styles.fieldHint}>
+                      {intent.demandState === "waiting_for_retailer_approval" ? "Waiting for retailer approval · unpriced" :
+                        intent.demandState === "ready_for_official_order" ? "Retailer approved · review current pricing" :
+                          intent.demandState === "converted" ? `Order ${intent.convertedOrder?.orderNo ?? "created"}` : "Unavailable"}
+                    </Text>
+                  </View>
+                  {intent.demandState === "ready_for_official_order" && canOrderForRetailers ? (
+                    <Pressable accessibilityRole="button" onPress={() => navigation.navigate("RepReviewOrder", {
+                      intentId: intent.id, retailerId: proposal.retailerId, retailerName: proposal.businessName,
+                    })}>
+                      <Text style={styles.orderAction}>Review order</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          ))}
+        </View>
       </KeyboardSafeScrollView>
   );
 }
@@ -495,9 +542,12 @@ const styles = StyleSheet.create({
   requests: { gap: spacing.md, paddingTop: spacing.sm },
   sectionTitle: { color: colors.ink, fontSize: 16, fontWeight: "700" },
   requestRow: { minHeight: 56, flexDirection: "row", alignItems: "center", gap: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.separator, paddingVertical: spacing.sm },
+  proposalActions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.lg, paddingVertical: spacing.xs, borderBottomWidth: 1, borderBottomColor: colors.separator },
   requestIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center" },
   requestMain: { flex: 1, gap: 2 },
   requestName: { color: colors.ink, fontSize: 13, fontWeight: "600" },
+  demandRow: { minHeight: 54, marginLeft: 44, paddingVertical: spacing.sm, paddingLeft: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.separator, flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  orderAction: { color: colors.primary, fontSize: 12, fontWeight: "700" },
   status: { borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 5 },
   statusText: { fontSize: 10, fontWeight: "700", textTransform: "capitalize" },
 });

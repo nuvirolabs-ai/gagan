@@ -63,6 +63,12 @@ export function createRetailerProposalRouter(options: {
   const service = options.service ?? defaultRetailerProposalService;
   const router = Router();
   router.use("/retailer-proposals", options.authenticate);
+  router.use("/retailer-proposal-order-intents", options.authenticate);
+
+  const proposalOrderPermission = [
+    requirePermission(Permissions.RETAILER_PROPOSE),
+    requirePermission(Permissions.ORDER_CREATE_FOR_RETAILER),
+  ];
 
   router.get(
     "/retailer-proposals",
@@ -94,6 +100,47 @@ export function createRetailerProposalRouter(options: {
     })
   );
 
+  router.get(
+    "/retailer-proposals/:id/catalog",
+    ...proposalOrderPermission,
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      try {
+        res.json(await service.proposalDemandCatalog({
+          proposalId: req.params.id,
+          salespersonId: req.staffAuth!.staffId,
+        }));
+      } catch (error) {
+        sendProposalError(error, res, next);
+      }
+    })
+  );
+
+  router.post(
+    "/retailer-proposals/:id/order-intents",
+    ...proposalOrderPermission,
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      const idempotencyKey = req.header("idempotency-key")?.trim();
+      if (!idempotencyKey || idempotencyKey.length > 120) {
+        return res.status(400).json({ error: "idempotency_key_required" });
+      }
+      const parsed = z.object({
+        items: z.array(z.object({ variantId: z.string().min(1), qty: z.number().int().positive() })).min(1).max(200),
+      }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "invalid_order_items", details: parsed.error.flatten() });
+      try {
+        const intent = await service.punchOrderIntent({
+          proposalId: req.params.id,
+          salespersonId: req.staffAuth!.staffId,
+          idempotencyKey,
+          items: parsed.data.items,
+        });
+        res.status(201).json({ intent });
+      } catch (error) {
+        sendProposalError(error, res, next);
+      }
+    })
+  );
+
   router.post(
     "/retailer-proposals/:id/withdraw",
     requirePermission(Permissions.RETAILER_PROPOSE),
@@ -104,6 +151,48 @@ export function createRetailerProposalRouter(options: {
             proposalId: req.params.id,
             salespersonId: req.staffAuth!.staffId,
           }),
+        });
+      } catch (error) {
+        sendProposalError(error, res, next);
+      }
+    })
+  );
+
+  router.get(
+    "/retailer-proposal-order-intents/:id",
+    ...proposalOrderPermission,
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      try {
+        res.json({ intent: await service.orderIntentForSalesperson({
+          intentId: req.params.id,
+          salespersonId: req.staffAuth!.staffId,
+        }) });
+      } catch (error) {
+        sendProposalError(error, res, next);
+      }
+    })
+  );
+
+  router.post(
+    "/retailer-proposal-order-intents/:id/convert",
+    ...proposalOrderPermission,
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      const parsed = z.object({
+        commercial: z.object({ quoteId: z.string().min(1), revision: z.number().int().positive() }).optional(),
+      }).safeParse(req.body ?? {});
+      if (!parsed.success) return res.status(400).json({ error: "invalid_order_conversion", details: parsed.error.flatten() });
+      try {
+        const result = await service.convertOrderIntent({
+          intentId: req.params.id,
+          salespersonId: req.staffAuth!.staffId,
+          commercial: parsed.data.commercial,
+        });
+        res.status(201).json({
+          order: result.order,
+          creditDecision: "decision" in result ? result.decision : null,
+          approvalRequest: "approvalRequest" in result ? result.approvalRequest ?? null : null,
+          dispatchAuthorization: "dispatchAuthorization" in result ? result.dispatchAuthorization ?? null : null,
+          alreadyConverted: result.alreadyConverted ?? false,
         });
       } catch (error) {
         sendProposalError(error, res, next);

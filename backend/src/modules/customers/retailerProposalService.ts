@@ -8,6 +8,7 @@ import { normalizeIndianPhone } from "../identity/otpService";
 import { encryptPii, maskAadhaar } from "../../platform/security/pii";
 import { CommercialStatusCode } from "@prisma/client";
 import { recordCommercialStatusEvent } from "../commercialStatus/statusService";
+import { createOrderForRetailer, type OrderLineInput } from "../../lib/orders";
 
 type Db = PrismaClient | any;
 
@@ -80,6 +81,24 @@ function optionalValue(value: string | undefined, pattern: RegExp, code: string)
   return normalized;
 }
 
+function normalizeProposalDemand(items: OrderLineInput[] | Array<{ variantId: string; qty: number }>) {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  const quantities = new Map<string, number>();
+  for (const item of items) {
+    if (!item || typeof item.variantId !== "string" || !item.variantId.trim()
+      || !Number.isSafeInteger(item.qty) || item.qty <= 0) return null;
+    const qty = (quantities.get(item.variantId) ?? 0) + item.qty;
+    if (qty > 2_147_483_647) return null;
+    quantities.set(item.variantId, qty);
+  }
+  return [...quantities].sort(([a], [b]) => a.localeCompare(b)).map(([variantId, qty]) => ({ variantId, qty }));
+}
+
+function sameProposalDemand(existing: Array<{ variantId: string; qty: number }>, expected: OrderLineInput[]) {
+  const normalizedExisting = normalizeProposalDemand(existing);
+  return normalizedExisting !== null && JSON.stringify(normalizedExisting) === JSON.stringify(expected);
+}
+
 function decodePhoto(bodyBase64: string) {
   const body = Buffer.from(bodyBase64, "base64");
   if (!body.length) throw new ProposalError("aadhaar_photo_required", 400);
@@ -120,7 +139,8 @@ function publicProposal(proposal: any, photoUrl?: string | null) {
 export class RetailerProposalService {
   constructor(
     private readonly prisma: Db = defaultPrisma,
-    private readonly storage?: ObjectStorage
+    private readonly storage?: ObjectStorage,
+    private readonly createOfficialOrder: typeof createOrderForRetailer = createOrderForRetailer,
   ) {}
 
   private objectStorage() {
@@ -248,11 +268,291 @@ export class RetailerProposalService {
   async listForSalesperson(salespersonId: string) {
     const proposals = await this.prisma.retailerProposal.findMany({
       where: { submittedByStaffId: salespersonId },
-      include: { proposedTier: { select: { id: true, name: true } }, aadhaarPhotoAsset: true },
+      include: {
+        proposedTier: { select: { id: true, name: true } },
+        aadhaarPhotoAsset: true,
+        orderIntents: {
+          orderBy: { punchedAt: "desc" },
+          include: {
+            items: { select: { variantId: true, qty: true, productName: true, unitSize: true, unitsPerCase: true } },
+            convertedOrder: { select: { id: true, orderNo: true, status: true } },
+          },
+        },
+      },
       orderBy: { submittedAt: "desc" },
       take: 100,
     });
-    return proposals.map((proposal: any) => publicProposal(proposal));
+    return proposals.map((proposal: any) => ({
+      ...publicProposal(proposal),
+      orderIntents: (proposal.orderIntents ?? []).map((intent: any) => ({
+        ...intent,
+        demandState: proposal.status === "pending"
+          ? "waiting_for_retailer_approval"
+          : proposal.status === "approved"
+            ? intent.convertedOrderId ? "converted" : "ready_for_official_order"
+            : "not_available",
+      })),
+    }));
+  }
+
+  async proposalDemandCatalog(input: { proposalId: string; salespersonId: string }) {
+    const proposal = await this.prisma.retailerProposal.findUnique({
+      where: { id: input.proposalId },
+      select: { id: true, status: true, submittedByStaffId: true },
+    });
+    if (!proposal || proposal.submittedByStaffId !== input.salespersonId) {
+      throw new ProposalError("proposal_not_found", 404);
+    }
+    if (proposal.status !== "pending") throw new ProposalError("proposal_not_pending", 409);
+
+    const products = await this.prisma.product.findMany({
+      where: { catalogStatus: "active", variants: { some: { catalogStatus: "active" } } },
+      include: { variants: { where: { catalogStatus: "active" } } },
+      orderBy: { createdAt: "asc" },
+    });
+    return {
+      catalog: products.map((product: any) => ({
+        id: product.id,
+        name: product.name,
+        category: product.category,
+        imageUrl: product.imageUrl,
+        description: product.description,
+        variants: product.variants.map((variant: any) => ({
+          id: variant.id,
+          imageUrl: variant.imageUrl ?? product.imageUrl,
+          unitSize: variant.unitSize,
+          unit: variant.unit,
+          unitsPerCase: variant.unitsPerCase,
+          price: null,
+          orderable: true,
+        })),
+      })),
+      categories: [...new Set(products.map((product: any) => product.category))].sort(),
+    };
+  }
+
+  async punchOrderIntent(input: {
+    proposalId: string;
+    salespersonId: string;
+    idempotencyKey: string;
+    items: OrderLineInput[];
+  }) {
+    const items = normalizeProposalDemand(input.items);
+    if (!items) throw new ProposalError("invalid_order_items", 400);
+    const proposal = await this.prisma.retailerProposal.findUnique({
+      where: { id: input.proposalId },
+      select: { id: true, status: true, submittedByStaffId: true },
+    });
+    if (!proposal || proposal.submittedByStaffId !== input.salespersonId) {
+      throw new ProposalError("proposal_not_found", 404);
+    }
+
+    const intentWhere = { proposalId_idempotencyKey: { proposalId: input.proposalId, idempotencyKey: input.idempotencyKey } };
+    const replay = await this.prisma.retailerProposalOrderIntent.findUnique({
+      where: intentWhere,
+      include: { items: true },
+    });
+    if (replay) return sameProposalDemand(replay.items, items)
+      ? replay
+      : (() => { throw new ProposalError("idempotency_key_conflict", 409); })();
+    if (proposal.status !== "pending") throw new ProposalError("proposal_not_pending", 409);
+
+    const variants = await this.prisma.variant.findMany({
+      where: {
+        id: { in: items.map((item) => item.variantId) },
+        catalogStatus: "active",
+        product: { catalogStatus: "active" },
+      },
+      select: {
+        id: true,
+        unitSize: true,
+        unitsPerCase: true,
+        product: { select: { name: true } },
+      },
+    });
+    if (variants.length !== items.length) throw new ProposalError("catalog_item_not_orderable", 409);
+    const variantById = new Map(variants.map((variant: any) => [variant.id, variant]));
+    const lineSnapshots = items.map((item) => {
+      const variant: any = variantById.get(item.variantId);
+      return {
+        ...item,
+        productName: variant.product.name,
+        unitSize: variant.unitSize,
+        unitsPerCase: variant.unitsPerCase,
+      };
+    });
+
+    try {
+      return await this.prisma.$transaction(async (tx: Db) => {
+        const eligible = await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT "id" FROM "RetailerProposal"
+          WHERE "id" = ${input.proposalId}
+            AND "submittedByStaffId" = ${input.salespersonId}
+            AND "status" = 'pending'
+          FOR UPDATE
+        `;
+        if (eligible.length !== 1) throw new ProposalError("proposal_not_pending", 409);
+        const created = await tx.retailerProposalOrderIntent.create({
+          data: {
+            proposalId: input.proposalId,
+            submittedByStaffId: input.salespersonId,
+            idempotencyKey: input.idempotencyKey,
+            items: { create: lineSnapshots },
+          },
+          include: { items: true },
+        });
+        await tx.auditEvent.create({
+          data: {
+            actorStaffId: input.salespersonId,
+            action: "retailer_proposal.order_punched",
+            subjectType: "retailer_proposal_order_intent",
+            subjectId: created.id,
+            metadata: { proposalId: input.proposalId, itemCount: lineSnapshots.length },
+          },
+        });
+        return created;
+      });
+    } catch (error: any) {
+      if (error?.code !== "P2002") throw error;
+      const raced = await this.prisma.retailerProposalOrderIntent.findUnique({ where: intentWhere, include: { items: true } });
+      if (raced && sameProposalDemand(raced.items, items)) return raced;
+      if (raced) throw new ProposalError("idempotency_key_conflict", 409);
+      throw error;
+    }
+  }
+
+  async orderIntentForSalesperson(input: { intentId: string; salespersonId: string }) {
+    const intent = await this.prisma.retailerProposalOrderIntent.findFirst({
+      where: { id: input.intentId, submittedByStaffId: input.salespersonId },
+      include: {
+        proposal: { select: { id: true, status: true, retailerId: true, businessName: true } },
+        items: { select: { variantId: true, qty: true, productName: true, unitSize: true, unitsPerCase: true } },
+        convertedOrder: { select: { id: true, orderNo: true, status: true } },
+      },
+    });
+    if (!intent) throw new ProposalError("order_intent_not_found", 404);
+    const { id, proposalId, punchedAt, convertedAt, convertedOrderId, conversionCommercialQuoteId, items, proposal, convertedOrder } = intent;
+    const demandState = proposal.status === "pending"
+      ? "waiting_for_retailer_approval"
+      : proposal.status === "approved"
+        ? convertedOrderId ? "converted" : "ready_for_official_order"
+        : "not_available";
+    return { id, proposalId, punchedAt, convertedAt, convertedOrderId, conversionCommercialQuoteId, items, proposal, convertedOrder, demandState };
+  }
+
+  async convertOrderIntent(input: {
+    intentId: string;
+    salespersonId: string;
+    commercial?: { quoteId: string; revision: number };
+  }) {
+    const intent = await this.prisma.retailerProposalOrderIntent.findFirst({
+      where: { id: input.intentId, submittedByStaffId: input.salespersonId },
+      include: {
+        proposal: { include: { submittedBy: { select: { salesRepId: true } } } },
+        items: { select: { variantId: true, qty: true } },
+        convertedOrder: true,
+      },
+    });
+    if (!intent) throw new ProposalError("order_intent_not_found", 404);
+    if (intent.convertedOrder) return { order: intent.convertedOrder, alreadyConverted: true };
+    if (intent.proposal.status !== "approved" || !intent.proposal.retailerId) {
+      throw new ProposalError("retailer_approval_required", 409);
+    }
+
+    const staff = await this.prisma.staffUser.findUnique({
+      where: { id: input.salespersonId },
+      select: { status: true, salesRepId: true },
+    });
+    if (!staff || staff.status !== "active" || !staff.salesRepId) {
+      throw new ProposalError("salesperson_not_available", 403);
+    }
+    if (staff.salesRepId !== intent.proposal.submittedBy.salesRepId) {
+      throw new ProposalError("retailer_assignment_mismatch", 403);
+    }
+    const retailer = await this.prisma.retailer.findFirst({
+      where: { id: intent.proposal.retailerId, salesRepId: staff.salesRepId },
+      select: { id: true },
+    });
+    if (!retailer) throw new ProposalError("retailer_assignment_mismatch", 403);
+
+    const commercial = input.commercial ?? undefined;
+    if (intent.conversionCommercialQuoteId && commercial?.quoteId !== intent.conversionCommercialQuoteId) {
+      const pinnedQuote = await this.prisma.commercialQuote.findUnique({
+        where: { id: intent.conversionCommercialQuoteId },
+        select: { acceptedAt: true, expiresAt: true },
+      });
+      if (!pinnedQuote || pinnedQuote.acceptedAt || pinnedQuote.expiresAt >= new Date() || !commercial?.quoteId) {
+        throw new ProposalError("conversion_quote_mismatch", 409, { quoteId: intent.conversionCommercialQuoteId });
+      }
+      const replaced = await this.prisma.retailerProposalOrderIntent.updateMany({
+        where: {
+          id: intent.id,
+          convertedOrderId: null,
+          conversionCommercialQuoteId: intent.conversionCommercialQuoteId,
+        },
+        data: { conversionCommercialQuoteId: commercial.quoteId },
+      });
+      if (replaced.count !== 1) {
+        const current = await this.prisma.retailerProposalOrderIntent.findUnique({ where: { id: intent.id }, select: { conversionCommercialQuoteId: true } });
+        if (current?.conversionCommercialQuoteId !== commercial.quoteId) {
+          throw new ProposalError("conversion_quote_mismatch", 409, { quoteId: current?.conversionCommercialQuoteId });
+        }
+      }
+    }
+    if (!intent.conversionCommercialQuoteId && commercial?.quoteId) {
+      const claimed = await this.prisma.retailerProposalOrderIntent.updateMany({
+        where: { id: intent.id, convertedOrderId: null, conversionCommercialQuoteId: null },
+        data: { conversionCommercialQuoteId: commercial.quoteId },
+      });
+      if (claimed.count !== 1) {
+        const current = await this.prisma.retailerProposalOrderIntent.findUnique({ where: { id: intent.id }, select: { conversionCommercialQuoteId: true } });
+        if (current?.conversionCommercialQuoteId !== commercial.quoteId) {
+          throw new ProposalError("conversion_quote_mismatch", 409, { quoteId: current?.conversionCommercialQuoteId });
+        }
+      }
+    }
+
+    const result = await this.createOfficialOrder(
+      retailer.id,
+      normalizeProposalDemand(intent.items)!,
+      "rep",
+      staff.salesRepId,
+      input.salespersonId,
+      `retailer-proposal-intent:${intent.id}`,
+      commercial,
+    );
+    if (!result.ok) {
+      if (result.body.error !== "manager_freight_confirmation_required") {
+        await this.prisma.retailerProposalOrderIntent.updateMany({
+          where: { id: intent.id, convertedOrderId: null },
+          data: { conversionCommercialQuoteId: null },
+        });
+      }
+      throw new ProposalError(String(result.body.error ?? "order_conversion_failed"), result.status, result.body);
+    }
+
+    await this.prisma.$transaction(async (tx: Db) => {
+      const linked = await tx.retailerProposalOrderIntent.updateMany({
+        where: { id: intent.id, convertedOrderId: null },
+        data: { convertedOrderId: result.order.id, convertedAt: new Date() },
+      });
+      if (linked.count === 0) {
+        const existing = await tx.retailerProposalOrderIntent.findUnique({ where: { id: intent.id }, select: { convertedOrderId: true } });
+        if (existing?.convertedOrderId !== result.order.id) throw new ProposalError("order_intent_already_converted", 409);
+      }
+      if (linked.count === 1) {
+        await tx.auditEvent.create({
+          data: {
+            actorStaffId: input.salespersonId,
+            action: "retailer_proposal.order_converted",
+            subjectType: "retailer_proposal_order_intent",
+            subjectId: intent.id,
+            metadata: { proposalId: intent.proposalId, retailerId: retailer.id, orderId: result.order.id },
+          },
+        });
+      }
+    });
+    return { ...result, alreadyConverted: false };
   }
 
   /**
@@ -275,6 +575,7 @@ export class RetailerProposalService {
         reviewedBy: { select: { id: true, name: true } },
         proposedTier: { select: { id: true, name: true } },
         aadhaarPhotoAsset: true,
+        orderIntents: { select: { id: true } },
       },
       orderBy: [{ status: "asc" }, { submittedAt: "desc" }],
       take: 200,

@@ -151,6 +151,11 @@ export default function RetailerApprovals() {
                   <td>
                     <strong>{proposal.businessName}</strong>
                     {proposal.notes ? <div className="small muted">{proposal.notes}</div> : null}
+                    {proposal.status === "pending" && proposal.orderIntents?.length ? (
+                      <div className="small muted">
+                        {proposal.orderIntents.length} punched demand{proposal.orderIntents.length === 1 ? "" : "s"} · unpriced until retailer approval
+                      </div>
+                    ) : null}
                   </td>
                   <td>
                     {proposal.phone}

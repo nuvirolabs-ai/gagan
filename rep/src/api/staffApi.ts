@@ -201,6 +201,16 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
     /* ------------------------------ new retailers ------------------------------ */
 
     retailerProposals: () => request("/rep/retailer-proposals"),
+    proposalDemandCatalog: (proposalId: string) => request(`/rep/retailer-proposals/${proposalId}/catalog`),
+    punchProposalOrderIntent: (proposalId: string, items: { variantId: string; qty: number }[], idempotencyKey: string) =>
+      request(`/rep/retailer-proposals/${proposalId}/order-intents`, {
+        method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey },
+        body: JSON.stringify({ items }),
+      }),
+    proposalOrderIntent: (id: string) => request(`/rep/retailer-proposal-order-intents/${id}`),
+    convertProposalOrderIntent: (id: string, commercial?: { quoteId: string; revision: number }) =>
+      post(`/rep/retailer-proposal-order-intents/${id}/convert`, commercial ? { commercial } : {}),
     proposeRetailer: (body: {
       businessName: string;
       groupName: string;

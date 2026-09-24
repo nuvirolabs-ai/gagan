@@ -98,6 +98,7 @@ The source files, tests and original gap statements are retained in the matching
 ## Git Checkpoints
 
 - `7773f7237c4dc20bf1138b3e6b6a21c8731455d1` — `test: verify visit readback after check-in`; committed and pushed to `origin/codex/gagan-client-feedback-v2-reconciled`. Adds VIS-01 authenticated PostgreSQL retry/active-and-closed-readback regression assertions and records the starting execution evidence. No product behavior implementation was changed.
+- `6a6753b` — `test: keep field visit open while ordering`; committed and pushed to the same authorized branch. Extends local integration coverage to create and read back a salesperson order during an active visit and verify explicit checkout remains the only route-progress completion event. No product behavior implementation was changed.
 
 ## Execution Update — GGN-VIS-02
 

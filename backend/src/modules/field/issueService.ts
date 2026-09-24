@@ -15,6 +15,79 @@ const OPEN_STATUSES = ["open", "in_progress"];
 export class IssueService {
   constructor(private readonly prisma: Db = defaultPrisma) {}
 
+  async raiseRetailerRequest(input: { retailerId: string; description: string; clientReference: string }) {
+    const description = input.description.trim();
+    if (description.length < 3 || description.length > 1000) throw new FieldServiceError("issue_description_required", 400);
+    if (!input.clientReference || input.clientReference.length > 120) throw new FieldServiceError("idempotency_key_required", 400);
+    return this.prisma.$transaction(async (tx: Db) => {
+      const retailer = await tx.$queryRaw`SELECT "id" FROM "Retailer" WHERE "id" = ${input.retailerId} FOR UPDATE`;
+      if (retailer.length !== 1) throw new FieldServiceError("retailer_not_found", 404);
+      const existing = await tx.serviceIssue.findFirst({ where: { retailerId: input.retailerId, clientReference: input.clientReference } });
+      if (existing) {
+        if (existing.type !== "service_request" || existing.description !== description || existing.raisedByStaffId) {
+          throw new FieldServiceError("idempotency_payload_conflict", 409);
+        }
+        return existing;
+      }
+      const issue = await tx.serviceIssue.create({
+        data: {
+          retailerId: input.retailerId,
+          raisedByStaffId: null,
+          type: "service_request",
+          priority: "normal",
+          status: "open",
+          description,
+          clientReference: input.clientReference,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          actorStaffId: null,
+          action: "service_issue.retailer_submitted",
+          subjectType: "service_issue",
+          subjectId: issue.id,
+          metadata: { retailerId: input.retailerId, clientReference: input.clientReference },
+        },
+      });
+      return issue;
+    });
+  }
+
+  async retailerRequests(retailerId: string) {
+    return this.prisma.serviceIssue.findMany({
+      where: { retailerId, type: "service_request" },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      select: { id: true, description: true, status: true, createdAt: true, updatedAt: true, withdrawnAt: true },
+    });
+  }
+
+  async withdrawRetailerRequest(issueId: string, retailerId: string) {
+    return this.prisma.$transaction(async (tx: Db) => {
+      await tx.$queryRaw`SELECT "id" FROM "ServiceIssue" WHERE "id" = ${issueId} FOR UPDATE`;
+      const issue = await tx.serviceIssue.findUnique({ where: { id: issueId } });
+      if (!issue || issue.retailerId !== retailerId || issue.type !== "service_request") {
+        throw new FieldServiceError("issue_not_found", 404);
+      }
+      if (issue.status === "withdrawn" && issue.withdrawnByRetailerId === retailerId) return issue;
+      if (issue.status !== "open") throw new FieldServiceError("issue_not_withdrawable", 409);
+      const updated = await tx.serviceIssue.update({
+        where: { id: issueId },
+        data: { status: "withdrawn", withdrawnAt: new Date(), withdrawnByRetailerId: retailerId, withdrawnFromStatus: issue.status },
+      });
+      await tx.auditEvent.create({
+        data: {
+          actorStaffId: null,
+          action: "service_issue.retailer_withdrawn",
+          subjectType: "service_issue",
+          subjectId: issueId,
+          metadata: { retailerId, previousStatus: issue.status },
+        },
+      });
+      return updated;
+    });
+  }
+
   private async assertAssigned(salespersonId: string, retailerId: string) {
     const [staff, retailer] = await Promise.all([
       this.prisma.staffUser.findUnique({ where: { id: salespersonId }, select: { salesRepId: true } }),
@@ -99,7 +172,10 @@ export class IssueService {
       where: {
         // An issue belongs to the team that raised it, so a manager's queue is
         // their tree's issues — not every open issue in the company.
-        ...(filters.scopeStaffIds ? { raisedByStaffId: { in: filters.scopeStaffIds } } : {}),
+        ...(filters.scopeStaffIds ? { OR: [
+          { raisedByStaffId: { in: filters.scopeStaffIds } },
+          { retailer: { salesRep: { staffUser: { id: { in: filters.scopeStaffIds } } } } },
+        ] } : {}),
         ...(filters.salespersonId ? { raisedByStaffId: filters.salespersonId } : {}),
         ...(filters.retailerId ? { retailerId: filters.retailerId } : {}),
         ...(filters.status ? { status: filters.status } : {}),
@@ -124,23 +200,34 @@ export class IssueService {
   }) {
     const issue = await this.prisma.serviceIssue.findUnique({ where: { id: input.issueId } });
     if (!issue) throw new FieldServiceError("issue_not_found", 404);
-    if (!isWithinScope(issue.raisedByStaffId, input.scopeStaffIds)) {
-      throw new FieldServiceError("outside_reporting_scope", 403);
-    }
-    if (["resolved", "closed", "rejected"].includes(issue.status)) {
+    if (["resolved", "closed", "rejected", "withdrawn"].includes(issue.status)) {
       throw new FieldServiceError("issue_already_closed", 409);
     }
     const resolving = ["resolved", "closed", "rejected"].includes(input.status);
     if (resolving && !input.resolutionNote?.trim()) {
       throw new FieldServiceError("issue_resolution_note_required", 400);
     }
+    if (input.scopeStaffIds) {
+      const ownerStaffId = issue.raisedByStaffId ?? (await this.prisma.staffUser.findFirst({
+        where: { salesRepId: (await this.prisma.retailer.findUnique({ where: { id: issue.retailerId }, select: { salesRepId: true } }))?.salesRepId ?? "" },
+        select: { id: true },
+      }))?.id;
+      if (!ownerStaffId || !isWithinScope(ownerStaffId, input.scopeStaffIds)) {
+        throw new FieldServiceError("outside_reporting_scope", 403);
+      }
+    }
     return this.prisma.$transaction(async (tx: Db) => {
+      await tx.$queryRaw`SELECT "id" FROM "ServiceIssue" WHERE "id" = ${issue.id} FOR UPDATE`;
+      const current = await tx.serviceIssue.findUnique({ where: { id: issue.id } });
+      if (!current || !["open", "in_progress"].includes(current.status)) {
+        throw new FieldServiceError("issue_already_closed", 409);
+      }
       const updated = await tx.serviceIssue.update({
         where: { id: issue.id },
         data: {
           status: input.status,
-          assignedTeam: input.assignedTeam?.trim() || issue.assignedTeam,
-          resolutionNote: input.resolutionNote?.trim() || issue.resolutionNote,
+          assignedTeam: input.assignedTeam?.trim() || current.assignedTeam,
+          resolutionNote: input.resolutionNote?.trim() || current.resolutionNote,
           resolvedAt: resolving ? new Date() : null,
         },
       });

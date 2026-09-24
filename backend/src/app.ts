@@ -49,6 +49,7 @@ import ledgerRoutes from "./routes/ledger";
 import orderRoutes from "./routes/orders";
 import { requireAuth } from "./lib/auth";
 import paymentRoutes from "./routes/payments";
+import { createRetailerServiceRequestRouter } from "./routes/serviceRequests";
 import repRoutes from "./routes/rep";
 import {
   databaseReadiness,
@@ -107,14 +108,14 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(ledgerRoutes);
   app.use(deliveryRoutes);
   app.use(paymentRoutes);
+  app.use(createRetailerServiceRequestRouter());
   // Internal commercial statuses are staff/admin-only. This is deliberately
   // mounted outside the retailer-facing routes so the fields cannot leak via
   // the public customer API.
   app.use(commercialStatusRoutes);
 
-  // Composition root for the visit/day-plan seam: checking in at a store also
-  // settles that store's planned route stop, without the location module
-  // depending on the field module.
+  // Link the planned route stop at check-in. Visit checkout is the only event
+  // that changes route progress.
   const locationService = new LocationService(prisma, loadLocationConfig(), {
     afterCheckIn: (visit, tx) =>
       defaultRouteService.linkVisitToPlannedStop({

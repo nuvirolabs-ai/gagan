@@ -7,6 +7,7 @@ import { AppScreen, EmptyState, OrderTimeline, PrimaryButton, SectionHeader, Sta
 import { repApi } from "../api/repClient";
 import { formatOrderRef } from "../lib/orderRef";
 import { colors, inr, spacing } from "../theme";
+import { nextOrderVisitAction, type OrderVisitAction } from "./orderVisitAction";
 
 const STATUS_LABELS: Record<string, string> = {
   placed: "Order placed",
@@ -46,10 +47,19 @@ export default function OrderDetailScreen({ route, navigation }: any) {
   const [data, setData] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [visitAction, setVisitAction] = useState<OrderVisitAction | null>(null);
 
   const load = useCallback(async () => {
     const result = await repApi.order(orderId);
     setData(result);
+    // A failed visit read must never manufacture "Next retailer" eligibility.
+    setVisitAction(null);
+    try {
+      const visitResult = await repApi.visits();
+      setVisitAction(nextOrderVisitAction(result.order, visitResult.visits ?? []));
+    } catch {
+      setVisitAction(null);
+    }
   }, [orderId]);
 
   useFocusEffect(
@@ -117,11 +127,19 @@ export default function OrderDetailScreen({ route, navigation }: any) {
 
         {order.invoice ? <Surface><SectionHeader title="Invoice" /><View style={styles.invoiceRow}><Text style={styles.muted}>Invoice #{order.invoice.invoiceNumber}</Text><Text style={styles.totalValue}>{inr(Number(order.invoice.total))}</Text></View>{order.invoice.commercialSnapshot && <CommercialBreakdown value={order.invoice.commercialSnapshot}/>}<Text style={styles.muted}>{order.invoice.outstandingAmount > 0 ? `${inr(Number(order.invoice.outstandingAmount))} outstanding` : "Settled"}</Text></Surface> : null}
 
-        <PrimaryButton
-          label="Done · Next retailer"
-          icon="arrow-forward"
-          onPress={() => navigation.navigate("RepMain", { screen: "Retailers" })}
-        />
+        {visitAction?.kind === "continue_visit" ? (
+          <PrimaryButton
+            label="Continue Visit"
+            icon="arrow-forward"
+            onPress={() => navigation.navigate("Visit", { visitId: visitAction.visitId, retailerId: order.retailerId, retailerName: order.retailer?.name ?? "Retailer" })}
+          />
+        ) : visitAction?.kind === "next_retailer" ? (
+          <PrimaryButton label="Visit complete · Next retailer" icon="arrow-forward" onPress={() => navigation.navigate("RepMain", { screen: "Retailers" })} />
+        ) : visitAction?.kind === "visit_not_completed" ? (
+          <PrimaryButton label="Visit not completed · Open retailer" icon="arrow-forward" onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: order.retailerId })} />
+        ) : (
+          <Text style={styles.muted}>Visit status unavailable. Refresh before continuing to another retailer.</Text>
+        )}
         <Text style={styles.footer}>This view reflects the order accepted by Gagan. Reopen the retailer profile to review the same order later.</Text>
       </ScrollView>
     </AppScreen>

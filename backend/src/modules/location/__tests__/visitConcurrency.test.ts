@@ -28,6 +28,9 @@ describe("single-open visit on PostgreSQL",()=>{
   expect((await service.checkIn(input())).id).toBe(visits[0].id);
   expect(await prisma.salesVisit.count({where:{salespersonId:staff,checkedOutAt:null}})).toBe(1);
   expect(visits[0].routeStopId).toBe(plan.stops[0].id);
+  const before=await prisma.routePlanStop.findUniqueOrThrow({where:{id:plan.stops[0].id}});
+  expect(before.status).toBe("pending");
+  expect(before.visitedAt).toBeNull();
  });
  it("parallel different stores cannot leave two open visits",async()=>{
   const outcomes=await Promise.allSettled(stores.map(id=>service.checkIn(input(id))));
@@ -53,6 +56,22 @@ describe("single-open visit on PostgreSQL",()=>{
   const results=await Promise.allSettled([service.checkOut({...input(),visitId:visit.id,outcome:"no_order",noOrderReason:"already_has_stock"}),service.checkOut({...input(),visitId:visit.id,outcome:"no_order",noOrderReason:"already_has_stock"})]);
   expect(results.filter(result=>result.status==="fulfilled")).toHaveLength(1);
   expect((await service.checkIn(input(stores[1]))).id).not.toBe(visit.id);
+ });
+ it("order activity does not settle a route stop; successful checkout does once",async()=>{
+  const plan=await prisma.routePlan.create({data:{salespersonId:staff,planDate:startOfDay(new Date()),status:"published",stops:{create:{retailerId:stores[0],sequence:1}}},include:{stops:true}});
+  const visit=await service.checkIn(input());
+  expect((await prisma.routePlanStop.findUniqueOrThrow({where:{id:plan.stops[0].id}})).status).toBe("pending");
+  const results=await Promise.allSettled([service.checkOut({...input(),visitId:visit.id,outcome:"no_order",noOrderReason:"already_has_stock"}),service.checkOut({...input(),visitId:visit.id,outcome:"no_order",noOrderReason:"already_has_stock"})]);
+  expect(results.filter(result=>result.status==="fulfilled")).toHaveLength(1);
+  const stop=await prisma.routePlanStop.findUniqueOrThrow({where:{id:plan.stops[0].id}});
+  expect(stop.status).toBe("visited");
+  expect(stop.visitedAt).not.toBeNull();
+ });
+ it("cannot skip a route stop while its visit is active",async()=>{
+  const plan=await prisma.routePlan.create({data:{salespersonId:staff,planDate:startOfDay(new Date()),status:"published",stops:{create:{retailerId:stores[0],sequence:1}}},include:{stops:true}});
+  await service.checkIn(input());
+  await expect(new RouteService(prisma).skipStop({stopId:plan.stops[0].id,salespersonId:staff,reason:"Closed"})).rejects.toMatchObject({code:"route_stop_visit_active"});
+  expect((await prisma.routePlanStop.findUniqueOrThrow({where:{id:plan.stops[0].id}})).status).toBe("pending");
  });
  it("stores multiple outcomes and rejects an unexplained sales visit atomically",async()=>{
   const visit=await service.checkIn(input());

@@ -102,6 +102,12 @@ export default function ProfileScreen({ navigation }: any) {
       hint: "Answer active questions from Gagan",
       onPress: () => navigation.navigate("MarketSurveys"),
     },
+    {
+      icon: "help-circle-outline",
+      label: "Service requests",
+      hint: "Ask for help or review submitted requests",
+      onPress: () => navigation.navigate("ServiceRequests"),
+    },
   ];
 
   return (

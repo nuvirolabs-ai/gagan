@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useScrollToTop } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "../api/client";
@@ -23,6 +23,8 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export default function CatalogScreen({ navigation, route }: any) {
+  const listRef = useRef<FlatList<ProductGroupLike>>(null);
+  useScrollToTop(listRef);
   const { lines, addLine, updateQty } = useCart();
   const { t } = useLanguage();
   const [groups, setGroups] = useState<ProductGroupLike[]>([]);
@@ -133,6 +135,7 @@ export default function CatalogScreen({ navigation, route }: any) {
         <ScreenSkeleton featured rows={3} />
       ) : (
         <FlatList
+          ref={listRef}
           data={rows}
           keyExtractor={(group) => group.id}
           contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: tabBarContentSpace(cartCount) }}

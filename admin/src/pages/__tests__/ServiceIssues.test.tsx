@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import ServiceIssues from "../ServiceIssues";
+import { api } from "../../api";
 
 const { updateServiceIssue } = vi.hoisted(() => ({
   updateServiceIssue: vi.fn().mockResolvedValue({}),
@@ -53,5 +54,17 @@ describe("Service issues", () => {
         resolutionNote: "Replacement dispatched",
       })
     );
+  });
+
+  it("keeps withdrawn retailer requests visible without offering another transition", async () => {
+    vi.mocked(api.serviceIssues).mockResolvedValueOnce({ issues: [] } as any).mockResolvedValueOnce({ issues: [{
+      id: "request-1", retailer: { name: "Mahesh Store" }, raisedBy: null, raisedByStaffId: null,
+      type: "service_request", priority: "normal", description: "Delivery question", status: "withdrawn",
+    }] } as any);
+    render(<ServiceIssues />);
+    fireEvent.click(await screen.findByRole("button", { name: "Withdrawn" }));
+    expect(await screen.findByText("Delivery question")).toBeInTheDocument();
+    expect(screen.getByText("Retailer")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start" })).not.toBeInTheDocument();
   });
 });

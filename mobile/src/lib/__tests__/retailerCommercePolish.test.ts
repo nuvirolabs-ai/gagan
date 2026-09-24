@@ -9,6 +9,7 @@ import type { HomeProductGroup } from "../../types/home";
 import { buildRetailerPromotions } from "../retailerPromotions";
 import { shouldShowMiniCart } from "../miniCartVisibility";
 import { MINI_CART_SPACE, TAB_BAR_SPACE, tabBarContentSpace } from "../../theme";
+import { HOME_PRODUCT_PREVIEW_LIMIT, homeProductPreview } from "../homeProductPreview";
 
 const homeScreenSource = readFileSync(
   fileURLToPath(new URL("../../screens/HomeScreen.tsx", import.meta.url)),
@@ -61,10 +62,10 @@ describe("approved retailer commerce polish", () => {
   it("keeps Home shopping-first and reserves the full floating-footer inset", () => {
     const markers = [
       "<RetailerPromoCarousel",
+      "{/* Account finance */}",
       "{/* Shop by category */}",
       "{/* Products */}",
       "{/* Latest order */}",
-      "{/* Account finance */}",
       "{/* Order again */}",
     ];
     const positions = markers.map((marker) => homeScreenSource.indexOf(marker));
@@ -72,5 +73,22 @@ describe("approved retailer commerce polish", () => {
     expect(positions.every((position) => position >= 0)).toBe(true);
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
     expect(tabBarContentSpace(2)).toBe(TAB_BAR_SPACE + MINI_CART_SPACE);
+    expect(homeScreenSource).not.toContain("shelf.map((group)");
+  });
+  it("bounds only Home's product preview while retaining the complete catalogue", () => {
+    const all = Array.from({ length: 52 }, (_, index) => group({ id: `p-${index}` }));
+    expect(HOME_PRODUCT_PREVIEW_LIMIT).toBeLessThan(52);
+    expect(homeProductPreview(all)).toHaveLength(HOME_PRODUCT_PREVIEW_LIMIT);
+    expect(all).toHaveLength(52);
+  });
+  it("active tab re-tap scrolls the existing Home and Products views", () => {
+    const catalog = readFileSync(fileURLToPath(new URL("../../screens/CatalogScreen.tsx", import.meta.url)), "utf8");
+    expect(homeScreenSource).toContain("useScrollToTop(scrollRef)");
+    expect(catalog).toContain("useScrollToTop(listRef)");
+  });
+  it("marks retained account totals as possibly stale when Home refresh fails", () => {
+    expect(homeScreenSource).toContain('setFinanceStale(true)');
+    expect(homeScreenSource).toContain('setFinanceStale(false)');
+    expect(homeScreenSource).toContain('Account totals may be out of date');
   });
 });

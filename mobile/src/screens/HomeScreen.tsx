@@ -10,7 +10,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useScrollToTop } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { api } from "../api/client";
@@ -34,6 +34,7 @@ import {
 } from "../lib/homePresentation";
 import { buildRetailerPromotions, promotionDestination } from "../lib/retailerPromotions";
 import { canChangeCatalogQuantity } from "../lib/catalogInteractions";
+import { homeProductPreview } from "../lib/homeProductPreview";
 
 const ALL_CATEGORY = "All";
 const CATEGORY_LABELS: Record<string, string> = {
@@ -54,14 +55,18 @@ export default function HomeScreen({ navigation }: any) {
   const [data, setData] = useState<HomePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [financeStale, setFinanceStale] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORY);
   const dataRef = useRef<HomePayload | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  useScrollToTop(scrollRef);
   dataRef.current = data;
   const promotions = useMemo(() => buildRetailerPromotions(data?.productGroups ?? []), [data?.productGroups]);
 
   const load = useCallback(async () => {
     const res = await api.getHome();
     setData(res);
+    setFinanceStale(false);
   }, []);
 
   useFocusEffect(
@@ -71,7 +76,10 @@ export default function HomeScreen({ navigation }: any) {
       if (!hasData) setLoading(true);
       load()
         .catch(() => {
-          if (!cancelled && !dataRef.current) setData(null);
+          if (!cancelled) {
+            if (!dataRef.current) setData(null);
+            else setFinanceStale(true);
+          }
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
@@ -84,7 +92,7 @@ export default function HomeScreen({ navigation }: any) {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await load().catch(() => {});
+    await load().catch(() => { setFinanceStale(true); });
     setRefreshing(false);
   };
 
@@ -115,6 +123,7 @@ export default function HomeScreen({ navigation }: any) {
   );
   const featured = featuredGroup(visibleGroups);
   const shelf = visibleGroups.filter((group) => group.id !== featured?.id);
+  const previewShelf = homeProductPreview(shelf);
   // Product discovery owns the primary Home real estate. Order status is
   // intentionally rendered as a compact secondary row below the promotions.
   const header = headerCopy({ activeOrder: null, scheme });
@@ -151,6 +160,7 @@ export default function HomeScreen({ navigation }: any) {
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={styles.screen}
       contentContainerStyle={{ paddingTop: insets.top + spacing.sm, paddingBottom: tabBarContentSpace(cartCount) + 16 }}
       showsVerticalScrollIndicator={false}
@@ -207,6 +217,16 @@ export default function HomeScreen({ navigation }: any) {
         }}
       />
 
+      {/* Account finance */}
+      <View style={styles.sectionSpace}>
+        <AccountStrip
+          account={account}
+          onPay={() => navigation.navigate("Pay")}
+          onLedger={() => navigation.navigate("Ledger")}
+        />
+        {financeStale ? <Text style={styles.financeStale}>Account totals may be out of date. Pull to refresh.</Text> : null}
+      </View>
+
       {/* Shop by category */}
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>{t("home.shopByCategory")}</Text>
@@ -261,7 +281,7 @@ export default function HomeScreen({ navigation }: any) {
                 appearance="featured"
               />
             ) : null}
-            {shelf.map((group) => (
+            {previewShelf.map((group) => (
               <ProductGroupCard
                 key={group.id}
                 group={group}
@@ -295,15 +315,6 @@ export default function HomeScreen({ navigation }: any) {
           <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
         </TouchableOpacity>
       ) : null}
-
-      {/* Account finance */}
-      <View style={styles.sectionSpace}>
-        <AccountStrip
-          account={account}
-          onPay={() => navigation.navigate("Pay")}
-          onLedger={() => navigation.navigate("Ledger")}
-        />
-      </View>
 
       {/* Order again */}
       <View style={styles.sectionHead}>
@@ -502,6 +513,7 @@ const styles = StyleSheet.create({
 
   errorTitle: { fontSize: 16, fontWeight: "700", color: colors.ink, textAlign: "center" },
   errorBody: { fontSize: 13.5, color: colors.inkMuted, marginTop: 6, textAlign: "center" },
+  financeStale: { marginHorizontal: spacing.lg, color: colors.inkMuted, fontSize: 12, marginBottom: spacing.sm },
   retry: {
     marginTop: spacing.lg,
     backgroundColor: colors.green,

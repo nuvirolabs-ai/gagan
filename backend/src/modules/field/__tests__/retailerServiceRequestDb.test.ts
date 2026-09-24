@@ -19,6 +19,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   const ids = (await prisma.serviceIssue.findMany({ where: { retailerId: { in: retailers } }, select: { id: true } })).map(({ id }) => id);
+  await prisma.customerActivity.deleteMany({ where: { serviceIssueId: { in: ids } } });
   await prisma.auditEvent.deleteMany({ where: { subjectType: "service_issue", subjectId: { in: ids } } });
   await prisma.serviceIssue.deleteMany({ where: { retailerId: { in: retailers } } });
   await prisma.retailer.deleteMany({ where: { id: { in: retailers } } });
@@ -60,5 +61,27 @@ describe("retailer service requests on disposable PostgreSQL", () => {
     const otherQueue = await service.list({ scopeStaffIds: [staff[1]], retailerId: retailers[0] });
     expect(ownerQueue.some((row: { id: string }) => row.id === issue.id)).toBe(true);
     expect(otherQueue.some((row: { id: string }) => row.id === issue.id)).toBe(false);
+  });
+  it("does not reveal a former team's staff-raised issue after retailer reassignment", async () => {
+    const staffIssue = await service.raise({
+      salespersonId: staff[0], retailerId: retailers[0], type: "service_request", description: "Former team private issue",
+    });
+    const retailerIssue = await service.raiseRetailerRequest({
+      retailerId: retailers[0], description: "Current team request", clientReference: `feedback-${randomUUID()}`,
+    });
+    try {
+      await prisma.retailer.update({ where: { id: retailers[0] }, data: { salesRepId: salesReps[1] } });
+      const oldTeam = await service.list({ scopeStaffIds: [staff[0]], retailerId: retailers[0] });
+      const newTeam = await service.list({ scopeStaffIds: [staff[1]], retailerId: retailers[0] });
+      expect(oldTeam.some((row: { id: string }) => row.id === staffIssue.id)).toBe(true);
+      expect(newTeam.some((row: { id: string }) => row.id === staffIssue.id)).toBe(false);
+      expect(newTeam.some((row: { id: string }) => row.id === retailerIssue.id)).toBe(true);
+      await expect(service.updateStatus({ issueId: staffIssue.id, actorStaffId: staff[1], status: "in_progress", scopeStaffIds: [staff[1]] }))
+        .rejects.toMatchObject({ code: "outside_reporting_scope" });
+      await expect(service.updateStatus({ issueId: retailerIssue.id, actorStaffId: staff[1], status: "in_progress", scopeStaffIds: [staff[1]] }))
+        .resolves.toMatchObject({ status: "in_progress" });
+    } finally {
+      await prisma.retailer.update({ where: { id: retailers[0] }, data: { salesRepId: salesReps[0] } });
+    }
   });
 });

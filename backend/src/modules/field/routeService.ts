@@ -133,7 +133,15 @@ export class RouteService {
 
   async skipStop(input: { stopId: string; salespersonId: string; reason: string }) {
     if (!input.reason.trim()) throw new FieldServiceError("skip_reason_required", 400);
+    const owner = await this.prisma.routePlanStop.findUnique({
+      where: { id: input.stopId },
+      select: { routePlan: { select: { salespersonId: true } } },
+    });
+    if (!owner || owner.routePlan.salespersonId !== input.salespersonId) throw new FieldServiceError("route_stop_not_found", 404);
     return this.prisma.$transaction(async (tx: Db) => {
+      // Match upsertPlan's lock order. The pre-read is only for selecting the
+      // lock owner; the stop and its current state are checked again below.
+      await tx.$queryRaw`SELECT "id" FROM "StaffUser" WHERE "id" = ${input.salespersonId} FOR UPDATE`;
       await tx.$queryRaw`SELECT "id" FROM "RoutePlanStop" WHERE "id" = ${input.stopId} FOR UPDATE`;
       const stop = await tx.routePlanStop.findUnique({
         where: { id: input.stopId },

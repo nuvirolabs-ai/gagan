@@ -174,7 +174,7 @@ export class IssueService {
         // their tree's issues — not every open issue in the company.
         ...(filters.scopeStaffIds ? { OR: [
           { raisedByStaffId: { in: filters.scopeStaffIds } },
-          { retailer: { salesRep: { staffUser: { id: { in: filters.scopeStaffIds } } } } },
+          { raisedByStaffId: null, retailer: { salesRep: { staffUser: { id: { in: filters.scopeStaffIds } } } } },
         ] } : {}),
         ...(filters.salespersonId ? { raisedByStaffId: filters.salespersonId } : {}),
         ...(filters.retailerId ? { retailerId: filters.retailerId } : {}),

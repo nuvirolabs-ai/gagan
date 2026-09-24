@@ -102,6 +102,18 @@ describe("planning a route", () => {
 });
 
 describe("running a route", () => {
+  it("locks the salesperson before a stop so plan replacement cannot erase a concurrent skip", async () => {
+    const prisma = fakePrisma();
+    prisma.routePlanStop.findUnique.mockResolvedValue({
+      id: "stop-1", status: "pending", routePlan: { salespersonId: "staff-1" }, visits: [],
+    });
+    prisma.routePlanStop.update.mockResolvedValue({ id: "stop-1", status: "skipped" });
+    await new RouteService(prisma).skipStop({ stopId: "stop-1", salespersonId: "staff-1", reason: "Shop shut" });
+    const lockTargets = prisma.$queryRaw.mock.calls.map(([strings]: [TemplateStringsArray]) => strings.join(""));
+    expect(lockTargets[0]).toContain('FROM "StaffUser"');
+    expect(lockTargets[1]).toContain('FROM "RoutePlanStop"');
+  });
+
   it("hides another salesperson's stop behind a not-found", async () => {
     const prisma = fakePrisma();
     prisma.routePlanStop.findUnique.mockResolvedValue({

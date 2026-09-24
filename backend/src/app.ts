@@ -82,6 +82,8 @@ export function createApp(options: CreateAppOptions = {}) {
   // parsed before the small default parser, otherwise an otherwise valid
   // native receipt upload is rejected as entity.too.large.
   app.use("/rep/collections", express.json({ limit: "15mb" }));
+  // Only payment-proof uploads receive the larger parser limit.
+  app.use("/payments/:id/evidence", express.json({ limit: "15mb" }));
   // New-retailer Aadhaar evidence is a bounded image payload. It remains
   // behind the staff session and is never accepted by the default parser.
   app.use("/rep/retailer-proposals", express.json({ limit: "15mb" }));

@@ -31,7 +31,15 @@
     "plugins": [
       "expo-secure-store",
       "expo-location",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Gagan Sales to choose collection proof images.",
+          "cameraPermission": "Allow Gagan Sales to photograph collection proof.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "extra": {
       "eas": {

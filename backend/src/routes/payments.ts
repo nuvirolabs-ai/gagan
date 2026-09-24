@@ -7,8 +7,16 @@ import { getPaymentProvider } from "../lib/payments";
 import { settleSucceededPayment } from "../modules/payments/paymentService";
 import { financialSummaryFor } from "../modules/finance/financialSummary";
 import { createRateLimiter } from "../platform/http/rateLimit";
+import { PaymentEvidenceError, PaymentEvidenceService } from "../modules/payments/paymentEvidenceService";
 
 const router = Router();
+const paymentEvidenceService = new PaymentEvidenceService();
+
+const paymentEvidenceSchema = z.object({
+  contentType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+  bodyBase64: z.string().min(4).max(14_000_000),
+  checksum: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+}).strict();
 
 /** What the retailer owes, split by ageing bucket, to drive the pay screen. */
 router.get("/payments/dues", requireAuth, async (req: AuthedRequest, res) => {
@@ -138,12 +146,26 @@ router.post("/payments/callback", async (req, res) => {
   res.json({ ok: true, status: "succeeded", ...result });
 });
 
+router.post("/payments/:id/evidence", requireAuth, createRateLimiter({ name: "payment-evidence", limit: 8, windowMs: 60_000 }), async (req: AuthedRequest, res) => {
+  const parsed = paymentEvidenceSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid_evidence" });
+  try {
+    const evidence = await paymentEvidenceService.attach(req.params.id, req.retailerId!, parsed.data);
+    res.status(201).json({ evidence });
+  } catch (error) {
+    if (error instanceof PaymentEvidenceError) return res.status(error.status).json({ error: error.code });
+    throw error;
+  }
+});
+
 router.get("/payments/:id", requireAuth, async (req: AuthedRequest, res) => {
   const payment = await prisma.payment.findFirst({
     where: { id: req.params.id, retailerId: req.retailerId },
+    include: { evidence: { orderBy: { createdAt: "asc" } } },
   });
   if (!payment) return res.status(404).json({ error: "Payment not found" });
 
+  const evidence = await paymentEvidenceService.presentMany(payment.evidence);
   res.json({
     id: payment.id,
     amount: Number(payment.amount),
@@ -152,6 +174,7 @@ router.get("/payments/:id", requireAuth, async (req: AuthedRequest, res) => {
     failureReason: payment.failureReason,
     createdAt: payment.createdAt,
     settledAt: payment.settledAt,
+    evidence,
   });
 });
 
@@ -160,16 +183,18 @@ router.get("/payments", requireAuth, async (req: AuthedRequest, res) => {
     where: { retailerId: req.retailerId },
     orderBy: { createdAt: "desc" },
     take: 50,
+    include: { evidence: { orderBy: { createdAt: "asc" } } },
   });
   res.json({
-    payments: payments.map((p) => ({
+    payments: await Promise.all(payments.map(async (p) => ({
       id: p.id,
       amount: Number(p.amount),
       status: p.status,
       channel: p.channel,
       createdAt: p.createdAt,
       settledAt: p.settledAt,
-    })),
+      evidence: await paymentEvidenceService.presentMany(p.evidence),
+    }))),
   });
 });
 

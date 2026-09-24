@@ -2,6 +2,7 @@ import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
+  Image,
   ScrollView,
   TextInput,
   TouchableOpacity,
@@ -11,11 +12,13 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 
 import { api, ApiError } from "../api/client";
 import { colors, radius, spacing, inr } from "../theme";
 import { ScreenSkeleton, SectionTitle } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
+import { toPaymentProof, type PaymentProofImage } from "./paymentEvidence";
 
 const BUCKETS: { key: string; label: string; danger?: boolean }[] = [
   { key: "current", label: "Not yet due" },
@@ -27,15 +30,23 @@ const BUCKETS: { key: string; label: string; danger?: boolean }[] = [
 export default function PayScreen({ navigation }: any) {
   const { t } = useLanguage();
   const [dues, setDues] = useState<any | null>(null);
+  const [payments, setPayments] = useState<any[]>([]);
+  const [paymentHistoryUnavailable, setPaymentHistoryUnavailable] = useState(false);
   const [loading, setLoading] = useState(true);
   const [amount, setAmount] = useState("");
   const [paying, setPaying] = useState(false);
+  const [selectedProof, setSelectedProof] = useState<(PaymentProofImage & { paymentId: string }) | null>(null);
+  const [uploadingProofFor, setUploadingProofFor] = useState<string | null>(null);
+  const [expandedEvidenceId, setExpandedEvidenceId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const res = await api.getDues();
-    setDues(res);
+    const [duesResult, historyResult] = await Promise.allSettled([api.getDues(), api.getPayments()]);
+    if (duesResult.status === "rejected") throw duesResult.reason;
+    setDues(duesResult.value);
+    setPayments(historyResult.status === "fulfilled" ? historyResult.value.payments ?? [] : []);
+    setPaymentHistoryUnavailable(historyResult.status === "rejected");
     // Default to clearing overdue first — that's what a retailer usually wants.
-    setAmount(String(res.overdue > 0 ? res.overdue : res.outstanding));
+    setAmount(String(duesResult.value.overdue > 0 ? duesResult.value.overdue : duesResult.value.outstanding));
   }, []);
 
   useFocusEffect(
@@ -64,6 +75,46 @@ export default function PayScreen({ navigation }: any) {
 
   const value = Number(amount);
   const valid = Number.isFinite(value) && value > 0 && value <= dues.outstanding;
+
+  const selectProof = async (paymentId: string, source: "camera" | "library") => {
+    try {
+      if (source === "camera") {
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert(t("pay.cameraPermissionTitle"), t("pay.cameraPermissionBody"));
+          return;
+        }
+      }
+      const result = source === "camera"
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], base64: true, quality: 0.75 })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], base64: true, quality: 0.75 });
+      if (result.canceled) return;
+      setSelectedProof({ paymentId, ...toPaymentProof(result.assets[0]) });
+    } catch (error) {
+      const key = error instanceof Error && error.message === "proof_too_large"
+        ? "pay.proofTooLarge"
+        : "pay.proofSelectionFailed";
+      Alert.alert(t("pay.attachProof"), t(key));
+    }
+  };
+
+  const uploadProof = async (paymentId: string) => {
+    if (!selectedProof || selectedProof.paymentId !== paymentId || uploadingProofFor) return;
+    setUploadingProofFor(paymentId);
+    try {
+      await api.attachPaymentEvidence(paymentId, {
+        contentType: selectedProof.contentType,
+        bodyBase64: selectedProof.bodyBase64,
+      });
+      setSelectedProof(null);
+      await load();
+      Alert.alert(t("pay.proofUploaded"));
+    } catch (error) {
+      Alert.alert(t("pay.attachProof"), error instanceof ApiError ? error.message : t("pay.proofUploadFailed"));
+    } finally {
+      setUploadingProofFor(null);
+    }
+  };
 
   const pay = async () => {
     if (!valid) return;
@@ -209,6 +260,77 @@ export default function PayScreen({ navigation }: any) {
       <Text style={styles.devHint}>
         Development mode — payments are simulated and no money moves.
       </Text>
+
+      <SectionTitle>{t("pay.recentPayments")}</SectionTitle>
+      <View style={styles.history}>
+        {paymentHistoryUnavailable ? <Text style={styles.muted}>{t("pay.historyUnavailable")}</Text> : null}
+        {!paymentHistoryUnavailable && payments.length === 0 ? <Text style={styles.muted}>{t("pay.noPayments")}</Text> : null}
+        {payments.map((payment) => {
+          const evidence = payment.evidence ?? [];
+          const selectedPaymentProof = selectedProof?.paymentId === payment.id ? selectedProof : null;
+          return (
+            <View key={payment.id} style={styles.historyRow}>
+              <View style={styles.historyHeader}>
+                <View style={styles.historyIdentity}>
+                  <Text style={styles.historyAmount}>{inr(Number(payment.amount))}</Text>
+                  <Text style={styles.historyMeta}>
+                    {new Date(payment.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                    {` · ${String(payment.status).replaceAll("_", " ")}`}
+                  </Text>
+                </View>
+                {evidence.length > 0 ? <Text style={styles.proofAttached}>{t("pay.proofAttached")}</Text> : null}
+              </View>
+              {evidence.map((item: { id: string; signedUrl: string | null; contentType: string }) => (
+                <View key={item.id} style={styles.evidenceRow}>
+                  {item.signedUrl ? (
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel={t("pay.viewProof")}
+                      onPress={() => setExpandedEvidenceId(expandedEvidenceId === item.id ? null : item.id)}
+                    >
+                      <Image
+                        source={{ uri: item.signedUrl }}
+                        accessibilityLabel={t("pay.viewProof")}
+                        resizeMode="contain"
+                        style={expandedEvidenceId === item.id ? styles.proofExpanded : styles.proofThumbnail}
+                      />
+                      <Text style={styles.proofLink}>{t("pay.viewProof")}</Text>
+                    </TouchableOpacity>
+                  ) : <Text style={styles.historyMeta}>{t("pay.proofUnavailable")}</Text>}
+                </View>
+              ))}
+              {selectedPaymentProof ? (
+                <View style={styles.proofSelection}>
+                  <Image source={{ uri: selectedPaymentProof.uri }} resizeMode="cover" style={styles.proofPreview} />
+                  <View style={styles.selectionDetails}>
+                    <Text numberOfLines={2} style={styles.historyMeta}>{selectedPaymentProof.name}</Text>
+                    <View style={styles.proofActions}>
+                      <TouchableOpacity disabled={uploadingProofFor !== null} onPress={() => setSelectedProof(null)} style={styles.proofAction}>
+                        <MaterialCommunityIcons name="close" size={16} color={colors.inkMuted} />
+                        <Text style={styles.proofActionText}>{t("pay.removeProof")}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity disabled={uploadingProofFor !== null} onPress={() => void uploadProof(payment.id)} style={styles.proofUpload}>
+                        {uploadingProofFor === payment.id ? <ActivityIndicator color={colors.onDark} /> : <Text style={styles.proofUploadText}>{t("pay.uploadProof")}</Text>}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.proofActions}>
+                  <TouchableOpacity accessibilityRole="button" disabled={uploadingProofFor !== null} onPress={() => void selectProof(payment.id, "camera")} style={styles.proofAction}>
+                    <MaterialCommunityIcons name="camera-outline" size={16} color={colors.green} />
+                    <Text style={styles.proofActionText}>{t("pay.takePhoto")}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity accessibilityRole="button" disabled={uploadingProofFor !== null} onPress={() => void selectProof(payment.id, "library")} style={styles.proofAction}>
+                    <MaterialCommunityIcons name="image-outline" size={16} color={colors.green} />
+                    <Text style={styles.proofActionText}>{t("pay.chooseImage")}</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          );
+        })}
+      </View>
     </ScrollView>
   );
 }
@@ -283,4 +405,23 @@ const styles = StyleSheet.create({
     color: colors.inkFaint,
     marginTop: spacing.md,
   },
+  history: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  historyRow: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border, paddingVertical: spacing.md, gap: spacing.sm },
+  historyHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md },
+  historyIdentity: { flex: 1, gap: 2 },
+  historyAmount: { fontSize: 15, fontWeight: "700", color: colors.ink },
+  historyMeta: { color: colors.inkMuted, fontSize: 12 },
+  proofAttached: { color: colors.green, fontSize: 11, fontWeight: "700" },
+  evidenceRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  proofThumbnail: { width: 76, height: 76, borderRadius: radius.sm, backgroundColor: colors.surfaceAlt },
+  proofExpanded: { width: 240, height: 280, borderRadius: radius.sm, backgroundColor: colors.surfaceAlt },
+  proofLink: { color: colors.green, fontSize: 11, fontWeight: "700", marginTop: 3 },
+  proofSelection: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  proofPreview: { width: 88, height: 88, borderRadius: radius.sm, backgroundColor: colors.surfaceAlt },
+  selectionDetails: { flex: 1, gap: spacing.sm },
+  proofActions: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: spacing.sm },
+  proofAction: { minHeight: 38, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: spacing.sm, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
+  proofActionText: { color: colors.green, fontSize: 11, fontWeight: "700" },
+  proofUpload: { minHeight: 38, backgroundColor: colors.green, borderRadius: radius.sm, paddingHorizontal: spacing.md, alignItems: "center", justifyContent: "center" },
+  proofUploadText: { color: colors.onDark, fontSize: 11, fontWeight: "700" },
 });

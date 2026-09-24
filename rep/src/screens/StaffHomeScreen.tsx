@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState, useRef } from "react";
 import { useRoute } from "@react-navigation/native";
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
 import { File } from "expo-file-system";
 import { KeyboardSafeScrollView, ScreenHeader } from "../components/ui";
 import { useRep } from "../context/RepContext";
@@ -11,6 +12,7 @@ import { repApi } from "../api/repClient";
 import { colors, radius, spacing } from "../theme";
 import { SCREEN_CONTENT_BOTTOM_GAP } from "../layout/viewportPolicy";
 import { useLanguage } from "../i18n/LanguageContext";
+import { toCollectionReceipt } from "./collectionEvidence";
 
 type CollectionRetailer = { id: string; name: string; phone: string; shopAddress: string };
 type CollectionSubmission = { id: string; amount: number | string; method: string; status: string; retailer: { id: string; name: string; phone: string } };
@@ -39,7 +41,7 @@ export default function StaffHomeScreen() {
   },[selectedRetailerId]);
   const [method, setMethod] = useState<(typeof methods)[number]>("cash");
   const [reference, setReference] = useState("");
-  const [receipt, setReceipt] = useState<{ name: string; contentType: string; bodyBase64: string } | null>(null);
+  const [receipt, setReceipt] = useState<{ name: string; uri: string; contentType: string; bodyBase64: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [stepUpChallenge, setStepUpChallenge] = useState<string | null>(null);
@@ -95,9 +97,31 @@ export default function StaffHomeScreen() {
       if (result.canceled) return;
       const asset = result.assets[0];
       const bodyBase64 = await new File(asset.uri).base64();
-      setReceipt({ name: asset.name, contentType: asset.mimeType ?? "application/pdf", bodyBase64 });
+      setReceipt({ name: asset.name, uri: asset.uri, contentType: asset.mimeType ?? "application/pdf", bodyBase64 });
     } catch (error) {
       Alert.alert("Could not attach receipt", error instanceof Error ? error.message : "Try again.");
+    }
+  };
+
+  const pickReceiptImage = async (source: "camera" | "library") => {
+    try {
+      if (source === "camera") {
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert("Camera permission needed", "Allow camera access to photograph collection proof.");
+          return;
+        }
+      }
+      const result = source === "camera"
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], base64: true, quality: 0.75 })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], base64: true, quality: 0.75 });
+      if (result.canceled) return;
+      setReceipt(toCollectionReceipt(result.assets[0]));
+    } catch (error) {
+      const message = error instanceof Error && error.message === "proof_too_large"
+        ? "Proof image must be 10 MB or smaller."
+        : error instanceof Error ? error.message : "Try again.";
+      Alert.alert("Could not attach receipt", message);
     }
   };
 
@@ -140,7 +164,23 @@ export default function StaffHomeScreen() {
           <Text style={styles.label}>Method</Text>
           <View style={styles.methodRow}>{methods.map((value) => <TouchableOpacity key={value} onPress={() => setMethod(value)} style={[styles.method, method === value && styles.methodActive]}><Text style={[styles.methodText, method === value && styles.methodTextActive]}>{value.toUpperCase()}</Text></TouchableOpacity>)}</View>
           <TextInput value={reference} onChangeText={setReference} placeholder="Receipt / cheque / bank reference" placeholderTextColor={colors.inkFaint} style={styles.input} />
-          <TouchableOpacity disabled={saving} onPress={() => void pickReceipt()} style={styles.attachment}><Ionicons name="attach-outline" size={17} color={colors.green} /><Text style={styles.attachmentText}>{receipt ? `Attached: ${receipt.name}` : "Attach receipt photo or PDF (optional)"}</Text></TouchableOpacity>
+          <Text style={styles.label}>Payment proof (optional)</Text>
+          <View style={styles.receiptActions}>
+            <TouchableOpacity disabled={saving} accessibilityRole="button" onPress={() => void pickReceiptImage("camera")} style={styles.receiptAction}>
+              <Ionicons name="camera-outline" size={17} color={colors.green} /><Text style={styles.receiptActionText}>Take photo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity disabled={saving} accessibilityRole="button" onPress={() => void pickReceiptImage("library")} style={styles.receiptAction}>
+              <Ionicons name="image-outline" size={17} color={colors.green} /><Text style={styles.receiptActionText}>Choose image</Text>
+            </TouchableOpacity>
+            <TouchableOpacity disabled={saving} accessibilityRole="button" onPress={() => void pickReceipt()} style={styles.receiptAction}>
+              <Ionicons name="attach-outline" size={17} color={colors.green} /><Text style={styles.receiptActionText}>Choose file</Text>
+            </TouchableOpacity>
+          </View>
+          {receipt ? <View style={styles.receiptPreview}>
+            {receipt.contentType.startsWith("image/") ? <Image source={{ uri: receipt.uri }} accessibilityLabel="Payment proof preview" resizeMode="cover" style={styles.receiptImage} /> : <View style={styles.receiptFile}><Ionicons name="document-text-outline" size={22} color={colors.green} /><Text style={styles.receiptFileText}>PDF</Text></View>}
+            <View style={styles.receiptInfo}><Text numberOfLines={2} style={styles.attachmentText}>{receipt.name}</Text><Text style={styles.muted}>Ready to upload with this collection</Text></View>
+            <TouchableOpacity disabled={saving} accessibilityRole="button" accessibilityLabel="Remove payment proof" onPress={() => setReceipt(null)} style={styles.removeReceipt}><Ionicons name="close-circle-outline" size={21} color={colors.inkMuted} /></TouchableOpacity>
+          </View> : <Text style={styles.muted}>Add an image or PDF to this collection submission.</Text>}
           <TouchableOpacity disabled={saving} onPress={submit} style={styles.primary}><Text style={styles.primaryText}>{saving ? t("collections.submitting") : t("collections.submit")}</Text></TouchableOpacity>
         </View> : null}
 
@@ -182,6 +222,15 @@ const styles = StyleSheet.create({
   primaryText: { color: colors.onDark, fontWeight: "700", fontSize: 13 },
   attachment: { flexDirection: "row", alignItems: "center", gap: spacing.sm, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.md },
   attachmentText: { color: colors.green, fontSize: 12.5, fontWeight: "700", flex: 1 },
+  receiptActions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  receiptAction: { minHeight: 40, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs, backgroundColor: colors.surface },
+  receiptActionText: { color: colors.green, fontSize: 12, fontWeight: "700" },
+  receiptPreview: { flexDirection: "row", alignItems: "center", gap: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.sm },
+  receiptImage: { width: 76, height: 76, borderRadius: radius.sm, backgroundColor: colors.surfaceAlt },
+  receiptFile: { width: 76, height: 76, borderRadius: radius.sm, backgroundColor: colors.surfaceAlt, alignItems: "center", justifyContent: "center", gap: 2 },
+  receiptFileText: { color: colors.green, fontSize: 10, fontWeight: "700" },
+  receiptInfo: { flex: 1, gap: 3 },
+  removeReceipt: { minWidth: 36, minHeight: 36, alignItems: "center", justifyContent: "center" },
   queueRow: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.md, marginTop: spacing.sm, flexDirection: "row", alignItems: "center", gap: spacing.md },
   queueTitle: { color: colors.ink, fontWeight: "700", fontSize: 14 },
   smallButton: { backgroundColor: colors.greenSoft, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },

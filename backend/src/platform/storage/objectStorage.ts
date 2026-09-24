@@ -11,6 +11,7 @@ export const ALLOWED_EVIDENCE_CONTENT_TYPES = new Set([
 export type EvidencePurpose =
   | "kyc_document"
   | "collection_receipt"
+  | "payment_receipt"
   | "pod"
   | "recovery_letter"
   // Field evidence. These are storage prefixes only — unlike KYC documents

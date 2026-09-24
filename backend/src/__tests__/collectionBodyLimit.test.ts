@@ -17,4 +17,17 @@ describe("collection evidence body parsing", () => {
     expect(response.status).toBe(401);
     expect(response.body).toEqual({ error: "authentication_required" });
   });
+
+  it("parses bounded retailer payment proof before the default 100kb parser", async () => {
+    process.env.DATABASE_URL ??= "postgresql://localhost/gagan-body-limit-test";
+    process.env.JWT_SECRET ??= "test-jwt-secret-that-is-at-least-32-chars";
+    process.env.REFRESH_TOKEN_SECRET ??= "test-refresh-secret-at-least-32-chars";
+
+    const response = await request(createApp())
+      .post("/payments/00000000-0000-4000-8000-000000000001/evidence")
+      .send({ bodyBase64: "a".repeat(120_000) });
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ error: "Missing Authorization header" });
+  });
 });

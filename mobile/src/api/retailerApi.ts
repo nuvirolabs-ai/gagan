@@ -40,6 +40,8 @@ export function createRetailerApi(request: ApiRequest, store: SessionStore) {
       post("/payments/callback", { providerRef, signature, outcome }, false),
     getPayment: (id: string) => request(`/payments/${id}`),
     getPayments: () => request("/payments"),
+    attachPaymentEvidence: (id: string, evidence: { contentType: string; bodyBase64: string; checksum?: string }) =>
+      post(`/payments/${encodeURIComponent(id)}/evidence`, evidence),
     getDeliveryStatus: (orderId: string) => request(`/delivery/${orderId}/status`),
     getLocation: () => request("/location"),
     captureLocation: (body: { latitude: number; longitude: number; accuracyMeters: number; devicePlatform?: string }) => post("/location/capture", body),

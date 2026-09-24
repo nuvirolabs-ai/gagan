@@ -30,7 +30,15 @@
     },
     "plugins": [
       "expo-secure-store",
-      "expo-location"
+      "expo-location",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Gagan Retailer to choose payment proof images.",
+          "cameraPermission": "Allow Gagan Retailer to photograph payment proof.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "extra": {
       "eas": {

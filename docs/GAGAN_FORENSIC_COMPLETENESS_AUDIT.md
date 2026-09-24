@@ -180,3 +180,15 @@ Ordered by product priority; this is a source-gap ranking, not a claim that the 
 20. **P2 — GGN-UX-06:** Outlet detail order is currently Name → Outstanding → Store Intelligence → Scheme → Check-in, contrary to the specified layout.
 
 Other source gaps below the Top 20 threshold: GGN-ADM-06 expense total/detail; GGN-MKT-02 marketing history/evidence; GGN-UX-02 measured scroll-performance fix; GGN-UX-03 20-product threshold/label; GGN-EXP-01 broad report exports.
+
+## Execution Update — GGN-ORD-05 (2026-09-25)
+
+The initial issue row, source-gap counts, and Top 20 ranking above preserve the forensic baseline. Current source status is `IMPLEMENTED BUT NOT VERIFIED`.
+
+- Implementation checkpoint: commit `375d8d7` on `codex/gagan-client-feedback-v2-reconciled`.
+- Added the dedicated `order.warehouse_process` permission and least-privilege `warehouse_operator` role. The additive migration grants the permission to `platform_admin` as well; it does not assign warehouse roles to staff or users.
+- The permission-scoped warehouse queue contains only `confirmed` and `packed` orders and returns a safe projection without commercial/payment/delivery data. The sole warehouse mutation is the existing `confirmed → packed` transition and reuses the established dispatch-authorization guard, compare-and-set, and `order.packed` audit path. Admin approval, dispatch assignment, and proof-of-delivery remain unchanged.
+- Automated verification: full backend 143 files / 1,009 tests, backend typecheck/build; Admin 25 files / 69 tests, typecheck, production build, and lint. Node's existing `localStorage` ExperimentalWarning appeared during Admin tests; all tests passed. Independent read-only review found no actionable findings.
+- Migration `20260925110000_warehouse_order_processing` upgraded the disposable local database 48→49, while a separate empty local database deployed 0→49. Both local migration histories are up to date. Role readback confirmed exactly one warehouse-operator permission and no user assignment.
+- Local authenticated browser/API acceptance packed a uniquely identified disposable order, verified its persisted status and audit actor/metadata, and read the packed order through the existing Admin queue. The temporary order and related rows were removed and the zero-row cleanup check passed. The warehouse queue was refreshed and shows only seeded eligible orders.
+- Hosted/staging, SAP, physical-device, installed-app, and exact-release APK/source identity acceptance remain NOT RUN. No hosted service, production system, live provider, APK, or device state was touched. Keep the issue `IMPLEMENTED BUT NOT VERIFIED` until authorized hosted and physical acceptance is recorded.

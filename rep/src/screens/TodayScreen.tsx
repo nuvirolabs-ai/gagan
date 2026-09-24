@@ -168,6 +168,7 @@ function AchievementSheet({
   const match = String(achievement?.type ?? "").match(/(25|50|75|80|90|100)/);
   const milestone = match?.[1] ?? "";
   const isTargetMilestone = String(achievement?.type ?? "").startsWith("TARGET_");
+  const isTargetComplete = achievement?.type === "TARGET_100";
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onDismiss}>
       <View style={styles.sheetOverlay}>
@@ -175,9 +176,11 @@ function AchievementSheet({
           <View style={styles.sheetBadge}>
             <Text style={styles.sheetBadgeText}>{milestone ? `${milestone}%` : "✓"}</Text>
           </View>
-          <Text style={styles.sheetTitle}>{isTargetMilestone ? `Strong work, ${name}` : achievement?.title || `Strong work, ${name}`}</Text>
+          <Text style={styles.sheetTitle}>{isTargetComplete ? "Target achieved" : isTargetMilestone ? `Strong work, ${name}` : achievement?.title || `Strong work, ${name}`}</Text>
           <Text style={styles.sheetMessage}>
-            {isTargetMilestone && milestone
+            {isTargetComplete && target
+              ? `${target} monthly target completed. Excellent work. Keep going.`
+              : isTargetMilestone && milestone
               ? `You just reached ${milestone}% of this period’s target. ${achievement?.message ?? ""}`
               : achievement?.message || "You just reached an important point of your target."}
           </Text>

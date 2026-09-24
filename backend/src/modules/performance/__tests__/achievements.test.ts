@@ -23,6 +23,11 @@ describe("target milestones", () => {
     expect(earned[0].type).toBe("TARGET_100");
   });
 
+  it("keeps 99% as a minor milestone and announces the major transition at 100%", () => {
+    expect(targetAchievements(progressAt(99))[0]).toMatchObject({ type: "TARGET_90", celebration: "minor" });
+    expect(targetAchievements(progressAt(100))[0]).toMatchObject({ type: "TARGET_100", celebration: "major" });
+  });
+
   it("walks the ladder as completion rises", () => {
     expect(targetAchievements(progressAt(49))).toEqual([]);
     expect(targetAchievements(progressAt(50))[0].type).toBe("TARGET_50");
@@ -170,10 +175,14 @@ describe("dedupe keys", () => {
 
 describe("recording achievements", () => {
   function fakePrisma(existingKeys: string[] = []) {
+    const keys = [...existingKeys];
     return {
       achievementEvent: {
-        findMany: vi.fn().mockResolvedValue(existingKeys.map((dedupeKey) => ({ dedupeKey }))),
-        create: vi.fn().mockImplementation(async ({ data }: any) => ({ id: "event-1", ...data })),
+        findMany: vi.fn().mockImplementation(async () => keys.map((dedupeKey) => ({ dedupeKey }))),
+        create: vi.fn().mockImplementation(async ({ data }: any) => {
+          keys.push(data.dedupeKey);
+          return { id: "event-1", ...data };
+        }),
       },
     } as any;
   }
@@ -196,6 +205,30 @@ describe("recording achievements", () => {
     const prisma = fakePrisma([key]);
     expect(await new AchievementService(prisma).record(input)).toEqual([]);
     expect(prisma.achievementEvent.create).not.toHaveBeenCalled();
+  });
+
+  it("celebrates a 99%-to-100% crossing once and permits the milestone in a new period", async () => {
+    const prisma = fakePrisma();
+    const service = new AchievementService(prisma);
+
+    expect(await service.record({ ...input, progress: [progressAt(99)] })).toMatchObject([
+      { type: "TARGET_90", celebration: "minor" },
+    ]);
+    expect(await service.record({ ...input, progress: [progressAt(100)] })).toMatchObject([
+      { type: "TARGET_100", celebration: "major" },
+    ]);
+    expect(await service.record({ ...input, progress: [progressAt(101)] })).toEqual([]);
+
+    const aprilProgress = (actual: number) => buildProgress({
+      metric: "order_value",
+      target: 100000,
+      actual,
+      periodStart: day("2026-04-01"),
+      periodEnd: day("2026-04-30"),
+    });
+    const april = { ...input, progress: [aprilProgress(100000)], periodStart: day("2026-04-01"), periodEnd: day("2026-04-30") };
+    expect(await service.record(april)).toMatchObject([{ type: "TARGET_100", celebration: "major" }]);
+    expect(await service.record({ ...april, progress: [aprilProgress(101000)] })).toEqual([]);
   });
 
   it("treats losing the race to another request as already earned", async () => {

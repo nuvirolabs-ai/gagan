@@ -21,6 +21,7 @@ import {
 import { useRep } from "./RepContext";
 import { staffCapabilities } from "../auth/staffCapabilities";
 import { createSingleFlight } from "../performance/singleFlight";
+import { shouldPresentAchievementSheet } from "../performance/achievementPresentation";
 import { isOfflineTransportError, isOperationalReadFallbackError } from "../offline/networkErrors";
 import {
   createOperationalReadCache,
@@ -167,7 +168,7 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
         if(currentQueue.current!==queue) return;
         setToday(payload);
         setTracking(payload.tracking ?? null);
-        const earned: any[] = payload.achievements?.new ?? [];
+        const earned: any[] = (payload.achievements?.new ?? []).filter(shouldPresentAchievementSheet);
         if (earned.length > 0) {
           setCelebrations((current) => {
             const seen = new Set(current.map((event) => event.id));

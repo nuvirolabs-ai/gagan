@@ -93,3 +93,7 @@ The source files, tests and original gap statements are retained in the matching
 3. For schema changes, test this fresh 46-migration database and a separate disposable upgrade database from the preceding accepted schema. Never reset an existing DB.
 4. Before hosted writes, re-verify the exact authorized GAGAN staging service/workspace/database and deployed/source identity. No hosted writes are authorized merely by this checkpoint.
 5. Build candidate APKs only when needed for physical acceptance; final pair must come from the exact clean, committed, pushed final SHA and go only to the existing authoritative delivery location.
+
+## Git Checkpoints
+
+- `7773f7237c4dc20bf1138b3e6b6a21c8731455d1` — `test: verify visit readback after check-in`; committed and pushed to `origin/codex/gagan-client-feedback-v2-reconciled`. Adds VIS-01 authenticated PostgreSQL retry/active-and-closed-readback regression assertions and records the starting execution evidence. No product behavior implementation was changed.

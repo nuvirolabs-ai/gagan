@@ -79,9 +79,9 @@
 
 - [x] Review the final diff against `5a6327…`; confirm all Wave 1B, routing, catalogue, Feedback-v2, Admin, Retailer, Salesperson, and responsive changes remain in the same descendant lineage.
 - [x] Inspect repository deployment workflows and the existing staging branch binding read-only; Render auto-deploy is disabled and GitHub CI only runs on PRs/`main`. Vercel preview-on-branch behavior is unverified, so per the no-deploy boundary remote pushes are withheld (see the execution ledger ruling).
-- [ ] Commit the source audit and reviewed celebration delta on the existing `codex/gagan-client-feedback-v2-reconciled` branch; do not create a duplicate worktree or move any tag.
-- [ ] Prove the resulting commit is a descendant of `5a6327…` and confirm the worktree is clean. Push only if all linked hosted preview/deploy behavior is proven safe; otherwise leave the remote unchanged.
-- [ ] Only after the commit is pinned, fast-forward the clean root `codex/gagan-canonical-product-v1` checkout to that exact commit if the root still points to `5a6327…`; otherwise stop and preserve the newer root state. Push the canonical ref only if the same no-deploy condition is satisfied.
+- [x] Commit the source audit and reviewed celebration delta on the existing `codex/gagan-client-feedback-v2-reconciled` branch as `afce192e3941d04e0389038b2eeb151a68ccae85`; no duplicate worktree or tag was created/moved.
+- [x] Prove `afce192e3941d04e0389038b2eeb151a68ccae85` descends from `5a632711025f5eb6d42a75e26529ce739f06f982` and the worktree is clean. Push withheld because the linked Vercel preview behavior remains unverified; the remote is unchanged.
+- [x] Fast-forward the clean root `codex/gagan-canonical-product-v1` checkout from exact `5a632711025f5eb6d42a75e26529ce739f06f982` to `afce192e3941d04e0389038b2eeb151a68ccae85`. Push withheld under the same no-hosted-deploy condition.
 
 ### Task 5: Build source-attested Android review APKs locally
 

@@ -337,6 +337,25 @@ describe("a planned stop and the visit that happened stay one record", () => {
     // The visit inherits the purpose the stop was planned for.
     expect(checkIn.body.visit.purpose).toBe("collection");
 
+    const retry = await request(app)
+      .post(`/rep/retailers/${ids.retailerA}/check-in`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send(coordinates);
+    expect(retry.status).toBe(201);
+    expect(retry.body.visit.id).toBe(checkIn.body.visit.id);
+    expect(await prisma.salesVisit.count({ where: { salespersonId: ids.staffA, checkedOutAt: null } })).toBe(1);
+
+    const recovered = await request(app)
+      .get("/rep/visits")
+      .set("Authorization", `Bearer ${tokenA}`);
+    expect(recovered.body.visits).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: checkIn.body.visit.id,
+        retailerId: ids.retailerA,
+        checkedOutAt: null,
+      }),
+    ]));
+
     const after = await request(app).get("/rep/field/route").set("Authorization", `Bearer ${tokenA}`);
     expect(after.body.route.progress).toMatchObject({ visited: 0, pending: 1, completionPct: 0 });
     expect(after.body.route.nextStop.id).toBe(plan.stops[0].id);
@@ -348,6 +367,15 @@ describe("a planned stop and the visit that happened stay one record", () => {
       .send({ ...coordinates, outcome: "payment_collected", notes: "Collected part payment" });
     expect(checkOut.status).toBe(200);
     expect(checkOut.body.visit.outcome).toBe("payment_collected");
+    const closedReadback = await request(app)
+      .get("/rep/visits")
+      .set("Authorization", `Bearer ${tokenA}`);
+    expect(closedReadback.body.visits).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: checkIn.body.visit.id,
+        checkedOutAt: expect.any(String),
+      }),
+    ]));
     const completed = await request(app).get("/rep/field/route").set("Authorization", `Bearer ${tokenA}`);
     expect(completed.body.route.progress).toMatchObject({ visited: 1, pending: 0, completionPct: 100 });
     expect(completed.body.route.nextStop).toBeNull();

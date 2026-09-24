@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canWithdrawServiceRequest, mergeServiceRequest, type ServiceRequestRow } from "../serviceRequestState";
+import { canWithdrawServiceRequest, mergeServiceRequest, showEmptyServiceRequestHistory, type ServiceRequestRow } from "../serviceRequestState";
 
 const open: ServiceRequestRow = { id: "a", description: "Please call", status: "open", createdAt: "2026-09-24" };
 
@@ -15,5 +15,11 @@ describe("retailer service-request presentation", () => {
     const next = mergeServiceRequest([open, other], { ...open, status: "withdrawn" });
     expect(next[0].status).toBe("withdrawn");
     expect(next[1]).toBe(other);
+  });
+  it("never claims the history is empty when the request failed", () => {
+    expect(showEmptyServiceRequestHistory({ loading: false, loadError: true, count: 0 })).toBe(false);
+    expect(showEmptyServiceRequestHistory({ loading: true, loadError: false, count: 0 })).toBe(false);
+    expect(showEmptyServiceRequestHistory({ loading: false, loadError: false, count: 1 })).toBe(false);
+    expect(showEmptyServiceRequestHistory({ loading: false, loadError: false, count: 0 })).toBe(true);
   });
 });

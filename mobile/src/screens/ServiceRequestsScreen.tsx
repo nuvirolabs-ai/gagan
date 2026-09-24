@@ -6,7 +6,7 @@ import { api } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { colors, radius, spacing } from "../theme";
 import { ScreenHeader } from "../components/ui";
-import { canWithdrawServiceRequest, mergeServiceRequest, type ServiceRequestRow } from "../lib/serviceRequestState";
+import { canWithdrawServiceRequest, mergeServiceRequest, showEmptyServiceRequestHistory, type ServiceRequestRow } from "../lib/serviceRequestState";
 
 export default function ServiceRequestsScreen() {
   const { retailer } = useAuth();
@@ -100,9 +100,9 @@ export default function ServiceRequestsScreen() {
           <Text style={styles.title}>Request history</Text>
           <Pressable onPress={() => void load()} accessibilityRole="button" accessibilityLabel="Refresh service requests"><Ionicons name="refresh" size={20} color={colors.green} /></Pressable>
         </View>
-        {loadError ? <Text style={styles.muted}>Could not refresh requests. Your previous list is still shown.</Text> : null}
+        {loadError ? <Text style={styles.muted}>{requests.length ? "Could not refresh requests. Your previous list is still shown." : "Could not load requests. Check your connection and retry."}</Text> : null}
         {loading && requests.length === 0 ? <Text style={styles.muted}>Loading requests…</Text> : null}
-        {!loading && requests.length === 0 ? <Text style={styles.muted}>No service requests yet.</Text> : null}
+        {showEmptyServiceRequestHistory({ loading, loadError, count: requests.length }) ? <Text style={styles.muted}>No service requests yet.</Text> : null}
         {requests.map((request) => (
           <View key={request.id} style={styles.card}>
             <View style={styles.headingRow}>

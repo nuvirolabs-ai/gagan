@@ -120,6 +120,18 @@ Implementation checkpoint: commit `b31a955` on `codex/gagan-client-feedback-v2-r
 - An independent read-only code review found no Critical/Important issues; it noted as a minor test gap that simultaneous approval-versus-punch and competing-conversion races are not forced by the current DB tests. The implementation's proposal-row lock, canonical order idempotency key, and conditional intent link were reviewed in source.
 - Hosted, full approved-conversion runtime, native device, physical install, and exact-release APK/source identity remain NOT RUN. Do not classify as `VERIFIED IMPLEMENTED` until the required full-flow/runtime and device gates are evidenced.
 
+## Execution Update — GGN-ORD-03 (2026-09-25)
+
+The initial GGN-ORD-03 `PARTIAL` row above, audit issue counts, and Top 20 ranking preserve the forensic baseline. Current source status is `IMPLEMENTED BUT NOT VERIFIED`; no schema or migration change was needed.
+
+Implementation checkpoint: commits `43ac9179e4773b5f5343f45b04fe54294177cbd9` and `51d2297ad3bdfccb6ca8314e8c23c8ecb1210f1b` on `codex/gagan-client-feedback-v2-reconciled`.
+
+- Order attribution reuses `Order.placedBy`, the existing `SALES_ORDER_PUNCHED` actor, and `placedByRepId` with one batched `SalesRep` lookup for historical rows lacking actor names. Pending retailer order intents use their existing submitter relation and `punchedAt` timestamp.
+- Retailer order list/detail, Rep recent/detail, and Admin order list/detail/normal transition readbacks expose source, salesperson name where applicable, retailer, and created time. Retailer DTOs still strip lifecycle event rows and the internal salesperson ID. Rep and Retailer details display “Order placed via Retailer App” or “Order punched by <salesperson>”; Admin's selected-order workspace and retailer-approval queue show the same attribution. Rep pending demand also shows submitter and punch time.
+- Automated verification: backend 142 files / 1,003 tests, typecheck/build; Rep 40 files / 209 tests and typecheck; Retailer 27 files / 116 tests and typecheck; Admin 24 files / 66 tests, typecheck/build/lint. Authenticated local PostgreSQL API tests cover Retailer, Rep, and Admin order readbacks. Intent attribution and UI source labels have focused service/helper/render tests. Admin tests emit a Node `localStorage` ExperimentalWarning but pass.
+- An independent read-only code review of the implementation and compatibility follow-up found no Critical or Important issues; the reviewer did not run tests. The automated results above were run locally.
+- No historical events or records were rewritten. Hosted/staging, physical-device, installed-app, and exact-release APK/source identity checks remain NOT RUN. No hosted service, production system, live provider, APK, or device state was touched. The issue must remain `IMPLEMENTED BUT NOT VERIFIED` until those gates are evidenced.
+
 ## Counts
 
 TOTAL ISSUES: 46

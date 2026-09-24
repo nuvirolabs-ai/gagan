@@ -174,6 +174,13 @@ export default function CartScreen({ navigation }: any) {
     return (
       <View style={styles.screen}>
         <ScreenHeader title={t("cart.title")} />
+        {staleNotice ? (
+          <TouchableOpacity style={[styles.stale, { marginHorizontal: spacing.lg }]} onPress={dismissStaleNotice} accessibilityRole="button" accessibilityLabel="Dismiss saved cart update">
+            <Ionicons name="information-circle" size={16} color="#8A6A12" />
+            <Text style={styles.staleText}>{staleNotice}</Text>
+            <Ionicons name="close" size={15} color="#8A6A12" />
+          </TouchableOpacity>
+        ) : null}
         <EmptyState
           icon="cart-outline"
           title={t("cart.emptyTitle")}

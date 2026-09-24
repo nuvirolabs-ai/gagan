@@ -91,4 +91,11 @@ describe("approved retailer commerce polish", () => {
     expect(homeScreenSource).toContain('setFinanceStale(false)');
     expect(homeScreenSource).toContain('Account totals may be out of date');
   });
+  it("explains a fully dropped saved cart even when its line list is empty", () => {
+    const cart = readFileSync(fileURLToPath(new URL("../../screens/CartScreen.tsx", import.meta.url)), "utf8");
+    const emptyStart = cart.indexOf("if (lines.length === 0)");
+    const emptyBranch = cart.slice(emptyStart, cart.indexOf("\n  return (", emptyStart + 1));
+    expect(emptyBranch).toContain("staleNotice");
+    expect(emptyBranch).toContain("dismissStaleNotice");
+  });
 });

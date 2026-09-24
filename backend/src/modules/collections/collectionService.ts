@@ -194,6 +194,48 @@ export class CollectionService {
     });
   }
 
+  async adminAssignments(collectorStaffId: string, actorPermissions: string[]) {
+    if (!actorPermissions.includes("staff.manage")) {
+      throw new CollectionServiceError("permission_required", 403, { permission: "staff.manage" });
+    }
+    const collector = await prisma.staffUser.findUnique({ where: { id: collectorStaffId }, select: { id: true } });
+    if (!collector) throw new CollectionServiceError("collector_not_found", 404);
+    return prisma.collectionAssignment.findMany({
+      where: { collectorStaffId, active: true },
+      include: { retailer: { select: { id: true, name: true, phone: true, shopAddress: true } } },
+      orderBy: { assignedAt: "asc" },
+    });
+  }
+
+  async adminAssignmentRetailers(collectorStaffId: string, search: string, actorPermissions: string[]) {
+    if (!actorPermissions.includes("staff.manage")) {
+      throw new CollectionServiceError("permission_required", 403, { permission: "staff.manage" });
+    }
+    const collector = await prisma.staffUser.findFirst({
+      where: {
+        id: collectorStaffId,
+        status: "active",
+        roles: { some: { role: { permissions: { some: { permission: { name: "collection.submit" } } } } } },
+      },
+      select: { id: true },
+    });
+    if (!collector) throw new CollectionServiceError("collector_not_found", 404);
+    const activeAssignments = await prisma.collectionAssignment.findMany({
+      where: { collectorStaffId, active: true },
+      select: { retailerId: true },
+    });
+    const term = search.trim();
+    return prisma.retailer.findMany({
+      where: {
+        ...(activeAssignments.length ? { id: { notIn: activeAssignments.map(({ retailerId }) => retailerId) } } : {}),
+        ...(term ? { OR: [{ name: { contains: term, mode: "insensitive" as const } }, { phone: { contains: term } }] } : {}),
+      },
+      select: { id: true, name: true, phone: true },
+      orderBy: { name: "asc" },
+      take: 50,
+    });
+  }
+
   async assign(input: CollectionAssignmentInput) {
     if (!input.actorPermissions.includes("staff.manage")) {
       throw new CollectionServiceError("permission_required", 403, { permission: "staff.manage" });

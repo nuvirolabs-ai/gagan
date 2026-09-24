@@ -130,6 +130,14 @@ export const api = {
   resolveApprovalDispute: (id: string, outcome: "approved" | "rejected", resolution: string) =>
     post(`/admin/approval-disputes/${id}/resolve`, { outcome, resolution }),
   collections: () => request("/admin/collections"),
+  collectionAssignments: (collectorStaffId: string) =>
+    request(`/admin/collections/collectors/${collectorStaffId}/assignments`),
+  collectionAssignmentRetailers: (collectorStaffId: string, search = "") =>
+    request(`/admin/collections/assignment-retailers?collectorStaffId=${encodeURIComponent(collectorStaffId)}&search=${encodeURIComponent(search)}`),
+  assignCollectionRetailer: (collectorStaffId: string, retailerId: string) =>
+    post("/admin/collections/assignments", { collectorStaffId, retailerId }),
+  unassignCollectionRetailer: (assignmentId: string) =>
+    remove(`/admin/collections/assignments/${assignmentId}`),
   confirmCollection: (id: string) => post(`/admin/collections/${id}/confirm`),
   rejectCollection: (id: string, reason: string) => post(`/admin/collections/${id}/reject`, { reason }),
   recoveryCases: () => request("/admin/recovery"),

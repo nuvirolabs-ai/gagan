@@ -86,6 +86,33 @@ export function createCollectionRouter(options: CollectionRouterOptions) {
   );
 
   router.get(
+    "/collections/collectors/:collectorStaffId/assignments",
+    asyncRoute(async (req: StaffAuthedRequest, res) => {
+      const collectorStaffId = z.string().uuid().safeParse(req.params.collectorStaffId);
+      if (!collectorStaffId.success) return res.status(400).json({ error: "invalid_input" });
+      const assignments = await service.adminAssignments(collectorStaffId.data, req.staffAuth!.permissions);
+      res.json({ assignments });
+    })
+  );
+
+  router.get(
+    "/collections/assignment-retailers",
+    asyncRoute(async (req: StaffAuthedRequest, res) => {
+      const parsed = z.object({
+        collectorStaffId: z.string().uuid(),
+        search: z.string().trim().max(100).default(""),
+      }).safeParse(req.query);
+      if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+      const retailers = await service.adminAssignmentRetailers(
+        parsed.data.collectorStaffId,
+        parsed.data.search,
+        req.staffAuth!.permissions
+      );
+      res.json({ retailers });
+    })
+  );
+
+  router.get(
     "/collections/:id",
     asyncRoute(async (req: StaffAuthedRequest, res) => {
       res.json({ submission: await service.detail(req.params.id, req.staffAuth!.permissions) });

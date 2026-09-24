@@ -1,7 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import { readableRole, type Role, type StaffMember } from "../staffTypes";
+
+type CollectionAssignment = {
+  id: string;
+  retailer: { id: string; name: string; phone: string; shopAddress?: string };
+};
+
+type CollectionRetailer = { id: string; name: string; phone: string };
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
@@ -16,35 +23,57 @@ export default function StaffDetail() {
   const [delegatedRoleId, setDelegatedRoleId] = useState("");
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
+  const [collectionAssignments, setCollectionAssignments] = useState<CollectionAssignment[]>([]);
+  const [collectionRetailers, setCollectionRetailers] = useState<CollectionRetailer[]>([]);
+  const [collectionRetailerId, setCollectionRetailerId] = useState("");
+  const [retailerSearch, setRetailerSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const member = staff.find((item) => item.id === staffId);
+  const canCollect = member?.roles.some(({ role }) => role.permissions.some(({ permission }) => permission.name === "collection.submit")) ?? false;
   const delegator = staff.find((item) => item.id === delegatorStaffId);
   const delegatorRoleIds = useMemo(
     () => new Set(delegator?.roles.map(({ role }) => role.id) ?? []),
     [delegator]
   );
 
-  const load = async () => {
+  const load = useCallback(async (retailerQuery = "") => {
     setLoading(true);
     try {
       const [staffResponse, roleResponse] = await Promise.all([api.staff(), api.roles()]);
+      const currentMember = staffResponse.staff.find((item: StaffMember) => item.id === staffId);
       setStaff(staffResponse.staff);
       setRoles(roleResponse.roles);
+      const mayCollect = currentMember?.roles.some(({ role }: StaffMember["roles"][number]) =>
+        role.permissions.some(({ permission }) => permission.name === "collection.submit")
+      ) ?? false;
+      if (currentMember) {
+        const assignmentResponse = await api.collectionAssignments(staffId);
+        setCollectionAssignments(assignmentResponse.assignments);
+        if (mayCollect && currentMember.status === "active") {
+          const retailerResponse = await api.collectionAssignmentRetailers(staffId, retailerQuery);
+          setCollectionRetailers(retailerResponse.retailers);
+        } else {
+          setCollectionRetailers([]);
+        }
+      } else {
+        setCollectionAssignments([]);
+        setCollectionRetailers([]);
+      }
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load staff access");
     } finally {
       setLoading(false);
     }
-  };
+  }, [staffId]);
 
   useEffect(() => {
     void load();
-  }, [staffId]);
+  }, [load]);
 
   const run = async (work: () => Promise<unknown>, success: string) => {
     setBusy(true);
@@ -52,7 +81,7 @@ export default function StaffDetail() {
     try {
       await work();
       setNotice(success);
-      await load();
+      await load(retailerSearch);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not update access");
     } finally {
@@ -64,6 +93,26 @@ export default function StaffDetail() {
     event.preventDefault();
     if (!roleId) return;
     void run(() => api.assignStaffRole(staffId, roleId), "Role assigned.");
+  };
+
+  const assignCollectionRetailer = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!collectionRetailerId) return;
+    void run(() => api.assignCollectionRetailer(staffId, collectionRetailerId), "Retailer collection access assigned.");
+  };
+
+  const searchCollectionRetailers = (event: React.FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    void api.collectionAssignmentRetailers(staffId, retailerSearch)
+      .then((response) => {
+        setCollectionRetailers(response.retailers);
+        setCollectionRetailerId("");
+        setNotice("Retailer list updated.");
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "Could not search retailers"))
+      .finally(() => setBusy(false));
   };
 
   const delegate = (event: React.FormEvent) => {
@@ -136,6 +185,38 @@ export default function StaffDetail() {
             <button type="submit" disabled={busy || !roleId}>Assign role</button>
           </form>
         )}
+      </section>
+
+      <section className="card">
+        <h2 className="section-title">Collection rights</h2>
+        <p className="section-copy">Collection requires the Field Collector role and an active retailer assignment.</p>
+        <div className="role-list">
+          {collectionAssignments.length === 0 ? <p className="muted small">No retailers assigned for collection.</p> : collectionAssignments.map(({ id, retailer }) => (
+            <div className="role-row" key={id}>
+              <div><strong>{retailer.name}</strong><div className="small muted">{retailer.phone}{retailer.shopAddress ? ` · ${retailer.shopAddress}` : ""}</div></div>
+              <button className="ghost sm" disabled={busy} onClick={() => void run(() => api.unassignCollectionRetailer(id), `Collection access removed for ${retailer.name}.`)} aria-label={`Remove ${retailer.name}`} title={`Remove ${retailer.name}`}>Remove</button>
+            </div>
+          ))}
+        </div>
+        {!canCollect ? <p className="muted small">Assign the Field Collector role above to enable new collection access.</p> : member.status !== "active" ? <p className="muted small">Restore this staff account before assigning retailers.</p> : <>
+          <form className="inline-form" onSubmit={searchCollectionRetailers}>
+            <div className="field grow">
+              <label htmlFor="collection-retailer-search">Search retailers</label>
+              <input id="collection-retailer-search" type="search" value={retailerSearch} onChange={(event) => setRetailerSearch(event.target.value)} placeholder="Name or phone" />
+            </div>
+            <button type="submit" className="secondary" disabled={busy}>Search</button>
+          </form>
+          <form className="inline-form" onSubmit={assignCollectionRetailer}>
+            <div className="field grow">
+              <label htmlFor="collection-retailer">Retailer to assign</label>
+              <select id="collection-retailer" value={collectionRetailerId} onChange={(event) => setCollectionRetailerId(event.target.value)} required>
+                <option value="">Choose a retailer</option>
+                {collectionRetailers.map((retailer) => <option key={retailer.id} value={retailer.id}>{retailer.name} · {retailer.phone}</option>)}
+              </select>
+            </div>
+            <button type="submit" disabled={busy || !collectionRetailerId}>Assign retailer</button>
+          </form>
+        </>}
       </section>
 
       <section className="card">

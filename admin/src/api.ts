@@ -175,6 +175,10 @@ export const api = {
 
   orders: (status?: string) => request(`/admin/orders${status ? `?status=${status}` : ""}`),
   order: (id: string) => request(`/admin/orders/${id}`),
+  warehouseOrders: (status?: "confirmed" | "packed") =>
+    request(`/admin/warehouse-orders${status ? `?status=${status}` : ""}`),
+  warehouseOrder: (id: string) => request(`/admin/warehouse-orders/${id}`),
+  packWarehouseOrder: (id: string) => post(`/admin/warehouse-orders/${id}/pack`),
   approve: (id: string) => post(`/admin/orders/${id}/approve`),
   reject: (id: string) => post(`/admin/orders/${id}/reject`),
   pack: (id: string) => post(`/admin/orders/${id}/pack`),

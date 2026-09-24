@@ -7,6 +7,7 @@ import adminAuthRoutes from "./routes/admin/auth";
 import commercialRoutes from "./modules/commercial/routes";
 import adminCatalogRoutes from "./routes/admin/catalog";
 import adminOrderRoutes from "./routes/admin/orders";
+import adminWarehouseOrderRoutes from "./routes/admin/warehouseOrders";
 import adminRetailerRoutes from "./routes/admin/retailers";
 import adminSapRoutes from "./routes/admin/sap";
 import adminImportRoutes from "./routes/admin/imports";
@@ -225,6 +226,7 @@ export function createApp(options: CreateAppOptions = {}) {
     })
   );
   app.use("/founder", createFounderRouter());
+  app.use("/admin", adminWarehouseOrderRoutes);
   app.use("/admin", adminOrderRoutes);
   app.use("/admin", adminRetailerRoutes);
   app.use("/admin", adminCatalogRoutes);

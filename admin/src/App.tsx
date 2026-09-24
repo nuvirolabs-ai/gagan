@@ -73,6 +73,7 @@ const NAV: NavGroup[] = [
       { to: "/collections", label: "Collections", permissions: ["collection.confirm"] },
       { to: "/credit-reviews", label: "Credit reviews", permissions: ["credit.rating_confirm"] },
       { to: "/market-surveys", label: "Market surveys", permissions: ["survey.manage"] },
+      { to: "/warehouse-orders", label: "Warehouse orders", permissions: ["order.warehouse_process"] },
     ],
   },
   {
@@ -218,6 +219,7 @@ function Shell() {
           <Route path="/recovery" element={<Guard anyOf={["recovery.view", "recovery.update"]}><Recovery /></Guard>} />
           <Route path="/legal" element={<Guard anyOf={["staff.manage", "legal.decide"]}><Legal /></Guard>} />
           <Route path="/orders" element={<Guard anyOf={["staff.manage"]}><Orders /></Guard>} />
+          <Route path="/warehouse-orders" element={<Guard anyOf={["order.warehouse_process"]}><Orders mode="warehouse" /></Guard>} />
           <Route path="/retailers" element={<Guard anyOf={["staff.manage"]}><Retailers /></Guard>} />
           <Route path="/ledger" element={<Guard anyOf={["staff.manage"]}><Ledger /></Guard>} />
           <Route path="/ledger/:retailerId" element={<Guard anyOf={["staff.manage"]}><Ledger /></Guard>} />

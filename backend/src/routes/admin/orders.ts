@@ -72,7 +72,13 @@ router.get("/orders/:id", async (req, res) => {
 });
 
 /** Generic forward transition used by approve / reject / pack. */
-async function transition(orderId: string, to: OrderStatus, res: any, actorStaffId: string | null) {
+export async function transitionOrder(
+  orderId: string,
+  to: OrderStatus,
+  res: any,
+  actorStaffId: string | null,
+  projectOrder: (order: any) => unknown = (order) => order
+) {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) return res.status(404).json({ error: "Order not found" });
 
@@ -107,12 +113,12 @@ async function transition(orderId: string, to: OrderStatus, res: any, actorStaff
   });
   if(!updated) return res.status(409).json({error:"order_transition_conflict"});
   const [attributedOrder] = await attributeOrders([updated]);
-  res.json({ order: attributedOrder });
+  res.json({ order: projectOrder(attributedOrder) });
 }
 
-router.post("/orders/:id/approve", (req: AdminRequest, res) => transition(req.params.id, "confirmed", res, req.staffAuth?.staffId ?? null));
-router.post("/orders/:id/reject", (req: AdminRequest, res) => transition(req.params.id, "rejected", res, req.staffAuth?.staffId ?? null));
-router.post("/orders/:id/pack", (req: AdminRequest, res) => transition(req.params.id, "packed", res, req.staffAuth?.staffId ?? null));
+router.post("/orders/:id/approve", (req: AdminRequest, res) => transitionOrder(req.params.id, "confirmed", res, req.staffAuth?.staffId ?? null));
+router.post("/orders/:id/reject", (req: AdminRequest, res) => transitionOrder(req.params.id, "rejected", res, req.staffAuth?.staffId ?? null));
+router.post("/orders/:id/pack", (req: AdminRequest, res) => transitionOrder(req.params.id, "packed", res, req.staffAuth?.staffId ?? null));
 
 const assignSchema = z.object({
   routeId: z.string().min(1),

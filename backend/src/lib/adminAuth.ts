@@ -66,3 +66,8 @@ export async function requireAdminIdentity(
 export async function requireAdmin(req: AdminRequest, res: Response, next: NextFunction) {
   return authenticateAdmin(req, res, next, Permissions.STAFF_MANAGE);
 }
+
+export function requireAdminPermission(permission: string) {
+  return (req: AdminRequest, res: Response, next: NextFunction) =>
+    authenticateAdmin(req, res, next, permission);
+}

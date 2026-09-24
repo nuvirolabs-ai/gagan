@@ -1,5 +1,6 @@
 export const Permissions = {
   ORDER_CREATE_FOR_RETAILER: "order.create_for_retailer",
+  ORDER_WAREHOUSE_PROCESS: "order.warehouse_process",
   KYC_SUBMIT: "kyc.submit",
   KYC_VIEW: "kyc.view",
   KYC_REVIEW: "kyc.review",
@@ -204,5 +205,10 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: "platform_admin",
     description: "Manages staff identity, roles and delegations.",
     permissions: operationalPermissions(),
+  },
+  {
+    name: "warehouse_operator",
+    description: "Processes confirmed orders through the existing warehouse packing step.",
+    permissions: [Permissions.ORDER_WAREHOUSE_PROCESS],
   },
 ];

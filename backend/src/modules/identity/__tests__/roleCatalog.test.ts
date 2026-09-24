@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Permissions, ROLE_DEFINITIONS } from "../roleCatalog";
 
 describe("identity role catalog", () => {
-  it("defines the ten approved operational roles", () => {
+  it("defines the approved operational roles", () => {
     expect(ROLE_DEFINITIONS.map((role) => role.name)).toEqual([
       "salesperson",
       "field_collector",
@@ -14,7 +14,17 @@ describe("identity role catalog", () => {
       "founder_director",
       "field_manager",
       "platform_admin",
+      "warehouse_operator",
     ]);
+  });
+
+  it("limits warehouse operators to the existing order packing workflow", () => {
+    const warehouse = ROLE_DEFINITIONS.find((role) => role.name === "warehouse_operator");
+
+    expect(warehouse?.permissions).toEqual([Permissions.ORDER_WAREHOUSE_PROCESS]);
+    expect(warehouse?.permissions).not.toContain(Permissions.STAFF_MANAGE);
+    expect(warehouse?.permissions).not.toContain(Permissions.DISPATCH_EXECUTE);
+    expect(warehouse?.permissions).not.toContain(Permissions.ORDER_CREATE_FOR_RETAILER);
   });
 
   it("separates running your own field day from reviewing someone else's", () => {

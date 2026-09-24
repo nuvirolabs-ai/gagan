@@ -67,5 +67,5 @@
 
 - [x] Run local PostgreSQL readback coverage for a mixed-entity invoice with partial allocations, a legacy invoice, and cached-only balance; assert each entity sum reconciles to the existing consolidated summary.
 - [x] Run `git diff --check`, inspect the complete source/test/doc diff, and confirm no schema migration or hosted/database write was introduced.
-- [ ] Update the PAY-05 issue row and goal-state register with exact local evidence, commit SHA, and explicit hosted/physical limitations; preserve the initial audit classification as history.
-- [ ] Commit the PAY-05 batch on `codex/gagan-client-feedback-v2-reconciled`, verify the commit and remote branch state, then continue to the next executable backlog item.
+- [x] Update the PAY-05 issue row and goal-state register with exact local evidence, source commit `1a0d8c15289fb03183fc7294f086ea36332e9add`, and explicit hosted/physical limitations; preserve the initial audit classification as history.
+- [x] Commit the PAY-05 batch on `codex/gagan-client-feedback-v2-reconciled` and verify the pushed remote SHA. Continue with GGN-PAY-06 in the product goal's sequence.

@@ -132,6 +132,14 @@ Implementation checkpoint: commits `43ac9179e4773b5f5343f45b04fe54294177cbd9` an
 - An independent read-only code review of the implementation and compatibility follow-up found no Critical or Important issues; the reviewer did not run tests. The automated results above were run locally.
 - No historical events or records were rewritten. Hosted/staging, physical-device, installed-app, and exact-release APK/source identity checks remain NOT RUN. No hosted service, production system, live provider, APK, or device state was touched. The issue must remain `IMPLEMENTED BUT NOT VERIFIED` until those gates are evidenced.
 
+## Execution Update — GGN-ORD-04 (2026-09-25)
+
+The initial GGN-ORD-04 row above and forensic totals preserve the source-audit baseline. Current source status remains `IMPLEMENTED BUT NOT VERIFIED`; this checkpoint found existing direct order-detail navigation and made no product-code change.
+
+- Retailer Home's latest-order action and Order History rows navigate directly to the dedicated `OrderDetail` screen, which is registered in the root stack above the tab navigator. Rep recent-order and order-linked activity entries navigate directly to its root-stack `OrderDetail`; the accepted order flow replaces into that same screen after its acknowledgement boundary.
+- Rep's existing `sellingFlow.test.ts` asserts successful order opening and acknowledgement before opening an accepted order. Retailer 27 files / 116 tests and Rep 40 files / 209 tests passed with typechecks in this checkpoint. This evidence does not simulate native stack transitions or system-back gestures.
+- Hosted/browser acceptance and physical Android/iOS order-history entry, retailer-detail entry, refresh, and normal system-back behavior remain NOT RUN. No APK was built or installed and no device state was changed. Keep the status `IMPLEMENTED BUT NOT VERIFIED` until authorized native acceptance is recorded.
+
 ## Counts
 
 TOTAL ISSUES: 46

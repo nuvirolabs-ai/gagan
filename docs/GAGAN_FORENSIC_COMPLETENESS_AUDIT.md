@@ -104,6 +104,7 @@ The initial issue table, counts, and Top 20 ranking above describe the forensic 
 - Admin Orders exposes an “Order Punched” internal-status filter. The Salesperson app's existing protected commercial timeline renders punched, approval-sent, and created events. Retailer create/history/detail APIs expose only `salesOrderState` (`punched` or `created`) and continue stripping internal events, hold details, actor identity, and approval reasons. Legacy orders without the new milestones are not assigned an inferred state.
 - Focused local verification: 5 backend files / 44 tests passed across order enforcement, outbox, commercial status, authenticated Retailer API, and Rep field integration. Full backend: 140 files / 987 tests; backend typecheck/build passed. Retailer app: 26 files / 114 tests and typecheck passed. Salesperson app: 40 files / 207 tests and typecheck passed. Admin: 23 files / 62 tests and build passed.
 - Migration `20260925090000_order_punch_lifecycle` adds one `CommercialStatusCode` value. It upgraded the authorized disposable database from 46 to 47 migrations; a separate empty local PostgreSQL database deployed all 47 from scratch. No hosted database or SAP call was made; local SAP mode remains disabled.
+- Implementation checkpoint: commit `be9b0f9` on `codex/gagan-client-feedback-v2-reconciled`.
 - Hosted/staging, native UI, physical-device, final APK, and exact-release-SHA acceptance remain NOT RUN. Do not promote this issue to `VERIFIED IMPLEMENTED` until the required authorized runtime and device gates pass.
 
 ## Counts

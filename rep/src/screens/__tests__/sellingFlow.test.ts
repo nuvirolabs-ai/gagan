@@ -89,6 +89,14 @@ describe("screen integration contracts", () => {
     expect(catalog).toContain("composeActivity: true");
     expect(catalog).not.toContain("repApi.checkOut");
   });
+  it("shows who punched each order and pending proposal demand", () => {
+    const orderDetail = source("OrderDetailScreen.tsx");
+    const proposals = source("AddRetailerScreen.tsx");
+    expect(orderDetail).toContain('Order placed via Retailer App');
+    expect(orderDetail).toContain('Order punched by ${order.creatorName ?? "Salesperson"}');
+    expect(proposals).toContain('Order punched by ${intent.creatorName ?? "Salesperson"}');
+    expect(proposals).toContain('intent.createdAt');
+  });
   it("keeps seven calendar columns including Saturday on every week", () => {
     const weeks = calendarWeeks(monthCells(new Date(2026, 8, 1)));
     expect(weeks.every(week => week.length === 7)).toBe(true);

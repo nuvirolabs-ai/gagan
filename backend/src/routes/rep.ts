@@ -20,6 +20,8 @@ import {
   type IdentityAuthedRequest,
 } from "../modules/identity/sessionAuth";
 import { internalStatusForOrder } from "../modules/commercialStatus/statusService";
+import { CommercialStatusCode } from "@prisma/client";
+import { attributeOrders } from "../modules/orders/orderAttribution";
 
 const router = Router();
 
@@ -158,7 +160,13 @@ router.get("/retailers/:id", requireRep, async (req: RepRequest, res) => {
       where: { retailerId: retailer.id },
       orderBy: { createdAt: "desc" },
       take: 5,
-      include: { items: { include: { variant: { include: { product: true } } } } },
+      include: {
+        items: { include: { variant: { include: { product: true } } } },
+        commercialStatusEvents: {
+          where: { code: CommercialStatusCode.SALES_ORDER_PUNCHED },
+          select: { code: true, actorStaff: { select: { name: true } } },
+        },
+      },
     }),
     financialLedgerFor(prisma, retailer.id).then((ledger) => ledger.slice(0, 5)),
     prisma.kycCase.findUnique({ where: { retailerId: retailer.id }, select: { id: true, status: true, submittedAt: true, reviewedAt: true, rejectionReason: true } }),
@@ -168,7 +176,8 @@ router.get("/retailers/:id", requireRep, async (req: RepRequest, res) => {
 
   const limit = financialSummary?.creditLimit ?? Number(retailer.creditLimit);
   const balance = financialSummary?.creditUsed ?? Number(retailer.currentBalance);
-  const recentOrders = await Promise.all(orders.map(async (order) => ({
+  const attributedRecentOrders = await attributeOrders(orders);
+  const recentOrders = await Promise.all(attributedRecentOrders.map(async (order) => ({
     ...order,
     commercialStatus: await internalStatusForOrder(order.id),
   })));
@@ -281,16 +290,21 @@ router.get("/orders/:id", requireRep, async (req: RepRequest, res) => {
       items: { include: { variant: { include: { product: true } } } },
       delivery: true,
       invoice: { select: { invoiceNumber: true, invoiceDate: true, dueDate: true, total: true, outstandingAmount: true, commercialSnapshot:true } },
+      commercialStatusEvents: {
+        where: { code: CommercialStatusCode.SALES_ORDER_PUNCHED },
+        select: { code: true, actorStaff: { select: { name: true } } },
+      },
     },
   });
   if (!order) return res.status(404).json({ error: "Order not found" });
+  const [attributedOrder] = await attributeOrders([order]);
 
   const events = await prisma.auditEvent.findMany({
     where: { subjectType: "order", subjectId: order.id, action: { startsWith: "order." } },
     orderBy: { createdAt: "asc" },
     select: { id: true, action: true, metadata: true, createdAt: true },
   });
-  res.json({ order, events, commercialStatus: await internalStatusForOrder(order.id) });
+  res.json({ order: attributedOrder, events, commercialStatus: await internalStatusForOrder(order.id) });
 });
 
 const repOrderSchema = z.object({

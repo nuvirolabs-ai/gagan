@@ -10,6 +10,7 @@ import { colors, radius, spacing, inr } from "../theme";
 import { StatusPill, OrderTimeline, OrderLifecycleCaption, EmptyState, ScreenSkeleton, SectionTitle } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 import { formatOrderRef } from "../lib/orderRef";
+import { orderAttributionLabel } from "../lib/orderAttribution";
 
 const POD_LABEL: Record<string, string> = {
   photo: "Photo",
@@ -87,7 +88,10 @@ export default function OrderDetailScreen({ route, navigation }: any) {
             {formatOrderRef(order)}
           </Text>
           <Text style={styles.date}>
-            Placed{" "}
+            {orderAttributionLabel(order)}
+          </Text>
+          <Text style={styles.date}>
+            {order.retailer?.name ?? "Retailer"} ·{" "}
             {new Date(order.createdAt).toLocaleDateString("en-IN", {
               day: "numeric",
               month: "short",

@@ -4,16 +4,19 @@ import request from "supertest";
 import { randomUUID } from "node:crypto";
 import { afterAll,beforeAll,describe,it,expect,vi } from "vitest";
 import { prisma } from "../../../lib/prisma";
+import { CommercialStatusCode } from "@prisma/client";
 vi.mock("../../../lib/adminAuth",()=>({requireAdmin:(_req:unknown,_res:unknown,next:()=>void)=>next()}));
 import routes from "../../../routes/admin/orders";
 import { ApprovalService } from "../../approvals/approvalService";
 import { DisputeService } from "../../approvals/disputeService";
 const app=express();app.use(express.json(),routes);
-const key=randomUUID(),tier=randomUUID(),retailer=randomUUID();
+const key=randomUUID(),tier=randomUUID(),retailer=randomUUID(),repId=randomUUID(),creatorId=randomUUID();
 const orderIds:string[]=[];
 beforeAll(async()=>{
  await prisma.tier.create({data:{id:tier,name:key}});
- await prisma.retailer.create({data:{id:retailer,tierId:tier,name:"State race UAT",phone:key,shopAddress:"Local"}});
+ await prisma.salesRep.create({data:{id:repId,name:"Admin Source Rep",phone:repId}});
+ await prisma.staffUser.create({data:{id:creatorId,name:"Admin Source Creator",phone:creatorId,email:`${creatorId}@test.invalid`,salesRepId:repId}});
+ await prisma.retailer.create({data:{id:retailer,tierId:tier,name:"State race UAT",phone:key,shopAddress:"Local",salesRepId:repId}});
 });
 afterAll(async()=>{
  await prisma.approvalDispute.deleteMany({where:{approvalRequest:{orderId:{in:orderIds}}}});
@@ -21,6 +24,8 @@ afterAll(async()=>{
  await prisma.dispatchAuthorization.deleteMany({where:{orderId:{in:orderIds}}});
  await prisma.creditAssessment.deleteMany({where:{orderId:{in:orderIds}}});
  await prisma.order.deleteMany({where:{id:{in:orderIds}}});
+ await prisma.staffUser.delete({where:{id:creatorId}});
+ await prisma.salesRep.delete({where:{id:repId}});
  await prisma.retailer.delete({where:{id:retailer}});await prisma.tier.delete({where:{id:tier}});
 });
 async function fixture(status:"placed"|"confirmed") {
@@ -31,6 +36,19 @@ async function fixture(status:"placed"|"confirmed") {
  return order;
 }
 describe("Admin state compare-and-set against real PostgreSQL",()=>{
+ it("returns source, creator, retailer and timestamp in the Admin order readback",async()=>{
+  const order=await prisma.order.create({data:{retailerId:retailer,placedBy:"rep",placedByRepId:repId,orderTotal:100}});orderIds.push(order.id);
+  await prisma.commercialStatusEvent.create({data:{
+   code:CommercialStatusCode.SALES_ORDER_PUNCHED,retailerId:retailer,orderId:order.id,actorStaffId:creatorId,
+   idempotencyKey:`admin-order-punched-${order.id}`,
+  }});
+  const response=await request(app).get(`/orders/${order.id}`).expect(200);
+  expect(response.body.order).toMatchObject({
+   source:"SALESPERSON_APP",creatorName:"Admin Source Creator",
+   retailer:{id:retailer,name:"State race UAT"},createdAt:order.createdAt.toISOString(),
+  });
+ });
+
  it("late credit rejection and dispute resolution cannot rewind a progressed order",async()=>{
   const order=await fixture("confirmed");
   const assessment=await prisma.creditAssessment.findFirstOrThrow({where:{orderId:order.id}});

@@ -462,6 +462,9 @@ export default function AddRetailerScreen({ navigation }: any) {
                   <View style={styles.requestMain}>
                     <Text style={styles.requestName}>Punched demand · {intent.items?.length ?? 0} line{intent.items?.length === 1 ? "" : "s"}</Text>
                     <Text style={styles.fieldHint}>
+                      {`Order punched by ${intent.creatorName ?? "Salesperson"}`}{intent.createdAt ? ` · ${new Date(intent.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}` : ""}
+                    </Text>
+                    <Text style={styles.fieldHint}>
                       {intent.demandState === "waiting_for_retailer_approval" ? "Waiting for retailer approval · unpriced" :
                         intent.demandState === "ready_for_official_order" ? "Retailer approved · review current pricing" :
                           intent.demandState === "converted" ? `Order ${intent.convertedOrder?.orderNo ?? "created"}` : "Unavailable"}

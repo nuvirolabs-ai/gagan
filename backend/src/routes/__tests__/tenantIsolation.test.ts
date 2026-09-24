@@ -27,7 +27,22 @@ beforeAll(async () => {
     prisma.staffUser.create({ data: { id: ids.staffA, name: "Staff A", phone: `95${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "5")}`, email: `tenant-a-${run}@test.invalid`, salesRepId: repA.id, roles: { create: { roleId: salespersonRole.id } } } }),
     prisma.staffUser.create({ data: { id: ids.staffB, name: "Staff B", phone: `96${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "6")}`, email: `tenant-b-${run}@test.invalid`, salesRepId: repB.id, roles: { create: { roleId: salespersonRole.id } } } }),
   ]);
-  const order = await prisma.order.create({ data: { id: ids.orderB, retailerId: retailerB.id, orderTotal: 3_000 } });
+  const order = await prisma.order.create({ data: {
+    id: ids.orderB,
+    retailerId: retailerB.id,
+    placedBy: "rep",
+    placedByRepId: repB.id,
+    orderTotal: 3_000,
+  } });
+  await prisma.commercialStatusEvent.create({
+    data: {
+      code: CommercialStatusCode.SALES_ORDER_PUNCHED,
+      retailerId: retailerB.id,
+      orderId: order.id,
+      actorStaffId: ids.staffB,
+      idempotencyKey: `tenant-order-punched-${run}`,
+    },
+  });
   await prisma.commercialStatusEvent.create({
     data: {
       code: CommercialStatusCode.SALES_ORDER_CREATED,
@@ -71,11 +86,23 @@ describe("tenant isolation", () => {
     await request(app).post("/rep/orders").set("Authorization", `Bearer ${repAToken}`).set("Idempotency-Key", `tenant-${run}`).send({ retailerId: ids.retailerB, items: [{ variantId: randomUUID(), qty: 1 }] }).expect(404);
     const history = await request(app).get("/orders").set("Authorization", `Bearer ${retailerBToken}`).expect(200);
     expect(history.body.orders).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: ids.orderB, salesOrderState: "created" }),
+      expect.objectContaining({
+        id: ids.orderB,
+        salesOrderState: "created",
+        source: "SALESPERSON_APP",
+        creatorName: "Staff B",
+        retailer: { id: ids.retailerB, name: "Retailer B" },
+      }),
     ]));
 
     const detail = await request(app).get(`/orders/${ids.orderB}`).set("Authorization", `Bearer ${retailerBToken}`).expect(200);
-    expect(detail.body.order.salesOrderState).toBe("created");
+    expect(detail.body.order).toMatchObject({
+      salesOrderState: "created",
+      source: "SALESPERSON_APP",
+      creatorName: "Staff B",
+      retailer: { id: ids.retailerB, name: "Retailer B" },
+      createdAt: expect.any(String),
+    });
     expect(detail.body.order).not.toHaveProperty("commercialStatusEvents");
     expect(detail.body.order).not.toHaveProperty("commercialStatus");
   });

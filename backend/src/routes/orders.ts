@@ -6,6 +6,7 @@ import { createOrderForRetailer } from "../lib/orders";
 import { createRateLimiter } from "../platform/http/rateLimit";
 import { invoiceBalances } from "../modules/commercial/service";
 import { CommercialStatusCode } from "@prisma/client";
+import { attributeOrders, orderAttribution } from "../modules/orders/orderAttribution";
 
 const router = Router();
 
@@ -16,26 +17,31 @@ const router = Router();
  */
 export type RetailerSalesOrderState = "punched" | "created";
 
+function retailerSalesOrderState(order: any): RetailerSalesOrderState | undefined {
+  const events = Array.isArray(order.commercialStatusEvents) ? order.commercialStatusEvents : [];
+  if (events.some((event: any) => event.code === CommercialStatusCode.SALES_ORDER_CREATED)) return "created";
+  if (events.some((event: any) => event.code === CommercialStatusCode.SALES_ORDER_PUNCHED)) return "punched";
+  return undefined;
+}
+
 export function retailerOrderView(order: any, stateOverride?: RetailerSalesOrderState) {
   const {
     isOnHold: _isOnHold,
     holdReason: _holdReason,
     heldAt: _heldAt,
     heldByStaffId: _heldByStaffId,
+    placedByRepId: _placedByRepId,
     commercialStatusEvents,
     commercialStatus: _commercialStatus,
     salesOrderState: _salesOrderState,
     ...publicOrder
   } = order;
-  const events = Array.isArray(commercialStatusEvents) ? commercialStatusEvents : [];
-  const salesOrderState = stateOverride ?? (
-    events.some((event: any) => event.code === CommercialStatusCode.SALES_ORDER_CREATED)
-      ? "created"
-      : events.some((event: any) => event.code === CommercialStatusCode.SALES_ORDER_PUNCHED)
-        ? "punched"
-        : null
-  );
-  return salesOrderState ? { ...publicOrder, salesOrderState } : publicOrder;
+  const salesOrderState = stateOverride ?? retailerSalesOrderState({ commercialStatusEvents });
+  return {
+    ...publicOrder,
+    ...orderAttribution(order),
+    ...(salesOrderState ? { salesOrderState } : {}),
+  };
 }
 
 /**
@@ -53,7 +59,7 @@ const retailerLifecycleEvents = {
   where: {
     code: { in: [CommercialStatusCode.SALES_ORDER_PUNCHED, CommercialStatusCode.SALES_ORDER_CREATED] },
   },
-  select: { code: true },
+  select: { code: true, actorStaff: { select: { name: true } } },
 };
 
 const createOrderSchema = z.object({
@@ -81,19 +87,26 @@ router.get("/orders", requireAuth, async (req: AuthedRequest, res) => {
   const orders = await prisma.order.findMany({
     where: { retailerId: req.retailerId },
     include: {
+      retailer: { select: { id: true, name: true } },
       items: { include: { variant: { include: { product: true } } } },
       delivery: true,
       commercialStatusEvents: retailerLifecycleEvents,
     },
     orderBy: { createdAt: "desc" },
   });
-  res.json({ orders: orders.map((order) => retailerOrderView(order)) });
+  const attributed = await attributeOrders(orders);
+  res.json({
+    orders: attributed.map((order, index) =>
+      retailerOrderView(order, retailerSalesOrderState(orders[index]))
+    ),
+  });
 });
 
 router.get("/orders/:id", requireAuth, async (req: AuthedRequest, res) => {
   const order = await prisma.order.findFirst({
     where: { id: req.params.id, retailerId: req.retailerId },
     include: {
+      retailer: { select: { id: true, name: true } },
       items: { include: { variant: { include: { product: true } } } },
       delivery: true,
       // The invoice is priced off delivered weight, so it can differ from the
@@ -105,13 +118,15 @@ router.get("/orders/:id", requireAuth, async (req: AuthedRequest, res) => {
   });
   if (!order) return res.status(404).json({ error: "Order not found" });
 
+  const [attributed] = await attributeOrders([order]);
+
   const invoice = order.ledgerEntries[0] ?? null;
   const financialInvoice = order.invoice;
   const entityBalances = financialInvoice?.commercialSnapshot ? await prisma.$transaction(tx=>invoiceBalances(tx,financialInvoice.id)) : null;
 
   res.json({
     order: {
-      ...retailerOrderView(order),
+      ...retailerOrderView(attributed, retailerSalesOrderState(order)),
       ledgerEntries: undefined,
       invoice: invoice
         ? {

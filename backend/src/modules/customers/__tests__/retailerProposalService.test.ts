@@ -240,6 +240,67 @@ describe("punching demand for a proposed retailer", () => {
       `retailer-proposal-intent:${intent.id}`, { quoteId: "quote-fresh", revision: 1 },
     );
   });
+
+  it("returns source, creator, retailer and punch time for salesperson demand", async () => {
+    const punchedAt = new Date("2026-09-25T11:30:00Z");
+    const proposal = {
+      ...pendingProposal,
+      businessName: "North Star Retail",
+      orderIntents: [{
+        id: "intent-source",
+        proposalId: pendingProposal.id,
+        submittedByStaffId: "staff-1",
+        submittedBy: { id: "staff-1", name: "Asha Verma" },
+        punchedAt,
+        items: [{ variantId: "sku-1", qty: 2 }],
+        convertedOrderId: null,
+      }],
+    };
+    const prisma = fakePrisma({
+      retailerProposal: {
+        ...fakePrisma().retailerProposal,
+        findMany: vi.fn().mockResolvedValue([proposal]),
+      },
+    });
+
+    const [result] = await serviceFor(prisma).listForSalesperson("staff-1");
+
+    expect(result.orderIntents[0]).toMatchObject({
+      source: "SALESPERSON_APP",
+      creatorName: "Asha Verma",
+      retailer: { id: null, name: "North Star Retail" },
+      createdAt: punchedAt,
+    });
+  });
+
+  it("returns attribution for punched demand in the Admin proposal review readback", async () => {
+    const punchedAt = new Date("2026-09-25T11:30:00Z");
+    const proposal = {
+      ...pendingProposal,
+      businessName: "North Star Retail",
+      submittedBy: { id: "staff-1", name: "Asha Verma" },
+      orderIntents: [{
+        id: "intent-admin-source",
+        punchedAt,
+        submittedBy: { id: "staff-1", name: "Asha Verma" },
+      }],
+    };
+    const prisma = fakePrisma({
+      retailerProposal: {
+        ...fakePrisma().retailerProposal,
+        findMany: vi.fn().mockResolvedValue([proposal]),
+      },
+    });
+
+    const [result] = await serviceFor(prisma).listForReview();
+
+    expect(result.orderIntents[0]).toMatchObject({
+      source: "SALESPERSON_APP",
+      creatorName: "Asha Verma",
+      retailer: { id: null, name: "North Star Retail" },
+      createdAt: punchedAt,
+    });
+  });
 });
 
 describe("submitting a proposal", () => {

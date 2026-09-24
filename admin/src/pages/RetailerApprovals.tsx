@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { proposalIntentSourceLabel } from "../orderAttribution";
 import { explain } from "../errorCopy";
 
 const TABS = ["pending", "approved", "rejected"] as const;
@@ -154,6 +155,13 @@ export default function RetailerApprovals() {
                     {proposal.status === "pending" && proposal.orderIntents?.length ? (
                       <div className="small muted">
                         {proposal.orderIntents.length} punched demand{proposal.orderIntents.length === 1 ? "" : "s"} · unpriced until retailer approval
+                        {proposal.orderIntents.map((intent: any) => (
+                          <div key={intent.id}>
+                            {proposalIntentSourceLabel(intent)}
+                            {intent.punchedAt ? ` · ${new Date(intent.punchedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}` : ""}
+                            {` · ${intent.retailer?.name ?? proposal.businessName}`}
+                          </div>
+                        ))}
                       </div>
                     ) : null}
                   </td>

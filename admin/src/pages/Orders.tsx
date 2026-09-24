@@ -7,6 +7,7 @@ import PodModal from "../components/PodModal";
 import AssignModal from "../components/AssignModal";
 import { AgeDistribution, Icon, SectionLabel } from "../components/OperationalPrimitives";
 import { ageHours, ageLabel, type VisualTone } from "../components/operationalUtils";
+import { orderCreatedAtLabel, orderSourceLabel } from "../orderAttribution";
 
 const TABS = [
   { key: "placed", label: "Awaiting approval" },
@@ -151,6 +152,7 @@ export default function Orders() {
 
   return <div className="page-shell orders-page operational-instrument">
     <header className="page-header operating-header compact"><div><SectionLabel>Sales / Work queue</SectionLabel><h1 className="page-title">Orders</h1><p className="page-sub">Move each order through its next safe step. Select a row to inspect the work.</p></div><div className="header-context"><span className="live-indicator"><span className="live-dot" /> Live queue</span><button className="button secondary compact">Filters</button></div></header>
+    {selected ? <div className="small muted" aria-label="Selected order attribution"><strong>{formatOrderRef(selected)}</strong> · {orderSourceLabel(selected)} · {orderCreatedAtLabel(selected)} · {selected.retailer?.name ?? "Retailer unavailable"}</div> : null}
     <section className="stage-rail" aria-label="Order lifecycle stages">{TABS.map((stage) => { const stageOrders = queueData[stage.key] ?? []; const stageValue = stageOrders.reduce((sum, order) => sum + Number(order.orderTotal ?? 0), 0); return <button key={stage.key} className={tab === stage.key ? "active" : ""} onClick={() => setStage(stage.key)}><span className="stage-count">{loading && !queueData[stage.key] ? "—" : stageOrders.length}</span><span>{stage.label}</span><small>{inr(stageValue)}</small></button>; })}</section>
     <div className="internal-status-rail" aria-label="Internal commercial status filters">{INTERNAL_STATUS_FILTERS.map((filter) => <button key={filter.key} className={internalFilter === filter.key ? "selected" : ""} onClick={() => setInternalFilter(filter.key)}>{filter.label}</button>)}</div>
     <section className="queue-summary" aria-label="Queue health"><div><span>active queue</span><strong>{selectedTab}</strong></div><div><span>oldest order</span><strong>{ageLabel(oldest?.createdAt)}</strong></div><div><span>outside SLA</span><strong className={outsideSla > 0 ? "red-text" : "green-text"}>{outsideSla} orders</strong></div><div><span>queue value</span><strong>{loading ? "—" : inr(queueValue)}</strong></div><AgeDistribution counts={ages} /></section>

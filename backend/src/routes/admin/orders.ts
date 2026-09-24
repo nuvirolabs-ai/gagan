@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { OrderStatus } from "@prisma/client";
+import { CommercialStatusCode, OrderStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AdminRequest, requireAdmin } from "../../lib/adminAuth";
 import {
@@ -8,6 +8,7 @@ import {
   InvoiceCreationError,
 } from "../../modules/invoicing/invoiceService";
 import { ensureKycApprovedForDispatch, KycGateError } from "../../modules/kyc/kycGate";
+import { attributeOrders } from "../../modules/orders/orderAttribution";
 
 const router = Router();
 router.use(requireAdmin);
@@ -34,6 +35,10 @@ const orderInclude = {
   retailer: { select: { id: true, name: true, phone: true, shopAddress: true } },
   items: { include: { variant: { include: { product: true } } } },
   delivery: true,
+  commercialStatusEvents: {
+    where: { code: CommercialStatusCode.SALES_ORDER_PUNCHED },
+    select: { code: true, actorStaff: { select: { name: true } } },
+  },
 } as const;
 
 // Prisma's financial ledger sequence is a BigInt. Keep the API response
@@ -56,13 +61,14 @@ router.get("/orders", async (req, res) => {
     orderBy: { createdAt: "desc" },
     take: 200,
   });
-  res.json({ orders });
+  res.json({ orders: await attributeOrders(orders) });
 });
 
 router.get("/orders/:id", async (req, res) => {
   const order = await prisma.order.findUnique({ where: { id: req.params.id }, include: orderInclude });
   if (!order) return res.status(404).json({ error: "Order not found" });
-  res.json({ order });
+  const [attributedOrder] = await attributeOrders([order]);
+  res.json({ order: attributedOrder });
 });
 
 /** Generic forward transition used by approve / reject / pack. */
@@ -100,7 +106,8 @@ async function transition(orderId: string, to: OrderStatus, res: any, actorStaff
     return next;
   });
   if(!updated) return res.status(409).json({error:"order_transition_conflict"});
-  res.json({ order: updated });
+  const [attributedOrder] = await attributeOrders([updated]);
+  res.json({ order: attributedOrder });
 }
 
 router.post("/orders/:id/approve", (req: AdminRequest, res) => transition(req.params.id, "confirmed", res, req.staffAuth?.staffId ?? null));
@@ -170,7 +177,8 @@ router.post("/dispatch/:orderId/assign", async (req: AdminRequest, res) => {
 
   if (!updated) return res.status(409).json({ error: "dispatch_authorization_expired" });
 
-  res.json({ order: updated });
+  const [attributedOrder] = await attributeOrders([updated]);
+  res.json({ order: attributedOrder });
 });
 
 const podSchema = z.object({

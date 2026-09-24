@@ -429,6 +429,12 @@ describe("a planned stop and the visit that happened stay one record", () => {
       .set("Authorization", `Bearer ${tokenA}`);
     expect(orderReadback.status).toBe(200);
     expect(orderReadback.body.order.id).toBe(order.body.order.id);
+    expect(orderReadback.body.order).toMatchObject({
+      source: "SALESPERSON_APP",
+      creatorName: "Field Staff A",
+      retailer: { id: ids.retailerA, name: "Field Store A" },
+      createdAt: expect.any(String),
+    });
     const commercialCodes = orderReadback.body.commercialStatus.timeline.map((event: { code: string }) => event.code);
     expect(commercialCodes).toContain("SALES_ORDER_PUNCHED");
     if (order.body.dispatchAuthorization) {

@@ -102,7 +102,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
             </View>
             <StatusPill status={order.status} />
           </View>
-          <Text style={styles.muted}>{order.placedBy === "rep" ? "Placed from Salesperson" : "Placed from Retailer"} · {new Date(order.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</Text>
+          <Text style={styles.muted}>{order.source === "SALESPERSON_APP" || order.placedBy === "rep" ? `Order punched by ${order.creatorName ?? "Salesperson"}` : "Order placed via Retailer App"} · {new Date(order.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</Text>
           {order.retailer?.shopAddress ? <Text style={styles.muted}>{order.retailer.shopAddress}</Text> : null}
           <OrderTimeline status={order.status} />
         </Surface>

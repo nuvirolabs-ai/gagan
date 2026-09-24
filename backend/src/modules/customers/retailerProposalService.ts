@@ -127,6 +127,16 @@ function publicProposal(proposal: any, photoUrl?: string | null) {
   };
 }
 
+function attributedOrderIntent(proposal: any, intent: any) {
+  return {
+    ...intent,
+    source: "SALESPERSON_APP",
+    creatorName: intent.submittedBy?.name ?? null,
+    retailer: { id: proposal.retailerId ?? null, name: proposal.businessName },
+    createdAt: intent.punchedAt,
+  };
+}
+
 /**
  * Adding a store to the customer master, proposed from the field.
  *
@@ -276,6 +286,7 @@ export class RetailerProposalService {
           include: {
             items: { select: { variantId: true, qty: true, productName: true, unitSize: true, unitsPerCase: true } },
             convertedOrder: { select: { id: true, orderNo: true, status: true } },
+            submittedBy: { select: { id: true, name: true } },
           },
         },
       },
@@ -285,7 +296,7 @@ export class RetailerProposalService {
     return proposals.map((proposal: any) => ({
       ...publicProposal(proposal),
       orderIntents: (proposal.orderIntents ?? []).map((intent: any) => ({
-        ...intent,
+        ...attributedOrderIntent(proposal, intent),
         demandState: proposal.status === "pending"
           ? "waiting_for_retailer_approval"
           : proposal.status === "approved"
@@ -575,7 +586,14 @@ export class RetailerProposalService {
         reviewedBy: { select: { id: true, name: true } },
         proposedTier: { select: { id: true, name: true } },
         aadhaarPhotoAsset: true,
-        orderIntents: { select: { id: true } },
+        orderIntents: {
+          select: {
+            id: true,
+            punchedAt: true,
+            submittedBy: { select: { id: true, name: true } },
+          },
+          orderBy: { punchedAt: "desc" },
+        },
       },
       orderBy: [{ status: "asc" }, { submittedAt: "desc" }],
       take: 200,
@@ -593,7 +611,12 @@ export class RetailerProposalService {
             photoUrl = null;
           }
         }
-        return publicProposal(proposal, photoUrl);
+        return {
+          ...publicProposal(proposal, photoUrl),
+          orderIntents: (proposal.orderIntents ?? []).map((intent: any) =>
+            attributedOrderIntent(proposal, intent)
+          ),
+        };
       })
     );
   }

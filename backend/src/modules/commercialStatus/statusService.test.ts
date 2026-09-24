@@ -163,14 +163,18 @@ describe("internal commercial status", () => {
       decision: { result: "approval_required", reasons: ["internal_reason"] },
       approvalRequest: { id: "approval-1", requestedByStaffId: "staff-1", requestReason: "internal" },
     } as any);
-    expect(pendingResponse).toEqual({ order: { id: "order-1", status: "placed", salesOrderState: "punched" } });
+    expect(pendingResponse).toEqual({ order: {
+      id: "order-1", status: "placed", source: "RETAILER_APP", creatorName: null, salesOrderState: "punched",
+    } });
 
     const createdResponse = retailerOrderCreatedResponse({
       order: { id: "order-2", status: "placed" },
       decision: { result: "allowed", reasons: [] },
       dispatchAuthorization: { id: "dispatch-2", assessmentId: "assessment-2" },
     } as any);
-    expect(createdResponse).toEqual({ order: { id: "order-2", status: "placed", salesOrderState: "created" } });
+    expect(createdResponse).toEqual({ order: {
+      id: "order-2", status: "placed", source: "RETAILER_APP", creatorName: null, salesOrderState: "created",
+    } });
     expect(createdResponse).not.toHaveProperty("dispatchAuthorization");
     expect(createdResponse.order).not.toHaveProperty("decision");
   });
@@ -193,5 +197,41 @@ describe("internal commercial status", () => {
     expect(created).toMatchObject({ salesOrderState: "created" });
     expect(created).not.toHaveProperty("commercialStatusEvents");
     expect(created).not.toHaveProperty("actorStaffId");
+  });
+
+  it("exposes order source and salesperson attribution without leaking event records", () => {
+    const createdAt = new Date("2026-09-25T10:15:00Z");
+    const order = retailerOrderView({
+      id: "order-source-1",
+      retailerId: "retailer-source-1",
+      retailer: { id: "retailer-source-1", name: "Bharat Stores" },
+      placedBy: "rep",
+      placedByRepId: "rep-source-1",
+      createdAt,
+      commercialStatusEvents: [{
+        code: CommercialStatusCode.SALES_ORDER_PUNCHED,
+        actorStaffId: "staff-private",
+        actorStaff: { id: "staff-private", name: "Asha Verma" },
+      }],
+    });
+
+    expect(order).toMatchObject({
+      source: "SALESPERSON_APP",
+      creatorName: "Asha Verma",
+      retailer: { id: "retailer-source-1", name: "Bharat Stores" },
+      createdAt,
+    });
+    expect(order).not.toHaveProperty("commercialStatusEvents");
+    expect(order).not.toHaveProperty("actorStaffId");
+  });
+
+  it("labels retailer-created orders explicitly", () => {
+    expect(retailerOrderView({
+      id: "order-retailer-source",
+      retailerId: "retailer-source-1",
+      placedBy: "retailer",
+      createdAt: new Date("2026-09-25T10:15:00Z"),
+      commercialStatusEvents: [],
+    })).toMatchObject({ source: "RETAILER_APP", creatorName: null });
   });
 });

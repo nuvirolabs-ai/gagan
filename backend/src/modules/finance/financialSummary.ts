@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
-import { financialAgeingFor } from "./financialQueries";
+import { financialAgeingFor, financialInvoiceProjectionFor } from "./financialQueries";
 import type { AgeingBuckets } from "../../lib/ageing";
+import type { AttributionStatus, EntityAmounts } from "./entityAttribution";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -11,6 +12,11 @@ export type FinancialSummary = {
   creditUsed: number;
   availableCredit: number;
   invoiceAgeing: AgeingBuckets | null;
+  entityBalances: {
+    outstanding: EntityAmounts;
+    overdue: EntityAmounts;
+    attributionStatus: AttributionStatus;
+  };
   source: "local_invoice_ledger" | "cached_retailer_balance";
   syncedAt: Date | null;
   isStale: boolean;
@@ -37,6 +43,11 @@ export async function financialSummaryFor(db: Db, retailerId: string, now = new 
       creditUsed: outstanding,
       availableCredit: Math.max(creditLimit - outstanding, 0),
       invoiceAgeing,
+      entityBalances: {
+        outstanding: { jainTraders: 0, padamInternational: 0, unattributed: outstanding },
+        overdue: { jainTraders: 0, padamInternational: 0, unattributed: overdue },
+        attributionStatus: "contains_unattributed",
+      },
       source: invoiceAgeing ? "local_invoice_ledger" : "cached_retailer_balance",
       syncedAt: null,
       isStale: !invoiceAgeing,
@@ -48,7 +59,8 @@ export async function financialSummaryFor(db: Db, retailerId: string, now = new 
     db.invoice.findFirst({ where: { retailerId }, orderBy: { updatedAt: "desc" }, select: { updatedAt: true } }),
   ]);
   const hasLocalInvoices = invoiceCount > 0;
-  const invoiceAgeing = hasLocalInvoices ? await financialAgeingFor(db, retailerId, now) : null;
+  const projection = hasLocalInvoices ? await financialInvoiceProjectionFor(db, retailerId, now) : null;
+  const invoiceAgeing = projection?.ageing ?? null;
   const outstanding = invoiceAgeing ? invoiceAgeing.totalOutstanding : Number(retailer.currentBalance);
   const overdue = invoiceAgeing ? invoiceAgeing.totalOverdue : Number(retailer.overdueAmount);
   const creditLimit = Number(retailer.creditLimit);
@@ -60,6 +72,11 @@ export async function financialSummaryFor(db: Db, retailerId: string, now = new 
     creditUsed: outstanding,
     availableCredit: Math.max(creditLimit - outstanding, 0),
     invoiceAgeing,
+    entityBalances: projection?.entityBalances ?? {
+      outstanding: { jainTraders: 0, padamInternational: 0, unattributed: outstanding },
+      overdue: { jainTraders: 0, padamInternational: 0, unattributed: overdue },
+      attributionStatus: "contains_unattributed",
+    },
     source: hasLocalInvoices ? "local_invoice_ledger" : "cached_retailer_balance",
     syncedAt: hasLocalInvoices ? latestInvoice?.updatedAt ?? null : null,
     isStale: !hasLocalInvoices,

@@ -9,6 +9,109 @@ const LEDGER_LABELS: Record<string, string> = {
   payment_reversal: "Payment reversal",
 };
 
+type EntityKey = "jainTraders" | "padamInternational" | "unattributed";
+type EntityAmounts = Record<EntityKey, number>;
+type AttributionStatus = "complete" | "contains_unattributed" | "review_required";
+type EntityBalance = EntityAmounts & { attributionStatus?: AttributionStatus };
+
+const ENTITY_LABELS: Record<EntityKey, string> = {
+  jainTraders: "Jain Traders",
+  padamInternational: "Padam International",
+  unattributed: "Unattributed / legacy",
+};
+
+function entityAmountsMatchTotal(value: EntityAmounts | null | undefined, expectedTotal: number) {
+  if (!value || !Number.isFinite(expectedTotal) || expectedTotal < 0) return false;
+  const keys: EntityKey[] = ["jainTraders", "padamInternational", "unattributed"];
+  if (!keys.every((key) => Number.isFinite(value[key]) && value[key] >= 0)) return false;
+  const sumCents = keys.reduce((sum, key) => sum + Math.round(value[key] * 100), 0);
+  return sumCents === Math.round(expectedTotal * 100);
+}
+
+function entityRows(value: EntityBalance | null | undefined, expectedTotal: number, fallbackStatus?: AttributionStatus) {
+  if (!value) {
+    if (fallbackStatus !== "review_required") return null;
+    return {
+      rows: Number.isFinite(expectedTotal) && expectedTotal >= 0
+        ? [{ key: "unattributed" as const, amount: Math.round(expectedTotal * 100) / 100 }]
+        : [],
+      status: "review_required" as const,
+    };
+  }
+  const keys: EntityKey[] = ["jainTraders", "padamInternational", "unattributed"];
+  const status = value.attributionStatus ?? fallbackStatus;
+  const expectedCents = Number.isFinite(expectedTotal) && expectedTotal >= 0
+    ? Math.round(expectedTotal * 100)
+    : null;
+  if (!entityAmountsMatchTotal(value, expectedTotal)) {
+    return {
+      rows: expectedCents == null ? [] : [{ key: "unattributed" as const, amount: expectedCents / 100 }],
+      status: "review_required" as const,
+    };
+  }
+  if (status === "review_required" && (value.jainTraders > 0 || value.padamInternational > 0)) {
+    return {
+      rows: expectedCents == null ? [] : [{ key: "unattributed" as const, amount: expectedCents / 100 }],
+      status: "review_required" as const,
+    };
+  }
+
+  const sumCents = keys.reduce((sum, key) => sum + Math.round(value[key] * 100), 0);
+  if (sumCents === 0 && status !== "review_required") return null;
+  const rows: Array<{ key: EntityKey; amount: number }> = [];
+  if (value.jainTraders > 0 || value.padamInternational > 0) {
+    rows.push({ key: "jainTraders", amount: value.jainTraders });
+    rows.push({ key: "padamInternational", amount: value.padamInternational });
+  }
+  if (value.unattributed > 0 || (status === "review_required" && rows.length === 0)) {
+    rows.push({ key: "unattributed", amount: value.unattributed });
+  }
+  return { rows, status };
+}
+
+function EntityAttribution({
+  value,
+  expectedTotal,
+  overdue,
+  expectedOverdue,
+  status,
+  compact = false,
+}: {
+  value?: EntityBalance | null;
+  expectedTotal: number;
+  overdue?: EntityAmounts | null;
+  expectedOverdue?: number;
+  status?: AttributionStatus;
+  compact?: boolean;
+}) {
+  const attribution = entityRows(value, expectedTotal, status);
+  const reconciledOverdue = entityAmountsMatchTotal(overdue, expectedOverdue ?? Number.NaN) ? overdue : null;
+  if (!attribution || (attribution.rows.length === 0 && attribution.status !== "review_required")) return null;
+
+  return (
+    <div className={compact ? "entity-ledger" : "entity-summary"} aria-label="Company-wise balance">
+      {!compact ? <h2>Company-wise balance</h2> : null}
+      <div className={compact ? "entity-ledger-rows" : "entity-summary-rows"}>
+        {attribution.rows.map((row) => (
+          <div className="entity-row" key={row.key}>
+            <span className="entity-name">{ENTITY_LABELS[row.key]}</span>
+            <strong>{inr(row.amount)}</strong>
+            {!compact && reconciledOverdue && reconciledOverdue[row.key] > 0 ? (
+              <small>{inr(reconciledOverdue[row.key])} overdue</small>
+            ) : null}
+          </div>
+        ))}
+      </div>
+      {attribution.status === "contains_unattributed" ? (
+        <p className="entity-note">Some historical or unallocated amounts are shown separately.</p>
+      ) : null}
+      {attribution.status === "review_required" ? (
+        <p className="entity-warning"><strong>Review required.</strong> This amount has not been assigned to a company.</p>
+      ) : null}
+    </div>
+  );
+}
+
 export default function Ledger() {
   const { retailerId } = useParams();
   const [retailers, setRetailers] = useState<any[]>([]);
@@ -116,6 +219,14 @@ export default function Ledger() {
             </div>
           </div>
 
+          <EntityAttribution
+            value={data.financialSummary?.entityBalances?.outstanding}
+            overdue={data.financialSummary?.entityBalances?.overdue}
+            expectedOverdue={Number(data.overdueAmount)}
+            status={data.financialSummary?.entityBalances?.attributionStatus}
+            expectedTotal={Number(data.currentBalance)}
+          />
+
           <form className="card" onSubmit={recordPayment}>
             <h3 style={{ marginTop: 0, fontSize: 15 }}>Record a payment</h3>
             <div className="row">
@@ -169,6 +280,7 @@ export default function Ledger() {
                         {e.invoice
                           ? `Invoice #${e.invoice.invoiceNumber}`
                           : e.payment?.id ?? "—"}
+                        <EntityAttribution value={e.entityBreakdown} expectedTotal={Number(e.amount)} compact />
                       </td>
                       <td
                         className="right"

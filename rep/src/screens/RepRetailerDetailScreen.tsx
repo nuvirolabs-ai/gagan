@@ -32,6 +32,7 @@ import {
   KeyboardSafeScrollView,
 } from "../components/ui";
 import ActivityComposer, { ACTIVITY_LABELS } from "../components/ActivityComposer";
+import EntityAttribution from "../components/EntityAttribution";
 import { haptic } from "../feedback/haptics";
 import { useLanguage } from "../i18n/LanguageContext";
 
@@ -156,7 +157,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
     );
   }
 
-  const { retailer, credit, recentOrders, recentLedger, kyc } = data;
+  const { retailer, credit, recentOrders, recentLedger, kyc, financialSummary } = data;
   const kycApproved = retailer.lifecycle === "active" && (kyc?.status === "approved" || kyc?.legacyVerified === true);
   const blocked = credit.available <= 0 || !kycApproved;
   const visiting = Boolean(activeVisit && !activeVisit.checkedOutAt);
@@ -290,6 +291,13 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
               </Text>
             </View>
           </View>
+          <EntityAttribution
+            amounts={financialSummary?.entityBalances?.outstanding}
+            overdue={financialSummary?.entityBalances?.overdue}
+            expectedOverdue={Number(credit.overdue)}
+            status={financialSummary?.entityBalances?.attributionStatus}
+            expectedTotal={Number(credit.outstanding)}
+          />
         </Surface>
 
         {baseline ? (
@@ -550,6 +558,12 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
                   <Text style={styles.muted}>
                     {new Date(e.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
                   </Text>
+                  <EntityAttribution
+                    amounts={e.entityBreakdown}
+                    status={e.entityBreakdown?.attributionStatus}
+                    expectedTotal={Number(e.amount)}
+                    compact
+                  />
                 </View>
                 <Text
                   style={[

@@ -19,4 +19,10 @@ describe("salesperson translations", () => {
     expect(translate("en", "today.niceWork")).toBe("Nice work");
     expect(translate("hi", "today.niceWork")).toBe("अच्छा काम");
   });
+
+  it("labels company balances and unattributed review amounts", () => {
+    expect(translate("en", "finance.companySplit")).toBe("Company-wise balance");
+    expect(translate("hi", "finance.jainTraders")).toBe("Jain Traders");
+    expect(translate("hi", "finance.unattributed")).toBe("असंबद्ध / पुराना बकाया");
+  });
 });

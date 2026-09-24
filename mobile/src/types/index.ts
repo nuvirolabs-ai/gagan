@@ -36,6 +36,24 @@ export interface OrderItem {
 
 export type SalesOrderState = "punched" | "created";
 
+export interface EntityAmounts {
+  jainTraders: number;
+  padamInternational: number;
+  unattributed: number;
+}
+
+export type FinancialAttributionStatus = "complete" | "contains_unattributed" | "review_required";
+
+export interface EntityBreakdown extends EntityAmounts {
+  attributionStatus: FinancialAttributionStatus;
+}
+
+export interface EntityBalances {
+  outstanding: EntityAmounts;
+  overdue: EntityAmounts;
+  attributionStatus: FinancialAttributionStatus;
+}
+
 export interface Order {
   id: string;
   orderNo: number;
@@ -53,4 +71,5 @@ export interface LedgerEntry {
   amount: string | number;
   balanceAfter: string | number;
   createdAt: string;
+  entityBreakdown?: EntityBreakdown;
 }

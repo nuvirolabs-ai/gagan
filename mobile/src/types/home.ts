@@ -1,3 +1,5 @@
+import type { EntityBalances } from "./index";
+
 export interface HomeSalesRep {
   name: string;
   phone: string;
@@ -118,6 +120,7 @@ export interface HomePayload {
   retailer: { id: string; name: string; phone: string; tier: string };
   salesRep: HomeSalesRep | null;
   credit: HomeCredit;
+  financialSummary?: { entityBalances?: EntityBalances };
   scheme: HomeScheme | null;
   quickOrder: QuickOrderItem[];
   productGroups: HomeProductGroup[];

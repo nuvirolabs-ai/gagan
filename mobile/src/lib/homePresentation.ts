@@ -5,6 +5,7 @@ import type {
   HomeProductGroup,
   HomeScheme,
 } from "../types/home";
+import type { EntityAmounts, EntityBalances, FinancialAttributionStatus } from "../types";
 import { inr } from "../theme";
 import type { CartLine } from "../types";
 
@@ -36,6 +37,71 @@ export interface AccountModel {
   outstanding: number | null;
   overdue: number | null;
   available: number | null;
+  entityRows: EntityAttributionRow[];
+  entityAttributionStatus: FinancialAttributionStatus | null;
+}
+
+export interface EntityAttributionRow {
+  key: keyof EntityAmounts;
+  outstanding: number;
+  overdue: number;
+}
+
+export function entityAttributionPresentation(
+  amounts: EntityAmounts | null | undefined,
+  status: FinancialAttributionStatus | null = null,
+  expectedTotal?: number | null,
+  overdue?: EntityAmounts | null,
+  expectedOverdue?: number | null
+): { rows: EntityAttributionRow[]; status: FinancialAttributionStatus | null } {
+  const keys = ["jainTraders", "padamInternational", "unattributed"] as const;
+  const validAmounts = (value: EntityAmounts) => keys.every((key) => Number.isFinite(value[key]) && value[key] >= 0);
+  const cents = (value: number | null | undefined) =>
+    value != null && Number.isFinite(value) && value >= 0 ? Math.round(value * 100) : null;
+  const amountCents = cents(expectedTotal);
+  const sumCents = (value: EntityAmounts) => keys.reduce((sum, key) => sum + Math.round(value[key] * 100), 0);
+
+  if (!amounts) {
+    if (status === "review_required") {
+      return {
+        rows: amountCents == null ? [] : [{ key: "unattributed", outstanding: amountCents / 100, overdue: 0 }],
+        status,
+      };
+    }
+    return { rows: [], status: null };
+  }
+
+  if (!validAmounts(amounts) || amountCents == null || sumCents(amounts) !== amountCents) {
+    return {
+      rows: amountCents == null ? [] : [{ key: "unattributed", outstanding: amountCents / 100, overdue: 0 }],
+      status: "review_required",
+    };
+  }
+  if (status === "review_required" && (amounts.jainTraders > 0 || amounts.padamInternational > 0)) {
+    return { rows: [{ key: "unattributed", outstanding: amountCents / 100, overdue: 0 }], status };
+  }
+
+  const overdueCents = cents(expectedOverdue);
+  const overdueIsValid = overdue
+    ? validAmounts(overdue) && overdueCents != null && sumCents(overdue) === overdueCents
+    : overdueCents == null || overdueCents === 0;
+  const presentationStatus: FinancialAttributionStatus | null = !overdueIsValid
+    ? "review_required"
+    : amounts.unattributed > 0 && status !== "review_required"
+      ? "contains_unattributed"
+      : status;
+  if (keys.every((key) => amounts[key] === 0) && presentationStatus !== "review_required") {
+    return { rows: [], status: presentationStatus };
+  }
+
+  const rows = keys
+    .filter((key) => key !== "unattributed" || amounts.unattributed !== 0 || presentationStatus === "review_required")
+    .map((key) => ({
+      key,
+      outstanding: amounts[key],
+      overdue: overdueIsValid && overdue ? overdue[key] : 0,
+    }));
+  return { rows, status: presentationStatus };
 }
 
 export function homeSurface(loading: boolean, data: unknown | null): "skeleton" | "error" | "ready" {
@@ -143,16 +209,37 @@ export function selectHero(input: {
   };
 }
 
-export function accountModel(credit: HomeCredit | null | undefined): AccountModel {
+export function accountModel(
+  credit: HomeCredit | null | undefined,
+  entityBalances?: EntityBalances | null
+): AccountModel {
   if (!credit) {
-    return { kind: "unavailable", outstanding: null, overdue: null, available: null };
+    return {
+      kind: "unavailable",
+      outstanding: null,
+      overdue: null,
+      available: null,
+      entityRows: [],
+      entityAttributionStatus: null,
+    };
   }
+  const attribution = entityAttributionPresentation(
+    entityBalances?.outstanding,
+    entityBalances?.attributionStatus ?? null,
+    credit.outstanding,
+    entityBalances?.overdue,
+    credit.overdue
+  );
+  const entityAttributionStatus = attribution.status;
+  const entityRows = attribution.rows;
   if (credit.outstanding <= 0) {
     return {
       kind: "clear",
       outstanding: 0,
       overdue: credit.overdue,
       available: credit.available,
+      entityRows,
+      entityAttributionStatus,
     };
   }
   return {
@@ -160,6 +247,8 @@ export function accountModel(credit: HomeCredit | null | undefined): AccountMode
     outstanding: credit.outstanding,
     overdue: credit.overdue,
     available: credit.available,
+    entityRows,
+    entityAttributionStatus,
   };
 }
 

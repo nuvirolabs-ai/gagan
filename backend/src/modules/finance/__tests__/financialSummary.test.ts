@@ -4,14 +4,28 @@ import { prisma } from "../../../lib/prisma";
 import { financialSummaryFor } from "../financialSummary";
 
 const run = randomUUID();
-const ids = { tier: `summary-tier-${run}`, retailer: `summary-retailer-${run}`, order: `summary-order-${run}`, invoice: `summary-invoice-${run}` };
+const ids = {
+  tier: `summary-tier-${run}`,
+  retailer: `summary-retailer-${run}`,
+  order: `summary-order-${run}`,
+  invoice: `summary-invoice-${run}`,
+  entityRetailer: `summary-entity-retailer-${run}`,
+  attributedInvoice: `summary-attributed-invoice-${run}`,
+  legacyInvoice: `summary-legacy-invoice-${run}`,
+  payment: `summary-payment-${run}`,
+};
 
 beforeAll(async () => {
   await prisma.tier.create({ data: { id: ids.tier, name: `Summary tier ${run}` } });
   await prisma.retailer.create({ data: { id: ids.retailer, name: "Summary retailer", phone: `87${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "7")}`, shopAddress: "Test", tierId: ids.tier, creditLimit: 100_000, currentBalance: 62_412, overdueAmount: 40_500 } });
+  await prisma.retailer.create({ data: { id: ids.entityRetailer, name: "Entity summary retailer", phone: `88${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "8")}`, shopAddress: "Test", tierId: ids.tier, creditLimit: 100_000, currentBalance: 0, overdueAmount: 0 } });
 });
 
 afterAll(async () => {
+  await prisma.paymentAllocation.deleteMany({ where: { paymentId: ids.payment } });
+  await prisma.payment.deleteMany({ where: { id: ids.payment } });
+  await prisma.invoice.deleteMany({ where: { retailerId: ids.entityRetailer } });
+  await prisma.retailer.delete({ where: { id: ids.entityRetailer } });
   await prisma.invoice.deleteMany({ where: { retailerId: ids.retailer } });
   await prisma.order.deleteMany({ where: { id: ids.order } });
   await prisma.retailer.delete({ where: { id: ids.retailer } });
@@ -22,7 +36,18 @@ afterAll(async () => {
 describe("shared financial summary", () => {
   it("marks cached balances as stale and does not fabricate zero ageing", async () => {
     const summary = await financialSummaryFor(prisma, ids.retailer);
-    expect(summary).toMatchObject({ outstanding: 62_412, overdue: 40_500, source: "cached_retailer_balance", isStale: true, invoiceAgeing: null });
+    expect(summary).toMatchObject({
+      outstanding: 62_412,
+      overdue: 40_500,
+      source: "cached_retailer_balance",
+      isStale: true,
+      invoiceAgeing: null,
+      entityBalances: {
+        outstanding: { jainTraders: 0, padamInternational: 0, unattributed: 62_412 },
+        overdue: { jainTraders: 0, padamInternational: 0, unattributed: 40_500 },
+        attributionStatus: "contains_unattributed",
+      },
+    });
   });
 
   it("uses invoice ageing as the source once local invoices exist", async () => {
@@ -31,5 +56,74 @@ describe("shared financial summary", () => {
     const summary = await financialSummaryFor(prisma, ids.retailer, new Date("2026-08-21"));
     expect(summary).toMatchObject({ outstanding: 12_500, overdue: 12_500, source: "local_invoice_ledger", isStale: false });
     expect(summary?.invoiceAgeing?.totalOutstanding).toBe(12_500);
+  });
+
+  it("reads back entity balances from invoice snapshots and payment allocations", async () => {
+    await prisma.invoice.create({
+      data: {
+        id: ids.attributedInvoice,
+        retailerId: ids.entityRetailer,
+        invoiceDate: new Date("2026-08-01T00:00:00.000Z"),
+        dueDate: new Date("2026-08-10T00:00:00.000Z"),
+        subtotal: 100,
+        total: 100,
+        outstandingAmount: 70,
+        status: "partially_paid",
+        commercialSnapshot: {
+          entities: [
+            { entity: "jain_traders", total: "60.00" },
+            { entity: "padam_international", total: "40.00" },
+          ],
+        },
+        idempotencyKey: `${ids.attributedInvoice}-key`,
+      },
+    });
+    await prisma.invoice.create({
+      data: {
+        id: ids.legacyInvoice,
+        retailerId: ids.entityRetailer,
+        invoiceDate: new Date("2026-08-01T00:00:00.000Z"),
+        dueDate: new Date("2026-09-01T00:00:00.000Z"),
+        subtotal: 25,
+        total: 25,
+        outstandingAmount: 25,
+        idempotencyKey: `${ids.legacyInvoice}-key`,
+      },
+    });
+    await prisma.payment.create({
+      data: {
+        id: ids.payment,
+        retailerId: ids.entityRetailer,
+        amount: 30,
+        status: "succeeded",
+        channel: "manual",
+      },
+    });
+    await prisma.paymentAllocation.create({
+      data: {
+        paymentId: ids.payment,
+        invoiceId: ids.attributedInvoice,
+        amount: 30,
+        jainAmount: 20,
+        padamAmount: 10,
+      },
+    });
+
+    const summary = await financialSummaryFor(prisma, ids.entityRetailer, new Date("2026-08-21T00:00:00.000Z"));
+
+    expect(summary).toMatchObject({
+      outstanding: 95,
+      overdue: 70,
+      entityBalances: {
+        outstanding: { jainTraders: 40, padamInternational: 30, unattributed: 25 },
+        overdue: { jainTraders: 40, padamInternational: 30, unattributed: 0 },
+        attributionStatus: "contains_unattributed",
+      },
+    });
+    expect(
+      summary!.entityBalances.outstanding.jainTraders +
+        summary!.entityBalances.outstanding.padamInternational +
+        summary!.entityBalances.outstanding.unattributed
+    ).toBe(summary!.outstanding);
   });
 });

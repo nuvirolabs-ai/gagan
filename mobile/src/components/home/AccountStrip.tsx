@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions } from "react-native";
 
 import type { AccountModel } from "../../lib/homePresentation";
+import EntityAttribution from "../finance/EntityAttribution";
 import { colors, radius, spacing, inr } from "../../theme";
 import { useLanguage } from "../../i18n/LanguageContext";
 
@@ -34,6 +35,7 @@ export default function AccountStrip({
         <View style={{ flex: 1 }}>
           <Text style={styles.clearTitle}>{t("home.allClear")}</Text>
           <Text style={styles.clearBody}>{t("home.noPaymentDue")}</Text>
+          <EntityAttribution rows={account.entityRows} status={account.entityAttributionStatus} />
         </View>
         <TouchableOpacity onPress={onLedger} accessibilityRole="button">
           <Text style={styles.link}>{t("home.ledger")}</Text>
@@ -71,6 +73,7 @@ export default function AccountStrip({
           </View>
         ))}
       </View>
+      <EntityAttribution rows={account.entityRows} status={account.entityAttributionStatus} />
       <View style={styles.actions}>
         <TouchableOpacity style={styles.pay} onPress={onPay} accessibilityRole="button" accessibilityLabel={t("home.pay")}>
           <Text style={styles.payText}>{t("home.pay")}</Text>

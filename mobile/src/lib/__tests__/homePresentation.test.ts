@@ -211,6 +211,86 @@ describe("accountModel", () => {
     expect(model.overdue).toBe(40500);
     expect(model.available).toBe(37588);
   });
+
+  it("keeps consolidated totals and exposes each verified entity balance", () => {
+    const model = accountModel({
+      outstanding: 95,
+      overdue: 70,
+      creditLimit: 1000,
+      used: 95,
+      available: 905,
+      utilisationPct: 10,
+    }, {
+      outstanding: { jainTraders: 40, padamInternational: 30, unattributed: 25 },
+      overdue: { jainTraders: 40, padamInternational: 30, unattributed: 0 },
+      attributionStatus: "contains_unattributed",
+    });
+
+    expect(model.outstanding).toBe(95);
+    expect(model.overdue).toBe(70);
+    expect(model.entityRows).toEqual([
+      { key: "jainTraders", outstanding: 40, overdue: 40 },
+      { key: "padamInternational", outstanding: 30, overdue: 30 },
+      { key: "unattributed", outstanding: 25, overdue: 0 },
+    ]);
+    expect(model.entityAttributionStatus).toBe("contains_unattributed");
+  });
+
+  it("does not invent entity rows when an older Home response has no entity data", () => {
+    const model = accountModel({
+      outstanding: 200,
+      overdue: 0,
+      creditLimit: 1000,
+      used: 200,
+      available: 800,
+      utilisationPct: 20,
+    });
+
+    expect(model.outstanding).toBe(200);
+    expect(model.entityRows).toEqual([]);
+    expect(model.entityAttributionStatus).toBeNull();
+  });
+
+  it("fails closed when entity totals or overdue portions do not reconcile", () => {
+    const credit = {
+      outstanding: 95,
+      overdue: 70,
+      creditLimit: 1000,
+      used: 95,
+      available: 905,
+      utilisationPct: 10,
+    };
+    const badOutstanding = accountModel(credit, {
+      outstanding: { jainTraders: 40, padamInternational: 30, unattributed: 20 },
+      overdue: { jainTraders: 40, padamInternational: 30, unattributed: 0 },
+      attributionStatus: "complete",
+    });
+    expect(badOutstanding.entityRows).toEqual([
+      { key: "unattributed", outstanding: 95, overdue: 0 },
+    ]);
+    expect(badOutstanding.entityAttributionStatus).toBe("review_required");
+
+    const badOverdue = accountModel(credit, {
+      outstanding: { jainTraders: 40, padamInternational: 30, unattributed: 25 },
+      overdue: { jainTraders: 40, padamInternational: 20, unattributed: 0 },
+      attributionStatus: "contains_unattributed",
+    });
+    expect(badOverdue.entityRows).toEqual([
+      { key: "jainTraders", outstanding: 40, overdue: 0 },
+      { key: "padamInternational", outstanding: 30, overdue: 0 },
+      { key: "unattributed", outstanding: 25, overdue: 0 },
+    ]);
+    expect(badOverdue.entityAttributionStatus).toBe("review_required");
+
+    const conflictingStatus = accountModel(credit, {
+      outstanding: { jainTraders: 95, padamInternational: 0, unattributed: 0 },
+      overdue: { jainTraders: 70, padamInternational: 0, unattributed: 0 },
+      attributionStatus: "review_required",
+    });
+    expect(conflictingStatus.entityRows).toEqual([
+      { key: "unattributed", outstanding: 95, overdue: 0 },
+    ]);
+  });
 });
 
 describe("reorderLines", () => {

@@ -7,21 +7,17 @@ import { useAuth } from "../context/AuthContext";
 import { colors, spacing, inr } from "../theme";
 import { EmptyState, ScreenSkeleton } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
+import type { EntityBalances, LedgerEntry } from "../types";
+import { entityAttributionPresentation } from "../lib/homePresentation";
+import EntityAttribution from "../components/finance/EntityAttribution";
 
-interface Entry {
-  id: string;
-  type: "invoice" | "payment" | "credit_note" | "payment_reversal";
-  direction: "debit" | "credit";
-  amount: string | number;
-  balanceAfter: string | number;
-  createdAt: string;
-}
+type Entry = LedgerEntry;
 
 export default function LedgerScreen() {
   const { retailer } = useAuth();
   const { t } = useLanguage();
   const [entries, setEntries] = useState<Entry[]>([]);
-  const [summary, setSummary] = useState({ balance: "0", limit: "0" });
+  const [summary, setSummary] = useState({ balance: "0", limit: "0", overdue: "0", entityBalances: null as EntityBalances | null });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -30,7 +26,12 @@ export default function LedgerScreen() {
     if (!retailer?.id) return;
     const res = await api.getLedger(retailer.id);
     setEntries(res.entries);
-    setSummary({ balance: res.currentBalance, limit: res.creditLimit });
+    setSummary({
+      balance: res.currentBalance,
+      limit: res.creditLimit,
+      overdue: String(res.financialSummary?.overdue ?? 0),
+      entityBalances: res.financialSummary?.entityBalances ?? null,
+    });
     setLoadError(false);
   }, [retailer?.id]);
 
@@ -75,6 +76,13 @@ export default function LedgerScreen() {
   }
 
   const balance = Number(summary.balance);
+  const summaryAttribution = entityAttributionPresentation(
+    summary.entityBalances?.outstanding,
+    summary.entityBalances?.attributionStatus ?? null,
+    balance,
+    summary.entityBalances?.overdue,
+    Number(summary.overdue)
+  );
 
   return (
     <View style={styles.screen}>
@@ -92,6 +100,9 @@ export default function LedgerScreen() {
             {inr(balance)}
           </Text>
         </View>
+      </View>
+      <View style={styles.entitySummary}>
+        <EntityAttribution rows={summaryAttribution.rows} status={summaryAttribution.status} />
       </View>
 
       <SectionList
@@ -116,6 +127,11 @@ export default function LedgerScreen() {
         )}
         renderItem={({ item }) => {
           const isDebit = item.direction ? item.direction === "debit" : item.type === "invoice";
+          const attribution = entityAttributionPresentation(
+            item.entityBreakdown,
+            item.entityBreakdown?.attributionStatus ?? null,
+            Number(item.amount)
+          );
           const label = {
             invoice: t("ledger.invoice"),
             payment: t("ledger.paymentReceived"),
@@ -135,6 +151,11 @@ export default function LedgerScreen() {
                     year: "numeric",
                   })}
                 </Text>
+                <EntityAttribution
+                  rows={attribution.rows}
+                  status={attribution.status}
+                  variant="inline"
+                />
               </View>
               <View style={{ alignItems: "flex-end", flexShrink: 0 }}>
                 <Text
@@ -164,6 +185,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
+  entitySummary: { marginHorizontal: spacing.lg },
   cell: { flex: 1, paddingRight: spacing.sm },
   cellBorder: {
     borderLeftWidth: StyleSheet.hairlineWidth,

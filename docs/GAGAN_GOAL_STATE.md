@@ -30,8 +30,9 @@ Updated: 2026-09-24
 
 ### GGN-VIS-02
 
-- Automated: the same backend integration suite proves route progress remains pending after check-in and changes only on explicit checkout. The Rep flow test proves an order stays inside an active visit and “next retailer” is offered only after the matching checkout.
-- Current status remains `IMPLEMENTED BUT NOT VERIFIED`: the tests do not create an order through the app/API during the active visit, then read visit and route state back through the full client flow. That acceptance and physical reload remain open.
+- Automated: the authenticated PostgreSQL integration test submits an order through `/rep/orders` during an active visit, reads it back from `/rep/orders/:id`, confirms `/rep/visits` still returns the same open visit, and verifies route progress remains pending until explicit checkout. The Rep flow test proves “next retailer” is offered only after the matching checkout.
+- Focused `fieldIntegration.test.ts` passed (1 file / 17 tests); the full backend suite passed again (140 files / 982 tests). The isolated order/catalogue fixture cleanup was verified by a local SQL count returning zero matching rows.
+- Current status remains `IMPLEMENTED BUT NOT VERIFIED`: no native app session/device/relaunch was performed, and the “next retailer” decision was verified in app logic rather than through physical navigation.
 
 ## Per-Issue Verification Register
 
@@ -88,7 +89,7 @@ The source files, tests and original gap statements are retained in the matching
 
 ## Next Actions
 
-1. Continue Batch A with GGN-VIS-02: verify the order-create API and visit readback together, then close the remaining screen/navigation acceptance gap.
+1. Continue Batch A with GGN-ORD-01: inspect order state, approval/dispatch authorization and SAP outbox transitions; keep the existing order/visit contract intact.
 2. Proceed in the product goal's exact sequence through Batch A, then Batch B onward. Keep deferred/withdrawn IDs unchanged.
 3. For schema changes, test this fresh 46-migration database and a separate disposable upgrade database from the preceding accepted schema. Never reset an existing DB.
 4. Before hosted writes, re-verify the exact authorized GAGAN staging service/workspace/database and deployed/source identity. No hosted writes are authorized merely by this checkpoint.
@@ -97,3 +98,8 @@ The source files, tests and original gap statements are retained in the matching
 ## Git Checkpoints
 
 - `7773f7237c4dc20bf1138b3e6b6a21c8731455d1` — `test: verify visit readback after check-in`; committed and pushed to `origin/codex/gagan-client-feedback-v2-reconciled`. Adds VIS-01 authenticated PostgreSQL retry/active-and-closed-readback regression assertions and records the starting execution evidence. No product behavior implementation was changed.
+
+## Execution Update — GGN-VIS-02
+
+- Added full local API/DB coverage of salesperson order creation/readback during an active visit and proved checkout remains explicit. Implementation remains unchanged; the issue stays open for native physical acceptance.
+- Full backend verification after the test change: 140 files / 982 tests passed. Test fixtures clean up all created order/catalogue rows.

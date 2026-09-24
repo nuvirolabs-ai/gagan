@@ -19,6 +19,8 @@ const ids = {
   staffA: randomUUID(),
   staffB: randomUUID(),
   manager: randomUUID(),
+  product: randomUUID(),
+  variant: randomUUID(),
 };
 
 let tokenA = "";
@@ -43,6 +45,7 @@ beforeAll(async () => {
         shopAddress: "A",
         tierId: ids.tier,
         salesRepId: ids.repA,
+        creditLimit: 500_000,
       },
       {
         id: ids.retailerB,
@@ -53,6 +56,47 @@ beforeAll(async () => {
         salesRepId: ids.repB,
       },
     ],
+  });
+  await prisma.creditProfile.create({
+    data: {
+      retailerId: ids.retailerA,
+      rating: "N",
+      billingPattern: "unknown",
+      kycVerifiedAt: new Date(),
+    },
+  });
+  await prisma.product.create({
+    data: {
+      id: ids.product,
+      name: `Visit flow product ${run}`,
+      category: "test",
+      sapMaterialId: `FIELD-${run}`,
+    },
+  });
+  await prisma.variant.create({
+    data: {
+      id: ids.variant,
+      productId: ids.product,
+      unitSize: "1",
+      unit: "case",
+      unitsPerCase: 1,
+      unitWeightKg: 1,
+    },
+  });
+  await prisma.priceList.create({
+    data: { tierId: ids.tier, productId: ids.product, variantId: ids.variant, price: 10_000 },
+  });
+  await prisma.inventorySnapshot.create({
+    data: {
+      productId: ids.product,
+      variantId: ids.variant,
+      sapMaterialId: `FIELD-${run}`,
+      warehouseCode: "WH-001",
+      onHand: 100,
+      available: 100,
+      syncedAt: new Date(),
+      status: "available",
+    },
   });
   const salespersonRole = await prisma.role.findUniqueOrThrow({ where: { name: "salesperson" } });
   const managerRole = await prisma.role.findUniqueOrThrow({ where: { name: "field_manager" } });
@@ -96,7 +140,25 @@ beforeAll(async () => {
 
 afterAll(async () => {
   const staffIds = [ids.staffA, ids.staffB, ids.manager];
+  const orders = await prisma.order.findMany({ where: { retailerId: ids.retailerA }, select: { id: true } });
+  const orderIds = orders.map(({ id }) => id);
   await prisma.deviceSession.deleteMany({ where: { subjectId: { in: staffIds } } });
+  await prisma.sapOutbox.deleteMany({ where: { referenceId: { in: orderIds } } });
+  await prisma.commercialStatusEvent.deleteMany({ where: { orderId: { in: orderIds } } });
+  await prisma.dispatchAuthorization.deleteMany({ where: { orderId: { in: orderIds } } });
+  await prisma.approvalDecision.deleteMany({ where: { approvalRequest: { orderId: { in: orderIds } } } });
+  await prisma.approvalEscalation.deleteMany({ where: { approvalRequest: { orderId: { in: orderIds } } } });
+  await prisma.approvalDispute.deleteMany({ where: { approvalRequest: { orderId: { in: orderIds } } } });
+  await prisma.approvalRequest.deleteMany({ where: { orderId: { in: orderIds } } });
+  await prisma.creditDecisionComparison.deleteMany({ where: { orderId: { in: orderIds } } });
+  await prisma.creditAssessment.deleteMany({ where: { orderId: { in: orderIds } } });
+  await prisma.orderItem.deleteMany({ where: { orderId: { in: orderIds } } });
+  await prisma.order.deleteMany({ where: { id: { in: orderIds } } });
+  await prisma.creditProfile.deleteMany({ where: { retailerId: ids.retailerA } });
+  await prisma.priceList.deleteMany({ where: { variantId: ids.variant } });
+  await prisma.inventorySnapshot.deleteMany({ where: { productId: ids.product } });
+  await prisma.variant.delete({ where: { id: ids.variant } });
+  await prisma.product.delete({ where: { id: ids.product } });
   await prisma.locationPing.deleteMany({ where: { salespersonId: { in: staffIds } } });
   await prisma.customerActivity.deleteMany({ where: { salespersonId: { in: staffIds } } });
   await prisma.serviceIssue.deleteMany({ where: { raisedByStaffId: { in: staffIds } } });
@@ -354,6 +416,27 @@ describe("a planned stop and the visit that happened stay one record", () => {
         retailerId: ids.retailerA,
         checkedOutAt: null,
       }),
+    ]));
+
+    const order = await request(app)
+      .post("/rep/orders")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .set("Idempotency-Key", `visit-order-${run}`)
+      .send({ retailerId: ids.retailerA, items: [{ variantId: ids.variant, qty: 1 }] });
+    expect(order.status).toBe(201);
+    const orderReadback = await request(app)
+      .get(`/rep/orders/${order.body.order.id}`)
+      .set("Authorization", `Bearer ${tokenA}`);
+    expect(orderReadback.status).toBe(200);
+    expect(orderReadback.body.order.id).toBe(order.body.order.id);
+
+    const visitAfterOrder = await prisma.salesVisit.findUniqueOrThrow({ where: { id: checkIn.body.visit.id } });
+    expect(visitAfterOrder.checkedOutAt).toBeNull();
+    const recoveredAfterOrder = await request(app)
+      .get("/rep/visits")
+      .set("Authorization", `Bearer ${tokenA}`);
+    expect(recoveredAfterOrder.body.visits).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: checkIn.body.visit.id, checkedOutAt: null }),
     ]));
 
     const after = await request(app).get("/rep/field/route").set("Authorization", `Bearer ${tokenA}`);

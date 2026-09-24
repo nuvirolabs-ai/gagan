@@ -13,14 +13,17 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { api } from "../api/client";
 import { useAuth } from "../context/AuthContext";
-import { colors, radius, spacing, inr, TAB_BAR_SPACE } from "../theme";
+import { useCart } from "../context/CartContext";
+import { colors, radius, spacing, inr, tabBarContentSpace } from "../theme";
 import { ScreenHeader, SectionTitle } from "../components/ui";
 import AccountStrip from "../components/home/AccountStrip";
 import { accountModel } from "../lib/homePresentation";
 import { useLanguage } from "../i18n/LanguageContext";
+import { buildInfo } from "../buildInfo";
 
 export default function ProfileScreen({ navigation }: any) {
   const { logout } = useAuth();
+  const { lines } = useCart();
   const { language, t, setLanguage } = useLanguage();
   const [data, setData] = useState<any | null>(null);
 
@@ -54,6 +57,7 @@ export default function ProfileScreen({ navigation }: any) {
   const retailer = data?.retailer;
   const credit = data?.credit;
   const rep = data?.salesRep;
+  const cartCount = lines.reduce((count, line) => count + line.qty, 0);
 
   const MENU = [
     {
@@ -98,12 +102,18 @@ export default function ProfileScreen({ navigation }: any) {
       hint: "Answer active questions from Gagan",
       onPress: () => navigation.navigate("MarketSurveys"),
     },
+    {
+      icon: "help-circle-outline",
+      label: "Service requests",
+      hint: "Ask for help or review submitted requests",
+      onPress: () => navigation.navigate("ServiceRequests"),
+    },
   ];
 
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={{ paddingBottom: TAB_BAR_SPACE + spacing.xl }}
+      contentContainerStyle={{ paddingBottom: tabBarContentSpace(cartCount) + spacing.xl }}
       showsVerticalScrollIndicator={false}
     >
       <ScreenHeader
@@ -204,7 +214,7 @@ export default function ProfileScreen({ navigation }: any) {
         <Text style={styles.logoutText}>{t("profile.logout")}</Text>
       </TouchableOpacity>
 
-      <Text style={styles.version}>Gagan Retailer · v1.0.0</Text>
+      <Text style={styles.version} accessibilityLabel={`Retailer build ${buildInfo.sourceSha}`}>Gagan Retailer · v{buildInfo.version}</Text>
     </ScrollView>
   );
 }

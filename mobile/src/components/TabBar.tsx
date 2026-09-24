@@ -7,6 +7,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, radius, shadow, spacing } from "../theme";
 import { useCart } from "../context/CartContext";
 import { useLanguage } from "../i18n/LanguageContext";
+import MiniCartBar from "./MiniCartBar";
+import { shouldShowMiniCart } from "../lib/miniCartVisibility";
 
 const ICONS: Record<string, { on: string; off: string; label: string }> = {
   Home: { on: "home", off: "home-outline", label: "Home" },
@@ -20,6 +22,7 @@ export default function TabBar({ state, navigation }: BottomTabBarProps) {
   const { lines } = useCart();
   const { t } = useLanguage();
   const cartCount = lines.reduce((n, l) => n + l.qty, 0);
+  const activeSurface = state.routes[state.index]?.name ?? "";
 
   const cartRoute = state.routes.find((r) => r.name === "Cart");
   const sideRoutes = state.routes.filter((r) => r.name !== "Cart");
@@ -60,6 +63,7 @@ export default function TabBar({ state, navigation }: BottomTabBarProps) {
 
   return (
     <View style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
+      {shouldShowMiniCart(activeSurface) ? <MiniCartBar onPress={() => go("Cart")} /> : null}
       <View style={styles.bar}>
         {left.map((r) => renderTab(r.name))}
 

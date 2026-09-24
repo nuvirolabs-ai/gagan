@@ -29,9 +29,9 @@ function Bone({
 }
 
 /** First-frame Home placeholder. No rupee amounts, no stretched blocks. */
-export default function HomeSkeleton({ top }: { top: number }) {
+export default function HomeSkeleton({ top, bottomSpace = TAB_BAR_SPACE }: { top: number; bottomSpace?: number }) {
   return (
-    <View style={[styles.screen, { paddingTop: top }]} accessibilityLabel="Loading home">
+    <View style={[styles.screen, { paddingTop: top, paddingBottom: bottomSpace }]} accessibilityLabel="Loading home">
       <View style={styles.pad}>
         <Bone width={72} height={10} />
         <Bone width="78%" height={22} style={{ marginTop: 10 }} />
@@ -63,7 +63,7 @@ export default function HomeSkeleton({ top }: { top: number }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg, paddingBottom: TAB_BAR_SPACE },
+  screen: { flex: 1, backgroundColor: colors.bg },
   pad: { paddingHorizontal: spacing.lg, marginBottom: spacing.md },
   mx: { marginHorizontal: spacing.lg, marginBottom: spacing.md },
   search: { height: 44, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },

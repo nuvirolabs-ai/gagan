@@ -17,7 +17,7 @@ export const ACTIVITY_TYPES = [
   { value: "order_placed", label: "Order placed" },
   { value: "payment_discussion", label: "Payment discussion" },
   { value: "collection_completed", label: "Collection done" },
-  { value: "product_demo", label: "Product demo" },
+  { value: "product_demo", label: "Product introduction" },
   { value: "stock_check", label: "Stock check" },
   { value: "merchandising", label: "Merchandising" },
   { value: "complaint_raised", label: "Complaint" },

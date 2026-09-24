@@ -103,6 +103,13 @@ export const shadow = {
  */
 export const TAB_BAR_SPACE = 96;
 
+/** Additional space only when the live mini-cart is actually visible. */
+export const MINI_CART_SPACE = 72;
+
+export function tabBarContentSpace(itemCount: number): number {
+  return TAB_BAR_SPACE + (itemCount > 0 ? MINI_CART_SPACE : 0);
+}
+
 /**
  * WCAG 2.1 relative luminance, used to keep the palette honest: a token pair
  * that fails contrast is a bug the tests catch rather than something a reader

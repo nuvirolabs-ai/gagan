@@ -133,24 +133,25 @@ export class RouteService {
 
   async skipStop(input: { stopId: string; salespersonId: string; reason: string }) {
     if (!input.reason.trim()) throw new FieldServiceError("skip_reason_required", 400);
-    const stop = await this.prisma.routePlanStop.findUnique({
-      where: { id: input.stopId },
-      include: { routePlan: { select: { salespersonId: true } } },
-    });
-    if (!stop || stop.routePlan.salespersonId !== input.salespersonId) {
-      throw new FieldServiceError("route_stop_not_found", 404);
-    }
-    if (stop.status !== "pending") throw new FieldServiceError("route_stop_already_settled", 409);
-    return this.prisma.routePlanStop.update({
-      where: { id: stop.id },
-      data: { status: "skipped", skipReason: input.reason.trim() },
+    return this.prisma.$transaction(async (tx: Db) => {
+      await tx.$queryRaw`SELECT "id" FROM "RoutePlanStop" WHERE "id" = ${input.stopId} FOR UPDATE`;
+      const stop = await tx.routePlanStop.findUnique({
+        where: { id: input.stopId },
+        include: { routePlan: { select: { salespersonId: true } }, visits: { where: { checkedOutAt: null }, select: { id: true } } },
+      });
+      if (!stop || stop.routePlan.salespersonId !== input.salespersonId) throw new FieldServiceError("route_stop_not_found", 404);
+      if (stop.status !== "pending") throw new FieldServiceError("route_stop_already_settled", 409);
+      if (stop.visits?.length) throw new FieldServiceError("route_stop_visit_active", 409);
+      return tx.routePlanStop.update({
+        where: { id: stop.id },
+        data: { status: "skipped", skipReason: input.reason.trim() },
+      });
     });
   }
 
   /**
-   * Called right after a check-in. If today's published plan has a pending stop
-   * for that store, the visit fulfils it — the planned stop and the visit that
-   * happened stay one record instead of two.
+   * Link a planned stop at check-in without counting it as visited. Route
+   * progress is earned only by the explicit, successful visit checkout.
    */
   async linkVisitToPlannedStop(input: {
     visitId: string;
@@ -169,6 +170,7 @@ export class RouteService {
       where: {
         retailerId: input.retailerId,
         status: "pending",
+        visits: { none: {} },
         routePlan: {
           salespersonId: input.salespersonId,
           planDate: startOfDay(at),
@@ -178,11 +180,12 @@ export class RouteService {
       orderBy: { sequence: "asc" },
     });
     if (!stop) return null;
-      const claimed = await tx.routePlanStop.updateMany({
-        where: { id: stop.id, status: "pending" },
-        data: { status: "visited", visitedAt: at },
+      await tx.$queryRaw`SELECT "id" FROM "RoutePlanStop" WHERE "id" = ${stop.id} FOR UPDATE`;
+      const current = await tx.routePlanStop.findUnique({
+        where: { id: stop.id },
+        include: { visits: { select: { id: true } } },
       });
-      if (claimed.count !== 1) return null;
+      if (!current || current.status !== "pending" || current.visits.length) return null;
       await tx.salesVisit.update({
         where: { id: input.visitId },
         data: { routeStopId: stop.id, purpose: stop.purpose },
@@ -239,15 +242,15 @@ export class RouteService {
       });
     }
 
-    const existing = await this.prisma.routePlan.findUnique({
-      where: { salespersonId_planDate: { salespersonId: input.salespersonId, planDate } },
-      include: { stops: { select: { id: true, retailerId: true, status: true } } },
-    });
-    if (existing?.stops.some((stop: any) => stop.status !== "pending")) {
-      throw new FieldServiceError("route_already_in_progress", 409);
-    }
-
     return this.prisma.$transaction(async (tx: Db) => {
+      await tx.$queryRaw`SELECT "id" FROM "StaffUser" WHERE "id" = ${input.salespersonId} FOR UPDATE`;
+      const existing = await tx.routePlan.findUnique({
+        where: { salespersonId_planDate: { salespersonId: input.salespersonId, planDate } },
+        include: { stops: { select: { id: true, retailerId: true, status: true, visits: { where: { checkedOutAt: null }, select: { id: true } } } } },
+      });
+      if (existing?.stops.some((stop: any) => stop.status !== "pending" || stop.visits?.length)) {
+        throw new FieldServiceError("route_already_in_progress", 409);
+      }
       const plan = await tx.routePlan.upsert({
         where: { salespersonId_planDate: { salespersonId: input.salespersonId, planDate } },
         create: {

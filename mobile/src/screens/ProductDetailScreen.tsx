@@ -12,8 +12,10 @@ import { api } from "../api/client";
 import { useCart } from "../context/CartContext";
 import { colors, radius, spacing, inr } from "../theme";
 import ProductThumb from "../components/ProductThumb";
+import MiniCartBar from "../components/MiniCartBar";
 import { QtyStepper, EmptyState, ScreenSkeleton, SectionTitle } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
+import { canChangeCatalogQuantity } from "../lib/catalogInteractions";
 import { catalogPricePresentation } from "../lib/catalogPricePresentation";
 
 export default function ProductDetailScreen({ route, navigation }: any) {
@@ -86,13 +88,7 @@ export default function ProductDetailScreen({ route, navigation }: any) {
   const inCart = selected ? (lines.find((l) => l.variantId === selected.id)?.qty ?? 0) : 0;
 
   const setQty = (next: number) => {
-    if (!selected || selected.price == null) return;
-    const availability = selected.availability;
-    const stockReady = !availability || availability.status == null || availability.status === "unknown"
-      ? true
-      : availability.status === "available" && Number(availability.available ?? 0) > 0;
-    const orderable = selected.orderable !== false && stockReady;
-    if (next > inCart && !orderable) return;
+    if (!selected || !canChangeCatalogQuantity(selected, inCart, next)) return;
     if (inCart === 0 && next > 0) {
       addLine({
         variantId: selected.id,
@@ -107,10 +103,12 @@ export default function ProductDetailScreen({ route, navigation }: any) {
   };
 
   const lineTotal = selected?.price != null ? Number(selected.price) * Math.max(inCart, 1) : 0;
+  const priceDisplay = catalogPricePresentation(selected);
+  const canAddSelected = selected ? canChangeCatalogQuantity(selected, inCart, inCart + 1) : false;
 
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 220 }} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
           <ProductThumb
             name={product.name}
@@ -153,26 +151,27 @@ export default function ProductDetailScreen({ route, navigation }: any) {
           {selected && (
             <View style={styles.priceBand}>
               <View>
-                <Text style={styles.priceLabel}>{selected.rateBasis === "quintal" ? "Commercial rate" : t("product.pricePerCase")}</Text>
+                <Text style={styles.priceLabel}>{selected.rateBasis?.toLowerCase() === "quintal" ? "Commercial rate" : t("product.pricePerCase")}</Text>
                 <Text
                   style={styles.price}
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.7}
                 >
-                  {catalogPricePresentation(selected).primary}
+                  {priceDisplay.primary}
                 </Text>
               </View>
-              {selected.pricePerKg != null && (
+              {priceDisplay.perKg && (
                 <View style={styles.perKgBox}>
-                  <Text style={styles.perKgValue}>{catalogPricePresentation(selected).perKg}</Text>
+                  <Text style={styles.perKgValue}>{priceDisplay.perKg}</Text>
                 </View>
               )}
             </View>
           )}
-          {catalogPricePresentation(selected).caseEquivalent ? <Text style={styles.rateLabel}>{catalogPricePresentation(selected).caseEquivalent}</Text> : null}
-          {selected?.rateLabel ? <Text style={styles.rateLabel}>Excluding GST</Text> : null}
-          {selected?.gstPending ? <Text style={styles.pendingOrder}>GST pending · invoice blocked until configured</Text> : null}
+          {priceDisplay.caseEquivalent ? <Text style={styles.rateLabel}>{priceDisplay.caseEquivalent}</Text> : null}
+          {selected?.rateBasis?.toLowerCase() === "quintal" || selected?.rateLabel ? <Text style={styles.rateLabel}>Excluding GST</Text> : null}
+          {selected?.gstPending || selected?.taxStatus === "PENDING" ? <Text style={styles.pendingOrder}>GST pending — final tax will be applied before invoicing.</Text> : null}
+          {selected?.rateBasis?.toLowerCase() === "quintal" || selected?.rateLabel ? <Text style={styles.rateLabel}>Excluding GST</Text> : null}
           {selected?.orderable === false ? <Text style={styles.pendingOrder}>{selected.orderingReason ?? "Ordering setup pending"}</Text> : null}
           {selected?.isOverride ? (
             <View style={styles.override}>
@@ -202,28 +201,31 @@ export default function ProductDetailScreen({ route, navigation }: any) {
         </View>
       </ScrollView>
 
-      <View style={styles.bar}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.barLabel}>{inCart > 0 ? `${inCart} case(s) in cart` : t("product.subtotal")}</Text>
-          <Text style={styles.barValue}>{inr(lineTotal)}</Text>
-        </View>
-        {inCart > 0 ? (
-          <View style={styles.barActions}>
-            <QtyStepper qty={inCart} onChange={setQty} />
-            <TouchableOpacity style={styles.viewCart} onPress={() => navigation.navigate("Main", { screen: "Cart" })}>
-              <Text style={styles.viewCartText}>{t("product.viewCart")}</Text>
-            </TouchableOpacity>
+      <View style={styles.footer}>
+        <MiniCartBar onPress={() => navigation.navigate("Main", { screen: "Cart" })} />
+        <View style={styles.bar}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.barLabel}>{inCart > 0 ? `${inCart} case(s) in cart` : t("product.subtotal")}</Text>
+            <Text style={styles.barValue}>{inr(lineTotal)}</Text>
           </View>
-        ) : (
-          <TouchableOpacity
-            style={[styles.addBtn, (selected?.price == null || selected?.orderable === false) && styles.addBtnDisabled]}
-            disabled={selected?.price == null || selected?.orderable === false}
-            onPress={() => setQty(1)}
-          >
-            <Ionicons name="cart-outline" size={17} color={colors.onDark} />
-            <Text style={styles.addBtnText}>{t("product.addToCart")}</Text>
-          </TouchableOpacity>
-        )}
+          {inCart > 0 ? (
+            <View style={styles.barActions}>
+              <QtyStepper qty={inCart} onChange={setQty} />
+              <TouchableOpacity style={styles.viewCart} onPress={() => navigation.navigate("Main", { screen: "Cart" })}>
+                <Text style={styles.viewCartText}>{t("product.viewCart")}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[styles.addBtn, !canAddSelected && styles.addBtnDisabled]}
+              disabled={!canAddSelected}
+              onPress={() => setQty(1)}
+            >
+              <Ionicons name="cart-outline" size={17} color={colors.onDark} />
+              <Text style={styles.addBtnText}>{t("product.addToCart")}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -232,6 +234,7 @@ export default function ProductDetailScreen({ route, navigation }: any) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, backgroundColor: colors.bg },
+  footer: { position: "absolute", left: 0, right: 0, bottom: 0 },
 
   hero: {
     alignItems: "center",
@@ -298,10 +301,6 @@ const styles = StyleSheet.create({
   infoText: { flex: 1, fontSize: 12.5, color: colors.inkMuted, lineHeight: 18 },
 
   bar: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,

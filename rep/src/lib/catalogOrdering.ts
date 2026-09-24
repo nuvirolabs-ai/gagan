@@ -1,15 +1,14 @@
-import type { CatalogSku } from "./catalogSelection";
+type CatalogOrderabilityInput = {
+  price: number | null;
+  orderable?: boolean;
+  gstPending?: boolean;
+  availability?: { status?: string; available?: number | null } | null;
+};
 
-type OrderingInput = Pick<CatalogSku, "price" | "orderable" | "orderingReason" | "availability">;
-
-/** Mirrors the existing cart-increase guards; the API remains authoritative. */
-export function catalogOrderingState(variant: OrderingInput) {
-  const canIncrease = variant.price != null && variant.orderable !== false
-    && variant.availability?.status === "available" && Number(variant.availability.available) > 0;
-  return { canIncrease, message: canIncrease ? null : "Not available for ordering" };
-}
-
-export function canChangeCatalogQuantity(variant: OrderingInput, current: number, next: number) {
-  if (variant.price == null) return false;
-  return next <= current || catalogOrderingState(variant).canIncrease;
+/** Preserve the Salesperson stock policy; GST status does not grant stock or orderability. */
+export function canChangeRepCatalogQuantity(variant: CatalogOrderabilityInput, current: number, next: number) {
+  if (variant.price == null || next < 0) return false;
+  if (next <= current) return true;
+  if (variant.orderable === false) return false;
+  return variant.availability?.status === "available" && Number(variant.availability.available ?? 0) > 0;
 }

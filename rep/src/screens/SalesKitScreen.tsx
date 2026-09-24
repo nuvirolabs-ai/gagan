@@ -41,7 +41,7 @@ export default function SalesKitScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load().catch(() => undefined); setRefreshing(false); }} tintColor={colors.primary} />}
         >
           <Surface style={styles.intro}>
-            <Text style={styles.eyebrow}>FIELD COMPANION</Text>
+            <Text style={styles.eyebrow}>SALES COMPANION</Text>
             <Text style={styles.introTitle}>Keep the right story close.</Text>
             <Text style={styles.introBody}>Open a catalogue, scheme sheet or product story while you are with a store owner.</Text>
             <StatusChip label="Read only" tone="neutral" />

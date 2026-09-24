@@ -19,6 +19,11 @@ describe("retailer commercial quote reconciliation policy", () => {
     expect(canSubmitQuote({ lineCount: 2, quoteReady: true, placing: false, belowMinimum: false, overCredit: false, quote: refreshed })).toBe(true);
   });
 
+  it("does not block a backend-approved pre-tax quote solely because GST is pending", () => {
+    const pendingTax = { ...base, freightConfirmedByStaffId: "staff-1", snapshot: { total: "3610.00", taxStatus: "PENDING" } };
+    expect(canSubmitQuote({ lineCount: 1, quoteReady: true, placing: false, belowMinimum: false, overCredit: false, quote: pendingTax })).toBe(true);
+  });
+
   it("does not enable a quote that another actor already accepted", () => {
     const accepted = { ...base, revision: 2, freightConfirmedByStaffId: "staff-1", acceptedAt: "2029-01-01T00:00:00.000Z" };
     expect(classifyQuoteRefresh(accepted, Date.parse("2028-01-01T00:00:00.000Z")).kind).toBe("accepted");

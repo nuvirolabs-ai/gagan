@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { explain } from "../errorCopy";
 
-const TABS = ["", "open", "in_progress", "resolved", "closed", "rejected"];
+const TABS = ["", "open", "in_progress", "resolved", "closed", "rejected", "withdrawn"];
 
 const LABEL: Record<string, string> = {
   "": "All",
@@ -11,6 +11,7 @@ const LABEL: Record<string, string> = {
   resolved: "Resolved",
   closed: "Closed",
   rejected: "Rejected",
+  withdrawn: "Withdrawn",
 };
 
 const PILL: Record<string, string> = {
@@ -19,6 +20,7 @@ const PILL: Record<string, string> = {
   resolved: "confirmed",
   closed: "confirmed",
   rejected: "rejected",
+  withdrawn: "rejected",
 };
 
 /**
@@ -73,8 +75,8 @@ export default function ServiceIssues() {
     <div>
       <h1 className="page-title">Service issues</h1>
       <p className="page-sub">
-        Complaints and service requests raised by salespeople at the store. Each one also appears on
-        that customer's activity timeline.
+        Complaints and service requests raised by salespeople or submitted directly by retailers.
+        Retailer withdrawals remain in history; in-progress work requires an operator to close it.
       </p>
       {error && <div className="banner error">{error}</div>}
 
@@ -135,7 +137,7 @@ export default function ServiceIssues() {
                   <td>{issue.retailer?.name ?? issue.retailerId}</td>
                   <td>{issue.type.replace(/_/g, " ")}</td>
                   <td>{issue.priority}</td>
-                  <td>{issue.raisedBy?.name ?? issue.raisedByStaffId}</td>
+                  <td>{issue.raisedBy?.name ?? (issue.raisedByStaffId ? issue.raisedByStaffId : "Retailer")}</td>
                   <td className="small">{issue.description}</td>
                   <td>
                     <span className={`pill ${PILL[issue.status] ?? ""}`}>

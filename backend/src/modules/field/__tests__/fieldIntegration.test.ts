@@ -309,7 +309,7 @@ describe("customer activity and issues reach the customer timeline", () => {
 });
 
 describe("a planned stop and the visit that happened stay one record", () => {
-  it("settles the route stop on check-in instead of creating a second visit", async () => {
+  it("links the route stop on check-in and settles it only on checkout", async () => {
     const planDate = startOfDay(new Date());
     const plan = await prisma.routePlan.create({
       data: {
@@ -338,8 +338,8 @@ describe("a planned stop and the visit that happened stay one record", () => {
     expect(checkIn.body.visit.purpose).toBe("collection");
 
     const after = await request(app).get("/rep/field/route").set("Authorization", `Bearer ${tokenA}`);
-    expect(after.body.route.progress).toMatchObject({ visited: 1, pending: 0, completionPct: 100 });
-    expect(after.body.route.nextStop).toBeNull();
+    expect(after.body.route.progress).toMatchObject({ visited: 0, pending: 1, completionPct: 0 });
+    expect(after.body.route.nextStop.id).toBe(plan.stops[0].id);
     expect(await prisma.salesVisit.count({ where: { retailerId: ids.retailerA } })).toBe(1);
 
     const checkOut = await request(app)
@@ -348,6 +348,9 @@ describe("a planned stop and the visit that happened stay one record", () => {
       .send({ ...coordinates, outcome: "payment_collected", notes: "Collected part payment" });
     expect(checkOut.status).toBe(200);
     expect(checkOut.body.visit.outcome).toBe("payment_collected");
+    const completed = await request(app).get("/rep/field/route").set("Authorization", `Bearer ${tokenA}`);
+    expect(completed.body.route.progress).toMatchObject({ visited: 1, pending: 0, completionPct: 100 });
+    expect(completed.body.route.nextStop).toBeNull();
   });
 
   it("refuses to skip a stop that belongs to another salesperson", async () => {

@@ -39,6 +39,7 @@ export function fakePrisma(overrides: Record<string, any> = {}) {
     invoice: model(),
     collectionSubmission: model(),
     auditEvent: model(),
+    $queryRaw: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
 

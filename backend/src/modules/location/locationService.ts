@@ -322,8 +322,7 @@ export class LocationService {
         source: "SALESPERSON_VISIT",
       },
     });
-    // A planned stop for this store today is fulfilled by this visit rather
-    // than producing a second, parallel visit record.
+    // Link a planned stop to this visit, without marking it visited yet.
     const linked = await this.hooks.afterCheckIn?.({
       id: visit.id,
       retailerId: input.retailerId,
@@ -372,13 +371,14 @@ export class LocationService {
             { latitude: Number(visit.storeLatitudeSnapshot), longitude: Number(visit.storeLongitudeSnapshot) },
             input
           );
-    return tx.salesVisit.update({
+    const checkedOutAt = new Date();
+    const closed = await tx.salesVisit.update({
       where: { id: input.visitId },
       data: {
         checkedOutLatitude: input.latitude,
         checkedOutLongitude: input.longitude,
         checkedOutAccuracyMeters: input.accuracyMeters,
-        checkedOutAt: new Date(),
+        checkedOutAt,
         checkoutDistanceMeters: distance,
         // The outcome is captured as the visit closes, so a visit carries what
         // it achieved rather than only where and when it happened.
@@ -389,6 +389,13 @@ export class LocationService {
         ...(input.followUpAt !== undefined ? { followUpAt: input.followUpAt } : {}),
       },
     });
+    if (visit.routeStopId) {
+      await tx.routePlanStop.updateMany({
+        where: { id: visit.routeStopId, status: "pending" },
+        data: { status: "visited", visitedAt: checkedOutAt },
+      });
+    }
+    return closed;
     });
   }
 

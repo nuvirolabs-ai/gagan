@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "../api/client";
 import { useCart } from "../context/CartContext";
-import { colors, spacing, inr, TAB_BAR_SPACE } from "../theme";
+import { colors, spacing, inr, tabBarContentSpace } from "../theme";
 import { ScreenHeader, ChipRow, EmptyState, StatusPill, OrderTimeline, ScreenSkeleton } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 import { formatOrderRef } from "../lib/orderRef";
@@ -19,7 +19,7 @@ export default function OrderHistoryScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState(false);
-  const { addLine } = useCart();
+  const { addLine, lines } = useCart();
   const { t } = useLanguage();
 
   const load = useCallback(async () => {
@@ -53,6 +53,8 @@ export default function OrderHistoryScreen({ navigation }: any) {
     return orders;
   }, [orders, filter]);
 
+  const cartCount = lines.reduce((count, line) => count + line.qty, 0);
+
   const reorder = (order: any) => {
     order.items.forEach((item: any) => {
       addLine({
@@ -80,7 +82,7 @@ export default function OrderHistoryScreen({ navigation }: any) {
         <FlatList
           data={visible}
           keyExtractor={(o) => o.id}
-          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: TAB_BAR_SPACE }}
+          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: tabBarContentSpace(cartCount) }}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.green} />
           }

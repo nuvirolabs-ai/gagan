@@ -17,7 +17,7 @@ Decision rules: preserve A backend/Admin and all its migration identities; port 
 | `backend/prisma/migrations/20260922200000_pending_gst_ordering/migration.sql` | D | — | HOSTED BASE | Retain A migration unchanged |
 | `backend/prisma/migrations/20260924060000_feedback_v2_service_request/migration.sql` | — | A | FEEDBACK-V2 DELTA | Validate SQL against A schema; add one migration after hosted 45 |
 | `backend/prisma/schema.prisma` | M | M | CONFLICT | Retain A; port only reviewed C feedback change |
-| `backend/scripts/bootstrapFeedbackV2TestRoles.ts` | — | A | FEEDBACK-V2 DELTA | Retain A; port only reviewed C feedback change |
+| `backend/scripts/bootstrapFeedbackV2TestRoles.ts` | — | A | OBSOLETE | Exclude: hard-coded guard for the patch branch's former local database; existing role seed supports disposable tests |
 | `backend/scripts/realCatalogueImport.ts` | M | — | HOSTED BASE | Retain A |
 | `backend/scripts/seedApprovedStagingInventory.ts` | D | — | HOSTED BASE | Retain A |
 | `backend/src/__tests__/commercialQuote.test.ts` | M | — | HOSTED BASE | Retain A |
@@ -133,6 +133,11 @@ Decision rules: preserve A backend/Admin and all its migration identities; port 
 
 ## Open conflicts
 
-- Backend and Admin overlaps require hunk-level review against hosted catalogue, inventory, GST-pending and invoice behavior.
-- Mobile and Salesperson overlaps require accepted B presentation plus C feedback behavior.
-- Shared package/config and migration differences are not resolved by choosing one tree wholesale.
+Resolved in the reconciled source:
+
+- Hosted A is the Git ancestor and remains authoritative for backend catalogue, commercial quote, inventory, invoice, imports, Admin catalogue, Admin commercial, package configuration, and the 45 original migrations. The only backend/Admin source changes relative to A are the Feedback-v2 service-request and visit/route hunks listed above.
+- The Retailer and Salesperson working trees are byte-for-byte identical to C for their tracked source and assets after recording added files with Git. C itself descends from accepted B for these app trees, so both the accepted client presentation and its Feedback-v2 changes are present. No A mobile tree was copied over B.
+- The schema conflict was resolved by applying only the `ServiceIssue` status/ownership/withdrawal fields to A. A's `InventorySnapshot.internalMaterialId` and `Variant.gstPendingOrderAllowed` are retained. The Feedback migration applies after A's 45 migrations; the old inventory identity migration is excluded.
+- No shared package/config changes from B or C were required for the Feedback feature. A backend/Admin package configuration is retained. B/C app configuration is retained in the app trees.
+
+Local verification on disposable PostgreSQL databases: fresh 0→46 migration PASS; hosted-style 45→46 applied only `20260924060000_feedback_v2_service_request` PASS. Full suites: backend 977, Admin 62, Retailer 112, Salesperson 202 tests PASS. Backend and Admin builds, Admin lint, and both mobile typechecks PASS. These are local source checks, not hosted deployment or physical-device acceptance.

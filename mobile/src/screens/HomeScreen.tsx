@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -10,31 +10,31 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useScrollToTop } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { api } from "../api/client";
 import { HomePayload, HomeProductGroup } from "../types/home";
 import { useCart } from "../context/CartContext";
-import { colors, radius, spacing, inr, TAB_BAR_SPACE } from "../theme";
+import { colors, radius, spacing, inr, tabBarContentSpace } from "../theme";
 import ProductGroupCard, { type ProductGroupLike, type Sku } from "../components/ProductGroupCard";
 import HomeSkeleton from "../components/home/HomeSkeleton";
-import HomeHero from "../components/home/HomeHero";
+import RetailerPromoCarousel from "../components/home/RetailerPromoCarousel";
 import AccountStrip from "../components/home/AccountStrip";
 import { useLanguage } from "../i18n/LanguageContext";
 import { formatOrderRef } from "../lib/orderRef";
 import {
   accountModel,
-  activeOrderStepIndex,
   featuredGroup,
   formatDeliveryWhen,
   greetingForHour,
   groupNameForSku,
   headerCopy,
   reorderLines,
-  selectHero,
-  TIMELINE,
 } from "../lib/homePresentation";
+import { buildRetailerPromotions, promotionDestination } from "../lib/retailerPromotions";
+import { canChangeCatalogQuantity } from "../lib/catalogInteractions";
+import { homeProductPreview } from "../lib/homeProductPreview";
 
 const ALL_CATEGORY = "All";
 const CATEGORY_LABELS: Record<string, string> = {
@@ -46,28 +46,27 @@ const CATEGORY_LABELS: Record<string, string> = {
   Staples: "Staples",
   Breakfast: "Breakfast",
 };
-const STEP_LABEL: Record<(typeof TIMELINE)[number], string> = {
-  confirmed: "Confirmed",
-  packed: "Packed",
-  out_for_delivery: "Out for delivery",
-  delivered: "Delivered",
-};
-
 export default function HomeScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const narrow = useWindowDimensions().width < 360;
   const { lines, addLine, updateQty } = useCart();
+  const cartCount = lines.reduce((count, line) => count + line.qty, 0);
   const { t } = useLanguage();
   const [data, setData] = useState<HomePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [financeStale, setFinanceStale] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORY);
   const dataRef = useRef<HomePayload | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  useScrollToTop(scrollRef);
   dataRef.current = data;
+  const promotions = useMemo(() => buildRetailerPromotions(data?.productGroups ?? []), [data?.productGroups]);
 
   const load = useCallback(async () => {
     const res = await api.getHome();
     setData(res);
+    setFinanceStale(false);
   }, []);
 
   useFocusEffect(
@@ -77,7 +76,10 @@ export default function HomeScreen({ navigation }: any) {
       if (!hasData) setLoading(true);
       load()
         .catch(() => {
-          if (!cancelled && !dataRef.current) setData(null);
+          if (!cancelled) {
+            if (!dataRef.current) setData(null);
+            else setFinanceStale(true);
+          }
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
@@ -90,14 +92,14 @@ export default function HomeScreen({ navigation }: any) {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await load().catch(() => {});
+    await load().catch(() => { setFinanceStale(true); });
     setRefreshing(false);
   };
 
   const qtyFor = (variantId: string) => lines.find((l) => l.variantId === variantId)?.qty ?? 0;
 
   if (loading && !data) {
-    return <HomeSkeleton top={insets.top + spacing.sm} />;
+    return <HomeSkeleton top={insets.top + spacing.sm} bottomSpace={tabBarContentSpace(cartCount)} />;
   }
   if (!data) {
     return (
@@ -121,18 +123,18 @@ export default function HomeScreen({ navigation }: any) {
   );
   const featured = featuredGroup(visibleGroups);
   const shelf = visibleGroups.filter((group) => group.id !== featured?.id);
-  const header = headerCopy({ activeOrder, scheme });
-  const hero = selectHero({ scheme, activeOrder, productGroups });
+  const previewShelf = homeProductPreview(shelf);
+  // Product discovery owns the primary Home real estate. Order status is
+  // intentionally rendered as a compact secondary row below the promotions.
+  const header = headerCopy({ activeOrder: null, scheme });
   const account = accountModel(credit);
   const hour = new Date().getHours();
   const arriving = formatDeliveryWhen(activeOrder?.expectedDeliveryAt);
-  const stepIndex = activeOrder ? activeOrderStepIndex(activeOrder.status) : -1;
   const addableUsual = reorderLines(lastOrder, productGroups);
 
   const setSkuQty = (sku: Sku, next: number) => {
-    if (sku.price == null) return;
     const current = qtyFor(sku.id);
-    if (next > current && sku.orderable === false) return;
+    if (!canChangeCatalogQuantity(sku, current, next)) return;
     if (current === 0 && next > 0) {
       addLine({
         variantId: sku.id,
@@ -156,19 +158,11 @@ export default function HomeScreen({ navigation }: any) {
     if (productId) navigation.navigate("ProductDetail", { productId });
   };
 
-  const onHeroPress = () => {
-    if (!hero) return;
-    if (hero.cta === "order" && hero.orderId) {
-      navigation.navigate("OrderDetail", { orderId: hero.orderId });
-      return;
-    }
-    navigation.navigate("Products");
-  };
-
   return (
     <ScrollView
+      ref={scrollRef}
       style={styles.screen}
-      contentContainerStyle={{ paddingTop: insets.top + spacing.sm, paddingBottom: TAB_BAR_SPACE + 16 }}
+      contentContainerStyle={{ paddingTop: insets.top + spacing.sm, paddingBottom: tabBarContentSpace(cartCount) + 16 }}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.green} />}
@@ -202,11 +196,6 @@ export default function HomeScreen({ navigation }: any) {
             ? t("home.schemeAway", { amount: inr(scheme?.remaining ?? 0) })
             : t(header.subtitle)}
         </Text>
-        {header.deliveryCue ? (
-          <Text style={styles.deliveryCue} numberOfLines={1}>
-            {header.deliveryCue}
-          </Text>
-        ) : null}
       </View>
 
       <TouchableOpacity
@@ -220,16 +209,114 @@ export default function HomeScreen({ navigation }: any) {
         <Text style={styles.searchPlaceholder}>{t("catalog.search")}</Text>
       </TouchableOpacity>
 
-      {hero ? <HomeHero hero={hero} onPress={onHeroPress} /> : null}
+      <RetailerPromoCarousel
+        promotions={promotions}
+        onPress={(promotion) => {
+          const destination = promotionDestination(promotion);
+          navigation.navigate(destination.screen, destination.params);
+        }}
+      />
 
+      {/* Account finance */}
       <View style={styles.sectionSpace}>
         <AccountStrip
           account={account}
           onPay={() => navigation.navigate("Pay")}
           onLedger={() => navigation.navigate("Ledger")}
         />
+        {financeStale ? <Text style={styles.financeStale}>Account totals may be out of date. Pull to refresh.</Text> : null}
       </View>
 
+      {/* Shop by category */}
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionTitle}>{t("home.shopByCategory")}</Text>
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipRow}
+      >
+        {[ALL_CATEGORY, ...categories].map((value) => {
+          const active = selectedCategory === value;
+          const label = value === ALL_CATEGORY ? t("home.allCategories") : CATEGORY_LABELS[value] ?? value;
+          return (
+            <TouchableOpacity
+              key={value}
+              style={[styles.chip, active && styles.chipActive]}
+              onPress={() => setSelectedCategory(value)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={label}
+            >
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      {/* Products */}
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionTitle}>
+          {selectedCategory === ALL_CATEGORY
+            ? t("home.products")
+            : CATEGORY_LABELS[selectedCategory] ?? selectedCategory}
+        </Text>
+        <TouchableOpacity style={styles.rowCenter} onPress={() => navigation.navigate("Products")}>
+          <Text style={styles.link}>{t("home.viewProducts")}</Text>
+          <Ionicons name="arrow-forward" size={13} color={colors.green} style={{ marginLeft: 3 }} />
+        </TouchableOpacity>
+      </View>
+      <View style={styles.productList}>
+        {visibleGroups.length === 0 ? (
+          <Text style={styles.emptyProducts}>{t("home.noProductsInCategory")}</Text>
+        ) : (
+          <>
+            {featured ? (
+              <ProductGroupCard
+                key={featured.id}
+                group={featured}
+                qtyFor={qtyFor}
+                onChangeQty={setSkuQty}
+                onOpen={() => openProduct(featured)}
+                appearance="featured"
+              />
+            ) : null}
+            {previewShelf.map((group) => (
+              <ProductGroupCard
+                key={group.id}
+                group={group}
+                qtyFor={qtyFor}
+                onChangeQty={setSkuQty}
+                onOpen={() => openProduct(group)}
+                appearance="row"
+              />
+            ))}
+          </>
+        )}
+      </View>
+
+      {/* Latest order */}
+      {activeOrder ? (
+        <TouchableOpacity
+          style={styles.latestOrder}
+          activeOpacity={0.88}
+          onPress={() => navigation.navigate("OrderDetail", { orderId: activeOrder.id })}
+          accessibilityRole="button"
+          accessibilityLabel={`${t("home.yourOrder")} ${formatOrderRef(activeOrder)}`}
+        >
+          <View style={styles.latestOrderCopy}>
+            <Text style={styles.latestOrderLabel}>Latest order</Text>
+            <Text style={styles.latestOrderId} numberOfLines={1}>{formatOrderRef(activeOrder)}</Text>
+            <Text style={styles.latestOrderMeta} numberOfLines={1}>
+              {arriving ? t("home.arriving", { when: arriving }) : t("home.orderOnTheWay")}
+            </Text>
+          </View>
+          <Text style={styles.latestOrderTotal}>{inr(activeOrder.orderTotal)}</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+        </TouchableOpacity>
+      ) : null}
+
+      {/* Order again */}
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>{t("home.orderAgain")}</Text>
       </View>
@@ -265,131 +352,6 @@ export default function HomeScreen({ navigation }: any) {
           <TouchableOpacity onPress={() => navigation.navigate("Products")}>
             <Text style={styles.link}>{t("home.viewProducts")}</Text>
           </TouchableOpacity>
-        </View>
-      )}
-
-      <View style={styles.sectionHead}>
-        <Text style={styles.sectionTitle}>{t("home.shopByCategory")}</Text>
-      </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.chipRow}
-      >
-        {[ALL_CATEGORY, ...categories].map((value) => {
-          const active = selectedCategory === value;
-          const label = value === ALL_CATEGORY ? t("home.allCategories") : CATEGORY_LABELS[value] ?? value;
-          return (
-            <TouchableOpacity
-              key={value}
-              style={[styles.chip, active && styles.chipActive]}
-              onPress={() => setSelectedCategory(value)}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-              accessibilityLabel={label}
-            >
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-
-      <View style={styles.sectionHead}>
-        <Text style={styles.sectionTitle}>
-          {selectedCategory === ALL_CATEGORY
-            ? t("home.products")
-            : CATEGORY_LABELS[selectedCategory] ?? selectedCategory}
-        </Text>
-        <TouchableOpacity style={styles.rowCenter} onPress={() => navigation.navigate("Products")}>
-          <Text style={styles.link}>{t("home.viewProducts")}</Text>
-          <Ionicons name="arrow-forward" size={13} color={colors.green} style={{ marginLeft: 3 }} />
-        </TouchableOpacity>
-      </View>
-      <View style={styles.productList}>
-        {visibleGroups.length === 0 ? (
-          <Text style={styles.emptyProducts}>{t("home.noProductsInCategory")}</Text>
-        ) : (
-          <>
-            {featured ? (
-              <ProductGroupCard
-                key={featured.id}
-                group={featured}
-                qtyFor={qtyFor}
-                onChangeQty={setSkuQty}
-                onOpen={() => openProduct(featured)}
-                appearance="featured"
-              />
-            ) : null}
-            {shelf.map((group) => (
-              <ProductGroupCard
-                key={group.id}
-                group={group}
-                qtyFor={qtyFor}
-                onChangeQty={setSkuQty}
-                onOpen={() => openProduct(group)}
-                appearance="row"
-              />
-            ))}
-          </>
-        )}
-      </View>
-
-      <View style={styles.sectionHead}>
-        <Text style={styles.sectionTitle}>{t("home.yourOrder")}</Text>
-        <TouchableOpacity style={styles.rowCenter} onPress={() => navigation.navigate("Orders")}>
-          <Text style={styles.link}>{t("home.viewOrders")}</Text>
-          <Ionicons name="arrow-forward" size={13} color={colors.green} style={{ marginLeft: 3 }} />
-        </TouchableOpacity>
-      </View>
-      {activeOrder ? (
-        <TouchableOpacity
-          style={styles.orderBand}
-          activeOpacity={0.9}
-          onPress={() => navigation.navigate("OrderDetail", { orderId: activeOrder.id })}
-          accessibilityRole="button"
-          accessibilityLabel={`${t("home.yourOrder")} ${formatOrderRef(activeOrder)}`}
-        >
-          <View style={styles.orderTop}>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.orderId} numberOfLines={1}>
-                {formatOrderRef(activeOrder)}
-              </Text>
-              <Text style={styles.orderMeta} numberOfLines={1}>
-                {arriving ? t("home.arriving", { when: arriving }) : t("home.orderOnTheWay")}
-              </Text>
-            </View>
-            <Text
-              style={styles.orderTotal}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.7}
-            >
-              {inr(activeOrder.orderTotal)}
-            </Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
-          </View>
-          <View style={styles.timeline}>
-            {TIMELINE.map((step, i) => {
-              const done = stepIndex >= 0 && i <= stepIndex;
-              const isCurrent = i === stepIndex;
-              return (
-                <View key={step} style={styles.timelineStep}>
-                  {i > 0 && <View style={[styles.timelineBar, done && styles.timelineBarDone]} />}
-                  <View style={[styles.timelineDot, done && styles.timelineDotDone, isCurrent && styles.timelineDotCurrent]} />
-                  <Text
-                    style={[styles.timelineLabel, isCurrent && styles.timelineLabelCurrent]}
-                    numberOfLines={1}
-                  >
-                    {STEP_LABEL[step]}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-        </TouchableOpacity>
-      ) : (
-        <View style={styles.quietEmpty}>
-          <Text style={styles.quietBody}>{t("home.noActiveOrder")}</Text>
         </View>
       )}
 
@@ -442,7 +404,6 @@ const styles = StyleSheet.create({
   store: { fontSize: 26, fontWeight: "700", color: colors.ink, marginTop: 2 },
   storeNarrow: { fontSize: 22 },
   subtitle: { fontSize: 14, color: colors.ink, marginTop: 6, fontWeight: "500", lineHeight: 20 },
-  deliveryCue: { fontSize: 12.5, color: colors.inkMuted, marginTop: 4, fontWeight: "600" },
 
   searchBar: {
     flexDirection: "row",
@@ -459,6 +420,25 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   searchPlaceholder: { fontSize: 14, color: colors.inkFaint },
+
+  latestOrder: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.sm,
+  },
+  latestOrderCopy: { flex: 1, minWidth: 0 },
+  latestOrderLabel: { fontSize: 10.5, fontWeight: "800", color: colors.accentStrong, textTransform: "uppercase", letterSpacing: 0.6 },
+  latestOrderId: { fontSize: 14, fontWeight: "700", color: colors.ink, marginTop: 2 },
+  latestOrderMeta: { fontSize: 11.5, color: colors.inkMuted, marginTop: 1 },
+  latestOrderTotal: { fontSize: 14, fontWeight: "800", color: colors.ink, maxWidth: 88, textAlign: "right" },
 
   sectionSpace: { marginTop: spacing.md },
   sectionHead: {
@@ -509,39 +489,6 @@ const styles = StyleSheet.create({
   productList: { paddingHorizontal: spacing.lg, marginBottom: spacing.lg },
   emptyProducts: { fontSize: 13, color: colors.inkMuted, paddingVertical: spacing.lg },
 
-  orderBand: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.xl,
-    paddingBottom: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  orderTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  orderId: { fontSize: 14.5, fontWeight: "700", color: colors.ink },
-  orderMeta: { fontSize: 12.5, color: colors.inkMuted, marginTop: 2 },
-  orderTotal: { fontSize: 15, fontWeight: "700", color: colors.ink, maxWidth: 110, textAlign: "right", flexShrink: 0 },
-
-  timeline: { flexDirection: "row", marginTop: spacing.lg },
-  timelineStep: { flex: 1, alignItems: "center" },
-  timelineBar: {
-    position: "absolute",
-    top: 5,
-    right: "50%",
-    left: "-50%",
-    height: 2,
-    backgroundColor: colors.track,
-  },
-  timelineBarDone: { backgroundColor: colors.green },
-  timelineDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.track,
-  },
-  timelineDotDone: { backgroundColor: colors.greenMid },
-  timelineDotCurrent: { backgroundColor: colors.green, width: 12, height: 12, borderRadius: 6 },
-  timelineLabel: { fontSize: 9.5, color: colors.inkMuted, marginTop: 6, fontWeight: "600" },
-  timelineLabelCurrent: { color: colors.green, fontWeight: "800" },
 
   support: {
     flexDirection: "row",
@@ -566,6 +513,7 @@ const styles = StyleSheet.create({
 
   errorTitle: { fontSize: 16, fontWeight: "700", color: colors.ink, textAlign: "center" },
   errorBody: { fontSize: 13.5, color: colors.inkMuted, marginTop: 6, textAlign: "center" },
+  financeStale: { marginHorizontal: spacing.lg, color: colors.inkMuted, fontSize: 12, marginBottom: spacing.sm },
   retry: {
     marginTop: spacing.lg,
     backgroundColor: colors.green,

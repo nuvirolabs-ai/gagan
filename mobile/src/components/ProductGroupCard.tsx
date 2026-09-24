@@ -24,7 +24,7 @@ export interface Sku {
   unitSize: string;
   unitsPerCase: number;
   price: number | null;
-  caseWeightKg?: number;
+  caseWeightKg?: number | null;
   pricePerKg?: number | null;
   commercialRate?: number | null;
   rateBasis?: string;
@@ -32,6 +32,7 @@ export interface Sku {
   catalogStatus?: string;
   orderable?: boolean;
   gstPending?: boolean;
+  taxStatus?: "PENDING" | "READY" | "NOT_READY";
   orderingStatus?: string;
   orderingReason?: string | null;
   availability?: { status?: string; available?: number | null } | null;
@@ -119,8 +120,8 @@ export default function ProductGroupCard({
           </Text>
           {priceDisplay.perKg ? <Text style={styles.rateLabel}>{priceDisplay.perKg}</Text> : null}
           {priceDisplay.caseEquivalent ? <Text style={styles.rateLabel}>{priceDisplay.caseEquivalent}</Text> : null}
-          {selected?.rateLabel ? <Text style={styles.rateLabel}>Excluding GST</Text> : null}
-          {selected?.gstPending ? <Text style={styles.rateLabel}>GST pending · invoice blocked until configured</Text> : null}
+          {selected?.rateBasis?.toLowerCase() === "quintal" || selected?.rateLabel ? <Text style={styles.rateLabel}>Excluding GST</Text> : null}
+          {selected?.gstPending || selected?.taxStatus === "PENDING" ? <Text style={styles.outOfStock}>GST pending — final tax will be applied before invoicing.</Text> : null}
           {!orderable && selected ? <Text style={styles.outOfStock}>{selected.orderingReason ?? "Out of stock"}</Text> : null}
         </View>
       </TouchableOpacity>

@@ -34,6 +34,8 @@ export interface QuickOrderItem {
   commercialRate?: string | number | null;
   rateBasis?: string;
   rateLabel?: string | null;
+  caseWeightKg?: number | null;
+  pricePerKg?: number | null;
   orderable?: boolean;
   gstPending?: boolean;
   taxStatus?: "PENDING" | "READY" | "NOT_READY";
@@ -63,6 +65,8 @@ export interface HomeSku {
   unit: string;
   unitsPerCase: number;
   price: number | null;
+  caseWeightKg?: number | null;
+  pricePerKg?: number | null;
   commercialRate?: number | null;
   rateBasis?: string;
   rateLabel?: string | null;

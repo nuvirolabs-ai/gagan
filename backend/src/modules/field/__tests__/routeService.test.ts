@@ -142,15 +142,15 @@ describe("running a route", () => {
     ).rejects.toMatchObject({ code: "route_stop_already_settled" });
   });
 
-  it("settles the planned stop when the salesperson checks in there", async () => {
+  it("links the planned stop at check-in without counting the visit as complete", async () => {
     const prisma = fakePrisma();
     prisma.salesVisit.findUnique.mockResolvedValue({id:"visit-1",salespersonId:"staff-1",retailerId:"retailer-1",routeStopId:null});
-    prisma.routePlanStop.updateMany.mockResolvedValue({count:1});
     prisma.routePlanStop.findFirst.mockResolvedValue({
       id: "stop-1",
       purpose: "collection",
       sequence: 2,
     });
+    prisma.routePlanStop.findUnique.mockResolvedValue({ id: "stop-1", status: "pending", visits: [] });
 
     const at = new Date("2026-03-10T11:00:00Z");
     const stop = await new RouteService(prisma).linkVisitToPlannedStop({
@@ -161,10 +161,10 @@ describe("running a route", () => {
     });
 
     expect(stop).toMatchObject({ id: "stop-1" });
-    expect(prisma.routePlanStop.updateMany).toHaveBeenCalledWith({
-      where: { id: "stop-1", status: "pending" },
-      data: { status: "visited", visitedAt: at },
-    });
+    expect(prisma.routePlanStop.updateMany).not.toHaveBeenCalled();
+    expect(prisma.routePlanStop.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ status: "pending", visits: { none: {} } }),
+    }));
     // The visit inherits why the stop was planned, so an unplanned check-in and
     // a planned one are told apart later.
     expect(prisma.salesVisit.update).toHaveBeenCalledWith({

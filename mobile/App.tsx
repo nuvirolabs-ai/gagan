@@ -11,6 +11,7 @@ import { CartProvider } from "./src/context/CartContext";
 import { LanguageProvider, useLanguage } from "./src/i18n/LanguageContext";
 import TabBar from "./src/components/TabBar";
 import { colors } from "./src/theme";
+import { buildInfo } from "./src/buildInfo";
 
 import LoginScreen from "./src/screens/LoginScreen";
 import HomeScreen from "./src/screens/HomeScreen";
@@ -27,6 +28,7 @@ import ProfileScreen from "./src/screens/ProfileScreen";
 import StoreLocationScreen from "./src/screens/StoreLocationScreen";
 import LanguageSelectionScreen from "./src/screens/LanguageSelectionScreen";
 import MarketSurveysScreen from "./src/screens/MarketSurveysScreen";
+import ServiceRequestsScreen from "./src/screens/ServiceRequestsScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -73,6 +75,7 @@ function RootNavigator() {
   if (loading) {
     return (
       <View
+        accessibilityLabel={`Gagan build ${buildInfo.sourceSha}`}
         style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.bg }}
       >
         <ActivityIndicator size="large" color={colors.green} />
@@ -113,6 +116,7 @@ function RootNavigator() {
           />
           <Stack.Screen name="StoreLocation" component={StoreLocationScreen} options={{ title: t("location.title"), headerBackTitle: t("tabs.account") }} />
           <Stack.Screen name="MarketSurveys" component={MarketSurveysScreen} options={{ title: "Market surveys", headerBackTitle: t("tabs.account") }} />
+          <Stack.Screen name="ServiceRequests" component={ServiceRequestsScreen} options={{ title: "Service requests", headerBackTitle: t("tabs.account") }} />
         </>
       )}
     </Stack.Navigator>

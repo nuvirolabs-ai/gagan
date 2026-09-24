@@ -2075,6 +2075,7 @@ enum ServiceIssueStatus {
   resolved
   closed
   rejected
+  withdrawn
 }
 
 enum SalesTargetMetric {
@@ -2295,8 +2296,8 @@ model ServiceIssue {
   id              String               @id @default(uuid())
   retailerId      String
   retailer        Retailer             @relation(fields: [retailerId], references: [id], onDelete: Restrict)
-  raisedByStaffId String
-  raisedBy        StaffUser            @relation("ServiceIssuesRaised", fields: [raisedByStaffId], references: [id], onDelete: Restrict)
+  raisedByStaffId String?
+  raisedBy        StaffUser?           @relation("ServiceIssuesRaised", fields: [raisedByStaffId], references: [id], onDelete: Restrict)
   orderId         String?
   order           Order?               @relation(fields: [orderId], references: [id], onDelete: SetNull)
   invoiceId       String?
@@ -2310,6 +2311,11 @@ model ServiceIssue {
   assignedTeam    String?
   resolutionNote  String?
   resolvedAt      DateTime?
+  /// Retailer-origin requests use the owning retailer identity, never a fake staff actor.
+  clientReference String?
+  withdrawnAt     DateTime?
+  withdrawnByRetailerId String?
+  withdrawnFromStatus ServiceIssueStatus?
   activities      CustomerActivity[]
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
@@ -2317,6 +2323,7 @@ model ServiceIssue {
   @@index([retailerId, createdAt])
   @@index([status, priority, createdAt])
   @@index([raisedByStaffId, createdAt])
+  @@unique([retailerId, clientReference])
 }
 
 /// A target set for one salesperson over one period. Target-versus-achievement

@@ -105,5 +105,6 @@ describe("tenant isolation", () => {
     });
     expect(detail.body.order).not.toHaveProperty("commercialStatusEvents");
     expect(detail.body.order).not.toHaveProperty("commercialStatus");
+    expect(detail.body.order).not.toHaveProperty("placedByRepId");
   });
 });

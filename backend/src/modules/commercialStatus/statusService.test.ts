@@ -223,6 +223,7 @@ describe("internal commercial status", () => {
     });
     expect(order).not.toHaveProperty("commercialStatusEvents");
     expect(order).not.toHaveProperty("actorStaffId");
+    expect(order).not.toHaveProperty("placedByRepId");
   });
 
   it("labels retailer-created orders explicitly", () => {

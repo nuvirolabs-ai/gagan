@@ -17,7 +17,7 @@ describe("order attribution read model", () => {
 
     expect(order).toMatchObject({ source: "SALESPERSON_APP", creatorName: "Asha Verma" });
     expect(order).not.toHaveProperty("commercialStatusEvents");
-    expect(order).not.toHaveProperty("placedByRepId");
+    expect(order).toHaveProperty("placedByRepId", "rep-1");
     expect(salesRep.findMany).not.toHaveBeenCalled();
   });
 

@@ -30,7 +30,7 @@ export async function attributeOrders<T extends any[]>(orders: T, db: Attributio
   const namesByRepId = new Map(reps.map((rep) => [rep.id, rep.name]));
 
   return orders.map((order: any) => {
-    const { commercialStatusEvents: _events, placedByRepId: _repId, ...publicOrder } = order;
+    const { commercialStatusEvents: _events, ...publicOrder } = order;
     return {
       ...publicOrder,
       ...orderAttribution(order, namesByRepId.get(order.placedByRepId) ?? null),

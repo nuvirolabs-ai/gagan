@@ -4,13 +4,14 @@ import { ActivityIndicator, View } from "react-native";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { RepProvider, useRep } from "./src/context/RepContext";
 import { FieldProvider } from "./src/context/FieldContext";
 import { LanguageProvider, useLanguage } from "./src/i18n/LanguageContext";
 import { colors } from "./src/theme";
+import { salesTabBarMetrics } from "./src/layout/viewportPolicy";
 
 import RepLoginScreen from "./src/screens/RepLoginScreen";
 import RepRetailersScreen from "./src/screens/RepRetailersScreen";
@@ -78,6 +79,8 @@ const TAB_ICONS: Record<string, string> = {
 function RepTabs() {
   const { staff } = useRep();
   const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
+  const tabBarMetrics = salesTabBarMetrics(insets.bottom);
   const capabilities = staffCapabilities(staff?.permissions ?? []);
   const tabLabel = (name: string) => ({ Today: "Home", Retailers: "Outlets", Activity: "Reports", Work: "Work", Approvals: "Approvals", More: "More" }[name] ?? t(`tabs.${name.toLowerCase()}`));
   return (
@@ -94,9 +97,7 @@ function RepTabs() {
           backgroundColor: colors.surface,
           borderTopColor: colors.separator,
           borderTopWidth: 1,
-          height: 78,
-          paddingTop: 7,
-          paddingBottom: 7,
+          ...tabBarMetrics,
         },
         tabBarIcon: ({ color, focused }) => (
           <View

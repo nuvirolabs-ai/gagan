@@ -11,6 +11,24 @@ import { spacing } from "../theme";
 export const TAB_NAVIGATION_MODEL = "normal-flow" as const;
 export const SCREEN_CONTENT_BOTTOM_GAP = spacing.xl;
 
+const SALES_TAB_BAR_BASE_HEIGHT = 78;
+const SALES_TAB_BAR_TOP_PADDING = 7;
+const SALES_TAB_BAR_BOTTOM_PADDING = 7;
+
+/** Preserve the current tab content area while reserving the live system inset. */
+export function salesTabBarMetrics(safeAreaBottom: number): {
+  height: number;
+  paddingTop: number;
+  paddingBottom: number;
+} {
+  const inset = Number.isFinite(safeAreaBottom) ? Math.max(0, safeAreaBottom) : 0;
+  return {
+    height: SALES_TAB_BAR_BASE_HEIGHT + inset,
+    paddingTop: SALES_TAB_BAR_TOP_PADDING,
+    paddingBottom: SALES_TAB_BAR_BOTTOM_PADDING + inset,
+  };
+}
+
 export type BottomInsetPolicy = {
   rootPaddingBottom: number;
   contentPaddingBottom: number;

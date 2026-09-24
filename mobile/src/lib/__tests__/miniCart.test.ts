@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { CartLine } from "../../types";
 import { getMiniCartModel } from "../miniCart";
-import { MINI_CART_SPACE, TAB_BAR_SPACE, tabBarContentSpace } from "../../theme";
+import {
+  MINI_CART_SPACE,
+  TAB_BAR_SPACE,
+  tabBarContentSpace,
+  retailerTabBarMetrics,
+} from "../../theme";
 
 const line = (variantId: string, qty: number, unitPrice: number): CartLine => ({
   variantId,
@@ -40,5 +45,22 @@ describe("live mini-cart model", () => {
   it("reserves extra tab-bar space only while the mini-cart is visible", () => {
     expect(tabBarContentSpace(0)).toBe(TAB_BAR_SPACE);
     expect(tabBarContentSpace(1)).toBe(TAB_BAR_SPACE + MINI_CART_SPACE);
+  });
+
+  it("reserves the live system inset and visual gap for the floating tab bar", () => {
+    const expected = [
+      { itemCount: 0, inset: 0, paddingBottom: 8, contentSpace: 72 },
+      { itemCount: 0, inset: 16, paddingBottom: 24, contentSpace: 88 },
+      { itemCount: 0, inset: 24, paddingBottom: 32, contentSpace: 96 },
+      { itemCount: 0, inset: 48, paddingBottom: 56, contentSpace: 120 },
+      { itemCount: 1, inset: 24, paddingBottom: 32, contentSpace: 168 },
+    ];
+
+    for (const item of expected) {
+      expect(retailerTabBarMetrics(item.itemCount, item.inset)).toEqual({
+        paddingBottom: item.paddingBottom,
+        contentSpace: item.contentSpace,
+      });
+    }
   });
 });

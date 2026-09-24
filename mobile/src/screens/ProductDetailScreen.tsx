@@ -7,6 +7,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api } from "../api/client";
 import { useCart } from "../context/CartContext";
@@ -19,6 +20,7 @@ import { canChangeCatalogQuantity } from "../lib/catalogInteractions";
 import { catalogPricePresentation } from "../lib/catalogPricePresentation";
 
 export default function ProductDetailScreen({ route, navigation }: any) {
+  const insets = useSafeAreaInsets();
   const { productId } = route.params;
   const { lines, addLine, updateQty } = useCart();
   const { t } = useLanguage();
@@ -201,7 +203,7 @@ export default function ProductDetailScreen({ route, navigation }: any) {
         </View>
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: insets.bottom }]}>
         <MiniCartBar onPress={() => navigation.navigate("Main", { screen: "Cart" })} />
         <View style={styles.bar}>
           <View style={{ flex: 1 }}>

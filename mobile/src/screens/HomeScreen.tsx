@@ -99,7 +99,7 @@ export default function HomeScreen({ navigation }: any) {
   const qtyFor = (variantId: string) => lines.find((l) => l.variantId === variantId)?.qty ?? 0;
 
   if (loading && !data) {
-    return <HomeSkeleton top={insets.top + spacing.sm} bottomSpace={tabBarContentSpace(cartCount)} />;
+    return <HomeSkeleton top={insets.top + spacing.sm} bottomSpace={tabBarContentSpace(cartCount, insets.bottom)} />;
   }
   if (!data) {
     return (
@@ -162,7 +162,7 @@ export default function HomeScreen({ navigation }: any) {
     <ScrollView
       ref={scrollRef}
       style={styles.screen}
-      contentContainerStyle={{ paddingTop: insets.top + spacing.sm, paddingBottom: tabBarContentSpace(cartCount) + 16 }}
+      contentContainerStyle={{ paddingTop: insets.top + spacing.sm, paddingBottom: tabBarContentSpace(cartCount, insets.bottom) + 16 }}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.green} />}

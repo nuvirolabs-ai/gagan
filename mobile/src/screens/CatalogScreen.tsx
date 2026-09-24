@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl } from "react-native";
 import { useFocusEffect, useScrollToTop } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api } from "../api/client";
 import { colors, radius, spacing, tabBarContentSpace } from "../theme";
@@ -23,6 +24,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export default function CatalogScreen({ navigation, route }: any) {
+  const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<ProductGroupLike>>(null);
   useScrollToTop(listRef);
   const { lines, addLine, updateQty } = useCart();
@@ -138,7 +140,7 @@ export default function CatalogScreen({ navigation, route }: any) {
           ref={listRef}
           data={rows}
           keyExtractor={(group) => group.id}
-          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: tabBarContentSpace(cartCount) }}
+          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: tabBarContentSpace(cartCount, insets.bottom) }}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.green} />
           }

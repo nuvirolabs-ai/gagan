@@ -4,7 +4,7 @@ import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
-import { colors, radius, shadow, spacing } from "../theme";
+import { colors, radius, shadow, spacing, retailerTabBarMetrics } from "../theme";
 import { useCart } from "../context/CartContext";
 import { useLanguage } from "../i18n/LanguageContext";
 import MiniCartBar from "./MiniCartBar";
@@ -23,6 +23,7 @@ export default function TabBar({ state, navigation }: BottomTabBarProps) {
   const { t } = useLanguage();
   const cartCount = lines.reduce((n, l) => n + l.qty, 0);
   const activeSurface = state.routes[state.index]?.name ?? "";
+  const tabBarMetrics = retailerTabBarMetrics(cartCount, insets.bottom);
 
   const cartRoute = state.routes.find((r) => r.name === "Cart");
   const sideRoutes = state.routes.filter((r) => r.name !== "Cart");
@@ -62,7 +63,7 @@ export default function TabBar({ state, navigation }: BottomTabBarProps) {
   };
 
   return (
-    <View style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
+    <View style={[styles.wrap, { paddingBottom: tabBarMetrics.paddingBottom }]}>
       {shouldShowMiniCart(activeSurface) ? <MiniCartBar onPress={() => go("Cart")} /> : null}
       <View style={styles.bar}>
         {left.map((r) => renderTab(r.name))}

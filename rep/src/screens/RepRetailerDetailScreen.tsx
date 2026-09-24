@@ -8,6 +8,7 @@ import {
   Pressable,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { repApi } from "../api/repClient";
 import { captureForegroundLocation } from "../location/deviceLocation";
@@ -42,6 +43,7 @@ const LEDGER_LABELS: Record<string, string> = {
 };
 
 export default function RepRetailerDetailScreen({ route, navigation }: any) {
+  const insets = useSafeAreaInsets();
   const { retailerId } = route.params;
   const { setActiveRetailer, staff } = useRep();
   const { t } = useLanguage();
@@ -259,7 +261,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
 
   return (
     <AppScreen>
-      <KeyboardSafeScrollView contentContainerStyle={styles.content}>
+      <KeyboardSafeScrollView contentContainerStyle={[styles.content, { paddingBottom: 140 + insets.bottom }]}>
         <View style={styles.head}>
           <InitialsBadge name={retailer.name} size={56} tone={credit.overdue > 0 ? "danger" : "green"} />
           <View style={{ flex: 1 }}>
@@ -567,7 +569,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
       </KeyboardSafeScrollView>
 
       {!visiting ? (
-        <View style={styles.bar}>
+        <View style={[styles.bar, { paddingBottom: spacing.section + insets.bottom }]}>
           <PrimaryButton
             label={
               credit.available <= 0

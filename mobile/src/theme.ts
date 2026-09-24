@@ -97,17 +97,25 @@ export const shadow = {
   },
 };
 
-/**
- * Vertical space the floating tab bar occupies. Screens inside the tab
- * navigator must reserve this at the bottom or content hides behind it.
- */
-export const TAB_BAR_SPACE = 96;
+/** Tab content + normal visual gap, excluding the changing system inset. */
+export const TAB_BAR_SPACE = 72;
 
 /** Additional space only when the live mini-cart is actually visible. */
 export const MINI_CART_SPACE = 72;
 
-export function tabBarContentSpace(itemCount: number): number {
-  return TAB_BAR_SPACE + (itemCount > 0 ? MINI_CART_SPACE : 0);
+export function retailerTabBarMetrics(itemCount: number, safeAreaBottom: number): {
+  paddingBottom: number;
+  contentSpace: number;
+} {
+  const inset = Number.isFinite(safeAreaBottom) ? Math.max(0, safeAreaBottom) : 0;
+  return {
+    paddingBottom: inset + spacing.sm,
+    contentSpace: TAB_BAR_SPACE + inset + (itemCount > 0 ? MINI_CART_SPACE : 0),
+  };
+}
+
+export function tabBarContentSpace(itemCount: number, safeAreaBottom = 0): number {
+  return retailerTabBarMetrics(itemCount, safeAreaBottom).contentSpace;
 }
 
 /**

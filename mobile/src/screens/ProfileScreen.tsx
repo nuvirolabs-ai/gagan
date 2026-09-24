@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api } from "../api/client";
 import { useAuth } from "../context/AuthContext";
@@ -22,6 +23,7 @@ import { useLanguage } from "../i18n/LanguageContext";
 import { buildInfo } from "../buildInfo";
 
 export default function ProfileScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const { logout } = useAuth();
   const { lines } = useCart();
   const { language, t, setLanguage } = useLanguage();
@@ -113,7 +115,7 @@ export default function ProfileScreen({ navigation }: any) {
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={{ paddingBottom: tabBarContentSpace(cartCount) + spacing.xl }}
+      contentContainerStyle={{ paddingBottom: tabBarContentSpace(cartCount, insets.bottom) + spacing.xl }}
       showsVerticalScrollIndicator={false}
     >
       <ScreenHeader

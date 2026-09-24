@@ -13,16 +13,18 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons, Feather } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useCart } from "../context/CartContext";
 import { api, ApiError } from "../api/client";
-import { colors, radius, spacing, inr, TAB_BAR_SPACE, tabBarContentSpace } from "../theme";
+import { colors, radius, spacing, inr, tabBarContentSpace } from "../theme";
 import { ScreenHeader, QtyStepper, EmptyState, SectionTitle } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 import { canSubmitQuote, classifyQuoteRefresh } from "../lib/commercialQuoteState";
 import { commercialTaxPresentation } from "../lib/commercialTaxPresentation";
 
 export default function CartScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const { lines, updateQty, clear, total, reconcile, staleNotice, dismissStaleNotice } = useCart();
   const { t } = useLanguage();
   const [placing, setPlacing] = useState(false);
@@ -109,6 +111,7 @@ export default function CartScreen({ navigation }: any) {
   const payable = quote ? Number(quote.snapshot.total) : total;
   const quoteTax = commercialTaxPresentation(quote?.snapshot);
   const cartCount = lines.reduce((count, line) => count + line.qty, 0);
+  const tabBarSpace = tabBarContentSpace(0, insets.bottom);
   const belowMin = payable > 0 && payable < (config.minOrderValue ?? 0);
   const overCredit = credit != null && payable > credit.available;
   const canCheckout = canSubmitQuote({lineCount:lines.length,quoteReady,placing,belowMinimum:belowMin,overCredit,quote});
@@ -205,7 +208,7 @@ export default function CartScreen({ navigation }: any) {
       />
 
       <ScrollView
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: tabBarContentSpace(cartCount) + 150 }}
+        contentContainerStyle={{ padding: spacing.lg, paddingBottom: tabBarContentSpace(cartCount, insets.bottom) + 150 }}
         showsVerticalScrollIndicator={false}
       >
         {quoteError ? <><Text>{quoteError}</Text><TouchableOpacity accessibilityRole="button" style={{padding:16}} onPress={()=>setQuoteAttempt(a=>a+1)} disabled={placing}><Text>Retry pricing</Text></TouchableOpacity></> : null}
@@ -308,7 +311,7 @@ export default function CartScreen({ navigation }: any) {
         )}
       </ScrollView>
 
-      <View style={styles.bar}>
+      <View style={[styles.bar, { paddingBottom: tabBarSpace }]}>
         <View style={{ flex: 1 }}>
           <Text style={styles.barLabel}>{quote ? quoteTax.totalLabel : "Catalogue subtotal"}</Text>
           <Text style={styles.barValue}>{inr(payable)}</Text>
@@ -446,7 +449,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: TAB_BAR_SPACE,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },

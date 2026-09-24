@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api } from "../api/client";
 import { useCart } from "../context/CartContext";
@@ -14,6 +15,7 @@ const FILTERS = ["All", "Active", "Delivered", "Rejected"];
 const ACTIVE = ["placed", "confirmed", "packed", "out_for_delivery"];
 
 export default function OrderHistoryScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const [orders, setOrders] = useState<any[]>([]);
   const [filter, setFilter] = useState("All");
   const [loading, setLoading] = useState(true);
@@ -82,7 +84,7 @@ export default function OrderHistoryScreen({ navigation }: any) {
         <FlatList
           data={visible}
           keyExtractor={(o) => o.id}
-          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: tabBarContentSpace(cartCount) }}
+          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: tabBarContentSpace(cartCount, insets.bottom) }}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.green} />
           }

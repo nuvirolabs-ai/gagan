@@ -429,6 +429,16 @@ describe("a planned stop and the visit that happened stay one record", () => {
       .set("Authorization", `Bearer ${tokenA}`);
     expect(orderReadback.status).toBe(200);
     expect(orderReadback.body.order.id).toBe(order.body.order.id);
+    const commercialCodes = orderReadback.body.commercialStatus.timeline.map((event: { code: string }) => event.code);
+    expect(commercialCodes).toContain("SALES_ORDER_PUNCHED");
+    if (order.body.dispatchAuthorization) {
+      expect(commercialCodes.filter((code: string) => code === "SALES_ORDER_CREATED")).toHaveLength(1);
+      expect(orderReadback.body.commercialStatus.currentCode).toBe("SALES_ORDER_CREATED");
+    } else {
+      expect(commercialCodes).toContain("SALES_ORDER_APPROVAL_SENT");
+      expect(commercialCodes).not.toContain("SALES_ORDER_CREATED");
+      expect(orderReadback.body.commercialStatus.currentCode).toBe("SALES_ORDER_APPROVAL_SENT");
+    }
 
     const visitAfterOrder = await prisma.salesVisit.findUniqueOrThrow({ where: { id: checkIn.body.visit.id } });
     expect(visitAfterOrder.checkedOutAt).toBeNull();

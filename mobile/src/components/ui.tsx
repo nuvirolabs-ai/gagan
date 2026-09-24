@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, radius, spacing, shadow } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
+import type { SalesOrderState } from "../types";
 
 /** Title bar for tab screens, which have no native header. */
 export function ScreenHeader({
@@ -237,6 +238,16 @@ export function StatusPill({ status }: { status: string }) {
   );
 }
 
+export function OrderLifecycleCaption({ state }: { state?: SalesOrderState | null }) {
+  const { t } = useLanguage();
+  if (!state) return null;
+  return (
+    <Text style={[s.orderLifecycleCaption, state === "punched" ? s.orderLifecyclePending : s.orderLifecycleCreated]}>
+      {t(`orders.lifecycle.${state}`)}
+    </Text>
+  );
+}
+
 const TIMELINE_STEPS = ["confirmed", "packed", "out_for_delivery", "delivered"] as const;
 
 export function OrderTimeline({ status }: { status: string }) {
@@ -271,6 +282,9 @@ const s = StyleSheet.create({
   headerRow: { flexDirection: "row", alignItems: "flex-end" },
   headerTitle: { fontSize: 26, fontWeight: "700", color: colors.ink },
   headerSub: { fontSize: 13, color: colors.inkMuted, marginTop: 4, fontWeight: "500" },
+  orderLifecycleCaption: { fontSize: 12, fontWeight: "600", lineHeight: 17, marginTop: 4 },
+  orderLifecyclePending: { color: colors.warning },
+  orderLifecycleCreated: { color: colors.success },
 
   sectionHead: {
     flexDirection: "row",

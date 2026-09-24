@@ -7,7 +7,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { api } from "../api/client";
 import { useCart } from "../context/CartContext";
 import { colors, radius, spacing, inr } from "../theme";
-import { StatusPill, OrderTimeline, EmptyState, ScreenSkeleton, SectionTitle } from "../components/ui";
+import { StatusPill, OrderTimeline, OrderLifecycleCaption, EmptyState, ScreenSkeleton, SectionTitle } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 import { formatOrderRef } from "../lib/orderRef";
 
@@ -99,6 +99,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
               minute: "2-digit",
             })}
           </Text>
+          <OrderLifecycleCaption state={order.salesOrderState} />
         </View>
         <StatusPill status={order.status} />
       </View>

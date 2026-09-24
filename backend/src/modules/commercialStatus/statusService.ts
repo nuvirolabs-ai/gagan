@@ -11,6 +11,7 @@ export const COMMERCIAL_STATUS_LABELS: Record<CommercialStatusCode, string> = {
   ACCOUNT_OPENED: "#️⃣ New Account Opened",
   RATE_APPROVAL_SENT: "🍓 Rate Sent for Approval",
   SALES_ORDER_APPROVAL_SENT: "❤️ Sales Order Sent for Approval",
+  SALES_ORDER_PUNCHED: "📝 Sales Order Punched",
   SALES_ORDER_CREATED: "👍 Sales Order Created",
   SALES_ORDER_ON_HOLD: "❌ Sales Order On Hold",
   SALES_ORDER_HOLD_RELEASED: "↩️ Sales Order Hold Released",
@@ -21,8 +22,17 @@ const CURRENT_STATUS_CODES = new Set<CommercialStatusCode>([
   CommercialStatusCode.ACCOUNT_OPENED,
   CommercialStatusCode.RATE_APPROVAL_SENT,
   CommercialStatusCode.SALES_ORDER_APPROVAL_SENT,
+  CommercialStatusCode.SALES_ORDER_PUNCHED,
   CommercialStatusCode.SALES_ORDER_CREATED,
 ]);
+
+const CURRENT_STATUS_PRIORITY: Partial<Record<CommercialStatusCode, number>> = {
+  [CommercialStatusCode.ACCOUNT_OPENED]: 1,
+  [CommercialStatusCode.RATE_APPROVAL_SENT]: 2,
+  [CommercialStatusCode.SALES_ORDER_PUNCHED]: 3,
+  [CommercialStatusCode.SALES_ORDER_APPROVAL_SENT]: 4,
+  [CommercialStatusCode.SALES_ORDER_CREATED]: 5,
+};
 
 type StatusDb = Prisma.TransactionClient | typeof prisma;
 
@@ -39,7 +49,18 @@ function normalizedAmount(value: Prisma.Decimal | number | string | null | undef
 }
 
 function normalizedMetadata(value: unknown) {
-  return JSON.stringify(value ?? null);
+  const jsonValue = JSON.parse(JSON.stringify(value ?? null));
+  const sortKeys = (entry: unknown): unknown => {
+    if (Array.isArray(entry)) return entry.map(sortKeys);
+    if (entry && typeof entry === "object") {
+      return Object.fromEntries(
+        Object.entries(entry).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+          .map(([key, child]) => [key, sortKeys(child)])
+      );
+    }
+    return entry;
+  };
+  return JSON.stringify(sortKeys(jsonValue));
 }
 
 function sameEventRequest(event: any, input: RecordCommercialStatusInput, actorStaffId: string | null) {
@@ -149,7 +170,18 @@ export function deriveCurrentCommercialStatus(
   isOnHold: boolean
 ) {
   if (isOnHold) return CommercialStatusCode.SALES_ORDER_ON_HOLD;
-  return events.find((event) => CURRENT_STATUS_CODES.has(event.code))?.code ?? null;
+  const current = events.reduce<(typeof events)[number] | null>((latest, event) => {
+    if (!CURRENT_STATUS_CODES.has(event.code)) return latest;
+    if (!latest) return event;
+    const timeDifference = event.createdAt.getTime() - latest.createdAt.getTime();
+    if (timeDifference > 0) return event;
+    if (timeDifference === 0
+      && (CURRENT_STATUS_PRIORITY[event.code] ?? 0) > (CURRENT_STATUS_PRIORITY[latest.code] ?? 0)) {
+      return event;
+    }
+    return latest;
+  }, null);
+  return current?.code ?? null;
 }
 
 export function serializeCommercialStatusEvent(event: any) {

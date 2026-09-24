@@ -15,6 +15,7 @@ describe("internal commercial status", () => {
       ACCOUNT_OPENED: "#️⃣ New Account Opened",
       RATE_APPROVAL_SENT: "🍓 Rate Sent for Approval",
       SALES_ORDER_APPROVAL_SENT: "❤️ Sales Order Sent for Approval",
+      SALES_ORDER_PUNCHED: "📝 Sales Order Punched",
       SALES_ORDER_CREATED: "👍 Sales Order Created",
       SALES_ORDER_ON_HOLD: "❌ Sales Order On Hold",
       ADVANCE_PAYMENT_RECEIVED: "✍️ Advance Payment Received",
@@ -36,6 +37,22 @@ describe("internal commercial status", () => {
     expect(deriveCurrentCommercialStatus([
       { code: CommercialStatusCode.ACCOUNT_OPENED, createdAt: new Date("2026-09-15T09:00:00Z") },
     ], false)).toBe(CommercialStatusCode.ACCOUNT_OPENED);
+  });
+
+  it("distinguishes punched demand from an authorized created order", () => {
+    const sameTransaction = new Date("2026-09-25T09:00:00Z");
+    const events = [
+      { code: CommercialStatusCode.SALES_ORDER_PUNCHED, createdAt: sameTransaction },
+    ];
+    expect(deriveCurrentCommercialStatus(events, false)).toBe(CommercialStatusCode.SALES_ORDER_PUNCHED);
+    expect(deriveCurrentCommercialStatus([
+      events[0],
+      { code: CommercialStatusCode.SALES_ORDER_APPROVAL_SENT, createdAt: sameTransaction },
+    ], false)).toBe(CommercialStatusCode.SALES_ORDER_APPROVAL_SENT);
+    expect(deriveCurrentCommercialStatus([
+      { code: CommercialStatusCode.SALES_ORDER_CREATED, createdAt: sameTransaction },
+      ...events,
+    ], false)).toBe(CommercialStatusCode.SALES_ORDER_CREATED);
   });
 
   it("replays the same event and rejects a key reused for another business object", async () => {
@@ -70,6 +87,33 @@ describe("internal commercial status", () => {
     await expect(recordCommercialStatusEvent(db, { ...input, orderId: "order-2" })).rejects.toMatchObject({ code: "commercial_status_idempotency_conflict" });
     await expect(recordCommercialStatusEvent(db, { ...input, amount: "101.00" })).rejects.toMatchObject({ code: "commercial_status_idempotency_conflict" });
     await expect(recordCommercialStatusEvent(db, { ...input, metadata: { source: "other" } })).rejects.toMatchObject({ code: "commercial_status_idempotency_conflict" });
+  });
+
+  it("replays equivalent JSON metadata regardless of object key order", async () => {
+    const saved = new Map<string, any>();
+    const db: any = {
+      commercialStatusEvent: {
+        findUnique: vi.fn(async ({ where }: any) => saved.get(where.idempotencyKey) ?? null),
+        create: vi.fn(async ({ data }: any) => {
+          const row = { id: "event-json-order", createdAt: new Date(), ...data };
+          saved.set(data.idempotencyKey, row);
+          return row;
+        }),
+      },
+    };
+    const input = {
+      code: CommercialStatusCode.SALES_ORDER_CREATED,
+      retailerId: "retailer-json-order",
+      orderId: "order-json-order",
+      metadata: { placedBy: "rep", orderNo: 42, dispatchAuthorizationId: "auth-1", assessmentId: "assessment-1" },
+      idempotencyKey: "created-json-order",
+    };
+    const first = await recordCommercialStatusEvent(db, input);
+
+    await expect(recordCommercialStatusEvent(db, {
+      ...input,
+      metadata: { orderNo: 42, placedBy: "rep", assessmentId: "assessment-1", dispatchAuthorizationId: "auth-1" },
+    })).resolves.toMatchObject({ id: first.id });
   });
 
   it("serializes internal event data for staff without changing its stable code", () => {
@@ -114,15 +158,40 @@ describe("internal commercial status", () => {
   });
 
   it("keeps approval and dispatch workflow objects on the protected staff boundary", () => {
-    const response = retailerOrderCreatedResponse({
+    const pendingResponse = retailerOrderCreatedResponse({
       order: { id: "order-1", status: "placed" },
       decision: { result: "approval_required", reasons: ["internal_reason"] },
       approvalRequest: { id: "approval-1", requestedByStaffId: "staff-1", requestReason: "internal" },
-      dispatchAuthorization: { id: "dispatch-1", assessmentId: "assessment-1" },
     } as any);
-    expect(response).toEqual({ order: { id: "order-1", status: "placed" } });
-    expect(response).not.toHaveProperty("approvalRequest");
-    expect(response).not.toHaveProperty("decision");
-    expect(response).not.toHaveProperty("dispatchAuthorization");
+    expect(pendingResponse).toEqual({ order: { id: "order-1", status: "placed", salesOrderState: "punched" } });
+
+    const createdResponse = retailerOrderCreatedResponse({
+      order: { id: "order-2", status: "placed" },
+      decision: { result: "allowed", reasons: [] },
+      dispatchAuthorization: { id: "dispatch-2", assessmentId: "assessment-2" },
+    } as any);
+    expect(createdResponse).toEqual({ order: { id: "order-2", status: "placed", salesOrderState: "created" } });
+    expect(createdResponse).not.toHaveProperty("dispatchAuthorization");
+    expect(createdResponse.order).not.toHaveProperty("decision");
+  });
+
+  it("exposes a safe derived lifecycle state from retailer order history", () => {
+    const punched = retailerOrderView({
+      id: "order-3",
+      status: "placed",
+      commercialStatusEvents: [{ code: "SALES_ORDER_PUNCHED", actorStaffId: "staff-private" }],
+    });
+    const created = retailerOrderView({
+      id: "order-4",
+      status: "placed",
+      commercialStatusEvents: [
+        { code: "SALES_ORDER_PUNCHED" },
+        { code: "SALES_ORDER_CREATED", actorStaffId: "staff-private" },
+      ],
+    });
+    expect(punched).toMatchObject({ salesOrderState: "punched" });
+    expect(created).toMatchObject({ salesOrderState: "created" });
+    expect(created).not.toHaveProperty("commercialStatusEvents");
+    expect(created).not.toHaveProperty("actorStaffId");
   });
 });

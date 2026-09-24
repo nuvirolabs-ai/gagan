@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "../../../lib/prisma";
 import { createOrderForRetailer } from "../../../lib/orders";
+import { ApprovalService } from "../../approvals/approvalService";
 
 const run = randomUUID();
 const ids = {
@@ -10,6 +11,7 @@ const ids = {
   variant: `credit-variant-${run}`,
   concurrentRetailer: `credit-concurrent-${run}`,
   chainRetailer: `credit-chain-${run}`,
+  lifecycleRetailer: `credit-lifecycle-${run}`,
   duplicateRetailer: `credit-duplicate-${run}`,
   overdueRetailer: `credit-overdue-${run}`,
   minimumOrderRetailer: `credit-minimum-order-${run}`,
@@ -67,6 +69,7 @@ beforeAll(async () => {
   for (const [id, phone] of [
     [ids.concurrentRetailer, `81${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "1")}`],
     [ids.chainRetailer, `80${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "0")}`],
+    [ids.lifecycleRetailer, `88${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "8")}`],
     [ids.duplicateRetailer, `89${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "9")}`],
     [ids.overdueRetailer, `82${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "2")}`],
     [ids.minimumOrderRetailer, `83${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "3")}`],
@@ -134,6 +137,78 @@ afterAll(async () => {
 });
 
 describe("atomic order credit enforcement", () => {
+  it("records punched demand before approval and creates it once after authorization", async () => {
+    const repId = `rep-lifecycle-${run}`;
+    const pendingKey = `lifecycle-pending-${run}`;
+    const first = await createOrderForRetailer(
+      ids.lifecycleRetailer,
+      [{ variantId: ids.variant, qty: 1 }],
+      "rep",
+      repId,
+      undefined,
+      `lifecycle-first-${run}`
+    );
+    expect(first).toMatchObject({ ok: true, decision: { result: "allowed" } });
+    if (!first.ok) throw new Error(JSON.stringify(first.body));
+    const firstEvents = await prisma.commercialStatusEvent.findMany({
+      where: { orderId: first.order.id },
+      select: { code: true },
+    });
+    expect(firstEvents.map((event) => event.code)).toContain("SALES_ORDER_PUNCHED");
+    expect(firstEvents.filter((event) => event.code === "SALES_ORDER_CREATED")).toHaveLength(1);
+
+    const pending = await createOrderForRetailer(
+      ids.lifecycleRetailer,
+      [{ variantId: ids.variant, qty: 1 }],
+      "rep",
+      repId,
+      undefined,
+      pendingKey
+    );
+    expect(pending).toMatchObject({ ok: true, decision: { result: "approval_required" } });
+    if (!pending.ok || !pending.approvalRequest) throw new Error("expected approval-held order");
+
+    const beforeApproval = await prisma.commercialStatusEvent.findMany({
+      where: { orderId: pending.order.id },
+      select: { code: true },
+    });
+    expect(beforeApproval.map((event) => event.code)).toContain("SALES_ORDER_PUNCHED");
+    expect(beforeApproval.map((event) => event.code)).toContain("SALES_ORDER_APPROVAL_SENT");
+    expect(beforeApproval.map((event) => event.code)).not.toContain("SALES_ORDER_CREATED");
+    expect(await prisma.sapOutbox.count({ where: { kind: "sales_order", referenceId: pending.order.id } })).toBe(0);
+
+    await new ApprovalService().decide(pending.approvalRequest.id, {
+      actorStaffId: `approver-lifecycle-${run}`,
+      actorPermissions: ["approval.second_invoice", "approval.third_invoice"],
+      result: "approved",
+      reason: "Approved after review",
+    });
+
+    const afterApproval = await prisma.commercialStatusEvent.findMany({
+      where: { orderId: pending.order.id },
+      select: { code: true },
+    });
+    expect(afterApproval.map((event) => event.code)).toContain("SALES_ORDER_CREATED");
+    expect(afterApproval.filter((event) => event.code === "SALES_ORDER_PUNCHED")).toHaveLength(1);
+    expect(afterApproval.filter((event) => event.code === "SALES_ORDER_CREATED")).toHaveLength(1);
+    expect(await prisma.sapOutbox.count({ where: { kind: "sales_order", referenceId: pending.order.id } })).toBe(1);
+
+    await createOrderForRetailer(
+      ids.lifecycleRetailer,
+      [{ variantId: ids.variant, qty: 1 }],
+      "rep",
+      repId,
+      undefined,
+      pendingKey
+    );
+    const afterRetry = await prisma.commercialStatusEvent.findMany({
+      where: { orderId: pending.order.id },
+      select: { code: true },
+    });
+    expect(afterRetry.filter((event) => event.code === "SALES_ORDER_CREATED")).toHaveLength(1);
+    expect(await prisma.sapOutbox.count({ where: { kind: "sales_order", referenceId: pending.order.id } })).toBe(1);
+  });
+
   it("checkout integrity: combines duplicate SKU rows and replays equivalent quantities", async () => {
     const key = `integrity-normalized-${run}`;
     const first = await createOrderForRetailer(ids.integrityRetailer,

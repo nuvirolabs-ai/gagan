@@ -3,6 +3,8 @@ import { prisma } from "../prisma";
 import { getSapConnector, SapSalesOrderPayload, SapInvoicePayload } from "./index";
 import { buildInvoice } from "../invoicing";
 import { snapshot } from "../../modules/commercial/service";
+import { CommercialStatusCode } from "@prisma/client";
+import { recordCommercialStatusEvent } from "../../modules/commercialStatus/statusService";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -81,6 +83,23 @@ async function invoicePayload(db: Db, ledgerEntryId: string): Promise<SapInvoice
  * as the final approval and dispatch authorization.
  */
 export async function enqueueSalesOrder(db: Db, orderId: string): Promise<void> {
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, retailerId: true, orderNo: true, placedBy: true },
+  });
+  if (!order) return;
+
+  const authorization = await db.dispatchAuthorization.findFirst({
+    where: {
+      orderId,
+      status: "active",
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+    },
+    orderBy: { version: "desc" },
+    select: { id: true, assessmentId: true, issuedByStaffId: true },
+  });
+  if (!authorization) throw new Error("sales_order_dispatch_not_authorized");
+
   const payload = await salesOrderPayload(db, orderId);
   if (!payload) return;
 
@@ -92,6 +111,19 @@ export async function enqueueSalesOrder(db: Db, orderId: string): Promise<void> 
       referenceId: orderId,
       payload: payload as unknown as Prisma.InputJsonValue,
     },
+  });
+  await recordCommercialStatusEvent(db, {
+    code: CommercialStatusCode.SALES_ORDER_CREATED,
+    retailerId: order.retailerId,
+    orderId,
+    actorStaffId: authorization.issuedByStaffId,
+    metadata: {
+      placedBy: order.placedBy,
+      orderNo: order.orderNo,
+      dispatchAuthorizationId: authorization.id,
+      assessmentId: authorization.assessmentId,
+    },
+    idempotencyKey: `sales-order-created:${orderId}`,
   });
 }
 

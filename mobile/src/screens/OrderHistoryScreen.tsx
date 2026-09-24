@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../api/client";
 import { useCart } from "../context/CartContext";
 import { colors, spacing, inr, tabBarContentSpace } from "../theme";
-import { ScreenHeader, ChipRow, EmptyState, StatusPill, OrderTimeline, ScreenSkeleton } from "../components/ui";
+import { ScreenHeader, ChipRow, EmptyState, StatusPill, OrderTimeline, OrderLifecycleCaption, ScreenSkeleton } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 import { formatOrderRef } from "../lib/orderRef";
 
@@ -119,6 +119,7 @@ export default function OrderHistoryScreen({ navigation }: any) {
                         year: "numeric",
                       })}
                     </Text>
+                    <OrderLifecycleCaption state={item.salesOrderState} />
                   </View>
                   <View style={{ alignItems: "flex-end", gap: 5, flexShrink: 0 }}>
                     <Text

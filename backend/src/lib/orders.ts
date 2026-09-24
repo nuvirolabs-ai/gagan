@@ -325,16 +325,16 @@ export async function createOrderForRetailer(
       include: { items: true },
     });
     await recordCommercialStatusEvent(tx, {
-      code: CommercialStatusCode.SALES_ORDER_CREATED,
+      code: CommercialStatusCode.SALES_ORDER_PUNCHED,
       retailerId,
       orderId: orderWithIdentity.id,
       actorStaffId: placedBy === "rep" ? placedByStaffId ?? null : null,
       metadata: {
         placedBy,
         orderNo: orderWithIdentity.orderNo,
-        canonicalOrderStatus: orderWithIdentity.status,
+        capturedOrderStatus: orderWithIdentity.status,
       },
-      idempotencyKey: `sales-order-created:${orderWithIdentity.id}`,
+      idempotencyKey: `sales-order-punched:${orderWithIdentity.id}`,
     });
     const assessment = await tx.creditAssessment.create({
       data: {

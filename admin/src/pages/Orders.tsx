@@ -24,6 +24,7 @@ const INTERNAL_STATUS_FILTERS = [
   { key: "ACCOUNT_OPENED", label: "#️⃣ New Account" },
   { key: "RATE_APPROVAL_SENT", label: "🍓 Rate Approval" },
   { key: "SALES_ORDER_APPROVAL_SENT", label: "❤️ Order Approval" },
+  { key: "SALES_ORDER_PUNCHED", label: "📝 Order Punched" },
   { key: "SALES_ORDER_CREATED", label: "👍 Order Created" },
   { key: "SALES_ORDER_ON_HOLD", label: "❌ On Hold" },
   { key: "ADVANCE_PAYMENT_RECEIVED", label: "✍️ Advance Received" },

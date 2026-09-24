@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../../app";
 import { prisma } from "../../lib/prisma";
 import { lazyIdentitySessionService } from "../../modules/identity/sessionRuntime";
+import { CommercialStatusCode } from "@prisma/client";
 
 const run = randomUUID();
 const ids = { tier: `tenant-tier-${run}`, retailerA: `tenant-retailer-a-${run}`, retailerB: `tenant-retailer-b-${run}`, repA: `tenant-rep-a-${run}`, repB: `tenant-rep-b-${run}`, staffA: `tenant-staff-a-${run}`, staffB: `tenant-staff-b-${run}`, orderB: `tenant-order-b-${run}` };
@@ -27,6 +28,15 @@ beforeAll(async () => {
     prisma.staffUser.create({ data: { id: ids.staffB, name: "Staff B", phone: `96${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "6")}`, email: `tenant-b-${run}@test.invalid`, salesRepId: repB.id, roles: { create: { roleId: salespersonRole.id } } } }),
   ]);
   const order = await prisma.order.create({ data: { id: ids.orderB, retailerId: retailerB.id, orderTotal: 3_000 } });
+  await prisma.commercialStatusEvent.create({
+    data: {
+      code: CommercialStatusCode.SALES_ORDER_CREATED,
+      retailerId: retailerB.id,
+      orderId: order.id,
+      metadata: { dispatchAuthorizationId: "internal-only" },
+      idempotencyKey: `tenant-order-created-${run}`,
+    },
+  });
   const [retailerASession, retailerBSession, repASession] = await Promise.all([
     lazyIdentitySessionService.createSession({ realm: "retailer", subjectId: retailerA.id, deviceName: "test" }),
     lazyIdentitySessionService.createSession({ realm: "retailer", subjectId: retailerB.id, deviceName: "test" }),
@@ -59,6 +69,14 @@ describe("tenant isolation", () => {
   it("prevents salesperson A from reading or ordering for retailer B", async () => {
     await request(app).get(`/rep/retailers/${ids.retailerB}`).set("Authorization", `Bearer ${repAToken}`).expect(404);
     await request(app).post("/rep/orders").set("Authorization", `Bearer ${repAToken}`).set("Idempotency-Key", `tenant-${run}`).send({ retailerId: ids.retailerB, items: [{ variantId: randomUUID(), qty: 1 }] }).expect(404);
-    await request(app).get(`/orders/${ids.orderB}`).set("Authorization", `Bearer ${retailerBToken}`).expect(200);
+    const history = await request(app).get("/orders").set("Authorization", `Bearer ${retailerBToken}`).expect(200);
+    expect(history.body.orders).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: ids.orderB, salesOrderState: "created" }),
+    ]));
+
+    const detail = await request(app).get(`/orders/${ids.orderB}`).set("Authorization", `Bearer ${retailerBToken}`).expect(200);
+    expect(detail.body.order.salesOrderState).toBe("created");
+    expect(detail.body.order).not.toHaveProperty("commercialStatusEvents");
+    expect(detail.body.order).not.toHaveProperty("commercialStatus");
   });
 });

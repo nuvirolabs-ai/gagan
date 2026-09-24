@@ -5,6 +5,7 @@ import { requireAuth, AuthedRequest } from "../lib/auth";
 import { createOrderForRetailer } from "../lib/orders";
 import { createRateLimiter } from "../platform/http/rateLimit";
 import { invoiceBalances } from "../modules/commercial/service";
+import { CommercialStatusCode } from "@prisma/client";
 
 const router = Router();
 
@@ -13,16 +14,28 @@ const router = Router();
  * explicit so adding a new internal scalar to Order cannot accidentally leak
  * it through a broad Prisma spread.
  */
-export function retailerOrderView(order: any) {
+export type RetailerSalesOrderState = "punched" | "created";
+
+export function retailerOrderView(order: any, stateOverride?: RetailerSalesOrderState) {
   const {
     isOnHold: _isOnHold,
     holdReason: _holdReason,
     heldAt: _heldAt,
     heldByStaffId: _heldByStaffId,
-    commercialStatusEvents: _commercialStatusEvents,
+    commercialStatusEvents,
+    commercialStatus: _commercialStatus,
+    salesOrderState: _salesOrderState,
     ...publicOrder
   } = order;
-  return publicOrder;
+  const events = Array.isArray(commercialStatusEvents) ? commercialStatusEvents : [];
+  const salesOrderState = stateOverride ?? (
+    events.some((event: any) => event.code === CommercialStatusCode.SALES_ORDER_CREATED)
+      ? "created"
+      : events.some((event: any) => event.code === CommercialStatusCode.SALES_ORDER_PUNCHED)
+        ? "punched"
+        : null
+  );
+  return salesOrderState ? { ...publicOrder, salesOrderState } : publicOrder;
 }
 
 /**
@@ -30,9 +43,18 @@ export function retailerOrderView(order: any) {
  * decisions, approval requests and dispatch authorizations belong to the
  * protected staff/Admin workflow and must not cross this API boundary.
  */
-export function retailerOrderCreatedResponse(result: { order: any }) {
-  return { order: retailerOrderView(result.order) };
+export function retailerOrderCreatedResponse(result: { order: any; dispatchAuthorization?: unknown }) {
+  return {
+    order: retailerOrderView(result.order, result.dispatchAuthorization ? "created" : "punched"),
+  };
 }
+
+const retailerLifecycleEvents = {
+  where: {
+    code: { in: [CommercialStatusCode.SALES_ORDER_PUNCHED, CommercialStatusCode.SALES_ORDER_CREATED] },
+  },
+  select: { code: true },
+};
 
 const createOrderSchema = z.object({
   commercial: z.object({quoteId:z.string(),revision:z.number().int().positive()}).optional(),
@@ -58,10 +80,14 @@ router.post("/orders", requireAuth, createRateLimiter({ name: "retailer-order", 
 router.get("/orders", requireAuth, async (req: AuthedRequest, res) => {
   const orders = await prisma.order.findMany({
     where: { retailerId: req.retailerId },
-    include: { items: { include: { variant: { include: { product: true } } } }, delivery: true },
+    include: {
+      items: { include: { variant: { include: { product: true } } } },
+      delivery: true,
+      commercialStatusEvents: retailerLifecycleEvents,
+    },
     orderBy: { createdAt: "desc" },
   });
-  res.json({ orders: orders.map(retailerOrderView) });
+  res.json({ orders: orders.map((order) => retailerOrderView(order)) });
 });
 
 router.get("/orders/:id", requireAuth, async (req: AuthedRequest, res) => {
@@ -74,6 +100,7 @@ router.get("/orders/:id", requireAuth, async (req: AuthedRequest, res) => {
       // ordered total. Send it alongside so the retailer can see why.
       ledgerEntries: { where: { type: "invoice" }, take: 1 },
       invoice: true,
+      commercialStatusEvents: retailerLifecycleEvents,
     },
   });
   if (!order) return res.status(404).json({ error: "Order not found" });

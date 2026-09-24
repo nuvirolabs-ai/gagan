@@ -16,4 +16,11 @@ describe("retailer translations", () => {
       "You're ₹3,200 away from this week's benefit."
     );
   });
+
+  it("explains whether an order is punched or officially created", () => {
+    expect(translate("en", "orders.lifecycle.punched")).toBe("Order punched · awaiting approval");
+    expect(translate("en", "orders.lifecycle.created")).toBe("Official order created");
+    expect(translate("hi", "orders.lifecycle.punched")).toBe("ऑर्डर दर्ज हुआ · अनुमोदन बाकी");
+    expect(translate("hi", "orders.lifecycle.created")).toBe("आधिकारिक ऑर्डर बनाया गया");
+  });
 });

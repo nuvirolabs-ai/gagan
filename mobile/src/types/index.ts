@@ -34,10 +34,13 @@ export interface OrderItem {
   variant?: { unitSize: string; unit: string; unitsPerCase: number; product: { name: string } };
 }
 
+export type SalesOrderState = "punched" | "created";
+
 export interface Order {
   id: string;
   orderNo: number;
   status: "placed" | "confirmed" | "packed" | "out_for_delivery" | "delivered" | "rejected";
+  salesOrderState?: SalesOrderState;
   orderTotal: string;
   createdAt: string;
   items: OrderItem[];

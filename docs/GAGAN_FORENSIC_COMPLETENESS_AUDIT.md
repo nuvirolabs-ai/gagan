@@ -272,6 +272,7 @@ At the PAY-06 implementation checkpoint, the status was recorded as `IMPLEMENTED
 
 ## Execution Update — GGN-VIS-01 / GGN-VIS-02 (2026-09-25)
 
+- Implementation checkpoint: commit `6e005c4161083f2c527eb7c0c3956e6b1d7b7cf0` on `codex/gagan-client-feedback-v2-reconciled` includes the related PAY-08 outstanding/ledger source and tests.
 - The existing location API returns specific `visit_already_open`, `invalid_location_coordinates`, and assignment errors. Rep previously discarded these codes and showed an online-only retry message. A small localized mapper now explains duplicate-open-visit, invalid-location, assignment, and unknown/network failures without changing backend semantics.
 - Retailer detail now evaluates the unfiltered `/rep/visits` response on focus. It restores an open visit for the selected retailer; if an open visit belongs elsewhere, it displays that retailer and a direct action to resume/check out the visit, and hides new check-in, order, and unscoped activity-composer actions. A race that returns `visit_already_open` triggers a visit reload. The backend one-open-visit constraint remains authoritative.
 - Regression-first verification: the new error-mapping and active-visit tests failed before their helpers existed, then passed after implementation. Backend full suite passed 148 files / 1,025 tests, including authenticated visit/location integration (4 files / 36 tests) and the PAY-08 assigned-retailer ledger integration (1 test); backend typecheck/build passed. Rep full suite passed 44 files / 226 tests; Rep typecheck passed.

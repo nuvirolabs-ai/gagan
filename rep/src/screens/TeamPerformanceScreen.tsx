@@ -23,6 +23,10 @@ import { repApi } from "../api/repClient";
 import { colors, inr, spacing } from "../theme";
 import { SCREEN_CONTENT_BOTTOM_GAP } from "../layout/viewportPolicy";
 import { useLanguage } from "../i18n/LanguageContext";
+import {
+  selectTeamPerformancePresentation,
+  type TeamTranslate,
+} from "./teamPerformancePresentation";
 
 function riskMeta(level: string, t: (key: string) => string) {
   if (level === "at_risk") return { label: t("team.atRisk"), tone: "danger" as const };
@@ -30,11 +34,14 @@ function riskMeta(level: string, t: (key: string) => string) {
   return { label: t("team.onTrack"), tone: "green" as const };
 }
 
-function TeamMember({ member, t }: { member: any; t: (key: string) => string }) {
-  const target = member.headlineTarget;
+function TeamMember({ member, presentation, t }: {
+  member: any;
+  presentation: ReturnType<typeof selectTeamPerformancePresentation>["members"][number];
+  t: TeamTranslate;
+}) {
   const risk = riskMeta(member.risk?.level ?? "on_track", t);
-  const attendance = member.attendance === "present";
   const route = member.route;
+  const summary = presentation.summary;
 
   return (
     <Surface level={1}>
@@ -42,36 +49,45 @@ function TeamMember({ member, t }: { member: any; t: (key: string) => string }) 
         <View style={styles.memberIdentity}>
           <Text style={styles.memberName} numberOfLines={2}>{member.name}</Text>
           <Text style={styles.memberMeta} numberOfLines={1}>
-            {[member.territory, member.rank ? `#${member.rank}` : null].filter(Boolean).join(" | ") || " "}
+            {[member.territory, presentation.rankLabel].filter(Boolean).join(" | ") || " "}
           </Text>
         </View>
         <StatusChip label={risk.label} tone={risk.tone} />
       </View>
 
-      {target ? (
-        <View style={styles.memberTarget}>
-          <View style={styles.between}>
-            <Text style={styles.memberMeta}>{inr(target.actual)} / {inr(target.target)}</Text>
-            <Text style={styles.memberMeta}>{target.completionPct}%</Text>
-          </View>
-          <ProgressRow pct={target.completionPct} tone={risk.tone === "danger" ? "danger" : "green"} />
-          {member.projection?.projected != null ? (
-            <Text style={styles.memberMeta}>{t("team.projected")}: {inr(member.projection.projected)}</Text>
+      <View style={styles.memberTarget}>
+        <View style={styles.between}>
+          <Text style={styles.memberMeta}>
+            {t("team.actual")}: {inr(summary.actual)}
+            {summary.target != null ? ` / ${inr(summary.target)}` : ""}
+          </Text>
+          {summary.target != null && summary.completionPct != null ? (
+            <Text style={styles.memberMeta}>{summary.completionPct}%</Text>
           ) : null}
         </View>
-      ) : (
-        <Text style={styles.memberMeta}>{t("team.noTarget")}</Text>
-      )}
+        {summary.target != null && summary.completionPct != null ? (
+          <ProgressRow pct={summary.completionPct} tone={risk.tone === "danger" ? "danger" : "green"} />
+        ) : summary.target == null ? (
+          <Text style={styles.memberMeta}>{t("team.noMemberTarget")}</Text>
+        ) : null}
+        {member.projection?.projected != null ? (
+          <Text style={styles.memberMeta}>{t("team.projected")}: {inr(member.projection.projected)}</Text>
+        ) : presentation.projectionUnavailable ? (
+          <Text style={styles.memberMeta}>{presentation.projectionUnavailable}</Text>
+        ) : null}
+      </View>
 
       <View style={styles.memberFooter}>
-        <StatusChip label={attendance ? t("team.present") : t("team.absent")} tone={attendance ? "green" : "neutral"} />
+        <StatusChip label={presentation.attendanceLabel} tone={presentation.attendanceTone} />
         {route ? (
           <Text style={styles.memberMeta}>
             {t("team.route")}: {route.visited}/{route.total} {t("team.stops")} | {route.completionPct}%
           </Text>
         ) : <Text style={styles.memberMeta}>{t("team.noRoute")}</Text>}
       </View>
-      {member.risk?.reasons?.[0] ? <Text style={styles.reason}>{member.risk.reasons[0]}</Text> : null}
+      {presentation.riskReasons.map((reason, index) => (
+        <Text key={`${member.salespersonId}-risk-${index}`} style={styles.reason}>{reason}</Text>
+      ))}
     </Surface>
   );
 }
@@ -120,10 +136,9 @@ export default function TeamPerformanceScreen() {
   const team = data?.team;
   const members: any[] = data?.members ?? [];
   const actions: any[] = data?.recommendedActions ?? [];
-  const target = Number(team?.target ?? 0);
-  const actual = Number(team?.actual ?? 0);
+  const presentation = selectTeamPerformancePresentation(data, t);
+  const summary = presentation.team.summary;
   const projection = team?.projection?.projected;
-  const targetPct = Number(team?.completionPct ?? 0);
   const dateLabel = data?.period ? `${data.period.from} to ${data.period.to}` : "";
 
   return (
@@ -137,17 +152,27 @@ export default function TeamPerformanceScreen() {
 
         <Surface>
           <SectionHeader title={t("team.target")} />
-          {target > 0 ? (
-            <>
-              <Text style={styles.mainValue}>{inr(actual)} <Text style={styles.targetValue}>/ {inr(target)}</Text></Text>
-              <Text style={styles.meta}>{t("team.actual")} | {targetPct}%</Text>
-              <View style={styles.progress}><ProgressRow pct={targetPct} tone="green" /></View>
-            </>
-          ) : <Text style={styles.meta}>{t("team.noTarget")}</Text>}
+          <Text style={styles.mainValue}>
+            {inr(summary.actual)}
+            {summary.target != null ? <Text style={styles.targetValue}> / {inr(summary.target)}</Text> : null}
+          </Text>
+          <Text style={styles.meta}>
+            {t("team.actual")}
+            {summary.target != null && summary.completionPct != null
+              ? ` | ${summary.completionPct}%`
+              : summary.target == null ? ` | ${t("team.noTarget")}` : ""}
+          </Text>
+          {summary.target != null && summary.completionPct != null ? (
+            <View style={styles.progress}><ProgressRow pct={summary.completionPct} tone="green" /></View>
+          ) : null}
           <View style={styles.summaryRows}>
             <View style={styles.summaryItem}>
               <Text style={styles.summaryLabel}>{t("team.projected")}</Text>
-              <Text style={styles.summaryValue}>{projection == null ? "-" : inr(projection)}</Text>
+              <Text style={styles.summaryValue}>
+                {projection == null
+                  ? presentation.team.projectionUnavailable ?? t("team.projection.unavailable")
+                  : inr(projection)}
+              </Text>
             </View>
             <View style={styles.summaryItem}>
               <Text style={styles.summaryLabel}>{t("team.sellingDays")}</Text>
@@ -178,7 +203,14 @@ export default function TeamPerformanceScreen() {
         ) : (
           <View style={styles.section}>
             <SectionHeader title={t("team.members")} />
-            {members.map((member) => <TeamMember key={member.salespersonId} member={member} t={t} />)}
+            {members.map((member, index) => (
+              <TeamMember
+                key={member.salespersonId}
+                member={member}
+                presentation={presentation.members[index]}
+                t={t}
+              />
+            ))}
           </View>
         )}
 
@@ -189,10 +221,10 @@ export default function TeamPerformanceScreen() {
           ) : actions.map((action, index) => (
             <Surface level={1} key={`${action.type}-${action.salespersonId}-${index}`}>
               <View style={styles.actionHeading}>
-                <Text style={styles.actionTitle} numberOfLines={2}>{action.action}</Text>
+                <Text style={styles.actionTitle} numberOfLines={2}>{presentation.actions[index].actionTitle}</Text>
                 <StatusChip label={action.salespersonName} tone="neutral" />
               </View>
-              <Text style={styles.meta}>{action.why}</Text>
+              <Text style={styles.meta}>{presentation.actions[index].reason}</Text>
             </Surface>
           ))}
         </View>

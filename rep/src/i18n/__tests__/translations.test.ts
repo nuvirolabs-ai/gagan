@@ -57,4 +57,44 @@ describe("salesperson translations", () => {
     expect(translate("en", "team.projectionNote")).toBe("Projected values use current run rate.");
     expect(translate("hi", "team.projectionNote")).toBe("अनुमान मौजूदा गति के आधार पर है।");
   });
+
+  it("provides distinct Hindi copy for structured team facts and actions", () => {
+    const keys = [
+      "team.attendance.present",
+      "team.attendance.leave",
+      "team.attendance.absent",
+      "team.attendance.holiday",
+      "team.attendance.notDue",
+      "team.attendance.unknown",
+      "team.metric.orderValue",
+      "team.metric.visits",
+      "team.metric.orders",
+      "team.metric.collections",
+      "team.metric.newRetailers",
+      "team.rankByMetric",
+      "team.noMemberTarget",
+      "team.projection.unavailable",
+      "team.projection.noSellingDays",
+      "team.projection.notStarted",
+      "team.projection.tooEarly",
+      "team.risk.projectedAchievement",
+      "team.risk.routeProgress",
+      "team.risk.attendanceAbsent",
+      "team.action.coach",
+      "team.action.review",
+      "team.reason.orderDue",
+      "team.reason.highValueRetailerMissed",
+      "team.reason.orderValueBelowNormal",
+      "team.reason.lineItemsBelowNormal",
+      "team.reason.categoryReorder",
+      "team.reason.visitOverdue",
+      "team.reason.collectionDue",
+    ] as const;
+
+    for (const key of keys) {
+      expect(translate("hi", key), key).not.toBe(translate("en", key));
+    }
+    expect(translate("hi", "team.projection.tooEarly", { elapsed: 3, total: 31 })).toContain("3");
+    expect(translate("hi", "team.risk.projectedAchievement", { pct: 31 })).toContain("31");
+  });
 });

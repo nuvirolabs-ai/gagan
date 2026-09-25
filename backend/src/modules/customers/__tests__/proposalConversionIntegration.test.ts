@@ -150,14 +150,27 @@ describe("approved proposal order conversion API", () => {
     await prisma.retailer.update({ where: { id: retailerId }, data: { status: "active", creditLimit: 1_000_000 } });
     await prisma.creditProfile.create({ data: { retailerId, rating: "A", billingPattern: "unknown", kycVerifiedAt: new Date() } });
 
-    const converted = await request(app)
-      .post(`/rep/retailer-proposal-order-intents/${intentId}/convert`)
-      .set("Authorization", `Bearer ${submitterSession.accessToken}`)
-      .send({});
-    expect(converted.status).toBe(201);
-    const orderId = converted.body.order.id as string;
-    expect(converted.body).toMatchObject({ alreadyConverted: false, order: { id: orderId, retailerId, status: "placed" } });
-    expect(converted.body.dispatchAuthorization).toBeTruthy();
+    const conversions = await Promise.all([
+      request(app)
+        .post(`/rep/retailer-proposal-order-intents/${intentId}/convert`)
+        .set("Authorization", `Bearer ${submitterSession.accessToken}`)
+        .send({}),
+      request(app)
+        .post(`/rep/retailer-proposal-order-intents/${intentId}/convert`)
+        .set("Authorization", `Bearer ${submitterSession.accessToken}`)
+        .send({}),
+    ]);
+    expect(conversions.map(({ status }) => status)).toEqual([201, 201]);
+    const orderIds = conversions.map(({ body }) => body.order.id as string);
+    expect(new Set(orderIds).size).toBe(1);
+    const orderId = orderIds[0];
+    for (const converted of conversions) {
+      expect(converted.body).toMatchObject({ order: { id: orderId, retailerId, status: "placed" } });
+      expect(converted.body.dispatchAuthorization).toBeTruthy();
+    }
+    expect(await prisma.auditEvent.count({
+      where: { action: "retailer_proposal.order_converted", subjectId: intentId },
+    })).toBe(1);
 
     const intentReadback = await request(app)
       .get(`/rep/retailer-proposal-order-intents/${intentId}`)

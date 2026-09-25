@@ -6,33 +6,9 @@ import { prisma } from "../../../lib/prisma";
 import { requireAdminIdentity } from "../../../lib/adminAuth";
 import { lazyIdentitySessionService } from "../../identity/sessionRuntime";
 import { createRequireSession } from "../../identity/sessionAuth";
-import type { ObjectStorage, PutObjectInput, StoredObject } from "../../../platform/storage/objectStorage";
+import { getObjectStorage } from "../../../platform/storage/storageRuntime";
 import { createCollectionRouter } from "../collectionRoutes";
 import { CollectionService } from "../collectionService";
-
-class MemoryObjectStorage implements ObjectStorage {
-  readonly objects = new Map<string, Buffer>();
-
-  async put(input: PutObjectInput): Promise<StoredObject> {
-    const objectKey = `${input.purpose}/${randomUUID()}`;
-    this.objects.set(objectKey, input.body);
-    return { objectKey, checksum: "local-collection-proof", contentType: input.contentType, sizeBytes: input.body.length };
-  }
-
-  async read(objectKey: string) {
-    const body = this.objects.get(objectKey);
-    if (!body) throw new Error("object_not_found");
-    return body;
-  }
-
-  async signedReadUrl(objectKey: string) {
-    return `signed://${objectKey}`;
-  }
-
-  async delete(objectKey: string) {
-    this.objects.delete(objectKey);
-  }
-}
 
 const ids = {
   tier: randomUUID(),
@@ -43,8 +19,9 @@ const ids = {
   invoice: randomUUID(),
   legacyLedgerEntry: randomUUID(),
 };
-const storage = new MemoryObjectStorage();
+const storage = getObjectStorage();
 const service = new CollectionService({ storage });
+const receipt = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
 const app = express();
 app.use(express.json());
 app.use("/rep", createCollectionRouter({ authenticate: createRequireSession("staff", lazyIdentitySessionService), service }));
@@ -54,6 +31,13 @@ let collectorToken = "";
 let accountsToken = "";
 
 beforeAll(async () => {
+  const url = new URL(process.env.DATABASE_URL ?? "");
+  if (!["localhost", "127.0.0.1"].includes(url.hostname)
+    || !url.pathname.includes("test")
+    || process.env.STORAGE_PROVIDER !== "local") {
+    throw new Error("Disposable local DB and filesystem storage required");
+  }
+
   const [tier, collectorRole, accountsRole] = await Promise.all([
     prisma.tier.create({ data: { id: ids.tier, name: `collection-flow-${ids.tier}` } }),
     prisma.role.findUniqueOrThrow({ where: { name: "field_collector" } }),
@@ -143,6 +127,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  const evidence = await prisma.collectionEvidence.findMany({
+    where: { submission: { retailerId: ids.retailer } },
+    select: { objectKey: true },
+  });
+  await Promise.all(evidence.map(({ objectKey }) => storage.delete(objectKey)));
   await prisma.collectionEvidence.deleteMany({ where: { submission: { retailerId: ids.retailer } } });
   await prisma.collectionSubmission.deleteMany({ where: { retailerId: ids.retailer } });
   await prisma.collectionAssignment.deleteMany({ where: { retailerId: ids.retailer } });
@@ -158,6 +147,7 @@ afterAll(async () => {
   await prisma.adminUser.deleteMany({ where: { id: ids.adminUser } });
   await prisma.retailer.deleteMany({ where: { id: ids.retailer } });
   await prisma.tier.deleteMany({ where: { id: ids.tier } });
+  expect(await prisma.collectionEvidence.count({ where: { submission: { retailerId: ids.retailer } } })).toBe(0);
 });
 
 describe("authenticated field collection lifecycle", () => {
@@ -175,7 +165,7 @@ describe("authenticated field collection lifecycle", () => {
         reference: "CHQ-2026-001",
         notes: "Collected at the retailer counter",
         idempotencyKey: `collection-flow-${randomUUID()}`,
-        evidence: { contentType: "image/jpeg", bodyBase64: Buffer.from([0xff, 0xd8, 0xff, 0xd9]).toString("base64") },
+        evidence: { contentType: "image/jpeg", bodyBase64: receipt.toString("base64") },
       });
 
     expect(submitted.status).toBe(201);
@@ -194,18 +184,22 @@ describe("authenticated field collection lifecycle", () => {
       padamAmount: "40",
     });
     expect(Number.isFinite(Date.parse(submission.submittedAt))).toBe(true);
-    expect(submission.evidence[0].signedUrl).toMatch(/^signed:\/\/collection_receipt\//);
+    expect(submission.evidence[0].signedUrl).toMatch(/^local-storage:\/\//);
     expect(submission.evidence[0]).not.toHaveProperty("objectKey");
+    const storedEvidence = await prisma.collectionEvidence.findFirstOrThrow({ where: { submissionId: submission.id } });
+    await expect(storage.read(storedEvidence.objectKey)).resolves.toEqual(receipt);
     expect(await prisma.payment.count({ where: { retailerId: ids.retailer } })).toBe(0);
     expect(await prisma.financialLedgerEntry.count({ where: { retailerId: ids.retailer, paymentId: { not: null } } })).toBe(0);
 
     const queue = await request(app).get("/admin/collections").set("Authorization", `Bearer ${accountsToken}`).expect(200);
     const queued = queue.body.submissions.find((item: { id: string }) => item.id === submission.id);
     expect(queued).toMatchObject({ collectorName: "Asha Verma", status: "pending", notes: "Collected at the retailer counter", reference: "CHQ-2026-001", invoiceScopeId: ids.invoice, jainAmount: "60", padamAmount: "40" });
-    expect(queued.evidence[0].signedUrl).toMatch(/^signed:\/\//);
+    expect(queued.evidence[0].signedUrl).toMatch(/^local-storage:\/\//);
+    expect(queued.evidence[0]).not.toHaveProperty("objectKey");
 
     const detail = await request(app).get(`/admin/collections/${submission.id}`).set("Authorization", `Bearer ${accountsToken}`).expect(200);
     expect(detail.body.submission).toMatchObject({ id: submission.id, collectorName: "Asha Verma", status: "pending", notes: "Collected at the retailer counter" });
+    expect(detail.body.submission.evidence[0].signedUrl).toMatch(/^local-storage:\/\//);
 
     const elevated = await lazyIdentitySessionService.elevateSession((await prisma.deviceSession.findFirstOrThrow({ where: { subjectId: ids.accounts, realm: "admin" } })).id, "admin", ids.accounts);
     const confirmed = await request(app)

@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../../../app";
 import { prisma } from "../../../lib/prisma";
 import { lazyIdentitySessionService } from "../../../modules/identity/sessionRuntime";
+import { getObjectStorage } from "../../../platform/storage/storageRuntime";
 
 const run = randomUUID();
 const digits = run.replace(/\D/g, "").slice(0, 8).padEnd(8, "1");
@@ -42,6 +43,13 @@ function thisMonth(hoursIn: number): Date {
 }
 
 beforeAll(async () => {
+  const url = new URL(process.env.DATABASE_URL ?? "");
+  if (!["localhost", "127.0.0.1"].includes(url.hostname)
+    || !url.pathname.includes("test")
+    || process.env.STORAGE_PROVIDER !== "local") {
+    throw new Error("Disposable local DB and filesystem storage required");
+  }
+
   await prisma.tier.create({ data: { id: ids.tier, name: `Perf tier ${run}` } });
   await prisma.salesRep.createMany({
     data: [
@@ -122,6 +130,12 @@ beforeAll(async () => {
 afterAll(async () => {
   const staffIds = [ids.staffA, ids.staffB, ids.manager];
   const retailerIds = [ids.retailerA1, ids.retailerA2, ids.retailerB1];
+  const evidenceAssets = await prisma.evidenceAsset.findMany({
+    where: { createdByStaffId: { in: staffIds }, purpose: "retailer_proposal_aadhaar" },
+    select: { id: true, objectKey: true },
+  });
+  await Promise.all(evidenceAssets.map(({ objectKey }) => getObjectStorage().delete(objectKey)));
+  await prisma.evidenceAsset.deleteMany({ where: { id: { in: evidenceAssets.map(({ id }) => id) } } });
   await prisma.deviceSession.deleteMany({ where: { subjectId: { in: staffIds } } });
   await prisma.achievementEvent.deleteMany({ where: { subjectId: { in: staffIds } } });
   await prisma.salesTarget.deleteMany({ where: { salespersonId: { in: staffIds } } });
@@ -137,6 +151,9 @@ afterAll(async () => {
   await prisma.variant.deleteMany({ where: { productId: ids.product } });
   await prisma.product.deleteMany({ where: { id: ids.product } });
   await prisma.tier.delete({ where: { id: ids.tier } });
+  expect(await prisma.evidenceAsset.count({
+    where: { createdByStaffId: { in: staffIds }, purpose: "retailer_proposal_aadhaar" },
+  })).toBe(0);
   await prisma.$disconnect();
 });
 

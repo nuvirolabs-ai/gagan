@@ -2107,6 +2107,11 @@ enum SalesTargetMetric {
   productive_outlets
 }
 
+enum SalesTargetScope {
+  PERSONAL
+  TEAM
+}
+
 /// One salesperson's working day. Its `open` state is the only thing that
 /// authorises movement tracking, so nothing is recorded before clock-in or
 /// after clock-out.
@@ -2371,6 +2376,7 @@ model SalesTarget {
   salespersonId    String
   salesperson      StaffUser         @relation("SalespersonTargets", fields: [salespersonId], references: [id], onDelete: Restrict)
   metric           SalesTargetMetric
+  scope            SalesTargetScope?
   periodStart      DateTime          @db.Date
   periodEnd        DateTime          @db.Date
   targetValue      Decimal           @db.Decimal(14, 2)

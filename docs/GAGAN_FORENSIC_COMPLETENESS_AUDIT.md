@@ -239,15 +239,15 @@ These totals classify the 46 issue IDs in `GAGAN_PRODUCT_GOAL.md` exactly once a
 
 TOTAL ISSUES: 46
 VERIFIED IMPLEMENTED: 0
-IMPLEMENTED BUT NOT VERIFIED: 25
-PARTIAL: 10
-MISSING: 4
+IMPLEMENTED BUT NOT VERIFIED: 27
+PARTIAL: 9
+MISSING: 3
 BROKEN: 2
 BLOCKED: 1
 DEFERRED BY REQUIREMENT: 3
 WITHDRAWN BY REQUIREMENT: 1
 
-The migration count does not reconcile: the audit brief expected 46, but the current source and the read-only local Prisma status both report 51. The five additional identities and the required retained identities are recorded in the independent refresh above; no migration was deleted or changed. PAY-04 remains blocked on the collection OTP business rule; OTP-01 remains broken for an environment selecting unimplemented MSG91.
+Migration lineage is still above the audit brief's expected 46: the earlier read-only refresh found 51, and the explicitly additive MKT-01 evidence migration brought the current total to 52/52 up to date. The five prior additions and required retained identities are recorded above; no migration was deleted or changed. PAY-04 remains blocked on the collection OTP business rule; OTP-01 remains broken for an environment selecting unimplemented MSG91.
 
 ## Top 20 Real Gaps
 
@@ -274,7 +274,7 @@ Ordered by P0 business correctness, P1 core operations, then P2 UX/admin. Implem
 19. **P1 — GGN-FDB-01 (MISSING):** Retailer feedback about salesperson interaction has no canonical linked flow.
 20. **P1 — GGN-ISS-01 (IMPLEMENTED BUT NOT VERIFIED):** Local authenticated reads from the Rep and Retailer APIs now agree after manager resolution; rendered focus refresh and exact-source hosted/device acceptance remain open.
 
-Other material gaps include the 51-versus-46 migration-count mismatch; GGN-OTP-01's absent MSG91 runtime adapter; GGN-ADM-01's incomplete joined setup; GGN-ADM-03 manual catalogue creation; GGN-ADM-06 per-salesperson expense history/total; GGN-MKT-02 marketing history/evidence; GGN-GEO-01 home-location distance; GGN-UX-02 measured scroll profiling; GGN-UX-03 the 20-product cap/View All behavior; GGN-UX-06 outlet block order; and GGN-EXP-01 filtered, permission-aware exports. The full 46-row register remains authoritative.
+Other material gaps include the 52-versus-46 migration-count mismatch; GGN-OTP-01's absent MSG91 runtime adapter; GGN-ADM-01's incomplete joined setup; GGN-ADM-03 manual catalogue creation; GGN-ADM-06 per-salesperson expense history/total; GGN-GEO-01 home-location distance; GGN-UX-02 measured scroll profiling; GGN-UX-03 the 20-product cap/View All behavior; GGN-UX-06 outlet block order; and GGN-EXP-01 filtered, permission-aware exports. GGN-MKT-02 has local implementation/API evidence and remains an acceptance gap, not missing source. The full 46-row register remains authoritative.
 
 ## Historical Audit Refresh — 2026-09-25 (HEAD `0a4e5bae11162cdd3073487f2ffb0cf9e24d9078`)
 

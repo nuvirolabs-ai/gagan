@@ -16,6 +16,7 @@ import { salesTabBarMetrics } from "./src/layout/viewportPolicy";
 import RepLoginScreen from "./src/screens/RepLoginScreen";
 import RepRetailersScreen from "./src/screens/RepRetailersScreen";
 import RepRetailerDetailScreen from "./src/screens/RepRetailerDetailScreen";
+import RepRetailerOutstandingScreen from "./src/screens/RepRetailerOutstandingScreen";
 import RepCatalogScreen from "./src/screens/RepCatalogScreen";
 import RepReviewOrderScreen from "./src/screens/RepReviewOrderScreen";
 import RepAccountScreen from "./src/screens/RepAccountScreen";
@@ -166,6 +167,11 @@ function RootNavigator() {
                 name="RepRetailerDetail"
                 component={RepRetailerDetailScreen}
                 options={{ title: t("retailer.title"), headerBackTitle: t("tabs.retailers") }}
+              />
+              <Stack.Screen
+                name="RepRetailerOutstanding"
+                component={RepRetailerOutstandingScreen}
+                options={{ title: t("retailer.outstandingLedger"), headerBackTitle: t("retailer.title") }}
               />
               <Stack.Screen
                 name="RepCatalog"

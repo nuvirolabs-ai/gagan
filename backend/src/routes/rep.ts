@@ -24,6 +24,14 @@ import { CommercialStatusCode } from "@prisma/client";
 import { attributeOrders } from "../modules/orders/orderAttribution";
 
 const router = Router();
+const maxLedgerSequence = 9_223_372_036_854_775_807n;
+const ledgerSequenceCursor = z.string().refine(
+  (value) => /^[1-9]\d{0,18}$/.test(value) && BigInt(value) <= maxLedgerSequence
+);
+const retailerLedgerQuerySchema = z.object({
+  beforeSequence: ledgerSequenceCursor.optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+}).strict();
 
 /* ---------------------------------- auth --------------------------------- */
 
@@ -202,6 +210,32 @@ router.get("/retailers/:id", requireRep, async (req: RepRequest, res) => {
     financialSummary,
     recentOrders,
     recentLedger: entries,
+  });
+});
+
+router.get("/retailers/:id/ledger", requireRep, async (req: RepRequest, res) => {
+  const retailer = await assignedRetailer(req.repId!, req.params.id);
+  if (!retailer) return res.status(404).json({ error: "Retailer not found" });
+
+  const parsed = retailerLedgerQuerySchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ error: "invalid_ledger_query" });
+
+  const { beforeSequence, limit } = parsed.data;
+  const [financialSummary, fetchedEntries] = await Promise.all([
+    financialSummaryFor(prisma, retailer.id),
+    financialLedgerFor(prisma, retailer.id, {
+      ...(beforeSequence === undefined ? {} : { beforeSequence: BigInt(beforeSequence) }),
+      take: limit + 1,
+    }),
+  ]);
+  if (!financialSummary) return res.status(404).json({ error: "Retailer not found" });
+
+  const hasMore = fetchedEntries.length > limit;
+  const entries = hasMore ? fetchedEntries.slice(0, limit) : fetchedEntries;
+  res.json({
+    financialSummary,
+    entries,
+    nextCursor: hasMore ? entries[entries.length - 1]?.sequence ?? null : null,
   });
 });
 

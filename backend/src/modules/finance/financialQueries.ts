@@ -170,10 +170,18 @@ function entityAmountsReconcile(amounts: EntityAmounts, total: number): boolean 
   return Math.round(sum * 100) === Math.round(total * 100);
 }
 
-export async function financialLedgerFor(db: Db, retailerId: string) {
+export async function financialLedgerFor(
+  db: Db,
+  retailerId: string,
+  options: { beforeSequence?: bigint; take?: number } = {}
+) {
   const entries = await db.financialLedgerEntry.findMany({
-    where: { retailerId },
+    where: {
+      retailerId,
+      ...(options.beforeSequence === undefined ? {} : { sequence: { lt: options.beforeSequence } }),
+    },
     orderBy: { sequence: "desc" },
+    ...(options.take === undefined ? {} : { take: options.take }),
     include: {
       invoice: {
         select: {

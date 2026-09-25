@@ -7,6 +7,7 @@ import {
   Linking,
   Pressable,
 } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -35,6 +36,8 @@ import ActivityComposer, { ACTIVITY_LABELS } from "../components/ActivityCompose
 import EntityAttribution from "../components/EntityAttribution";
 import { haptic } from "../feedback/haptics";
 import { useLanguage } from "../i18n/LanguageContext";
+import { checkInErrorKey } from "../location/checkInErrors";
+import { activeRetailerVisit } from "./activeRetailerVisit";
 
 const LEDGER_LABELS: Record<string, string> = {
   invoice: "Invoice",
@@ -52,6 +55,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   const [data, setData] = useState<any | null>(null);
   const [location, setLocation] = useState<any | null>(null);
   const [activeVisit, setActiveVisit] = useState<any | null>(null);
+  const [activeVisitElsewhere, setActiveVisitElsewhere] = useState<any | null>(null);
   const [recentVisits, setRecentVisits] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
   const [baseline, setBaseline] = useState<any | null>(null);
@@ -77,10 +81,13 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
       repApi.today().catch(() => null),
       repApi.schemes(retailerId).catch(() => ({ schemes: [] })),
     ]);
-    const visits = (visitData.visits ?? []).filter((visit: any) => visit.retailerId === retailerId);
+    const allVisits = visitData.visits ?? [];
+    const visits = allVisits.filter((visit: any) => visit.retailerId === retailerId);
+    const activeVisits = activeRetailerVisit(allVisits, retailerId);
     setData(retailerData);
     setLocation(locationData.location);
-    setActiveVisit(visits.find((visit: any) => !visit.checkedOutAt) ?? null);
+    setActiveVisit(activeVisits.activeVisit);
+    setActiveVisitElsewhere(activeVisits.activeVisitElsewhere);
     setRecentVisits(visits.slice(0, 5));
     setActivities(activityData.activities ?? []);
     setBaseline(baselineData.baseline ?? null);
@@ -110,6 +117,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
       !data ||
       location?.status !== "VERIFIED" ||
       activeVisit ||
+      activeVisitElsewhere ||
       autoStartAttempted.current ||
       checkInPending.current
     ) return;
@@ -128,15 +136,19 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
         setActiveVisit(result.visit);
         setActiveRetailer(retailerId);
         navigation.navigate("RepCatalog", { visitId: result.visit.id, retailerId, retailerName: data.retailer.name });
-      } catch {
-        Alert.alert("Couldn't start visit", "Try again when you're online.");
+      } catch (error) {
+        if (error instanceof Error && error.message === "visit_already_open") void load().catch(() => undefined);
+        Alert.alert("Couldn't start visit", t(checkInErrorKey(error)));
       }
-    }).catch(() => Alert.alert("Couldn't start visit", "Try again when you're online."))
+    }).catch((error) => {
+      if (error instanceof Error && error.message === "visit_already_open") void load().catch(() => undefined);
+      Alert.alert("Couldn't start visit", t(checkInErrorKey(error)));
+    })
       .finally(() => {
         checkInPending.current = false;
         setCheckingIn(false);
       });
-  }, [activeVisit, data, location?.status, navigation, retailerId, route.params?.startVisit]);
+  }, [activeVisit, activeVisitElsewhere, data, load, location?.status, navigation, retailerId, route.params?.startVisit, t]);
 
   if (loading) {
     return (
@@ -169,6 +181,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   };
 
   const startOrder = () => {
+    if (activeVisitElsewhere) return;
     setActiveRetailer(retailer.id);
     navigation.navigate("RepCatalog", { retailerId: retailer.id, retailerName: retailer.name, visitId: activeVisit?.id });
   };
@@ -206,6 +219,9 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   };
 
   const checkIn = async () => {
+    if (activeVisitElsewhere) {
+      return Alert.alert(t("visit.activeVisitElsewhere"), t("visit.finishBeforeAnother"));
+    }
     if (checkInPending.current) return;
     checkInPending.current = true;
     setCheckingIn(true);
@@ -226,8 +242,9 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
       setActiveVisit(result.visit);
       setActiveRetailer(retailer.id);
       navigation.navigate("RepCatalog", { retailerId: retailer.id, retailerName: retailer.name, visitId: result.visit.id });
-    } catch {
-      Alert.alert("Couldn't check in", "Try again when you're online.");
+    } catch (error) {
+      if (error instanceof Error && error.message === "visit_already_open") void load().catch(() => undefined);
+      Alert.alert("Couldn't check in", t(checkInErrorKey(error)));
     } finally {
       checkInPending.current = false;
       setCheckingIn(false);
@@ -240,6 +257,15 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
       retailerId: retailer.id,
       retailerName: retailer.name,
     });
+
+  const resumeActiveVisitElsewhere = () => {
+    if (!activeVisitElsewhere) return;
+    navigation.navigate("Visit", {
+      visitId: activeVisitElsewhere.id,
+      retailerId: activeVisitElsewhere.retailerId,
+      retailerName: activeVisitElsewhere.retailer?.name ?? t("retailer.title"),
+    });
+  };
 
   const openMaps = () => {
     if (location?.latitude == null || location?.longitude == null) {
@@ -282,23 +308,31 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
           </View>
         </View>
 
-        <Surface>
-          <View style={styles.moneyRow}>
-            <View style={styles.moneyCell}>
-              <Text style={styles.moneyLabel}>{t("profile.outstanding")}</Text>
-              <Text style={styles.moneyValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                {inr(credit.outstanding)}
-              </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("retailer.openOutstandingLedger", { name: retailer.name })}
+          onPress={() => navigation.navigate("RepRetailerOutstanding", { retailerId: retailer.id, retailerName: retailer.name })}
+          style={({ pressed }) => [pressed && { opacity: 0.82 }]}
+        >
+          <Surface>
+            <View style={styles.moneyRow}>
+              <View style={styles.moneyCell}>
+                <Text style={styles.moneyLabel}>{t("profile.outstanding")}</Text>
+                <Text style={styles.moneyValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                  {inr(credit.outstanding)}
+                </Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={22} color={colors.primary} />
             </View>
-          </View>
-          <EntityAttribution
-            amounts={financialSummary?.entityBalances?.outstanding}
-            overdue={financialSummary?.entityBalances?.overdue}
-            expectedOverdue={Number(credit.overdue)}
-            status={financialSummary?.entityBalances?.attributionStatus}
-            expectedTotal={Number(credit.outstanding)}
-          />
-        </Surface>
+            <EntityAttribution
+              amounts={financialSummary?.entityBalances?.outstanding}
+              overdue={financialSummary?.entityBalances?.overdue}
+              expectedOverdue={Number(credit.overdue)}
+              status={financialSummary?.entityBalances?.attributionStatus}
+              expectedTotal={Number(credit.outstanding)}
+            />
+          </Surface>
+        </Pressable>
 
         {baseline ? (
           <Surface>
@@ -361,7 +395,14 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
           </Text>
         ) : null}
 
-        {visiting ? (
+        {activeVisitElsewhere ? (
+          <FocusCard tone="gold">
+            <Text style={styles.visitEyebrow}>{t("visit.activeVisitElsewhere")}</Text>
+            <Text style={styles.visitTime}>{activeVisitElsewhere.retailer?.name ?? t("retailer.title")}</Text>
+            <Text style={styles.muted}>{t("visit.finishBeforeAnother")}</Text>
+            <SecondaryButton label={t("visit.resumeActiveVisit")} icon="exit-outline" onPress={resumeActiveVisitElsewhere} />
+          </FocusCard>
+        ) : visiting ? (
           <FocusCard>
             <Text style={styles.visitEyebrow}>{t("customer.visitInProgress")}</Text>
             <Text style={styles.visitTime}>
@@ -478,10 +519,10 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
                 return activity.orderId ? <Pressable key={activity.id} accessibilityRole="button" onPress={() => navigation.navigate("OrderDetail", { orderId: activity.orderId })}>{event}</Pressable> : <View key={activity.id}>{event}</View>;
               })
             )}
-            {!visiting && !composing ? (
+            {!visiting && !activeVisitElsewhere && !composing ? (
               <TextButton label={t("customer.logActivity")} onPress={() => setComposing(true)} />
             ) : null}
-            {!visiting && composing ? (
+            {!visiting && !activeVisitElsewhere && composing ? (
               <ActivityComposer
                 retailerId={retailer.id}
                 visitId={undefined}
@@ -582,7 +623,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
         </View>
       </KeyboardSafeScrollView>
 
-      {!visiting ? (
+      {!visiting && !activeVisitElsewhere ? (
         <View style={[styles.bar, { paddingBottom: spacing.section + insets.bottom }]}>
           <PrimaryButton
             label={

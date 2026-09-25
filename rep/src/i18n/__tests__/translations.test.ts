@@ -25,4 +25,17 @@ describe("salesperson translations", () => {
     expect(translate("hi", "finance.jainTraders")).toBe("Jain Traders");
     expect(translate("hi", "finance.unattributed")).toBe("असंबद्ध / पुराना बकाया");
   });
+
+  it("translates check-in failures and active-visit recovery in Hindi", () => {
+    const keys = [
+      "visit.checkInAlreadyOpen",
+      "visit.checkInLocationInvalid",
+      "visit.checkInRetailerNotAssigned",
+      "visit.checkInFailed",
+      "visit.activeVisitElsewhere",
+      "visit.finishBeforeAnother",
+      "visit.resumeActiveVisit",
+    ] as const;
+    for (const key of keys) expect(translate("hi", key)).not.toBe(translate("en", key));
+  });
 });

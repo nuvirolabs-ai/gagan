@@ -109,4 +109,14 @@ describe("staff auth API", () => {
     expect(auth).toBe(true);
     expect(JSON.parse(String(options.body))).toMatchObject({ evidence: { contentType: "image/jpeg", bodyBase64: "cmVjZWlwdA==" } });
   });
+
+  it("loads the assigned retailer ledger with a sequence cursor", async () => {
+    const request = vi.fn().mockResolvedValue({ entries: [], nextCursor: null });
+    const store = { load: vi.fn(), save: vi.fn(), clear: vi.fn() };
+    const api = createStaffApi(request, store);
+
+    await api.retailerLedger("retailer-1", "123");
+
+    expect(request).toHaveBeenCalledWith("/rep/retailers/retailer-1/ledger?beforeSequence=123");
+  });
 });

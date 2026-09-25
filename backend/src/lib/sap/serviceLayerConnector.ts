@@ -84,6 +84,7 @@ export class SapB1ServiceLayerConnector implements SapConnector {
   }
 
   async postSalesOrder(payload: SapSalesOrderPayload): Promise<SapSalesOrderResult> {
+    if (payload.commercial) throw new SapB1EndpointNotConfiguredError("unknown", "entity-specific commercial posting contract");
     const path = this.endpoint("Orders", this.endpoints.orders);
     if (!this.options.fields || !this.options.orderMapping) throw new SapB1EndpointNotConfiguredError("unknown", "Orders field mapping");
     const dto = mapOrderToB1SalesOrderDto({

@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { invoiceBalances } from "../commercial/service";
 import { prisma } from "../../lib/prisma";
 import { settleSucceededPayment, type PaymentSettlementResult } from "../payments/paymentService";
 import { getObjectStorage } from "../../platform/storage/storageRuntime";
@@ -26,6 +27,9 @@ interface StoredCollectionEvidence {
 }
 
 export interface CollectionSubmitInput {
+  invoiceScopeId?:string;
+  jainAmount?:string;
+  padamAmount?:string;
   retailerId: string;
   collectorStaffId: string;
   actorPermissions: string[];
@@ -87,6 +91,7 @@ export class CollectionService {
     if (!Number.isFinite(input.amount) || input.amount <= 0) {
       throw new CollectionServiceError("invalid_amount", 400);
     }
+    if(new Prisma.Decimal(input.amount).decimalPlaces()>2 || (!input.invoiceScopeId && (input.jainAmount!==undefined || input.padamAmount!==undefined))) throw new CollectionServiceError("explicit_invoice_allocation_required",400);
     if (input.idempotencyKey.trim().length < 8) {
       throw new CollectionServiceError("invalid_idempotency_key", 400);
     }
@@ -102,6 +107,8 @@ export class CollectionService {
         existing.retailerId !== input.retailerId ||
         Number(existing.amount) !== input.amount ||
         existing.collectorStaffId !== input.collectorStaffId
+        || (existing.invoiceScopeId ?? undefined)!==input.invoiceScopeId
+        || (input.invoiceScopeId && (!existing.jainAmount?.eq(input.jainAmount ?? -1) || !existing.padamAmount?.eq(input.padamAmount ?? -1) || existing.method!==input.method || existing.reference!==(input.reference?.trim() || null)))
       ) {
         throw new CollectionServiceError("idempotency_key_conflict", 409);
       }
@@ -117,6 +124,12 @@ export class CollectionService {
       where: { collectorStaffId: input.collectorStaffId, retailerId: input.retailerId, active: true },
     });
     if (!assignment) throw new CollectionServiceError("collection_assignment_required", 403);
+    if(input.invoiceScopeId) {
+      if(!/^\d+(\.\d{1,2})?$/.test(input.jainAmount ?? "") || !/^\d+(\.\d{1,2})?$/.test(input.padamAmount ?? "")) throw new CollectionServiceError("explicit_invoice_allocation_required",400);
+      const b=await prisma.$transaction(tx=>invoiceBalances(tx,input.invoiceScopeId!));
+      const jain=new Prisma.Decimal(input.jainAmount!),padam=new Prisma.Decimal(input.padamAmount!);
+      if(b.invoice.retailerId!==input.retailerId || !jain.plus(padam).eq(input.amount) || jain.gt(b.jain) || padam.gt(b.padam)) throw new CollectionServiceError("invoice_entity_allocation_invalid",409);
+    }
 
     let stored: StoredCollectionEvidence | undefined;
     try {
@@ -127,6 +140,7 @@ export class CollectionService {
         data: {
           retailerId: input.retailerId,
           collectorStaffId: input.collectorStaffId,
+          invoiceScopeId:input.invoiceScopeId,jainAmount:input.jainAmount,padamAmount:input.padamAmount,
           amount: input.amount,
           method: input.method,
           reference: input.reference?.trim() || undefined,
@@ -145,6 +159,7 @@ export class CollectionService {
         });
         if (retry) {
           if (stored) await this.storageAdapter().delete(stored.objectKey).catch(() => undefined);
+          if (retry.retailerId!==input.retailerId || !retry.amount.eq(input.amount) || retry.collectorStaffId!==input.collectorStaffId || (retry.invoiceScopeId ?? undefined)!==input.invoiceScopeId || (input.invoiceScopeId && (!retry.jainAmount?.eq(input.jainAmount ?? -1) || !retry.padamAmount?.eq(input.padamAmount ?? -1) || retry.method!==input.method || retry.reference!==(input.reference?.trim() || null)))) throw new CollectionServiceError("idempotency_key_conflict",409);
           return this.publicSubmission(retry);
         }
       }
@@ -165,7 +180,7 @@ export class CollectionService {
       include: submissionInclude,
       orderBy: [{ submittedAt: "asc" }, { id: "asc" }],
     });
-    return Promise.all(submissions.map((submission) => this.publicSubmission(submission)));
+    return this.publicSubmissions(submissions);
   }
 
   async assignedRetailers(collectorStaffId: string, actorPermissions: string[]) {
@@ -176,6 +191,48 @@ export class CollectionService {
       where: { collectorStaffId, active: true },
       include: { retailer: { select: { id: true, name: true, phone: true, shopAddress: true } } },
       orderBy: { assignedAt: "asc" },
+    });
+  }
+
+  async adminAssignments(collectorStaffId: string, actorPermissions: string[]) {
+    if (!actorPermissions.includes("staff.manage")) {
+      throw new CollectionServiceError("permission_required", 403, { permission: "staff.manage" });
+    }
+    const collector = await prisma.staffUser.findUnique({ where: { id: collectorStaffId }, select: { id: true } });
+    if (!collector) throw new CollectionServiceError("collector_not_found", 404);
+    return prisma.collectionAssignment.findMany({
+      where: { collectorStaffId, active: true },
+      include: { retailer: { select: { id: true, name: true, phone: true, shopAddress: true } } },
+      orderBy: { assignedAt: "asc" },
+    });
+  }
+
+  async adminAssignmentRetailers(collectorStaffId: string, search: string, actorPermissions: string[]) {
+    if (!actorPermissions.includes("staff.manage")) {
+      throw new CollectionServiceError("permission_required", 403, { permission: "staff.manage" });
+    }
+    const collector = await prisma.staffUser.findFirst({
+      where: {
+        id: collectorStaffId,
+        status: "active",
+        roles: { some: { role: { permissions: { some: { permission: { name: "collection.submit" } } } } } },
+      },
+      select: { id: true },
+    });
+    if (!collector) throw new CollectionServiceError("collector_not_found", 404);
+    const activeAssignments = await prisma.collectionAssignment.findMany({
+      where: { collectorStaffId, active: true },
+      select: { retailerId: true },
+    });
+    const term = search.trim();
+    return prisma.retailer.findMany({
+      where: {
+        ...(activeAssignments.length ? { id: { notIn: activeAssignments.map(({ retailerId }) => retailerId) } } : {}),
+        ...(term ? { OR: [{ name: { contains: term, mode: "insensitive" as const } }, { phone: { contains: term } }] } : {}),
+      },
+      select: { id: true, name: true, phone: true },
+      orderBy: { name: "asc" },
+      take: 50,
     });
   }
 
@@ -245,14 +302,17 @@ export class CollectionService {
         return { paymentId: submission.paymentId, idempotent: true };
       }
 
-      if (submission.status === "confirming" && submission.paymentId) {
+      if (submission.paymentId) {
+        await tx.collectionSubmission.update({where:{id},data:{status:"confirming"}});
         return { paymentId: submission.paymentId, idempotent: true };
       }
 
       await tx.$queryRaw`SELECT "id" FROM "Retailer" WHERE "id" = ${submission.retailerId} FOR UPDATE`;
       const retailer = await tx.retailer.findUnique({ where: { id: submission.retailerId } });
       if (!retailer) throw new CollectionServiceError("retailer_not_found", 404);
-      if (Number(submission.amount) > Number(retailer.currentBalance)) {
+      // Commercial collections are validated against their invoice in the
+      // atomic settlement below, never against a retailer-wide reporting total.
+      if (!submission.invoiceScopeId && Number(submission.amount) > Number(retailer.currentBalance)) {
         throw new CollectionServiceError("amount_exceeds_outstanding", 409);
       }
 
@@ -260,6 +320,7 @@ export class CollectionService {
         data: {
           retailerId: submission.retailerId,
           amount: submission.amount,
+          ...(submission.invoiceScopeId ? {invoiceScopeId:submission.invoiceScopeId,confirmedJainAmount:submission.jainAmount,confirmedPadamAmount:submission.padamAmount,confirmedByStaffId:input.actorStaffId,confirmedMethod:submission.method,confirmedReference:submission.reference}:{}),
           status: "pending",
           channel: "manual",
           provider: "field_collection",
@@ -374,14 +435,24 @@ export class CollectionService {
     }
   }
 
-  private async publicSubmission<T extends { evidence: Array<{ objectKey: string; checksum: string; contentType: string; sizeBytes: number }> }>(submission: T) {
-    return {
+  private async publicSubmission<T extends { collectorStaffId: string; evidence: Array<{ objectKey: string; checksum: string; contentType: string; sizeBytes: number }> }>(submission: T) {
+    return (await this.publicSubmissions([submission]))[0];
+  }
+
+  private async publicSubmissions<T extends { collectorStaffId: string; evidence: Array<{ objectKey: string; checksum: string; contentType: string; sizeBytes: number }> }>(submissions: T[]) {
+    const collectorIds = [...new Set(submissions.map((submission) => submission.collectorStaffId))];
+    const collectors = collectorIds.length
+      ? await prisma.staffUser.findMany({ where: { id: { in: collectorIds } }, select: { id: true, name: true } })
+      : [];
+    const collectorNames = new Map(collectors.map((collector) => [collector.id, collector.name]));
+    return Promise.all(submissions.map(async (submission) => ({
       ...submission,
+      collectorName: collectorNames.get(submission.collectorStaffId) ?? null,
       evidence: await Promise.all(submission.evidence.map(async ({ objectKey, ...evidence }) => {
         const signedUrl = await this.storageAdapter().signedReadUrl(objectKey, 300).catch(() => null);
         return { ...evidence, signedUrl };
       })),
-    };
+    })));
   }
 }
 

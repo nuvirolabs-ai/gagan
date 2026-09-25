@@ -152,6 +152,16 @@ export class DisputeService {
       const order = request.order;
       if (!order) throw new ApprovalServiceError("approval_order_missing", 409);
 
+      await tx.$queryRaw`SELECT 1 FROM "Retailer" WHERE "id" = ${request.retailerId} FOR UPDATE`;
+      if (order.status !== "placed" && order.status !== "rejected") {
+        throw new ApprovalServiceError("order_transition_conflict", 409);
+      }
+      const claimed = await tx.order.updateMany({
+        where: { id: order.id, status: order.status },
+        data: { status: input.outcome === "approved" ? "placed" : "rejected" },
+      });
+      if (claimed.count !== 1) throw new ApprovalServiceError("order_transition_conflict", 409);
+
       let authorizationId: string | null = null;
       let assessmentId: string | null = null;
       if (input.outcome === "approved") {
@@ -227,14 +237,12 @@ export class DisputeService {
           where: { id: request.id },
           data: { status: "approved", decidedAt: now },
         });
-        await tx.order.update({ where: { id: order.id }, data: { status: "placed" } });
         await enqueueSalesOrder(tx, order.id);
       } else {
         await tx.approvalRequest.update({
           where: { id: request.id },
           data: { status: "rejected", decidedAt: now },
         });
-        await tx.order.update({ where: { id: order.id }, data: { status: "rejected" } });
       }
 
       const resolved = await tx.approvalDispute.update({
@@ -256,6 +264,8 @@ export class DisputeService {
           metadata: json({
             approvalRequestId: request.id,
             outcome: input.outcome,
+            from: order.status,
+            to: input.outcome === "approved" ? "placed" : "rejected",
             resolution: input.resolution.trim(),
             authorizationId,
             assessmentId,

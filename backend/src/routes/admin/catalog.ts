@@ -1,14 +1,21 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
+import { publicMediaUrl } from "../../lib/media";
 import { requireAdmin } from "../../lib/adminAuth";
+import { catalogueImageState, catalogueOrderingState, catalogueStatusWhere } from "../../modules/catalog/catalogueVisibility";
 
 const router = Router();
 router.use(requireAdmin);
 
-router.get("/products", async (_req, res) => {
+router.get("/products", async (req, res) => {
+  const includeInactive = req.query.view === "all";
   const [products, tiers, priceList] = await Promise.all([
-    prisma.product.findMany({ include: { variants: true }, orderBy: { createdAt: "asc" } }),
+    prisma.product.findMany({
+      ...(includeInactive ? {} : { where: { catalogStatus: catalogueStatusWhere(), variants: { some: { catalogStatus: catalogueStatusWhere() } } } }),
+      include: { variants: includeInactive ? true : { where: { catalogStatus: catalogueStatusWhere() } } },
+      orderBy: { createdAt: "asc" },
+    }),
     prisma.tier.findMany({ orderBy: { name: "asc" } }),
     prisma.priceList.findMany(),
   ]);
@@ -20,18 +27,32 @@ router.get("/products", async (_req, res) => {
     tiers,
     products: products.map((p) => ({
       id: p.id,
+      catalogKey: p.catalogKey,
+      internalCode: p.internalCode,
+      catalogStatus: p.catalogStatus,
       name: p.name,
       category: p.category,
+      imageUrl: publicMediaUrl(req, p.imageUrl),
+      description: p.description,
       variants: p.variants.map((v) => ({
         id: v.id,
+        catalogKey: v.catalogKey,
+        internalCode: v.internalCode,
+        catalogStatus: v.catalogStatus,
+        ...catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed),
+        ...catalogueImageState(v),
+        imageUrl: publicMediaUrl(req, v.imageUrl),
         unitSize: v.unitSize,
         unit: v.unit,
         unitsPerCase: v.unitsPerCase,
         unitWeightKg: Number(v.unitWeightKg),
+        hsnCode: v.hsnCode,
+        sellingEntity:v.sellingEntity,gstPercent:v.gstPercent,
         prices: tiers.map((t) => ({
           tierId: t.id,
           tierName: t.name,
           price: prices.get(priceKey(t.id, v.id)) ?? null,
+          rateBasis:priceList.find(p=>p.tierId===t.id && p.variantId===v.id)?.rateBasis ?? "case",
         })),
       })),
     })),
@@ -50,6 +71,7 @@ router.post("/price-list", async (req, res) => {
 
   const variant = await prisma.variant.findUnique({ where: { id: parsed.data.variantId } });
   if (!variant) return res.status(404).json({ error: "Variant not found" });
+  if (variant.sellingEntity) return res.status(409).json({error:"Use Commercial configuration to explicitly review the rate basis and GST"});
 
   const row = await prisma.priceList.upsert({
     where: { tierId_variantId: { tierId: parsed.data.tierId, variantId: parsed.data.variantId } },
@@ -67,6 +89,8 @@ router.post("/price-list", async (req, res) => {
 const productSchema = z.object({
   name: z.string().min(1),
   category: z.string().min(1),
+  imageUrl: z.string().url().optional(),
+  description: z.string().max(2000).optional(),
   variants: z
     .array(
       z.object({
@@ -89,6 +113,8 @@ router.post("/products", async (req, res) => {
     data: {
       name: parsed.data.name,
       category: parsed.data.category,
+      imageUrl: parsed.data.imageUrl,
+      description: parsed.data.description,
       variants: { create: parsed.data.variants },
     },
     include: { variants: true },

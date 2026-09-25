@@ -20,6 +20,12 @@ enum RetailerLifecycle {
   closed
 }
 
+enum RetailerInternalSegment {
+  A
+  B
+  C
+}
+
 enum KycCaseStatus {
   draft
   submitted
@@ -52,21 +58,7 @@ enum EvidencePurpose {
   kyc_document
   collection_receipt
   pod
-  aadhaar_card
-}
-
-enum RetailerProposalStatus {
-  pending
-  approved
-  rejected
-}
-
-/// Commercial buyer grade captured by sales (distinct from CreditRating).
-enum RetailerGrade {
-  A
-  B
-  C
-  D
+  retailer_proposal_aadhaar
 }
 
 enum RetailerSapAccountStatus {
@@ -81,6 +73,34 @@ enum IdentityRealm {
   admin
 }
 
+enum SurveyStatus {
+  draft
+  active
+  closed
+}
+
+enum SurveyAudience {
+  all_retailers
+  selected_retailers
+  all_salespersons
+  selected_salespersons
+}
+
+enum SurveyQuestionType {
+  single_choice
+  multiple_choice
+  yes_no
+  rating
+  number
+  text
+}
+
+enum SurveyRespondentType {
+  retailer
+  salesperson
+  salesperson_retailer
+}
+
 enum OrderStatus {
   placed
   confirmed
@@ -88,6 +108,18 @@ enum OrderStatus {
   out_for_delivery
   delivered
   rejected
+}
+
+/// Internal commercial language, separate from canonical operational states.
+enum CommercialStatusCode {
+  ACCOUNT_OPENED
+  RATE_APPROVAL_SENT
+  SALES_ORDER_APPROVAL_SENT
+  SALES_ORDER_PUNCHED
+  SALES_ORDER_CREATED
+  SALES_ORDER_ON_HOLD
+  SALES_ORDER_HOLD_RELEASED
+  ADVANCE_PAYMENT_RECEIVED
 }
 
 enum PlacedBy {
@@ -298,6 +330,16 @@ enum LegalDecisionType {
 }
 
 model Payment {
+  invoiceScopeId        String?
+  scopedInvoice         Invoice?              @relation("InvoiceScopedPayments", fields: [invoiceScopeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  confirmedJainAmount   Decimal?              @db.Decimal(14, 2)
+  confirmedPadamAmount  Decimal?              @db.Decimal(14, 2)
+  confirmedByStaffId    String?
+  confirmedBy           StaffUser?            @relation("CommercialPaymentConfirmer", fields: [confirmedByStaffId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  confirmedMethod       String?
+  confirmedReference    String?
+  requestKey            String?               @unique
+  requestFingerprint    String?
   id                    String                @id @default(uuid())
   retailerId            String
   retailer              Retailer              @relation(fields: [retailerId], references: [id])
@@ -329,77 +371,31 @@ enum PodType {
 }
 
 model Tier {
-  id              String      @id @default(uuid())
-  name            String      @unique
+  id              String             @id @default(uuid())
+  name            String             @unique
   description     String?
   /// Default credit period in days; a retailer may override it.
-  paymentTermDays Int         @default(15)
+  paymentTermDays Int                @default(15)
   retailers       Retailer[]
   priceList       PriceList[]
-  createdAt       DateTime    @default(now())
-}
-
-/// Sales grouping master (not pricing Tier).
-model RetailerGroup {
-  id        String             @id @default(uuid())
-  name      String             @unique
-  active    Boolean            @default(true)
-  retailers Retailer[]
-  proposals RetailerProposal[]
-  createdAt DateTime           @default(now())
-}
-
-model Transporter {
-  id        String             @id @default(uuid())
-  name      String             @unique
-  active    Boolean            @default(true)
-  retailers Retailer[]
-  proposals RetailerProposal[]
-  createdAt DateTime           @default(now())
-}
-
-model Beat {
-  id        String             @id @default(uuid())
-  name      String             @unique
-  city      String?
-  active    Boolean            @default(true)
-  retailers Retailer[]
-  proposals RetailerProposal[]
-  createdAt DateTime           @default(now())
-}
-
-model BuyerCategory {
-  id            String             @id @default(uuid())
-  name          String             @unique
-  active        Boolean            @default(true)
-  subCategories BuyerSubCategory[]
-  retailers     Retailer[]
-  proposals     RetailerProposal[]
-  createdAt     DateTime           @default(now())
-}
-
-model BuyerSubCategory {
-  id         String             @id @default(uuid())
-  categoryId String
-  category   BuyerCategory      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  name       String
-  active     Boolean            @default(true)
-  retailers  Retailer[]
-  proposals  RetailerProposal[]
-  createdAt  DateTime           @default(now())
-
-  @@unique([categoryId, name])
-  @@index([categoryId, active])
+  proposals       RetailerProposal[]
+  createdAt       DateTime           @default(now())
 }
 
 model Retailer {
+  commercialQuotes          CommercialQuote[]
   id                        String                     @id @default(uuid())
   name                      String
   shopAddress               String
+  /// Explicit destination city used by the Jain/Padam routing policy. This is
+  /// never inferred from shopAddress; null means routing is not configured.
+  deliveryCity              String?
   phone                     String                     @unique
   status                    RetailerLifecycle          @default(pending_kyc)
   tierId                    String
   tier                      Tier                       @relation(fields: [tierId], references: [id])
+  /// Internal customer grouping; separate from the commercial pricing tier.
+  internalSegment           RetailerInternalSegment?
   creditLimit               Decimal                    @default(0) @db.Decimal(12, 2)
   currentBalance            Decimal                    @default(0) @db.Decimal(12, 2)
   // Derived: recomputed from unsettled past-due invoices by recomputeOverdue().
@@ -410,30 +406,6 @@ model Retailer {
   salesRepId                String?
   salesRep                  SalesRep?                  @relation(fields: [salesRepId], references: [id])
   sapCustomerId             String?
-  groupId                   String?
-  group                     RetailerGroup?             @relation(fields: [groupId], references: [id])
-  contactPerson             String?
-  telephone                 String?
-  transporterId             String?
-  transporter               Transporter?               @relation(fields: [transporterId], references: [id])
-  pin                       String?
-  tehsil                    String?
-  district                  String?
-  state                     String?
-  deliveryCity              String?
-  beatId                    String?
-  beat                      Beat?                      @relation(fields: [beatId], references: [id])
-  shopTenureYears           Int?
-  gstin                     String?
-  aadhaarNumber             String?
-  aadhaarPhotoAssetId       String?                    @unique
-  aadhaarPhoto              EvidenceAsset?             @relation("RetailerAadhaarPhoto", fields: [aadhaarPhotoAssetId], references: [id])
-  grade                     RetailerGrade?
-  buyerCategoryId           String?
-  buyerCategory             BuyerCategory?             @relation(fields: [buyerCategoryId], references: [id])
-  buyerSubCategoryId        String?
-  buyerSubCategory          BuyerSubCategory?          @relation(fields: [buyerSubCategoryId], references: [id])
-  upiId                     String?
   orders                    Order[]
   ledgerEntries             LedgerEntry[]
   priceOverrides            PriceOverride[]
@@ -454,66 +426,19 @@ model Retailer {
   location                  RetailerLocation?
   locationHistory           RetailerLocationHistory[]
   visits                    SalesVisit[]
+  routeStops                RoutePlanStop[]
+  customerActivities        CustomerActivity[]
+  proposal                  RetailerProposal?
+  fieldTasks                FieldTask[]
+  fieldTaskEvidence         FieldTaskEvidence[]
+  serviceIssues             ServiceIssue[]
+  commercialStatusEvents    CommercialStatusEvent[]
+  surveyAssignments         SurveyAssignment[]         @relation("SurveyAssignedRetailer")
+  surveyResponses           SurveyResponse[]           @relation("SurveyRespondentRetailer")
+  surveyContextResponses    SurveyResponse[]           @relation("SurveyResponseContextRetailer")
   contacts                  RetailerContact[]
   sapAccounts               RetailerSapAccount[]
-  proposals                 RetailerProposal[]
   createdAt                 DateTime                   @default(now())
-
-  @@index([groupId])
-  @@index([transporterId])
-  @@index([beatId])
-  @@index([buyerCategoryId, buyerSubCategoryId])
-}
-
-/// Sales-submitted onboarding for a new retailer. Approval materialises a Retailer.
-model RetailerProposal {
-  id                  String                 @id @default(uuid())
-  status              RetailerProposalStatus @default(pending)
-  proposedByStaffId   String
-  proposedByRepId     String
-  partyName           String
-  groupId             String
-  group               RetailerGroup          @relation(fields: [groupId], references: [id])
-  contactPerson       String
-  mobile              String
-  telephone           String?
-  transporterId       String
-  transporter         Transporter            @relation(fields: [transporterId], references: [id])
-  address1            String
-  pin                 String?
-  tehsil              String?
-  district            String?
-  state               String?
-  deliveryCity        String
-  salesmanRepId       String
-  salesman            SalesRep               @relation(fields: [salesmanRepId], references: [id])
-  beatId              String?
-  beat                Beat?                  @relation(fields: [beatId], references: [id])
-  shopTenureYears     Int
-  gstin               String?
-  aadhaarNumber       String
-  aadhaarPhotoAssetId String                 @unique
-  aadhaarPhoto        EvidenceAsset          @relation("ProposalAadhaarPhoto", fields: [aadhaarPhotoAssetId], references: [id])
-  paymentTermDays     Int
-  creditLimit         Decimal                @default(0) @db.Decimal(12, 2)
-  grade               RetailerGrade
-  buyerCategoryId     String
-  buyerCategory       BuyerCategory          @relation(fields: [buyerCategoryId], references: [id])
-  buyerSubCategoryId  String?
-  buyerSubCategory    BuyerSubCategory?      @relation(fields: [buyerSubCategoryId], references: [id])
-  upiId               String?
-  payload             Json?
-  retailerId          String?
-  retailer            Retailer?              @relation(fields: [retailerId], references: [id])
-  reviewedByStaffId   String?
-  reviewedAt          DateTime?
-  rejectionReason     String?
-  createdAt           DateTime               @default(now())
-  updatedAt           DateTime               @updatedAt
-
-  @@index([status, createdAt])
-  @@index([proposedByStaffId, createdAt])
-  @@index([mobile, status])
 }
 
 model KycCase {
@@ -562,18 +487,17 @@ model KycReview {
 }
 
 model EvidenceAsset {
-  id               String          @id @default(uuid())
-  objectKey        String          @unique
-  checksum         String
-  contentType      String
-  sizeBytes        Int
-  purpose          EvidencePurpose
-  createdByStaffId String?
-  createdAt        DateTime        @default(now())
-  deletedAt        DateTime?
-  kycDocument      KycDocument?
-  retailerAadhaar  Retailer?          @relation("RetailerAadhaarPhoto")
-  proposalAadhaar  RetailerProposal?  @relation("ProposalAadhaarPhoto")
+  id                      String            @id @default(uuid())
+  objectKey               String            @unique
+  checksum                String
+  contentType             String
+  sizeBytes               Int
+  purpose                 EvidencePurpose
+  createdByStaffId        String?
+  createdAt               DateTime          @default(now())
+  deletedAt               DateTime?
+  kycDocument             KycDocument?
+  retailerProposalAadhaar RetailerProposal? @relation("RetailerProposalAadhaar")
 
   @@index([purpose, createdAt])
 }
@@ -616,35 +540,67 @@ model AdminUser {
 }
 
 model SalesRep {
-  id        String             @id @default(uuid())
+  id        String     @id @default(uuid())
   name      String
   phone     String
   photoUrl  String?
   territory String?
   retailers Retailer[]
-  proposals RetailerProposal[]
   staffUser StaffUser?
 }
 
 model StaffUser {
-  id               String           @id @default(uuid())
-  name             String
-  phone            String           @unique
-  email            String           @unique
-  employeeRef      String?          @unique
-  status           StaffStatus      @default(active)
-  salesRepId       String?          @unique
-  salesRep         SalesRep?        @relation(fields: [salesRepId], references: [id])
-  adminUserId      String?          @unique
-  adminUser        AdminUser?       @relation(fields: [adminUserId], references: [id])
-  roles            StaffRole[]
-  salesVisits      SalesVisit[]     @relation("SalespersonVisits")
-  delegationsGiven RoleDelegation[] @relation("Delegator")
-  delegationsHeld  RoleDelegation[] @relation("Delegatee")
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  freightQuotes          CommercialQuote[]
+  commercialPayments     Payment[]               @relation("CommercialPaymentConfirmer")
+  commercialStatusEvents CommercialStatusEvent[] @relation("CommercialStatusActor")
+  commercialHolds        Order[]                 @relation("CommercialHoldActor")
+  id                     String                  @id @default(uuid())
+  name                   String
+  phone                  String                  @unique
+  email                  String                  @unique
+  employeeRef            String?                 @unique
+  status                 StaffStatus             @default(active)
+
+  // The reporting line. One nullable self-relation is the whole hierarchy:
+  // null means top of the tree, depth is unbounded, and no job title appears
+  // anywhere in the logic that reads it. SetNull rather than Cascade because
+  // removing a manager must orphan their reports upward, never delete people.
+  managerId     String?
+  manager       StaffUser?  @relation("StaffReporting", fields: [managerId], references: [id], onDelete: SetNull)
+  directReports StaffUser[] @relation("StaffReporting")
+
+  salesRepId                   String?                       @unique
+  salesRep                     SalesRep?                     @relation(fields: [salesRepId], references: [id])
+  adminUserId                  String?                       @unique
+  adminUser                    AdminUser?                    @relation(fields: [adminUserId], references: [id])
+  roles                        StaffRole[]
+  salesVisits                  SalesVisit[]                  @relation("SalespersonVisits")
+  delegationsGiven             RoleDelegation[]              @relation("Delegator")
+  delegationsHeld              RoleDelegation[]              @relation("Delegatee")
+  workdaySessions              WorkdaySession[]              @relation("SalespersonWorkdays")
+  leaveRequests                LeaveRequest[]                @relation("SalespersonLeave")
+  leaveDecisions               LeaveRequest[]                @relation("LeaveDecisions")
+  routePlans                   RoutePlan[]                   @relation("SalespersonRoutePlans")
+  customerActivities           CustomerActivity[]            @relation("SalespersonActivities")
+  fieldTasksAssigned           FieldTask[]                   @relation("FieldTasksAssigned")
+  fieldTasksCreated            FieldTask[]                   @relation("FieldTasksCreated")
+  fieldTaskEvidence            FieldTaskEvidence[]
+  locationPings                LocationPing[]                @relation("SalespersonPings")
+  fieldExpenses                FieldExpense[]                @relation("SalespersonExpenses")
+  expenseDecisions             FieldExpense[]                @relation("ExpenseDecisions")
+  serviceIssues                ServiceIssue[]                @relation("ServiceIssuesRaised")
+  salesTargets                 SalesTarget[]                 @relation("SalespersonTargets")
+  retailerProposalsSubmitted   RetailerProposal[]            @relation("RetailerProposalsSubmitted")
+  retailerProposalsReviewed    RetailerProposal[]            @relation("RetailerProposalsReviewed")
+  retailerProposalOrderIntents RetailerProposalOrderIntent[] @relation("RetailerProposalOrderIntentSubmitter")
+  surveysCreated               Survey[]                      @relation("SurveyCreatedBy")
+  surveyAssignments            SurveyAssignment[]            @relation("SurveyAssignedSalesperson")
+  surveyResponses              SurveyResponse[]              @relation("SurveyRespondentStaff")
+  createdAt                    DateTime                      @default(now())
+  updatedAt                    DateTime                      @updatedAt
 
   @@index([status])
+  @@index([managerId])
 }
 
 /// The single current store location. Coordinates are nullable for existing
@@ -694,6 +650,7 @@ model RetailerLocationHistory {
 }
 
 model SalesVisit {
+  // Partial unique index SalesVisit_one_open_per_salesperson is maintained in SQL migrations.
   id                       String                     @id @default(uuid())
   salespersonId            String
   salesperson              StaffUser                  @relation("SalespersonVisits", fields: [salespersonId], references: [id], onDelete: Restrict)
@@ -714,10 +671,25 @@ model SalesVisit {
   checkedOutAt             DateTime?
   checkoutDistanceMeters   Decimal?                   @db.Decimal(10, 2)
   notes                    String?
+  /// Why the salesperson came. Defaults to a plain sales call.
+  purpose                  VisitPurpose               @default(sales_call)
+  /// Recorded when the visit is closed out; null while the visit is open.
+  outcome                  VisitOutcome?
+  /// Structured activities selected at Visit Out; legacy outcome remains readable.
+  outcomes                 String[]                   @default([])
+  noOrderReason            String?
+  followUpAt               DateTime?
+  /// Set when the visit fulfils a planned route stop, so a planned visit and
+  /// the visit that happened are one record rather than two.
+  routeStopId              String?
+  routeStop                RoutePlanStop?             @relation(fields: [routeStopId], references: [id], onDelete: SetNull)
+  activities               CustomerActivity[]
+  serviceIssues            ServiceIssue[]
   source                   LocationSource             @default(SALESPERSON_VISIT)
   createdAt                DateTime                   @default(now())
   updatedAt                DateTime                   @updatedAt
 
+  @@index([routeStopId])
   @@index([salespersonId, checkedInAt])
   @@index([retailerId, checkedInAt])
   @@index([verificationStatus, checkedInAt])
@@ -843,6 +815,185 @@ model AuditEvent {
   @@index([subjectType, subjectId, createdAt])
 }
 
+/// Reusable, identified market research. A submitted response is final: the
+/// respondent key and idempotency key both have durable database protection so
+/// a retry cannot create a second answer set.
+model Survey {
+  id               String             @id @default(uuid())
+  title            String
+  description      String?
+  status           SurveyStatus       @default(draft)
+  audience         SurveyAudience     @default(all_retailers)
+  startsAt         DateTime?
+  endsAt           DateTime?
+  createdByStaffId String
+  createdByStaff   StaffUser          @relation("SurveyCreatedBy", fields: [createdByStaffId], references: [id], onDelete: Restrict)
+  activatedAt      DateTime?
+  closedAt         DateTime?
+  questions        SurveyQuestion[]
+  assignments      SurveyAssignment[]
+  responses        SurveyResponse[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([status, startsAt, endsAt])
+  @@index([createdByStaffId, createdAt])
+}
+
+model SurveyQuestion {
+  id        String             @id @default(uuid())
+  surveyId  String
+  survey    Survey             @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  position  Int
+  prompt    String
+  type      SurveyQuestionType
+  required  Boolean            @default(false)
+  minValue  Decimal?           @db.Decimal(14, 4)
+  maxValue  Decimal?           @db.Decimal(14, 4)
+  maxLength Int?
+  options   SurveyOption[]
+  answers   SurveyAnswer[]
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@index([surveyId, position])
+}
+
+model SurveyOption {
+  id          String               @id @default(uuid())
+  questionId  String
+  question    SurveyQuestion       @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  label       String
+  value       String?
+  position    Int
+  answerLinks SurveyAnswerOption[]
+  createdAt   DateTime             @default(now())
+
+  @@index([questionId, position])
+}
+
+model SurveyAssignment {
+  id            String         @id @default(uuid())
+  surveyId      String
+  survey        Survey         @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  audience      SurveyAudience
+  retailerId    String?
+  retailer      Retailer?      @relation("SurveyAssignedRetailer", fields: [retailerId], references: [id], onDelete: Cascade)
+  salespersonId String?
+  salesperson   StaffUser?     @relation("SurveyAssignedSalesperson", fields: [salespersonId], references: [id], onDelete: Cascade)
+  createdAt     DateTime       @default(now())
+
+  @@unique([surveyId, retailerId])
+  @@unique([surveyId, salespersonId])
+  @@index([surveyId, audience])
+}
+
+model SurveyResponse {
+  id                   String               @id @default(uuid())
+  surveyId             String
+  survey               Survey               @relation(fields: [surveyId], references: [id], onDelete: Restrict)
+  respondentType       SurveyRespondentType
+  respondentKey        String
+  respondentStaffId    String?
+  respondentStaff      StaffUser?           @relation("SurveyRespondentStaff", fields: [respondentStaffId], references: [id], onDelete: Restrict)
+  respondentRetailerId String?
+  respondentRetailer   Retailer?            @relation("SurveyRespondentRetailer", fields: [respondentRetailerId], references: [id], onDelete: Restrict)
+  contextRetailerId    String?
+  contextRetailer      Retailer?            @relation("SurveyResponseContextRetailer", fields: [contextRetailerId], references: [id], onDelete: Restrict)
+  idempotencyKey       String
+  requestFingerprint   String
+  answers              SurveyAnswer[]
+  submittedAt          DateTime             @default(now())
+  createdAt            DateTime             @default(now())
+
+  @@unique([surveyId, respondentKey])
+  @@unique([surveyId, idempotencyKey])
+  @@index([surveyId, submittedAt])
+  @@index([respondentStaffId, submittedAt])
+  @@index([respondentRetailerId, submittedAt])
+}
+
+model SurveyAnswer {
+  id              String               @id @default(uuid())
+  responseId      String
+  response        SurveyResponse       @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  questionId      String
+  question        SurveyQuestion       @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  valueText       String?
+  valueNumber     Decimal?             @db.Decimal(14, 4)
+  selectedOptions SurveyAnswerOption[]
+
+  @@unique([responseId, questionId])
+  @@index([questionId])
+}
+
+model SurveyAnswerOption {
+  answerId String
+  optionId String
+  answer   SurveyAnswer @relation(fields: [answerId], references: [id], onDelete: Cascade)
+  option   SurveyOption @relation(fields: [optionId], references: [id], onDelete: Restrict)
+
+  @@id([answerId, optionId])
+  @@index([optionId])
+}
+
+/// Durable, preview-first record for Admin data imports. The normalized rows
+/// and result envelope are bounded by the import service's row/size limits so
+/// an apply can be explicitly confirmed after the upload request has ended.
+model ImportJob {
+  id           String    @id @default(uuid())
+  importType   String
+  fileName     String
+  status       String    @default("preview")
+  mode         String?
+  actorStaffId String
+  source       String    @default("import")
+  totalRows    Int       @default(0)
+  validRows    Int       @default(0)
+  warningRows  Int       @default(0)
+  failedRows   Int       @default(0)
+  createdRows  Int       @default(0)
+  updatedRows  Int       @default(0)
+  skippedRows  Int       @default(0)
+  preview      Json?
+  result       Json?
+  createdAt    DateTime  @default(now())
+  startedAt    DateTime?
+  completedAt  DateTime?
+
+  @@index([createdAt])
+  @@index([actorStaffId, createdAt])
+  @@index([status, createdAt])
+}
+
+/// Durable identity and summary for the real-catalogue importer. The source
+/// checksum is the batch identity; no catalogue row is matched by display
+/// name alone and a repeat run reuses the same technical source keys.
+model CatalogImportBatch {
+  id                   String    @id @default(uuid())
+  batchKey             String    @unique
+  sourceFileName       String
+  sourceSha256         String
+  sourceVersion        String
+  targetLabel          String
+  mode                 String
+  status               String    @default("dry_run")
+  approvalId           String?
+  approvalRevision     Int?
+  approvalSha256       String?
+  approvalSource       String?
+  approvalScope        Json?
+  imageMappingRevision String?
+  summary              Json?
+  createdByStaffId     String?
+  createdAt            DateTime  @default(now())
+  completedAt          DateTime?
+
+  @@index([sourceSha256, sourceVersion])
+  @@index([sourceVersion, approvalRevision])
+  @@index([status, createdAt])
+}
+
 model Notification {
   id         String   @id @default(uuid())
   retailerId String
@@ -948,13 +1099,27 @@ model AppConfig {
   creditPolicyApprovedAt        DateTime?
   creditPolicyApprovedByStaffId String?
   creditPolicyApprovedVersion   Int?
+  /// Attendance policy. When on, clock-in and clock-out require an attendance
+  /// photo. The photo is stored as evidence only — no biometric matching or
+  /// facial recognition is performed on it.
+  attendanceSelfieRequired      Boolean           @default(false)
+  /// Movement tracking policy. When off, the app records no location pings at
+  /// all and the tracking banner tells the salesperson so.
+  locationTrackingEnabled       Boolean           @default(true)
+  /// Sampling interval the app should use while a workday is open. Larger
+  /// values trade route resolution for battery.
+  locationPingIntervalSeconds   Int               @default(300)
 }
 
 model Product {
+  catalogKey         String?             @unique
+  internalCode       String?             @unique
+  catalogStatus      String              @default("active")
   id                 String              @id @default(uuid())
   name               String
   category           String
   imageUrl           String?
+  description        String?
   sapMaterialId      String?
   variants           Variant[]
   inventorySnapshots InventorySnapshot[]
@@ -964,44 +1129,88 @@ model Product {
 // A variant is one sellable case: `unitSize` x `unitsPerCase` (e.g. "1 kg" x 30).
 // PriceList.price is the price of the whole case.
 model Variant {
-  id                 String              @id @default(uuid())
-  productId          String
-  product            Product             @relation(fields: [productId], references: [id])
-  unitSize           String
-  unit               String
-  unitsPerCase       Int                 @default(1)
+  catalogKey               String?                           @unique
+  internalCode             String?                           @unique
+  catalogStatus            String                            @default("active")
+  imageUrl                 String?
+  /// Publication can intentionally show a labelled placeholder while the
+  /// sellable variant remains non-orderable until commercial setup is valid.
+  catalogImageStatus       String                            @default("exact")
+  catalogImageLabel        String?
+  hsnCode                  String?
+  sellingEntity            String?
+  gstPercent               Decimal?                          @db.Decimal(5, 2)
+  /// Explicit staging-only permission to accept an order before GST is finalized.
+  /// Invoice creation still requires a non-null GST snapshot.
+  gstPendingOrderAllowed   Boolean                           @default(false)
+  /// Explicit routing classification. Null preserves legacy static/ungrouped
+  /// catalog behavior until a SKU is deliberately configured for routing.
+  routingClass             String?
+  /// Approved ordered-case contribution to the five-bag threshold. Laxmi may
+  /// remain null; Instant Mix may remain null only for the documented weight
+  /// exception or an unresolved mixed-unit review.
+  routingBagEquivalent     Decimal?                          @db.Decimal(12, 3)
+  id                       String                            @id @default(uuid())
+  productId                String
+  product                  Product                           @relation(fields: [productId], references: [id])
+  unitSize                 String
+  unit                     String
+  unitsPerCase             Int                               @default(1)
   // Numeric weight of a single unit. Needed to invoice off delivered weight
   // (spec §5.6): price/kg = casePrice / (unitWeightKg * unitsPerCase).
-  unitWeightKg       Decimal             @default(1) @db.Decimal(10, 3)
-  priceList          PriceList[]
-  orderItems         OrderItem[]
-  priceOverrides     PriceOverride[]
-  inventorySnapshots InventorySnapshot[]
+  unitWeightKg             Decimal                           @default(1) @db.Decimal(10, 3)
+  priceList                PriceList[]
+  orderItems               OrderItem[]
+  priceOverrides           PriceOverride[]
+  inventorySnapshots       InventorySnapshot[]
+  proposalOrderIntentItems RetailerProposalOrderIntentItem[]
+}
+
+/// Server-priced draft; manager freight edits stop at acceptance.
+model CommercialQuote {
+  id                        String                  @id @default(uuid())
+  retailerId                String
+  retailer                  Retailer                @relation(fields: [retailerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  snapshot                  Json
+  revision                  Int                     @default(1)
+  freightConfirmedByStaffId String?
+  freightConfirmedBy        StaffUser?              @relation(fields: [freightConfirmedByStaffId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  order                     Order?
+  commercialStatusEvents    CommercialStatusEvent[]
+  expiresAt                 DateTime
+  acceptedAt                DateTime?
+  createdAt                 DateTime                @default(now())
+
+  @@index([retailerId, createdAt])
 }
 
 model InventorySnapshot {
-  id            String          @id @default(uuid())
-  productId     String
-  product       Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
-  variantId     String?
-  variant       Variant?        @relation(fields: [variantId], references: [id], onDelete: Cascade)
-  sapMaterialId String
-  warehouseCode String
-  onHand        Decimal         @db.Decimal(14, 3)
-  committed     Decimal         @default(0) @db.Decimal(14, 3)
-  available     Decimal         @db.Decimal(14, 3)
-  status        InventoryStatus @default(unknown)
-  source        String          @default("sap")
-  syncedAt      DateTime
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  id                 String          @id @default(uuid())
+  productId          String
+  product            Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId          String?
+  variant            Variant?        @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  sapMaterialId      String?
+  /// Internal staging identity is never written into the external SAP field.
+  internalMaterialId String?
+  warehouseCode      String
+  onHand             Decimal         @db.Decimal(14, 3)
+  committed          Decimal         @default(0) @db.Decimal(14, 3)
+  available          Decimal         @db.Decimal(14, 3)
+  status             InventoryStatus @default(unknown)
+  source             String          @default("sap")
+  syncedAt           DateTime
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 
   @@unique([sapMaterialId, warehouseCode])
+  @@unique([internalMaterialId, warehouseCode])
   @@index([productId, warehouseCode])
   @@index([status, syncedAt])
 }
 
 model PriceList {
+  rateBasis String  @default("case")
   id        String  @id @default(uuid())
   tierId    String
   tier      Tier    @relation(fields: [tierId], references: [id])
@@ -1014,6 +1223,7 @@ model PriceList {
 }
 
 model PriceOverride {
+  rateBasis  String   @default("case")
   id         String   @id @default(uuid())
   retailerId String
   retailer   Retailer @relation(fields: [retailerId], references: [id])
@@ -1025,25 +1235,33 @@ model PriceOverride {
 }
 
 model Order {
-  id                        String                     @id @default(uuid())
-  // Human-facing reference shown to retailers (rendered as GGN-00001).
-  orderNo                   Int                        @unique @default(autoincrement())
+  commercialQuoteId         String?                      @unique
+  commercialQuote           CommercialQuote?             @relation(fields: [commercialQuoteId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  commercialSnapshot        Json?
+  id                        String                       @id @default(uuid())
+  // Human-facing reference shown to retailers (rendered as GGN-00000001).
+  orderNo                   Int                          @unique @default(autoincrement())
   retailerId                String
-  retailer                  Retailer                   @relation(fields: [retailerId], references: [id])
+  retailer                  Retailer                     @relation(fields: [retailerId], references: [id])
   idempotencyKey            String?
-  placedBy                  PlacedBy                   @default(retailer)
+  placedBy                  PlacedBy                     @default(retailer)
   placedByRepId             String?
-  status                    OrderStatus                @default(placed)
-  orderTotal                Decimal                    @db.Decimal(12, 2)
+  status                    OrderStatus                  @default(placed)
+  orderTotal                Decimal                      @db.Decimal(12, 2)
   expectedDeliveryAt        DateTime?
   sapSalesOrderId           String?
   sapDocEntry               Int?
   sapDocNum                 Int?
-  sapExternalReference      String?                    @unique
-  sapSyncStatus             SapOrderSyncStatus         @default(pending)
+  sapExternalReference      String?                      @unique
+  sapSyncStatus             SapOrderSyncStatus           @default(pending)
   sapLastSyncedAt           DateTime?
   sapErrorCode              String?
   sapErrorMessage           String?
+  isOnHold                  Boolean                      @default(false)
+  holdReason                String?
+  heldAt                    DateTime?
+  heldByStaffId             String?
+  heldBy                    StaffUser?                   @relation("CommercialHoldActor", fields: [heldByStaffId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   items                     OrderItem[]
   delivery                  Delivery?
   invoice                   Invoice?
@@ -1052,23 +1270,56 @@ model Order {
   approvalRequests          ApprovalRequest[]
   dispatchAuthorizations    DispatchAuthorization[]
   creditDecisionComparisons CreditDecisionComparison[]
-  createdAt                 DateTime                   @default(now())
+  customerActivities        CustomerActivity[]
+  serviceIssues             ServiceIssue[]
+  commercialStatusEvents    CommercialStatusEvent[]
+  proposalOrderIntent       RetailerProposalOrderIntent?
+  createdAt                 DateTime                     @default(now())
 
   @@unique([retailerId, idempotencyKey])
   @@index([sapSyncStatus, createdAt])
 }
 
+/// Immutable internal commercial timeline. Retailer routes never select or
+/// serialize this model; staff/admin routes use it as their shared read model.
+model CommercialStatusEvent {
+  id                String               @id @default(uuid())
+  code              CommercialStatusCode
+  retailerId        String
+  retailer          Retailer             @relation(fields: [retailerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  orderId           String?
+  order             Order?               @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  commercialQuoteId String?
+  commercialQuote   CommercialQuote?     @relation(fields: [commercialQuoteId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  actorStaffId      String?
+  actorStaff        StaffUser?           @relation("CommercialStatusActor", fields: [actorStaffId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  reason            String?
+  amount            Decimal?             @db.Decimal(14, 2)
+  reference         String?
+  metadata          Json?
+  idempotencyKey    String?              @unique
+  createdAt         DateTime             @default(now())
+
+  @@index([retailerId, createdAt])
+  @@index([orderId, createdAt])
+  @@index([commercialQuoteId, createdAt])
+  @@index([code, createdAt])
+}
+
 model OrderItem {
-  id              String        @id @default(uuid())
-  orderId         String
-  order           Order         @relation(fields: [orderId], references: [id])
-  variantId       String
-  variant         Variant       @relation(fields: [variantId], references: [id])
-  qtyOrdered      Int
-  unitPrice       Decimal       @db.Decimal(12, 2)
-  qtyDelivered    Int?
-  weightDelivered Decimal?      @db.Decimal(12, 3)
-  invoiceLines    InvoiceLine[]
+  commercialSnapshot   Json?
+  id                   String        @id @default(uuid())
+  orderId              String
+  order                Order         @relation(fields: [orderId], references: [id])
+  variantId            String
+  variant              Variant       @relation(fields: [variantId], references: [id])
+  qtyOrdered           Int
+  unitPrice            Decimal       @db.Decimal(12, 2)
+  /// Accepted kilograms per priced case; null only for pre-snapshot orders.
+  caseWeightKgSnapshot Decimal?      @db.Decimal(24, 3)
+  qtyDelivered         Int?
+  weightDelivered      Decimal?      @db.Decimal(12, 3)
+  invoiceLines         InvoiceLine[]
 }
 
 model Delivery {
@@ -1105,31 +1356,35 @@ model LedgerEntry {
 }
 
 model Invoice {
-  id                  String                @id @default(uuid())
-  invoiceNumber       Int                   @unique @default(autoincrement())
+  scopedPayments      Payment[]              @relation("InvoiceScopedPayments")
+  scopedCollections   CollectionSubmission[]
+  commercialSnapshot  Json?
+  id                  String                 @id @default(uuid())
+  invoiceNumber       Int                    @unique @default(autoincrement())
   retailerId          String
-  retailer            Retailer              @relation(fields: [retailerId], references: [id])
-  orderId             String?               @unique
-  order               Order?                @relation(fields: [orderId], references: [id])
-  legacyLedgerEntryId String?               @unique
-  legacyLedgerEntry   LedgerEntry?          @relation(fields: [legacyLedgerEntryId], references: [id], onDelete: Restrict)
+  retailer            Retailer               @relation(fields: [retailerId], references: [id])
+  orderId             String?                @unique
+  order               Order?                 @relation(fields: [orderId], references: [id])
+  legacyLedgerEntryId String?                @unique
+  legacyLedgerEntry   LedgerEntry?           @relation(fields: [legacyLedgerEntryId], references: [id], onDelete: Restrict)
   invoiceDate         DateTime
   dueDate             DateTime
-  currency            String                @default("INR")
-  subtotal            Decimal               @db.Decimal(14, 2)
-  taxTotal            Decimal               @default(0) @db.Decimal(14, 2)
-  total               Decimal               @db.Decimal(14, 2)
-  outstandingAmount   Decimal               @db.Decimal(14, 2)
-  status              InvoiceStatus         @default(open)
-  idempotencyKey      String                @unique
-  sapInvoiceId        String?               @unique
+  currency            String                 @default("INR")
+  subtotal            Decimal                @db.Decimal(14, 2)
+  taxTotal            Decimal                @default(0) @db.Decimal(14, 2)
+  total               Decimal                @db.Decimal(14, 2)
+  outstandingAmount   Decimal                @db.Decimal(14, 2)
+  status              InvoiceStatus          @default(open)
+  idempotencyKey      String                 @unique
+  sapInvoiceId        String?                @unique
   lines               InvoiceLine[]
   allocations         PaymentAllocation[]
   ledgerEntry         FinancialLedgerEntry?
   creditNotes         CreditNote[]
   recoveryCase        RecoveryCase?
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
+  serviceIssues       ServiceIssue[]
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
 
   @@index([retailerId, status, dueDate])
 }
@@ -1282,6 +1537,10 @@ model LegalDecision {
 }
 
 model InvoiceLine {
+  sellingEntity       String?
+  taxableBase         Decimal?   @db.Decimal(14, 2)
+  gstPercent          Decimal?   @db.Decimal(5, 2)
+  taxAmount           Decimal?   @db.Decimal(14, 2)
   id                  String     @id @default(uuid())
   invoiceId           String
   invoice             Invoice    @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
@@ -1299,14 +1558,16 @@ model InvoiceLine {
 }
 
 model PaymentAllocation {
-  id        String                      @id @default(uuid())
-  paymentId String
-  payment   Payment                     @relation(fields: [paymentId], references: [id], onDelete: Restrict)
-  invoiceId String
-  invoice   Invoice                     @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
-  amount    Decimal                     @db.Decimal(14, 2)
-  reversals PaymentReversalAllocation[]
-  createdAt DateTime                    @default(now())
+  jainAmount  Decimal?                    @db.Decimal(14, 2)
+  padamAmount Decimal?                    @db.Decimal(14, 2)
+  id          String                      @id @default(uuid())
+  paymentId   String
+  payment     Payment                     @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  invoiceId   String
+  invoice     Invoice                     @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  amount      Decimal                     @db.Decimal(14, 2)
+  reversals   PaymentReversalAllocation[]
+  createdAt   DateTime                    @default(now())
 
   @@unique([paymentId, invoiceId])
   @@index([invoiceId, createdAt])
@@ -1353,6 +1614,10 @@ model PaymentEvidence {
 /// A field-collected payment remains outside the financial ledger until Accounts
 /// verifies the evidence and confirms it. Collectors never create Payment rows.
 model CollectionSubmission {
+  invoiceScopeId     String?
+  scopedInvoice      Invoice?                   @relation(fields: [invoiceScopeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  jainAmount         Decimal?                   @db.Decimal(14, 2)
+  padamAmount        Decimal?                   @db.Decimal(14, 2)
   id                 String                     @id @default(uuid())
   retailerId         String
   retailer           Retailer                   @relation(fields: [retailerId], references: [id])
@@ -1371,6 +1636,7 @@ model CollectionSubmission {
   confirmedAt        DateTime?
   updatedAt          DateTime                   @updatedAt
   evidence           CollectionEvidence[]
+  customerActivities CustomerActivity[]
 
   @@index([status, submittedAt])
   @@index([retailerId, submittedAt])
@@ -1689,4 +1955,590 @@ model WorkingCalendar {
   isWorkingDay Boolean
   label        String?
   createdAt    DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Field operations — the salesperson's workday.
+//
+// These entities describe how a salesperson spends a day in the field: when
+// the day starts and ends, which stores are planned for it, what happened at
+// each store, and what still has to be done. They deliberately reuse the
+// existing Retailer / Order / Invoice / SalesVisit / StaffUser entities rather
+// than introducing a parallel customer or order model.
+// ---------------------------------------------------------------------------
+
+enum WorkdayStatus {
+  open
+  closed
+}
+
+enum LeaveType {
+  casual
+  sick
+  unpaid
+  other
+}
+
+enum LeaveStatus {
+  pending
+  approved
+  rejected
+  cancelled
+}
+
+enum RoutePlanStatus {
+  draft
+  published
+  completed
+  cancelled
+}
+
+enum RouteStopStatus {
+  pending
+  visited
+  skipped
+}
+
+enum VisitPurpose {
+  sales_call
+  collection
+  service
+  onboarding
+  merchandising
+  other
+}
+
+enum VisitOutcome {
+  order_placed
+  no_order
+  payment_collected
+  follow_up_required
+  issue_raised
+  shop_closed
+  decision_maker_unavailable
+  other
+}
+
+/// Controlled vocabulary for what a salesperson did at a store. Free text
+/// lives in `notes`; the type is what dashboards and manager reporting read.
+enum CustomerActivityType {
+  order_discussion
+  order_placed
+  payment_discussion
+  collection_completed
+  product_demo
+  stock_check
+  merchandising
+  complaint_raised
+  follow_up_required
+  competitor_observation
+  no_order
+  shop_closed
+  decision_maker_unavailable
+  note
+}
+
+enum FieldTaskPriority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum FieldTaskStatus {
+  open
+  in_progress
+  done
+  cancelled
+}
+
+enum ExpenseCategory {
+  travel
+  fuel
+  food
+  lodging
+  telephone
+  other
+}
+
+enum ExpenseStatus {
+  submitted
+  approved
+  rejected
+}
+
+enum ServiceIssueType {
+  damaged_product
+  delivery_issue
+  invoice_issue
+  payment_issue
+  quality_complaint
+  service_request
+  other
+}
+
+enum ServiceIssuePriority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum ServiceIssueStatus {
+  open
+  in_progress
+  resolved
+  closed
+  rejected
+  withdrawn
+}
+
+enum SalesTargetMetric {
+  /// Value of orders the salesperson placed, excluding rejected orders.
+  order_value
+  visits
+  collection_value
+  new_customers
+  /// Number of orders placed, regardless of value.
+  order_count
+  /// Total order lines placed — the breadth measure behind range selling.
+  line_items
+  /// Distinct stores where a visit produced an order or a collection.
+  productive_outlets
+}
+
+/// One salesperson's working day. Its `open` state is the only thing that
+/// authorises movement tracking, so nothing is recorded before clock-in or
+/// after clock-out.
+model WorkdaySession {
+  id                  String         @id @default(uuid())
+  salespersonId       String
+  salesperson         StaffUser      @relation("SalespersonWorkdays", fields: [salespersonId], references: [id], onDelete: Restrict)
+  /// Calendar day the session belongs to, in the deployment's local timezone.
+  workDate            DateTime       @db.Date
+  status              WorkdayStatus  @default(open)
+  startedAt           DateTime       @default(now())
+  startLatitude       Decimal        @db.Decimal(10, 7)
+  startLongitude      Decimal        @db.Decimal(10, 7)
+  startAccuracyMeters Decimal        @db.Decimal(8, 2)
+  /// Optional attendance photo, stored through the platform object storage.
+  /// Only required when AppConfig.attendanceSelfieRequired is on. No facial
+  /// recognition is performed on it anywhere in this system.
+  startPhotoObjectKey String?
+  endedAt             DateTime?
+  endLatitude         Decimal?       @db.Decimal(10, 7)
+  endLongitude        Decimal?       @db.Decimal(10, 7)
+  endAccuracyMeters   Decimal?       @db.Decimal(8, 2)
+  endPhotoObjectKey   String?
+  devicePlatform      String?
+  /// Denormalised working minutes, written once at clock-out.
+  workedMinutes       Int?
+  locationPings       LocationPing[]
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  @@unique([salespersonId, workDate])
+  @@index([workDate, status])
+}
+
+model LeaveRequest {
+  id               String      @id @default(uuid())
+  salespersonId    String
+  salesperson      StaffUser   @relation("SalespersonLeave", fields: [salespersonId], references: [id], onDelete: Restrict)
+  fromDate         DateTime    @db.Date
+  toDate           DateTime    @db.Date
+  type             LeaveType   @default(casual)
+  reason           String
+  status           LeaveStatus @default(pending)
+  decidedByStaffId String?
+  decidedBy        StaffUser?  @relation("LeaveDecisions", fields: [decidedByStaffId], references: [id], onDelete: Restrict)
+  decidedAt        DateTime?
+  decisionNote     String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([salespersonId, fromDate])
+  @@index([status, fromDate])
+}
+
+/// The stores a salesperson is expected to cover on one date, in order.
+/// Assignment of a retailer to a salesperson still lives on Retailer.salesRepId;
+/// a route plan only schedules already-assigned retailers.
+model RoutePlan {
+  id               String          @id @default(uuid())
+  salespersonId    String
+  salesperson      StaffUser       @relation("SalespersonRoutePlans", fields: [salespersonId], references: [id], onDelete: Restrict)
+  planDate         DateTime        @db.Date
+  name             String?
+  status           RoutePlanStatus @default(draft)
+  createdByStaffId String?
+  publishedAt      DateTime?
+  completedAt      DateTime?
+  stops            RoutePlanStop[]
+  tasks            FieldTask[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@unique([salespersonId, planDate])
+  @@index([planDate, status])
+}
+
+model RoutePlanStop {
+  id          String          @id @default(uuid())
+  routePlanId String
+  routePlan   RoutePlan       @relation(fields: [routePlanId], references: [id], onDelete: Cascade)
+  retailerId  String
+  retailer    Retailer        @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  sequence    Int
+  status      RouteStopStatus @default(pending)
+  purpose     VisitPurpose    @default(sales_call)
+  note        String?
+  skipReason  String?
+  visitedAt   DateTime?
+  visits      SalesVisit[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([routePlanId, retailerId])
+  @@index([routePlanId, sequence])
+  @@index([retailerId, createdAt])
+}
+
+/// A structured record of something that happened with a customer. Written
+/// from the field, usually inside a visit; projected into customer history,
+/// the salesperson dashboard and manager reporting.
+model CustomerActivity {
+  id              String                @id @default(uuid())
+  retailerId      String
+  retailer        Retailer              @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  salespersonId   String
+  salesperson     StaffUser             @relation("SalespersonActivities", fields: [salespersonId], references: [id], onDelete: Restrict)
+  visitId         String?
+  visit           SalesVisit?           @relation(fields: [visitId], references: [id], onDelete: SetNull)
+  type            CustomerActivityType
+  notes           String?
+  followUpAt      DateTime?
+  orderId         String?
+  order           Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  collectionId    String?
+  collection      CollectionSubmission? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  serviceIssueId  String?
+  serviceIssue    ServiceIssue?         @relation(fields: [serviceIssueId], references: [id], onDelete: SetNull)
+  occurredAt      DateTime              @default(now())
+  /// Client-generated id that makes offline replay idempotent.
+  clientReference String?
+  createdAt       DateTime              @default(now())
+
+  @@unique([salespersonId, clientReference])
+  @@index([retailerId, occurredAt])
+  @@index([salespersonId, occurredAt])
+  @@index([type, occurredAt])
+}
+
+model FieldTask {
+  id                String              @id @default(uuid())
+  assignedToStaffId String
+  assignedTo        StaffUser           @relation("FieldTasksAssigned", fields: [assignedToStaffId], references: [id], onDelete: Restrict)
+  createdByStaffId  String?
+  createdBy         StaffUser?          @relation("FieldTasksCreated", fields: [createdByStaffId], references: [id], onDelete: Restrict)
+  retailerId        String?
+  retailer          Retailer?           @relation(fields: [retailerId], references: [id], onDelete: SetNull)
+  routePlanId       String?
+  routePlan         RoutePlan?          @relation(fields: [routePlanId], references: [id], onDelete: SetNull)
+  title             String
+  description       String?
+  priority          FieldTaskPriority   @default(normal)
+  status            FieldTaskStatus     @default(open)
+  dueAt             DateTime?
+  completedAt       DateTime?
+  completionNote    String?
+  evidence          FieldTaskEvidence[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([assignedToStaffId, status, dueAt])
+  @@index([retailerId, status])
+}
+
+model FieldTaskEvidence {
+  id             String    @id @default(uuid())
+  taskId         String
+  task           FieldTask @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  retailerId     String
+  retailer       Retailer  @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  salespersonId  String
+  salesperson    StaffUser @relation(fields: [salespersonId], references: [id], onDelete: Restrict)
+  objectKey      String    @unique
+  checksum       String
+  contentType    String
+  sizeBytes      Int
+  latitude       Decimal?  @db.Decimal(10, 7)
+  longitude      Decimal?  @db.Decimal(10, 7)
+  accuracyMeters Decimal?  @db.Decimal(8, 2)
+  createdAt      DateTime  @default(now())
+
+  @@index([taskId, createdAt])
+  @@index([retailerId, createdAt])
+  @@index([salespersonId, createdAt])
+}
+
+/// One recorded position during an open workday. Rows are only accepted while
+/// the referenced WorkdaySession is open, which is what keeps tracking inside
+/// working hours.
+model LocationPing {
+  id               String         @id @default(uuid())
+  workdaySessionId String
+  workdaySession   WorkdaySession @relation(fields: [workdaySessionId], references: [id], onDelete: Cascade)
+  salespersonId    String
+  salesperson      StaffUser      @relation("SalespersonPings", fields: [salespersonId], references: [id], onDelete: Restrict)
+  recordedAt       DateTime
+  latitude         Decimal        @db.Decimal(10, 7)
+  longitude        Decimal        @db.Decimal(10, 7)
+  accuracyMeters   Decimal        @db.Decimal(8, 2)
+  speedMps         Decimal?       @db.Decimal(8, 2)
+  headingDegrees   Decimal?       @db.Decimal(6, 2)
+  batteryPct       Int?
+  /// Client-generated id so a retried offline batch cannot duplicate rows.
+  clientReference  String
+  createdAt        DateTime       @default(now())
+
+  @@unique([salespersonId, clientReference])
+  @@index([workdaySessionId, recordedAt])
+  @@index([salespersonId, recordedAt])
+}
+
+model FieldExpense {
+  id                 String          @id @default(uuid())
+  salespersonId      String
+  salesperson        StaffUser       @relation("SalespersonExpenses", fields: [salespersonId], references: [id], onDelete: Restrict)
+  expenseDate        DateTime        @db.Date
+  category           ExpenseCategory
+  amount             Decimal         @db.Decimal(12, 2)
+  description        String
+  receiptObjectKey   String?
+  receiptContentType String?
+  status             ExpenseStatus   @default(submitted)
+  submittedAt        DateTime        @default(now())
+  decidedByStaffId   String?
+  decidedBy          StaffUser?      @relation("ExpenseDecisions", fields: [decidedByStaffId], references: [id], onDelete: Restrict)
+  decidedAt          DateTime?
+  decisionNote       String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@index([salespersonId, expenseDate])
+  @@index([status, submittedAt])
+}
+
+model ServiceIssue {
+  id                    String               @id @default(uuid())
+  retailerId            String
+  retailer              Retailer             @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  raisedByStaffId       String?
+  raisedBy              StaffUser?           @relation("ServiceIssuesRaised", fields: [raisedByStaffId], references: [id], onDelete: Restrict)
+  orderId               String?
+  order                 Order?               @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  invoiceId             String?
+  invoice               Invoice?             @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  visitId               String?
+  visit                 SalesVisit?          @relation(fields: [visitId], references: [id], onDelete: SetNull)
+  type                  ServiceIssueType
+  priority              ServiceIssuePriority @default(normal)
+  description           String
+  status                ServiceIssueStatus   @default(open)
+  assignedTeam          String?
+  resolutionNote        String?
+  resolvedAt            DateTime?
+  /// Retailer-origin requests use the owning retailer identity, never a fake staff actor.
+  clientReference       String?
+  withdrawnAt           DateTime?
+  withdrawnByRetailerId String?
+  withdrawnFromStatus   ServiceIssueStatus?
+  activities            CustomerActivity[]
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  @@unique([retailerId, clientReference])
+  @@index([retailerId, createdAt])
+  @@index([status, priority, createdAt])
+  @@index([raisedByStaffId, createdAt])
+}
+
+/// A target set for one salesperson over one period. Target-versus-achievement
+/// is only reported when a row exists; no target is ever invented.
+model SalesTarget {
+  id               String            @id @default(uuid())
+  salespersonId    String
+  salesperson      StaffUser         @relation("SalespersonTargets", fields: [salespersonId], references: [id], onDelete: Restrict)
+  metric           SalesTargetMetric
+  periodStart      DateTime          @db.Date
+  periodEnd        DateTime          @db.Date
+  targetValue      Decimal           @db.Decimal(14, 2)
+  createdByStaffId String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@unique([salespersonId, metric, periodStart, periodEnd])
+  @@index([periodStart, periodEnd])
+}
+
+// ---------------------------------------------------------------------------
+// Performance, recognition and field intelligence.
+//
+// Ranking, run-rate projection and next-best-action triggers are all computed
+// read models over the rows that already exist — none of them are stored. Only
+// two things here need persistence: an achievement, because it must fire once
+// and stay earned, and a retailer proposal, because it is a governance record.
+// ---------------------------------------------------------------------------
+
+enum AchievementType {
+  TARGET_50
+  TARGET_75
+  TARGET_90
+  TARGET_100
+  TARGET_EXCEEDED
+  PERSONAL_BEST
+  COLLECTION_TARGET
+  NEW_RETAILER_MILESTONE
+  RANK_UP
+  TOP_10
+  TOP_3
+}
+
+enum AchievementSubjectKind {
+  salesperson
+  retailer
+}
+
+/// A recognition event that has been earned. Recognition only — this system
+/// carries no reward, discount or payout, and nothing reads it as if it did.
+model AchievementEvent {
+  id          String                 @id @default(uuid())
+  subjectKind AchievementSubjectKind @default(salesperson)
+  /// StaffUser id for a salesperson subject, Retailer id for a retailer one.
+  subjectId   String
+  type        AchievementType
+  /// SalesTargetMetric name, or another canonical measure the event is about.
+  metric      String?
+  /// Period the event belongs to, so the same milestone can be earned again
+  /// next month without ever firing twice inside one period.
+  periodStart DateTime               @db.Date
+  periodEnd   DateTime               @db.Date
+  /// The level that was crossed, in the metric's own unit.
+  threshold   Decimal?               @db.Decimal(14, 2)
+  /// The measured value at the moment it was earned.
+  actual      Decimal?               @db.Decimal(14, 2)
+  title       String
+  message     String
+  earnedAt    DateTime               @default(now())
+  /// When this stops being worth showing. Null means it does not expire.
+  expiresAt   DateTime?
+  /// Whatever the engine measured, kept so the event stays explainable later.
+  evidence    Json?
+  /// The engine's own identity for this event — type, metric, period and level.
+  /// A composite unique over nullable columns would let Postgres treat two
+  /// null-metric events as distinct and fire the same milestone twice, so the
+  /// key is computed as one total string instead.
+  dedupeKey   String
+  createdAt   DateTime               @default(now())
+
+  @@unique([subjectKind, subjectId, dedupeKey])
+  @@index([subjectKind, subjectId, earnedAt])
+  @@index([type, earnedAt])
+}
+
+enum RetailerProposalStatus {
+  pending
+  approved
+  rejected
+  withdrawn
+}
+
+/// A salesperson's request to add a store to the customer master.
+///
+/// This is a governance record, not a second customer model: approving it
+/// creates one canonical `Retailer` and links back to it. Nothing reads a
+/// proposal as if it were a customer.
+model RetailerProposal {
+  id                  String                        @id @default(uuid())
+  status              RetailerProposalStatus        @default(pending)
+  businessName        String
+  groupName           String?
+  ownerName           String?
+  phone               String
+  telephone           String?
+  transporter         String?
+  shopAddress         String
+  pinCode             String?
+  tehsil              String?
+  district            String?
+  state               String?
+  deliveryCity        String?
+  shopDurationYears   Int?
+  gstin               String?
+  paymentTerms        String?
+  upiId               String?
+  /// Encrypted with the application PII key. Never expose this field in an API response.
+  aadhaarEncrypted    String?
+  aadhaarLast4        String?
+  aadhaarPhotoAssetId String?                       @unique
+  aadhaarPhotoAsset   EvidenceAsset?                @relation("RetailerProposalAadhaar", fields: [aadhaarPhotoAssetId], references: [id], onDelete: SetNull)
+  /// Captured at the storefront where the device could provide it.
+  latitude            Decimal?                      @db.Decimal(10, 7)
+  longitude           Decimal?                      @db.Decimal(10, 7)
+  accuracyMeters      Decimal?                      @db.Decimal(8, 2)
+  /// Proposed classification. The reviewer decides the tier that is applied.
+  proposedTierId      String?
+  proposedTier        Tier?                         @relation(fields: [proposedTierId], references: [id], onDelete: SetNull)
+  notes               String?
+  submittedByStaffId  String
+  submittedBy         StaffUser                     @relation("RetailerProposalsSubmitted", fields: [submittedByStaffId], references: [id], onDelete: Restrict)
+  submittedAt         DateTime                      @default(now())
+  reviewedByStaffId   String?
+  reviewedBy          StaffUser?                    @relation("RetailerProposalsReviewed", fields: [reviewedByStaffId], references: [id], onDelete: Restrict)
+  reviewedAt          DateTime?
+  rejectionReason     String?
+  /// Set when approval created the customer.
+  retailerId          String?                       @unique
+  retailer            Retailer?                     @relation(fields: [retailerId], references: [id], onDelete: SetNull)
+  orderIntents        RetailerProposalOrderIntent[]
+  createdAt           DateTime                      @default(now())
+  updatedAt           DateTime                      @updatedAt
+
+  @@index([status, submittedAt])
+  @@index([submittedByStaffId, submittedAt])
+}
+
+/// Unpriced salesperson demand captured while customer-master admission is pending.
+/// Conversion links this record to the canonical Order only after proposal approval.
+model RetailerProposalOrderIntent {
+  id                          String                            @id @default(uuid())
+  proposalId                  String
+  proposal                    RetailerProposal                  @relation(fields: [proposalId], references: [id], onDelete: Restrict)
+  submittedByStaffId          String
+  submittedBy                 StaffUser                         @relation("RetailerProposalOrderIntentSubmitter", fields: [submittedByStaffId], references: [id], onDelete: Restrict)
+  idempotencyKey              String
+  items                       RetailerProposalOrderIntentItem[]
+  convertedOrderId            String?                           @unique
+  convertedOrder              Order?                            @relation(fields: [convertedOrderId], references: [id], onDelete: Restrict)
+  conversionCommercialQuoteId String?
+  punchedAt                   DateTime                          @default(now())
+  convertedAt                 DateTime?
+
+  @@unique([proposalId, idempotencyKey])
+  @@index([submittedByStaffId, punchedAt])
+}
+
+model RetailerProposalOrderIntentItem {
+  id           String                      @id @default(uuid())
+  intentId     String
+  intent       RetailerProposalOrderIntent @relation(fields: [intentId], references: [id], onDelete: Cascade)
+  variantId    String
+  variant      Variant                     @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  productName  String
+  unitSize     String
+  unitsPerCase Int
+  qty          Int
+
+  @@unique([intentId, variantId])
 }

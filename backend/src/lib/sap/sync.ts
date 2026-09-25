@@ -3,6 +3,8 @@ import { prisma } from "../prisma";
 import { getSapConnector } from "./index";
 import { nextQuarterlyCheckpoint } from "../../modules/credit/reviewSchedule";
 import { upsertInventorySnapshot } from "../../modules/inventory/inventoryService";
+import { CommercialStatusCode } from "@prisma/client";
+import { recordCommercialStatusEvent } from "../../modules/commercialStatus/statusService";
 
 export interface SyncOutcome {
   entity: SapEntity;
@@ -110,6 +112,12 @@ export function syncCustomers() {
           const nextReviewAt = nextQuarterlyCheckpoint(retailer.createdAt);
           await tx.creditProfile.create({
             data: { retailerId: retailer.id, rating: "N", accountCreatedAt: retailer.createdAt, nextReviewAt },
+          });
+          await recordCommercialStatusEvent(tx, {
+            code: CommercialStatusCode.ACCOUNT_OPENED,
+            retailerId: retailer.id,
+            metadata: { source: "sap_customer_sync", sapCustomerId: row.sapCustomerId },
+            idempotencyKey: `account-opened:${retailer.id}`,
           });
         });
         created++;
@@ -251,7 +259,7 @@ export function syncPricing() {
       const variant = product.variants[0];
       await prisma.priceList.upsert({
         where: { tierId_variantId: { tierId: tier.id, variantId: variant.id } },
-        update: { price: row.price },
+        update: { price: row.price, rateBasis:"case" },
         create: {
           tierId: tier.id,
           variantId: variant.id,
@@ -275,7 +283,15 @@ export function syncPricing() {
 /** Persist warehouse-aware stock snapshots behind the SAP abstraction. */
 export function syncStock() {
   return runEntity("stock", async (since) => {
-    const rows = await getSapConnector().fetchStock(since);
+    const connector = getSapConnector();
+    const rows = await connector.fetchStock(since);
+
+    // Demo inventory is deliberately disposable. Once a real (or fixture)
+    // SAP stock pull succeeds, SAP becomes the source of truth and the
+    // seeded fallback rows must not remain visible for products that SAP did
+    // not return. The next loop writes the current warehouse snapshots.
+    await prisma.inventorySnapshot.deleteMany({ where: { source: "demo-seed" } });
+
     let matched = 0;
     let updated = 0;
     for (const row of rows) {

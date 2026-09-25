@@ -1,9 +1,12 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
+import { publicMediaUrl } from "../lib/media";
+import { groupCatalog } from "../modules/catalog/catalogGrouping";
+import { catalogueImageState, catalogueOrderingState, catalogueStatusWhere } from "../modules/catalog/catalogueVisibility";
 import { financialLedgerFor } from "../modules/finance/financialQueries";
 import { financialSummaryFor } from "../modules/finance/financialSummary";
-import { DEFAULT_WAREHOUSE_CODE, INVENTORY_STALE_AFTER_MS } from "../modules/inventory/inventoryService";
+import { DEFAULT_WAREHOUSE_CODE, INVENTORY_STALE_AFTER_MS, selectInventorySnapshot } from "../modules/inventory/inventoryService";
 import { requireRep, assignedRetailer, RepRequest } from "../lib/repAuth";
 import { createOrderForRetailer } from "../lib/orders";
 import { createRateLimiter } from "../platform/http/rateLimit";
@@ -16,9 +19,19 @@ import {
   createRequireSession,
   type IdentityAuthedRequest,
 } from "../modules/identity/sessionAuth";
-import { buildSalesHome, startOfUtcDay, startOfUtcWeek } from "../modules/sales/salesHome";
+import { internalStatusForOrder } from "../modules/commercialStatus/statusService";
+import { CommercialStatusCode } from "@prisma/client";
+import { attributeOrders } from "../modules/orders/orderAttribution";
 
 const router = Router();
+const maxLedgerSequence = 9_223_372_036_854_775_807n;
+const ledgerSequenceCursor = z.string().refine(
+  (value) => /^[1-9]\d{0,18}$/.test(value) && BigInt(value) <= maxLedgerSequence
+);
+const retailerLedgerQuerySchema = z.object({
+  beforeSequence: ledgerSequenceCursor.optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+}).strict();
 
 /* ---------------------------------- auth --------------------------------- */
 
@@ -107,126 +120,6 @@ router.get("/me", requireStaffSession, async (req: IdentityAuthedRequest, res) =
   });
 });
 
-router.get("/home", requireStaffSession, async (req: IdentityAuthedRequest, res) => {
-  const staff = await prisma.staffUser.findUnique({
-    where: { id: req.identityAuth!.subjectId },
-    select: {
-      id: true,
-      name: true,
-      salesRepId: true,
-      salesRep: { select: { id: true, name: true, territory: true } },
-    },
-  });
-  if (!staff) return res.status(401).json({ error: "Session no longer valid" });
-
-  const now = new Date();
-  const dayStart = startOfUtcDay(now);
-  const weekStart = startOfUtcWeek(now);
-  let retailers: Array<{ id: string; name: string; shopAddress: string; beatName: string | null; district: string | null }> = [];
-  let visitsToday: Array<{ id: string; retailerId: string; checkedOutAt: Date | null; retailerName: string | null }> = [];
-  let todaySales = 0;
-  let weekSales = 0;
-  let pendingApprovals = 0;
-
-  if (staff.salesRepId) {
-    const [assigned, visits, todayAgg, weekAgg, approvalCount] = await Promise.all([
-      prisma.retailer.findMany({
-        where: { salesRepId: staff.salesRepId },
-        select: { id: true, name: true, shopAddress: true, district: true, beat: { select: { name: true } } },
-        orderBy: { name: "asc" },
-      }),
-      prisma.salesVisit.findMany({
-        where: { salespersonId: staff.id, checkedInAt: { gte: dayStart } },
-        select: { id: true, retailerId: true, checkedOutAt: true, retailer: { select: { name: true } } },
-      }),
-      prisma.order.aggregate({
-        where: {
-          retailer: { salesRepId: staff.salesRepId },
-          createdAt: { gte: dayStart },
-          status: { not: "rejected" },
-        },
-        _sum: { orderTotal: true },
-      }),
-      prisma.order.aggregate({
-        where: {
-          retailer: { salesRepId: staff.salesRepId },
-          createdAt: { gte: weekStart },
-          status: { not: "rejected" },
-        },
-        _sum: { orderTotal: true },
-      }),
-      prisma.approvalRequest.count({
-        where: { status: "open", retailer: { salesRepId: staff.salesRepId } },
-      }),
-    ]);
-    retailers = assigned.map((retailer) => ({
-      id: retailer.id,
-      name: retailer.name,
-      shopAddress: retailer.shopAddress,
-      beatName: retailer.beat?.name ?? null,
-      district: retailer.district ?? null,
-    }));
-    visitsToday = visits.map((visit) => ({
-      id: visit.id,
-      retailerId: visit.retailerId,
-      checkedOutAt: visit.checkedOutAt,
-      retailerName: visit.retailer?.name ?? null,
-    }));
-    todaySales = Number(todayAgg._sum.orderTotal ?? 0);
-    weekSales = Number(weekAgg._sum.orderTotal ?? 0);
-    pendingApprovals = approvalCount;
-  }
-
-  res.json(
-    buildSalesHome({
-      staff: { id: staff.id, name: staff.name },
-      territory: staff.salesRep?.territory ?? null,
-      retailers,
-      visitsToday,
-      todaySales,
-      weekSales,
-      pendingApprovals,
-      now,
-    })
-  );
-});
-
-router.get("/stock", requireStaffSession, async (_req, res) => {
-  const [products, snapshots] = await Promise.all([
-    prisma.product.findMany({ include: { variants: true }, orderBy: { name: "asc" } }),
-    prisma.inventorySnapshot.findMany({ where: { warehouseCode: DEFAULT_WAREHOUSE_CODE } }),
-  ]);
-  const byMaterial = new Map(snapshots.map((snapshot) => [snapshot.sapMaterialId, snapshot]));
-  const items = products.map((product) => {
-    const snapshot = product.sapMaterialId ? byMaterial.get(product.sapMaterialId) : undefined;
-    const stale = snapshot ? Date.now() - snapshot.syncedAt.getTime() > INVENTORY_STALE_AFTER_MS : false;
-    return {
-      productId: product.id,
-      name: product.name,
-      category: product.category,
-      sapMaterialId: product.sapMaterialId,
-      variants: product.variants.map((variant) => ({
-        id: variant.id,
-        unitSize: variant.unitSize,
-        unitsPerCase: variant.unitsPerCase,
-      })),
-      availability: snapshot
-        ? {
-            available: Number(snapshot.available),
-            warehouseCode: snapshot.warehouseCode,
-            status: stale ? "stale" : snapshot.status,
-            syncedAt: snapshot.syncedAt,
-          }
-        : { available: null, warehouseCode: DEFAULT_WAREHOUSE_CODE, status: "unknown", syncedAt: null },
-    };
-  });
-  res.json({
-    warehouseCode: DEFAULT_WAREHOUSE_CODE,
-    stockTakeAvailable: false,
-    items,
-  });
-});
-
 /* -------------------------------- retailers ------------------------------- */
 
 router.get("/retailers", requireRep, async (req: RepRequest, res) => {
@@ -246,6 +139,7 @@ router.get("/retailers", requireRep, async (req: RepRequest, res) => {
       phone: r.phone,
       shopAddress: r.shopAddress,
       tier: r.tier.name,
+      internalSegment: r.internalSegment,
       creditLimit: limit,
       outstanding: balance,
       overdue: financial.overdue,
@@ -275,7 +169,13 @@ router.get("/retailers/:id", requireRep, async (req: RepRequest, res) => {
       where: { retailerId: retailer.id },
       orderBy: { createdAt: "desc" },
       take: 5,
-      include: { items: { include: { variant: { include: { product: true } } } } },
+      include: {
+        items: { include: { variant: { include: { product: true } } } },
+        commercialStatusEvents: {
+          where: { code: CommercialStatusCode.SALES_ORDER_PUNCHED },
+          select: { code: true, actorStaff: { select: { name: true } } },
+        },
+      },
     }),
     financialLedgerFor(prisma, retailer.id).then((ledger) => ledger.slice(0, 5)),
     prisma.kycCase.findUnique({ where: { retailerId: retailer.id }, select: { id: true, status: true, submittedAt: true, reviewedAt: true, rejectionReason: true } }),
@@ -283,20 +183,13 @@ router.get("/retailers/:id", requireRep, async (req: RepRequest, res) => {
     financialSummaryFor(prisma, retailer.id),
   ]);
 
-  const profile = await prisma.retailer.findUnique({
-    where: { id: retailer.id },
-    include: {
-      group: { select: { id: true, name: true } },
-      transporter: { select: { id: true, name: true } },
-      beat: { select: { id: true, name: true } },
-      buyerCategory: { select: { id: true, name: true } },
-      buyerSubCategory: { select: { id: true, name: true } },
-      salesRep: { select: { id: true, name: true } },
-    },
-  });
-
   const limit = financialSummary?.creditLimit ?? Number(retailer.creditLimit);
   const balance = financialSummary?.creditUsed ?? Number(retailer.currentBalance);
+  const attributedRecentOrders = await attributeOrders(orders);
+  const recentOrders = await Promise.all(attributedRecentOrders.map(async (order) => ({
+    ...order,
+    commercialStatus: await internalStatusForOrder(order.id),
+  })));
 
   res.json({
     retailer: {
@@ -305,34 +198,8 @@ router.get("/retailers/:id", requireRep, async (req: RepRequest, res) => {
       phone: retailer.phone,
       shopAddress: retailer.shopAddress,
       tier: tier?.name ?? "—",
+      internalSegment: retailer.internalSegment,
       lifecycle: retailer.status,
-      contactPerson: profile?.contactPerson ?? null,
-      telephone: profile?.telephone ?? null,
-      pin: profile?.pin ?? null,
-      tehsil: profile?.tehsil ?? null,
-      district: profile?.district ?? null,
-      state: profile?.state ?? null,
-      deliveryCity: profile?.deliveryCity ?? null,
-      shopTenureYears: profile?.shopTenureYears ?? null,
-      gstin: profile?.gstin ?? null,
-      aadhaarNumber: profile?.aadhaarNumber ?? null,
-      aadhaarPhotoAssetId: profile?.aadhaarPhotoAssetId ?? null,
-      paymentTermDays: profile?.paymentTermDays ?? null,
-      creditLimit: limit,
-      grade: profile?.grade ?? null,
-      upiId: profile?.upiId ?? null,
-      group: profile?.group ?? null,
-      groupId: profile?.groupId ?? null,
-      transporter: profile?.transporter ?? null,
-      transporterId: profile?.transporterId ?? null,
-      beat: profile?.beat ?? null,
-      beatId: profile?.beatId ?? null,
-      buyerCategory: profile?.buyerCategory ?? null,
-      buyerCategoryId: profile?.buyerCategoryId ?? null,
-      buyerSubCategory: profile?.buyerSubCategory ?? null,
-      buyerSubCategoryId: profile?.buyerSubCategoryId ?? null,
-      salesmanRepId: profile?.salesRepId ?? null,
-      salesman: profile?.salesRep ?? null,
     },
     kyc: { ...kycCase, legacyVerified: creditProfile?.kycVerifiedAt != null },
     credit: {
@@ -343,8 +210,34 @@ router.get("/retailers/:id", requireRep, async (req: RepRequest, res) => {
       utilisationPct: limit > 0 ? Math.round((balance / limit) * 100) : 0,
     },
     financialSummary,
-    recentOrders: orders,
+    recentOrders,
     recentLedger: entries,
+  });
+});
+
+router.get("/retailers/:id/ledger", requireRep, async (req: RepRequest, res) => {
+  const retailer = await assignedRetailer(req.repId!, req.params.id);
+  if (!retailer) return res.status(404).json({ error: "Retailer not found" });
+
+  const parsed = retailerLedgerQuerySchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ error: "invalid_ledger_query" });
+
+  const { beforeSequence, limit } = parsed.data;
+  const [financialSummary, fetchedEntries] = await Promise.all([
+    financialSummaryFor(prisma, retailer.id),
+    financialLedgerFor(prisma, retailer.id, {
+      ...(beforeSequence === undefined ? {} : { beforeSequence: BigInt(beforeSequence) }),
+      take: limit + 1,
+    }),
+  ]);
+  if (!financialSummary) return res.status(404).json({ error: "Retailer not found" });
+
+  const hasMore = fetchedEntries.length > limit;
+  const entries = hasMore ? fetchedEntries.slice(0, limit) : fetchedEntries;
+  res.json({
+    financialSummary,
+    entries,
+    nextCursor: hasMore ? entries[entries.length - 1]?.sequence ?? null : null,
   });
 });
 
@@ -354,7 +247,11 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
   if (!retailer) return res.status(404).json({ error: "Retailer not found" });
 
   const [products, priceList, overrides, inventory] = await Promise.all([
-    prisma.product.findMany({ include: { variants: true }, orderBy: { createdAt: "asc" } }),
+    prisma.product.findMany({
+      where: { catalogStatus: catalogueStatusWhere(), variants: { some: { catalogStatus: catalogueStatusWhere() } } },
+      include: { variants: { where: { catalogStatus: catalogueStatusWhere() } } },
+      orderBy: { createdAt: "asc" },
+    }),
     prisma.priceList.findMany({ where: { tierId: retailer.tierId } }),
     prisma.priceOverride.findMany({ where: { retailerId: retailer.id } }),
     prisma.inventorySnapshot.findMany({ where: { warehouseCode: DEFAULT_WAREHOUSE_CODE } }),
@@ -362,30 +259,39 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
 
   const tierPrice = new Map(priceList.map((p) => [p.variantId, Number(p.price)]));
   const overridePrice = new Map(overrides.map((o) => [o.variantId, Number(o.price)]));
-  const inventoryByMaterial = new Map(inventory.map((snapshot) => [snapshot.sapMaterialId, snapshot]));
 
   const catalog = products.map((product) => ({
     id: product.id,
     name: product.name,
     category: product.category,
-    imageUrl: product.imageUrl,
+      imageUrl: publicMediaUrl(req, product.imageUrl),
+    description: product.description,
     variants: product.variants.map((v) => {
+      const inventorySnapshot = selectInventorySnapshot(product, v, inventory);
       const override = overridePrice.get(v.id);
-      const price = override ?? tierPrice.get(v.id) ?? null;
+      const rate = override ?? tierPrice.get(v.id) ?? null;
       const caseWeightKg = Number(v.unitWeightKg) * v.unitsPerCase;
+      const rateBasis=(overrides.find(p=>p.variantId===v.id) ?? priceList.find(p=>p.variantId===v.id))?.rateBasis ?? "case";
+      const price=rate===null?null:rateBasis==="quintal"?Math.round(rate*caseWeightKg)/100:rate;
       return {
         id: v.id,
+        imageUrl: publicMediaUrl(req, v.imageUrl ?? product.imageUrl),
         unitSize: v.unitSize,
         unit: v.unit,
         unitsPerCase: v.unitsPerCase,
         caseWeightKg,
+        commercialRate:rate,rateBasis,sellingEntity:v.sellingEntity,gstPercent:v.gstPercent,
         price,
+        catalogStatus: v.catalogStatus,
+        ...catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed),
+        ...catalogueImageState(v),
+        rateLabel: rate !== null ? `${rateBasis === "quintal" ? "per quintal" : "per case"} · Excluding GST` : null,
         isOverride: override != null,
         pricePerKg:
           price != null && caseWeightKg > 0 ? Math.round((price / caseWeightKg) * 100) / 100 : null,
-        availability: product.sapMaterialId && inventoryByMaterial.has(product.sapMaterialId)
+        availability: inventorySnapshot
           ? (() => {
-              const snapshot = inventoryByMaterial.get(product.sapMaterialId)!;
+              const snapshot = inventorySnapshot;
               return {
                 available: Number(snapshot.available),
                 warehouseCode: snapshot.warehouseCode,
@@ -400,13 +306,45 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
 
   res.json({
     catalog,
+    groups: groupCatalog(catalog.map((product, index) => ({ ...product, sapMaterialId: products[index].sapMaterialId }))),
     categories: [...new Set(products.map((p) => p.category))].sort(),
   });
 });
 
 /* --------------------------------- orders --------------------------------- */
 
+/**
+ * Canonical read model for a salesperson's order detail. The order remains the
+ * source of truth; audit events are only used to show transitions that were
+ * actually recorded by Admin/delivery services.
+ */
+router.get("/orders/:id", requireRep, async (req: RepRequest, res) => {
+  const order = await prisma.order.findFirst({
+    where: { id: req.params.id, retailer: { salesRepId: req.repId } },
+    include: {
+      retailer: { select: { id: true, name: true, phone: true, shopAddress: true } },
+      items: { include: { variant: { include: { product: true } } } },
+      delivery: true,
+      invoice: { select: { invoiceNumber: true, invoiceDate: true, dueDate: true, total: true, outstandingAmount: true, commercialSnapshot:true } },
+      commercialStatusEvents: {
+        where: { code: CommercialStatusCode.SALES_ORDER_PUNCHED },
+        select: { code: true, actorStaff: { select: { name: true } } },
+      },
+    },
+  });
+  if (!order) return res.status(404).json({ error: "Order not found" });
+  const [attributedOrder] = await attributeOrders([order]);
+
+  const events = await prisma.auditEvent.findMany({
+    where: { subjectType: "order", subjectId: order.id, action: { startsWith: "order." } },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, action: true, metadata: true, createdAt: true },
+  });
+  res.json({ order: attributedOrder, events, commercialStatus: await internalStatusForOrder(order.id) });
+});
+
 const repOrderSchema = z.object({
+  commercial: z.object({quoteId:z.string(),revision:z.number().int().positive()}).optional(),
   retailerId: z.string(),
   items: z.array(z.object({ variantId: z.string(), qty: z.number().int().positive() })).min(1),
 });
@@ -430,7 +368,8 @@ router.post("/orders", requireRep, createRateLimiter({ name: "rep-order", limit:
     "rep",
     req.repId,
     req.staffId,
-    idempotencyKey
+    idempotencyKey,
+    parsed.data.commercial
   );
   if (!result.ok) return res.status(result.status).json(result.body);
 

@@ -1,0 +1,354 @@
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { AppState, Platform } from "react-native";
+import * as Location from "expo-location";
+
+import { repApi, accountReplayApi, REP_API_BASE_URL } from "../api/repClient";
+import { createOutbox, type Outbox } from "../offline/outbox";
+import type { OutboxSummary } from "../offline/outboxDomain";
+import {
+  DEFAULT_SAMPLING,
+  decideSample,
+  type TrackerReading,
+} from "../tracking/fieldTracker";
+import { useRep } from "./RepContext";
+import { staffCapabilities } from "../auth/staffCapabilities";
+import { createSingleFlight } from "../performance/singleFlight";
+import { shouldPresentAchievementSheet } from "../performance/achievementPresentation";
+import { isOfflineTransportError, isOperationalReadFallbackError } from "../offline/networkErrors";
+import {
+  createOperationalReadCache,
+  isOperationalTodayPayload,
+  loadOperationalRead,
+} from "../offline/operationalReadCache";
+
+export interface TrackingState {
+  tracking: boolean;
+  reason: string;
+  message: string;
+  pingIntervalSeconds: number;
+  workdaySessionId: string | null;
+}
+
+interface FieldContextValue {
+  today: any | null;
+  /**
+   * Achievements earned since this session opened, kept until the salesperson
+   * dismisses them. The server hands each one over exactly once, so holding
+   * them here is what stops a background refresh from swallowing a celebration
+   * before it has been seen.
+   */
+  celebrations: any[];
+  dismissCelebration: (id: string) => void;
+  loading: boolean;
+  error: string | null;
+  refresh: () => Promise<void>;
+
+  tracking: TrackingState | null;
+  outbox: OutboxSummary;
+  /** `retryFailed` is the explicit "Sync now" the salesperson presses. */
+  flushOutbox: (options?: { retryFailed?: boolean }) => Promise<void>;
+
+  startDay: (input: { latitude: number; longitude: number; accuracyMeters: number }) => Promise<void>;
+  endDay: (input: { latitude: number; longitude: number; accuracyMeters: number; managerNote?: string }) => Promise<void>;
+
+  /**
+   * Logs a customer activity. Sends it now when there is a connection, and
+   * queues it on the phone when there is not. Resolves to how it was handled so
+   * the screen can say so honestly.
+   */
+  logActivity: (input: {
+    retailerId: string;
+    type: string;
+    visitId?: string;
+    notes?: string;
+    followUpAt?: string;
+  }) => Promise<"sent" | "queued">;
+}
+
+const FieldContext = createContext<FieldContextValue | undefined>(undefined);
+
+const EMPTY_SUMMARY: OutboxSummary = { pending: 0, failed: 0, synced: 0 };
+
+/**
+ * Turns a transport failure into something a salesperson standing in a shop can
+ * act on. Anything the server actually said is passed through unchanged.
+ */
+function offlineMessage(error: unknown, cachedAt?: number): string {
+  if (cachedAt != null) {
+    const captured = new Date(cachedAt).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
+    return `You're offline. Showing your saved day from ${captured}. Refresh when connected.`;
+  }
+  return isOfflineTransportError(error) || isOperationalReadFallbackError(error)
+    ? "You're offline. Your day will load as soon as you have a connection."
+    : error instanceof Error ? error.message : "Could not load your day.";
+}
+
+/** Device-unique enough to be an idempotency key for an offline replay. */
+function clientReference(prefix: string) {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function FieldProvider({ children }: { children: React.ReactNode }) {
+  const { staff } = useRep();
+  const capabilities = staffCapabilities(staff?.permissions ?? []);
+  const enabled = capabilities.canRunFieldDay;
+
+  const [today, setToday] = useState<any | null>(null);
+  const [celebrations, setCelebrations] = useState<any[]>([]);
+  const [tracking, setTracking] = useState<TrackingState | null>(null);
+  const [outbox, setOutbox] = useState<OutboxSummary>(EMPTY_SUMMARY);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const refreshGate = useRef(createSingleFlight());
+  const currentStaffId = useRef<string | null>(staff?.id ?? null);
+  currentStaffId.current = staff?.id ?? null;
+
+  const lastReading = useRef<TrackerReading | null>(null);
+  const queue = useMemo<Outbox | null>(() => {
+    if(!staff?.id) return null;
+    const scoped=accountReplayApi(staff.id);
+    return createOutbox({
+      accountId:staff.id,
+      isCurrentAccount:scoped.isCurrentAccount,
+      senders:{ customer_activity: (payload) => scoped.api.logActivity(payload),
+        location_ping: (payloads) => scoped.api.sendPings(payloads), },
+    });
+  },[staff?.id]);
+  const currentQueue=useRef(queue);
+  currentQueue.current=queue;
+
+  const operationalCache = useMemo(() => {
+    if (!staff?.id) return null;
+    const accountId = staff.id;
+    return createOperationalReadCache({
+      accountId,
+      apiOrigin: REP_API_BASE_URL,
+      isCurrentAccount: () => currentStaffId.current === accountId,
+    });
+  }, [staff?.id]);
+
+  const flushOutbox = useCallback<FieldContextValue["flushOutbox"]>(async (options) => {
+    if(!queue) return;
+    try {
+      const summary=await queue.flush({includeFailed:options?.retryFailed});
+      if(currentQueue.current===queue) setOutbox(summary);
+    } catch (failure) {
+      if(currentQueue.current===queue) setError("Pending work could not sync. It remains on this phone; retry when signed in and connected.");
+    }
+  }, [queue]);
+
+  useEffect(()=>{
+    setOutbox(EMPTY_SUMMARY);
+    setToday(null);
+    setError(null);
+    setTracking(null); setCelebrations([]); lastReading.current=null;
+  },[queue]);
+
+  const refresh = useCallback(async () => {
+    if (!enabled || !queue) return;
+    await refreshGate.current(async () => {
+      setLoading(true);
+      try {
+        const result = await loadOperationalRead<any>({
+          kind: "today",
+          cache: operationalCache!,
+          load: () => repApi.today(),
+          validate: isOperationalTodayPayload,
+          isFallbackError: isOperationalReadFallbackError,
+        });
+        const payload = result.value;
+        if(currentQueue.current!==queue) return;
+        setToday(payload);
+        setTracking(payload.tracking ?? null);
+        const earned: any[] = (payload.achievements?.new ?? []).filter(shouldPresentAchievementSheet);
+        if (earned.length > 0) {
+          setCelebrations((current) => {
+            const seen = new Set(current.map((event) => event.id));
+            return [...current, ...earned.filter((event) => !seen.has(event.id))];
+          });
+        }
+        setError(result.source === "cache" ? offlineMessage(new Error("offline"), result.capturedAt) : null);
+      } catch (err) {
+        // A failed refresh must not wipe the last good day the salesperson saw,
+        // and a dropped connection should read like one rather than like a
+        // browser error string.
+        setError(offlineMessage(err));
+      } finally {
+        setLoading(false);
+      }
+    });
+  }, [enabled, operationalCache, queue]);
+
+  useEffect(() => {
+    if (!enabled) {
+      setToday(null);
+      setTracking(null);
+      setCelebrations([]);
+      return;
+    }
+    void refresh();
+    void flushOutbox();
+  }, [enabled, refresh, flushOutbox]);
+
+  // Coming back to the app is the moment worth spending a sync on.
+  useEffect(() => {
+    if (!enabled) return;
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        void refresh();
+        void flushOutbox();
+      }
+    });
+    return () => subscription.remove();
+  }, [enabled, refresh, flushOutbox]);
+
+  /**
+   * Foreground movement sampling. It only runs while the server says tracking
+   * is active — which means the workday is open, the tenant allows it, and the
+   * salesperson can see the banner saying so.
+   */
+  useEffect(() => {
+    if (!enabled || !tracking?.tracking) return;
+    let cancelled = false;
+    const intervalMs = Math.max(60, tracking.pingIntervalSeconds) * 1000;
+
+    const sample = async () => {
+      try {
+        const permission = await Location.getForegroundPermissionsAsync();
+        if (permission.status !== Location.PermissionStatus.GRANTED) return;
+        const position = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        if (cancelled || currentQueue.current!==queue) return;
+        const reading: TrackerReading = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracyMeters: position.coords.accuracy ?? 0,
+          recordedAt: position.timestamp,
+          speedMps: position.coords.speed,
+          headingDegrees: position.coords.heading,
+        };
+        const decision = decideSample({
+          reading,
+          last: lastReading.current,
+          policy: { ...DEFAULT_SAMPLING, intervalSeconds: tracking.pingIntervalSeconds },
+        });
+        if (!decision.record) return;
+        lastReading.current = reading;
+        await queue!.queuePing(clientReference("ping"), {
+          recordedAt: new Date(reading.recordedAt).toISOString(),
+          latitude: reading.latitude,
+          longitude: reading.longitude,
+          accuracyMeters: reading.accuracyMeters,
+          ...(reading.speedMps != null && reading.speedMps >= 0
+            ? { speedMps: reading.speedMps }
+            : {}),
+          ...(reading.headingDegrees != null && reading.headingDegrees >= 0
+            ? { headingDegrees: reading.headingDegrees }
+            : {}),
+        });
+        await flushOutbox();
+      } catch {
+        // A single missed reading is not worth telling the salesperson about;
+        // the queue and the next tick recover on their own.
+      }
+    };
+
+    void sample();
+    const timer = setInterval(() => void sample(), intervalMs);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [enabled, tracking?.tracking, tracking?.pingIntervalSeconds, flushOutbox, queue]);
+
+  const startDay = useCallback(
+    async (input: { latitude: number; longitude: number; accuracyMeters: number; managerNote?: string }) => {
+      await repApi.startDay({ ...input, devicePlatform: Platform.OS });
+      lastReading.current = null;
+      await refresh();
+    },
+    [refresh, queue]
+  );
+
+  const endDay = useCallback(
+    async (input: { latitude: number; longitude: number; accuracyMeters: number }) => {
+      // Anything still buffered belongs to the day being closed, so it goes
+      // first — after clock-out the server will not accept it.
+      await flushOutbox();
+      await repApi.endDay({ ...input, devicePlatform: Platform.OS });
+      lastReading.current = null;
+      await refresh();
+    },
+    [refresh, flushOutbox]
+  );
+
+  const logActivity = useCallback<FieldContextValue["logActivity"]>(
+    async (input) => {
+      if(!queue) throw new Error("Sign in before recording activity.");
+      const reference = clientReference("activity");
+      try {
+        await repApi.logActivity({ ...input, clientReference: reference });
+        void refresh();
+        return "sent";
+      } catch (error) {
+        if (!isOfflineTransportError(error)) throw error;
+        const summary=await queue.queueActivity(reference, input);
+        if(currentQueue.current===queue) setOutbox(summary);
+        return "queued";
+      }
+    },
+    [refresh, queue]
+  );
+
+  const dismissCelebration = useCallback((id: string) => {
+    setCelebrations((current) => current.filter((event) => event.id !== id));
+  }, []);
+
+  const value = useMemo<FieldContextValue>(
+    () => ({
+      today,
+      celebrations,
+      dismissCelebration,
+      loading,
+      error,
+      refresh,
+      tracking,
+      outbox,
+      flushOutbox,
+      startDay,
+      endDay,
+      logActivity,
+    }),
+    [
+      today,
+      celebrations,
+      dismissCelebration,
+      loading,
+      error,
+      refresh,
+      tracking,
+      outbox,
+      flushOutbox,
+      startDay,
+      endDay,
+      logActivity,
+    ]
+  );
+
+  return <FieldContext.Provider value={value}>{children}</FieldContext.Provider>;
+}
+
+export function useField() {
+  const context = useContext(FieldContext);
+  if (!context) throw new Error("useField must be used within FieldProvider");
+  return context;
+}

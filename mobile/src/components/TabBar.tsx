@@ -4,9 +4,11 @@ import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
-import { colors, radius, shadow, spacing } from "../theme";
+import { colors, radius, shadow, spacing, retailerTabBarMetrics } from "../theme";
 import { useCart } from "../context/CartContext";
 import { useLanguage } from "../i18n/LanguageContext";
+import MiniCartBar from "./MiniCartBar";
+import { shouldShowMiniCart } from "../lib/miniCartVisibility";
 
 const ICONS: Record<string, { on: string; off: string; label: string }> = {
   Home: { on: "home", off: "home-outline", label: "Home" },
@@ -20,6 +22,8 @@ export default function TabBar({ state, navigation }: BottomTabBarProps) {
   const { lines } = useCart();
   const { t } = useLanguage();
   const cartCount = lines.reduce((n, l) => n + l.qty, 0);
+  const activeSurface = state.routes[state.index]?.name ?? "";
+  const tabBarMetrics = retailerTabBarMetrics(cartCount, insets.bottom);
 
   const cartRoute = state.routes.find((r) => r.name === "Cart");
   const sideRoutes = state.routes.filter((r) => r.name !== "Cart");
@@ -38,20 +42,29 @@ export default function TabBar({ state, navigation }: BottomTabBarProps) {
     const meta = ICONS[name];
     if (!meta) return null;
     const focused = state.routes[state.index]?.name === name;
+    const label = t(`tabs.${name.toLowerCase()}`);
     return (
-      <TouchableOpacity key={name} style={styles.tab} onPress={() => go(name)} accessibilityRole="tab">
+      <TouchableOpacity
+        key={name}
+        style={styles.tab}
+        onPress={() => go(name)}
+        accessibilityRole="tab"
+        accessibilityState={{ selected: focused }}
+        accessibilityLabel={label}
+      >
         <Ionicons
           name={(focused ? meta.on : meta.off) as any}
-          size={21}
-          color={focused ? colors.green : colors.inkFaint}
+          size={22}
+          color={focused ? colors.greenDeep : colors.inkFaint}
         />
-        <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>{t(`tabs.${name.toLowerCase()}`)}</Text>
+        <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>{label}</Text>
       </TouchableOpacity>
     );
   };
 
   return (
-    <View style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
+    <View style={[styles.wrap, { paddingBottom: tabBarMetrics.paddingBottom }]}>
+      {shouldShowMiniCart(activeSurface) ? <MiniCartBar onPress={() => go("Cart")} /> : null}
       <View style={styles.bar}>
         {left.map((r) => renderTab(r.name))}
 
@@ -85,7 +98,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     backgroundColor: "transparent",
   },
   bar: {
@@ -93,24 +106,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
-    paddingVertical: 10,
-    ...shadow.floating,
+    paddingVertical: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    ...shadow.card,
   },
-  tab: { flex: 1, alignItems: "center", justifyContent: "center", gap: 3 },
+  tab: { flex: 1, alignItems: "center", justifyContent: "center", gap: 2, minHeight: 44 },
   tabLabel: { fontSize: 10, fontWeight: "600", color: colors.inkFaint },
-  tabLabelActive: { color: colors.green, fontWeight: "700" },
-  fabSlot: { width: 76, alignItems: "center", justifyContent: "center" },
+  tabLabelActive: { color: colors.greenDeep, fontWeight: "700" },
+  fabSlot: { width: 68, alignItems: "center", justifyContent: "center" },
   fab: {
-    width: 58,
-    height: 58,
+    width: 52,
+    height: 52,
     borderRadius: radius.pill,
     backgroundColor: colors.greenDeep,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: -26,
-    borderWidth: 4,
+    marginTop: -18,
+    borderWidth: 3,
     borderColor: colors.bg,
-    ...shadow.floating,
+    ...shadow.card,
   },
   fabBadge: {
     position: "absolute",

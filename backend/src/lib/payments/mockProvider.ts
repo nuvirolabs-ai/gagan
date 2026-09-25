@@ -20,7 +20,10 @@ export class MockPaymentProvider implements PaymentProvider {
     retailerId: string;
     reference: string;
   }): Promise<PaymentIntent> {
-    const providerRef = `mock_${crypto.randomBytes(8).toString("hex")}`;
+    const providerRef = `mock_${crypto
+      .createHmac("sha256", this.secret)
+      .update(`intent:${params.reference}`)
+      .digest("hex")}`;
     return {
       providerRef,
       // A real provider returns a UPI intent link or hosted checkout URL here.

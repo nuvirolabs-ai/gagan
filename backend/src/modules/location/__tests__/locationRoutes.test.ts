@@ -52,4 +52,15 @@ describe("location routes", () => {
     expect(response.status).toBe(400);
     expect(service.correctLocation).not.toHaveBeenCalled();
   });
+
+  it("requires a controlled no-order reason at the route boundary", async () => {
+    const response = await request(app()).post("/rep/visits/visit-1/check-out").send({
+      latitude: 18.52,
+      longitude: 73.85,
+      accuracyMeters: 10,
+      outcome: "no_order",
+    });
+    expect(response.status).toBe(400);
+    expect(service.checkOut).not.toHaveBeenCalled();
+  });
 });

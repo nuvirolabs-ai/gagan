@@ -1,4 +1,6 @@
 import { Prisma } from "@prisma/client";
+import { snapshot, asJson, quoteDelivery } from "../commercial/service";
+import { hasPendingGst } from "../../lib/commercialQuote";
 import { addDays, paymentTermDays, recomputeOverdue } from "../../lib/ageing";
 import { buildInvoice } from "../../lib/invoicing";
 import { prisma } from "../../lib/prisma";
@@ -42,8 +44,28 @@ function validateResolutions(
     ) {
       throw new InvoiceCreationError("invalid_delivered_weight");
     }
+    if (line.deliveredWeightKg !== undefined && new Prisma.Decimal(line.deliveredWeightKg).decimalPlaces() > 3) {
+      throw new InvoiceCreationError("invalid_delivered_weight_precision");
+    }
   }
   return byId;
+}
+
+/** A retry may recover an accepted invoice, never substitute another order or
+ * silently accept a different physical delivery. Compare immutable invoice
+ * lines, not a subsequently edited SKU/order master. */
+function verifiedReplay(existing: InvoiceResult, input: CreateInvoiceForDeliveryInput): InvoiceResult {
+  if (existing.orderId !== input.orderId) throw new InvoiceCreationError("invoice_replay_conflict");
+  const sourceLines = existing.lines.filter((line): line is typeof line & { orderItemId: string } => line.orderItemId != null);
+  const requested = validateResolutions(sourceLines.map(line => line.orderItemId), input.lines);
+  for (const line of sourceLines) {
+    const next = requested.get(line.orderItemId)!;
+    const weightMatches = line.deliveredWeightKg == null
+      ? next.deliveredWeightKg == null
+      : next.deliveredWeightKg != null && line.deliveredWeightKg.eq(next.deliveredWeightKg);
+    if (line.deliveredCases !== next.deliveredCases || !weightMatches) throw new InvoiceCreationError("invoice_replay_conflict");
+  }
+  return existing;
 }
 
 function isPrismaCode(error: unknown, code: string): boolean {
@@ -68,7 +90,7 @@ async function createOnce(input: CreateInvoiceForDeliveryInput): Promise<Invoice
       if (lockedOrders.length === 0) throw new InvoiceCreationError("order_not_found");
 
       const existing = await findExistingInvoice(tx, input);
-      if (existing) return existing;
+      if (existing) return verifiedReplay(existing, input);
 
       await tx.$queryRaw`
         SELECT "id"
@@ -98,6 +120,16 @@ async function createOnce(input: CreateInvoiceForDeliveryInput): Promise<Invoice
         input.lines
       );
 
+      const accepted=snapshot(order.commercialSnapshot);
+      if (hasPendingGst(accepted)) throw new InvoiceCreationError("gst_configuration_required_before_invoice");
+      const commercial=accepted ? quoteDelivery(accepted,order.items.map(item=>{const r=resolutions.get(item.id)!;return {variantId:item.variantId,cases:r.deliveredCases,weightKg:r.deliveredWeightKg};})) : null;
+      const commercialTax = commercial
+        ? commercial.entities.reduce((sum, entity) => {
+            if (entity.gst === null) throw new InvoiceCreationError("gst_configuration_required_before_invoice");
+            return sum.plus(entity.gst);
+          }, new Prisma.Decimal(0))
+        : null;
+
       for (const item of order.items) {
         const resolution = resolutions.get(item.id)!;
         await tx.orderItem.update({
@@ -121,6 +153,13 @@ async function createOnce(input: CreateInvoiceForDeliveryInput): Promise<Invoice
         };
       });
       const breakdown = buildInvoice(resolvedItems);
+      if (commercial) {
+        breakdown.total=Number(commercial.total);
+        for (const line of breakdown.lines) {
+          const item=order.items.find(i=>i.id===line.orderItemId)!;
+          line.lineTotal=Number(commercial.lines.find(l=>l.variantId===item.variantId)!.total);
+        }
+      }
       if (breakdown.total <= 0) throw new InvoiceCreationError("invoice_total_must_be_positive");
 
       const termDays = await paymentTermDays(tx, order.retailerId);
@@ -154,8 +193,9 @@ async function createOnce(input: CreateInvoiceForDeliveryInput): Promise<Invoice
           orderId: order.id,
           invoiceDate: input.occurredAt,
           dueDate,
-          subtotal: breakdown.total,
-          taxTotal: 0,
+          subtotal: commercial ? new Prisma.Decimal(commercial.total).minus(commercialTax!) : breakdown.total,
+          taxTotal: commercial ? commercialTax! : 0,
+          ...(commercial ? {commercialSnapshot:asJson(commercial)}:{}),
           total: breakdown.total,
           outstandingAmount: breakdown.total,
           idempotencyKey: input.idempotencyKey,
@@ -163,16 +203,18 @@ async function createOnce(input: CreateInvoiceForDeliveryInput): Promise<Invoice
             create: breakdown.lines.map((line) => {
               const item = itemById.get(line.orderItemId)!;
               const resolution = resolutions.get(line.orderItemId)!;
+              const commercialLine=commercial?.lines.find(l=>l.variantId===item.variantId);
               return {
-                orderItemId: item.id,
-                descriptionSnapshot: item.variant.product.name,
-                itemCodeSnapshot: item.variant.product.sapMaterialId,
+                orderItemId: item.id as string | undefined,
+                descriptionSnapshot: commercialLine?.productName ?? item.variant.product.name,
+                itemCodeSnapshot: commercialLine ? commercialLine.itemCode : item.variant.product.sapMaterialId,
+                ...(commercialLine ? {sellingEntity:commercialLine.entity,taxableBase:commercialLine.base,gstPercent:commercialLine.gstPercent,taxAmount:commercialLine.gst}:{}),
                 deliveredCases: resolution.deliveredCases,
                 deliveredWeightKg: resolution.deliveredWeightKg,
                 unitPrice: item.unitPrice,
                 lineTotal: line.lineTotal,
               };
-            }),
+            }).concat(commercial?.freight ? [{orderItemId:undefined,descriptionSnapshot:"Freight",itemCodeSnapshot:null,deliveredCases:0,deliveredWeightKg:undefined,unitPrice:new Prisma.Decimal(commercial.freight.amount),lineTotal:Number(commercial.freight.total),sellingEntity:commercial.freight.entity,taxableBase:commercial.freight.amount,gstPercent:commercial.freight.gstPercent,taxAmount:commercial.freight.gst}] : []),
           },
         },
         include: { lines: true },
@@ -216,6 +258,15 @@ async function createOnce(input: CreateInvoiceForDeliveryInput): Promise<Invoice
         where: { id: order.id },
         data: { status: "delivered" },
       });
+      await tx.auditEvent.create({
+        data: {
+          actorStaffId: input.actorStaffId ?? null,
+          action: "delivery.completed",
+          subjectType: "order",
+          subjectId: order.id,
+          metadata: { invoiceId: invoice.id, ledgerEntryId: legacyEntry.id },
+        },
+      });
 
       return tx.invoice.findUniqueOrThrow({
         where: { id: invoice.id },
@@ -235,7 +286,7 @@ export async function createInvoiceForDelivery(
     } catch (error) {
       if (isPrismaCode(error, "P2002")) {
         const existing = await findExistingInvoice(prisma, input);
-        if (existing) return existing;
+        if (existing) return verifiedReplay(existing, input);
       }
       if (isPrismaCode(error, "P2034") && attempt < MAX_SERIALIZATION_ATTEMPTS) {
         await waitBeforeRetry(attempt);

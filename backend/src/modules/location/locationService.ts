@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import {
   classifyVisitDistance,
@@ -8,6 +8,8 @@ import {
 } from "./locationDomain";
 import type { LocationConfig } from "./locationConfig";
 import { loadLocationConfig } from "./locationConfig";
+import { NO_ORDER_REASON_LABELS } from "../field/fieldDomain";
+import { normalizeVisitOutcomes, validateVisitExplanation } from "./visitOutcome";
 
 type Db = PrismaClient | any;
 type TransactionDb = any;
@@ -38,8 +40,22 @@ export interface CaptureLocationInput extends CoordinateInput {
   reasonForChange?: string;
 }
 
+/**
+ * Optional collaborators the composition root can supply. They let day-planning
+ * react to a check-in without the location module having to know that route
+ * plans exist.
+ */
+export interface LocationServiceHooks {
+  /** Called once a visit row exists, before the response is sent. */
+  afterCheckIn?(visit: { id: string; retailerId: string; salespersonId: string; checkedInAt: Date }, tx: Prisma.TransactionClient): Promise<unknown>;
+}
+
 export class LocationService {
-  constructor(private readonly prisma: Db, private readonly config: LocationConfig) {}
+  constructor(
+    private readonly prisma: Db,
+    private readonly config: LocationConfig,
+    private readonly hooks: LocationServiceHooks = {}
+  ) {}
 
   async getLocation(retailerId: string) {
     return this.prisma.retailerLocation.findUnique({ where: { retailerId } });
@@ -264,7 +280,9 @@ export class LocationService {
     });
   }
 
-  async checkIn(input: { retailerId: string; salespersonId: string } & CoordinateInput) {
+  async checkIn(
+    input: { retailerId: string; salespersonId: string; purpose?: string } & CoordinateInput
+  ) {
     validateCoordinateInput(input);
     const current = await this.getLocation(input.retailerId);
     const hasStore = current?.status === "VERIFIED" && current.latitude != null && current.longitude != null;
@@ -280,7 +298,15 @@ export class LocationService {
       : lowAccuracy
         ? "LOW_GPS_ACCURACY"
         : classifyVisitDistance(distance!, this.config);
-    return this.prisma.salesVisit.create({
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await tx.$queryRaw`SELECT 1 FROM "StaffUser" WHERE "id" = ${input.salespersonId} FOR UPDATE`;
+    const existing = await tx.salesVisit.findFirst({ where: { salespersonId: input.salespersonId, checkedOutAt: null } });
+    if (existing) {
+      if (existing.retailerId !== input.retailerId) throw new LocationServiceError("visit_already_open", 409);
+      if (!existing.routeStopId) await this.hooks.afterCheckIn?.(existing, tx);
+      return tx.salesVisit.findUniqueOrThrow({ where: { id: existing.id } });
+    }
+    const visit = await tx.salesVisit.create({
       data: {
         retailerId: input.retailerId,
         salespersonId: input.salespersonId,
@@ -292,18 +318,52 @@ export class LocationService {
         storeLongitudeSnapshot: hasStore ? current.longitude : null,
         distanceFromStoreMeters: distance,
         verificationStatus,
+        purpose: (input.purpose as any) ?? "sales_call",
         source: "SALESPERSON_VISIT",
       },
     });
+    // Link a planned stop to this visit, without marking it visited yet.
+    const linked = await this.hooks.afterCheckIn?.({
+      id: visit.id,
+      retailerId: input.retailerId,
+      salespersonId: input.salespersonId,
+      checkedInAt: visit.checkedInAt,
+    }, tx);
+    // Re-read only when a hook actually changed the row, so the caller sees the
+    // route stop the visit was attached to.
+    if (!linked) return visit;
+    return (await tx.salesVisit.findUnique({ where: { id: visit.id } })) ?? visit;
+    });
   }
 
-  async checkOut(input: { visitId: string; salespersonId: string } & CoordinateInput) {
+  async checkOut(
+    input: {
+      visitId: string;
+      salespersonId: string;
+      outcome?: string;
+      outcomes?: string[];
+      notes?: string;
+      followUpAt?: Date;
+      noOrderReason?: string;
+    } & CoordinateInput
+  ) {
     validateCoordinateInput(input);
-    const visit = await this.prisma.salesVisit.findUnique({ where: { id: input.visitId } });
+    let selected: ReturnType<typeof normalizeVisitOutcomes>;
+    try { selected = normalizeVisitOutcomes(input); }
+    catch (error) { throw new LocationServiceError((error as Error).message, 400); }
+    const notes = input.noOrderReason
+      ? [`No-order reason: ${NO_ORDER_REASON_LABELS[input.noOrderReason as keyof typeof NO_ORDER_REASON_LABELS] ?? input.noOrderReason}`, input.notes?.trim()].filter(Boolean).join(" · ")
+      : input.notes?.trim() || null;
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await tx.$queryRaw`SELECT 1 FROM "StaffUser" WHERE "id" = ${input.salespersonId} FOR UPDATE`;
+    await tx.$queryRaw`SELECT 1 FROM "SalesVisit" WHERE "id" = ${input.visitId} FOR UPDATE`;
+    const visit = await tx.salesVisit.findUnique({ where: { id: input.visitId } });
     if (!visit || visit.salespersonId !== input.salespersonId) {
       throw new LocationServiceError("visit_not_found", 404);
     }
     if (visit.checkedOutAt) throw new LocationServiceError("visit_already_checked_out", 409);
+    try { validateVisitExplanation({ ...input, purpose: visit.purpose ?? "sales_call", outcomes: selected.outcomes }); }
+    catch (error) { throw new LocationServiceError((error as Error).message, 400); }
     const distance =
       visit.storeLatitudeSnapshot == null || visit.storeLongitudeSnapshot == null
         ? null
@@ -311,15 +371,31 @@ export class LocationService {
             { latitude: Number(visit.storeLatitudeSnapshot), longitude: Number(visit.storeLongitudeSnapshot) },
             input
           );
-    return this.prisma.salesVisit.update({
+    const checkedOutAt = new Date();
+    const closed = await tx.salesVisit.update({
       where: { id: input.visitId },
       data: {
         checkedOutLatitude: input.latitude,
         checkedOutLongitude: input.longitude,
         checkedOutAccuracyMeters: input.accuracyMeters,
-        checkedOutAt: new Date(),
+        checkedOutAt,
         checkoutDistanceMeters: distance,
+        // The outcome is captured as the visit closes, so a visit carries what
+        // it achieved rather than only where and when it happened.
+        outcome: selected.outcome as any,
+        outcomes: selected.outcomes,
+        noOrderReason: input.noOrderReason ?? null,
+        ...(input.notes !== undefined || input.noOrderReason !== undefined ? { notes } : {}),
+        ...(input.followUpAt !== undefined ? { followUpAt: input.followUpAt } : {}),
       },
+    });
+    if (visit.routeStopId) {
+      await tx.routePlanStop.updateMany({
+        where: { id: visit.routeStopId, status: "pending" },
+        data: { status: "visited", visitedAt: checkedOutAt },
+      });
+    }
+    return closed;
     });
   }
 

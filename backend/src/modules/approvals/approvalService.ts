@@ -4,6 +4,7 @@ import type { CreditPolicy } from "../credit/policy";
 import { buildCreditSnapshot } from "../credit/snapshotBuilder";
 import { prisma } from "../../lib/prisma";
 import { enqueueSalesOrder } from "../../lib/sap/outbox";
+import { internalStatusForOrder } from "../commercialStatus/statusService";
 
 export class ApprovalServiceError extends Error {
   constructor(public code: string, public status: number, public details?: unknown) {
@@ -45,7 +46,7 @@ export class ApprovalService {
     const canResolveDispute = permissions.includes("approval.third_invoice");
     const canResolveEscalatedDispute = permissions.includes("legal.decide");
     const recent = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    return prisma.approvalRequest.findMany({
+    const requests = await prisma.approvalRequest.findMany({
       where: {
         OR: [
           {
@@ -73,6 +74,10 @@ export class ApprovalService {
       },
       orderBy: [{ deadlineAt: "asc" }, { createdAt: "asc" }],
     });
+    return Promise.all(requests.map(async (request) => ({
+      ...request,
+      commercialStatus: request.order ? await internalStatusForOrder(request.order.id) : null,
+    })));
   }
 
   async detail(id: string, permissions: string[]) {
@@ -96,7 +101,10 @@ export class ApprovalService {
         permission: request.requiredPermission,
       });
     }
-    return request;
+    return {
+      ...request,
+      commercialStatus: request.order ? await internalStatusForOrder(request.order.id) : null,
+    };
   }
 
   async decide(id: string, input: ApprovalDecisionInput) {
@@ -132,6 +140,16 @@ export class ApprovalService {
 
       await tx.$queryRaw`SELECT 1 FROM "Retailer" WHERE "id" = ${request.retailerId} FOR UPDATE`;
 
+      // Credit review may not rewind an order another employee has progressed.
+      if (request.order.status !== "placed" && request.order.status !== "rejected") {
+        throw new ApprovalServiceError("order_transition_conflict", 409);
+      }
+      const claimed = await tx.order.updateMany({
+        where: { id: request.order.id, status: request.order.status },
+        data: { status: input.result === "rejected" ? "rejected" : "placed" },
+      });
+      if (claimed.count !== 1) throw new ApprovalServiceError("order_transition_conflict", 409);
+
       if (input.result === "rejected") {
         const [, updated] = await Promise.all([
           tx.approvalDecision.create({
@@ -147,14 +165,13 @@ export class ApprovalService {
             where: { id },
             data: { status: "rejected", decidedAt: new Date() },
           }),
-          tx.order.update({ where: { id: request.order.id }, data: { status: "rejected" } }),
           tx.auditEvent.create({
             data: {
               actorStaffId: input.actorStaffId,
               action: "approval.rejected",
               subjectType: "approval_request",
               subjectId: id,
-              metadata: json({ reason: input.reason }),
+              metadata: json({ reason: input.reason, from: request.order.status, to: "rejected" }),
             },
           }),
         ]);
@@ -242,14 +259,13 @@ export class ApprovalService {
         where: { id },
         data: { status: "approved", decidedAt: now },
       });
-      await tx.order.update({ where: { id: request.order.id }, data: { status: "placed" } });
       await tx.auditEvent.create({
         data: {
           actorStaffId: input.actorStaffId,
           action: "approval.approved",
           subjectType: "approval_request",
           subjectId: id,
-          metadata: json({ authorizationId: authorization.id, assessmentId: assessment.id }),
+          metadata: json({ authorizationId: authorization.id, assessmentId: assessment.id, from: request.order.status, to: "placed" }),
         },
       });
       await enqueueSalesOrder(tx, request.order.id);

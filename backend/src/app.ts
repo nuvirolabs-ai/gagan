@@ -2,11 +2,15 @@ import "express-async-errors";
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
+import path from "node:path";
 import adminAuthRoutes from "./routes/admin/auth";
+import commercialRoutes from "./modules/commercial/routes";
 import adminCatalogRoutes from "./routes/admin/catalog";
 import adminOrderRoutes from "./routes/admin/orders";
+import adminWarehouseOrderRoutes from "./routes/admin/warehouseOrders";
 import adminRetailerRoutes from "./routes/admin/retailers";
 import adminSapRoutes from "./routes/admin/sap";
+import adminImportRoutes from "./routes/admin/imports";
 import { createAdminStaffRouter } from "./modules/identity/adminStaffRoutes";
 import { StaffManagementService } from "./modules/identity/staffManagementService";
 import { requireAdmin, requireAdminIdentity } from "./lib/adminAuth";
@@ -16,9 +20,26 @@ import { createCollectionRouter } from "./modules/collections/collectionRoutes";
 import { createKycRouter } from "./modules/kyc/kycRoutes";
 import { createRecoveryRouter } from "./modules/recovery/recoveryRoutes";
 import { createLocationRouter } from "./modules/location/locationRoutes";
+import { LocationService } from "./modules/location/locationService";
+import { loadLocationConfig } from "./modules/location/locationConfig";
+import { createFieldRouter } from "./modules/field/fieldRoutes";
+import { createFieldAdminRouter } from "./modules/field/fieldAdminRoutes";
+import {
+  createPerformanceRouter,
+  createSalesLeaderRouter,
+} from "./modules/performance/performanceRoutes";
+import {
+  createRetailerProposalAdminRouter,
+  createRetailerProposalRouter,
+} from "./modules/customers/proposalRoutes";
+import { createOrgRouter } from "./modules/org/orgRoutes";
+import { createFounderRouter } from "./modules/founder/founderRouter";
+import { createSurveyRouter } from "./modules/surveys/surveyRoutes";
+import { defaultRouteService } from "./modules/field/routeService";
+import { prisma } from "./lib/prisma";
 import { createRatingRouter } from "./modules/credit/ratingRoutes";
 import { createCreditRolloutRouter } from "./modules/credit/rolloutRoutes";
-import { createRetailerFormRouter } from "./modules/retailers/retailerProposalRoutes";
+import commercialStatusRoutes from "./modules/commercialStatus/routes";
 import { createRequireSession } from "./modules/identity/sessionAuth";
 import { lazyIdentitySessionService } from "./modules/identity/sessionRuntime";
 import authRoutes from "./routes/auth";
@@ -29,6 +50,7 @@ import ledgerRoutes from "./routes/ledger";
 import orderRoutes from "./routes/orders";
 import { requireAuth } from "./lib/auth";
 import paymentRoutes from "./routes/payments";
+import { createRetailerServiceRequestRouter } from "./routes/serviceRequests";
 import repRoutes from "./routes/rep";
 import {
   databaseReadiness,
@@ -52,10 +74,33 @@ export function createApp(options: CreateAppOptions = {}) {
   // that accepts a bounded base64 payload, so opt it into the larger parser
   // before the default parser runs.
   app.use("/rep/kyc", express.json({ limit: "15mb" }));
+  // Attendance photos and expense receipts are bounded base64 payloads, the
+  // same shape as KYC evidence.
+  app.use("/rep/field/attendance", express.json({ limit: "8mb" }));
+  // Task activity photos are bounded base64 payloads and must bypass the
+  // deliberately small default parser.
+  app.use("/rep/field/tasks", express.json({ limit: "8mb" }));
+  app.use("/rep/field/expenses", express.json({ limit: "15mb" }));
+  // Collection receipt evidence is a bounded base64 payload. It must be
+  // parsed before the small default parser, otherwise an otherwise valid
+  // native receipt upload is rejected as entity.too.large.
+  app.use("/rep/collections", express.json({ limit: "15mb" }));
+  // Only payment-proof uploads receive the larger parser limit.
+  app.use("/payments/:id/evidence", express.json({ limit: "15mb" }));
+  // New-retailer Aadhaar evidence is a bounded image payload. It remains
+  // behind the staff session and is never accepted by the default parser.
+  app.use("/rep/retailer-proposals", express.json({ limit: "15mb" }));
   app.use("/admin/kyc", express.json({ limit: "15mb" }));
-  app.use("/rep/retailer-evidence", express.json({ limit: "15mb" }));
-  app.use("/admin/retailer-evidence", express.json({ limit: "15mb" }));
   app.use(express.json({ limit: "100kb" }));
+
+  // The demo catalog ships with local product photography. SAP/CDN image
+  // URLs still pass through the catalog payload unchanged when synced later.
+  app.use(
+    "/catalog-images",
+    express.static(path.resolve(__dirname, "../assets/catalog"), {
+      maxAge: "1d",
+    })
+  );
 
   app.get("/health", (_req, res) => res.json({ ok: true }));
   app.get("/health/live", (_req, res) => res.json({ ok: true }));
@@ -65,12 +110,31 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(homeRoutes);
   app.use(catalogRoutes);
   app.use(orderRoutes);
+  app.use(commercialRoutes);
   app.use(ledgerRoutes);
   app.use(deliveryRoutes);
   app.use(paymentRoutes);
+  app.use(createRetailerServiceRequestRouter());
+  // Internal commercial statuses are staff/admin-only. This is deliberately
+  // mounted outside the retailer-facing routes so the fields cannot leak via
+  // the public customer API.
+  app.use(commercialStatusRoutes);
+
+  // Link the planned route stop at check-in. Visit checkout is the only event
+  // that changes route progress.
+  const locationService = new LocationService(prisma, loadLocationConfig(), {
+    afterCheckIn: (visit, tx) =>
+      defaultRouteService.linkVisitToPlannedStop({
+        visitId: visit.id,
+        salespersonId: visit.salespersonId,
+        retailerId: visit.retailerId,
+        at: visit.checkedInAt,
+      }, tx),
+  });
 
   app.use(
     createLocationRouter({
+      service: locationService,
       retailerAuthenticate: requireAuth,
       staffAuthenticate: createRequireSession("staff", lazyIdentitySessionService),
       adminAuthenticate: requireAdminIdentity,
@@ -98,12 +162,6 @@ export function createApp(options: CreateAppOptions = {}) {
   );
   app.use(
     "/rep",
-    createRetailerFormRouter({
-      authenticate: createRequireSession("staff", lazyIdentitySessionService),
-    })
-  );
-  app.use(
-    "/rep",
     createRecoveryRouter({
       authenticate: createRequireSession("staff", lazyIdentitySessionService),
     })
@@ -111,6 +169,30 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(
     "/rep",
     createRatingRouter({
+      authenticate: createRequireSession("staff", lazyIdentitySessionService),
+    })
+  );
+  app.use(
+    "/rep",
+    createFieldRouter({
+      authenticate: createRequireSession("staff", lazyIdentitySessionService),
+    })
+  );
+  app.use(
+    "/rep",
+    createPerformanceRouter({
+      authenticate: createRequireSession("staff", lazyIdentitySessionService),
+    })
+  );
+  app.use(
+    "/rep",
+    createSalesLeaderRouter({
+      authenticate: createRequireSession("staff", lazyIdentitySessionService),
+    })
+  );
+  app.use(
+    "/rep",
+    createRetailerProposalRouter({
       authenticate: createRequireSession("staff", lazyIdentitySessionService),
     })
   );
@@ -134,10 +216,6 @@ export function createApp(options: CreateAppOptions = {}) {
   );
   app.use(
     "/admin",
-    createRetailerFormRouter({ authenticate: requireAdminIdentity })
-  );
-  app.use(
-    "/admin",
     createRecoveryRouter({ authenticate: requireAdminIdentity })
   );
   app.use(
@@ -148,10 +226,23 @@ export function createApp(options: CreateAppOptions = {}) {
     "/admin",
     createCreditRolloutRouter({ authenticate: requireAdminIdentity })
   );
+  app.use("/admin", createFieldAdminRouter({ authenticate: requireAdminIdentity }));
+  app.use("/admin", createSalesLeaderRouter({ authenticate: requireAdminIdentity }));
+  app.use("/admin", createRetailerProposalAdminRouter({ authenticate: requireAdminIdentity }));
+  app.use("/admin", createOrgRouter({ authenticate: requireAdminIdentity }));
+  app.use(
+    createSurveyRouter({
+      adminAuthenticate: requireAdminIdentity,
+      staffAuthenticate: createRequireSession("staff", lazyIdentitySessionService),
+    })
+  );
+  app.use("/founder", createFounderRouter());
+  app.use("/admin", adminWarehouseOrderRoutes);
   app.use("/admin", adminOrderRoutes);
   app.use("/admin", adminRetailerRoutes);
   app.use("/admin", adminCatalogRoutes);
   app.use("/admin", adminSapRoutes);
+  app.use("/admin", adminImportRoutes);
   app.use(
     "/admin",
     createAdminStaffRouter({

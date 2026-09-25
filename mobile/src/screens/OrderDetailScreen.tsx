@@ -1,13 +1,16 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import CommercialBreakdown from "../components/CommercialBreakdown";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { api } from "../api/client";
 import { useCart } from "../context/CartContext";
-import { colors, radius, spacing, shadow, inr } from "../theme";
-import { StatusPill, OrderTimeline } from "../components/ui";
+import { colors, radius, spacing, inr } from "../theme";
+import { StatusPill, OrderTimeline, OrderLifecycleCaption, EmptyState, ScreenSkeleton, SectionTitle } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
+import { formatOrderRef } from "../lib/orderRef";
+import { orderAttributionLabel } from "../lib/orderAttribution";
 
 const POD_LABEL: Record<string, string> = {
   photo: "Photo",
@@ -22,28 +25,41 @@ export default function OrderDetailScreen({ route, navigation }: any) {
   const { addLine } = useCart();
   const { t } = useLanguage();
 
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.getOrder(orderId);
+      setOrder(res.order);
+    } catch {
+      setOrder(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [orderId]);
+
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
-      api
-        .getOrder(orderId)
-        .then((res) => setOrder(res.order))
-        .catch(() => setOrder(null))
-        .finally(() => setLoading(false));
-    }, [orderId])
+      void load();
+    }, [load])
   );
 
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.green} />
+        <ScreenSkeleton rows={5} />
       </View>
     );
   }
   if (!order) {
     return (
       <View style={styles.center}>
-        <Text style={styles.muted}>{t("errors.generic")}</Text>
+        <EmptyState
+          icon="alert-circle-outline"
+          title={t("orders.loadError")}
+          body={t("errors.checkConnection")}
+          actionLabel={t("common.retry")}
+          onAction={() => void load()}
+        />
       </View>
     );
   }
@@ -67,10 +83,15 @@ export default function OrderDetailScreen({ route, navigation }: any) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }}>
       <View style={styles.head}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.orderId}>GGN-{String(order.orderNo).padStart(5, "0")}</Text>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.orderId} numberOfLines={1}>
+            {formatOrderRef(order)}
+          </Text>
           <Text style={styles.date}>
-            Placed{" "}
+            {orderAttributionLabel(order)}
+          </Text>
+          <Text style={styles.date}>
+            {order.retailer?.name ?? "Retailer"} ·{" "}
             {new Date(order.createdAt).toLocaleDateString("en-IN", {
               day: "numeric",
               month: "short",
@@ -82,18 +103,19 @@ export default function OrderDetailScreen({ route, navigation }: any) {
               minute: "2-digit",
             })}
           </Text>
+          <OrderLifecycleCaption state={order.salesOrderState} />
         </View>
         <StatusPill status={order.status} />
       </View>
 
       {(isActive || order.status === "delivered") && (
-        <View style={styles.card}>
+        <View style={styles.timelineBand}>
           <OrderTimeline status={order.status} />
         </View>
       )}
 
-      <Text style={styles.sectionTitle}>{t("orders.items")}</Text>
-      <View style={styles.card}>
+      <SectionTitle>{t("orders.items")}</SectionTitle>
+      {order.commercialSnapshot ? <CommercialBreakdown value={order.commercialSnapshot}/> : <View style={styles.band}>
         {order.items.map((item: any, i: number) => {
           const short =
             item.weightDelivered != null &&
@@ -103,11 +125,13 @@ export default function OrderDetailScreen({ route, navigation }: any) {
           return (
             <View
               key={item.id}
-              style={[styles.itemRow, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}
+              style={[styles.itemRow, i > 0 && styles.itemBorder]}
             >
-              <View style={{ flex: 1 }}>
-                <Text style={styles.itemName}>{item.variant?.product.name}</Text>
-                <Text style={styles.itemPack}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.itemName} numberOfLines={1}>
+                  {item.variant?.product.name}
+                </Text>
+                <Text style={styles.itemPack} numberOfLines={1}>
                   {item.variant?.unitSize} × {item.variant?.unitsPerCase} · {inr(Number(item.unitPrice))}/case
                 </Text>
                 {item.weightDelivered != null && (
@@ -117,23 +141,23 @@ export default function OrderDetailScreen({ route, navigation }: any) {
                   </Text>
                 )}
               </View>
-              <View style={{ alignItems: "flex-end" }}>
+              <View style={{ alignItems: "flex-end", flexShrink: 0 }}>
                 <Text style={styles.itemQty}>× {item.qtyOrdered}</Text>
-                <Text style={styles.itemTotal}>
-                  {inr(Number(item.unitPrice) * item.qtyOrdered)}
-                </Text>
+                <Text style={styles.itemTotal}>{inr(Number(item.unitPrice) * item.qtyOrdered)}</Text>
               </View>
             </View>
           );
         })}
-      </View>
+      </View>}
 
-      <Text style={styles.sectionTitle}>{t("orders.payment")}</Text>
-      <View style={styles.card}>
+      <SectionTitle>{t("orders.payment")}</SectionTitle>
+      <View style={styles.band}>
         <View style={styles.sumRow}>
           <Text style={styles.sumLabel}>{t("orders.orderedValue")}</Text>
           <Text style={styles.sumValue}>{inr(Number(order.orderTotal))}</Text>
         </View>
+        {invoice?.commercialSnapshot && <CommercialBreakdown value={invoice.commercialSnapshot}/>}
+        {invoice?.entityOutstanding && <Text style={styles.sumLabel}>This invoice outstanding · Jain ₹{invoice.entityOutstanding.jain} · Padam ₹{invoice.entityOutstanding.padam}</Text>}
         {invoice ? (
           <>
             <View style={styles.sumRow}>
@@ -154,27 +178,17 @@ export default function OrderDetailScreen({ route, navigation }: any) {
                 </Text>
               </View>
             )}
-            <View style={styles.noteBox}>
-              <MaterialCommunityIcons name="scale-balance" size={15} color={colors.green} />
-              <Text style={styles.noteText}>
-                {t("orders.itemsWeightNote")}
-              </Text>
-            </View>
+            <Text style={styles.noteText}>{t("orders.itemsWeightNote")}</Text>
           </>
         ) : (
-          <View style={styles.noteBox}>
-            <Ionicons name="information-circle-outline" size={15} color={colors.green} />
-            <Text style={styles.noteText}>
-              {t("orders.deliveryNote")}
-            </Text>
-          </View>
+          <Text style={styles.noteText}>{t("orders.deliveryNote")}</Text>
         )}
       </View>
 
       {order.delivery && (
         <>
-          <Text style={styles.sectionTitle}>{t("orders.delivery")}</Text>
-          <View style={styles.card}>
+          <SectionTitle>{t("orders.delivery")}</SectionTitle>
+          <View style={styles.band}>
             {order.delivery.routeId && (
               <View style={styles.sumRow}>
                 <Text style={styles.sumLabel}>{t("orders.route")}</Text>
@@ -220,51 +234,37 @@ export default function OrderDetailScreen({ route, navigation }: any) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
-  muted: { color: colors.inkMuted },
+  center: { flex: 1, backgroundColor: colors.bg },
 
   head: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md, marginBottom: spacing.lg },
   orderId: { fontSize: 21, fontWeight: "700", color: colors.ink },
   date: { fontSize: 12, color: colors.inkMuted, marginTop: 3 },
 
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: colors.inkMuted,
-    marginTop: spacing.lg,
+  timelineBand: {
+    paddingBottom: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
     marginBottom: spacing.sm,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
   },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadow.card,
+  band: {
+    paddingBottom: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
 
   itemRow: { flexDirection: "row", paddingVertical: spacing.md, gap: spacing.md },
+  itemBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   itemName: { fontSize: 14.5, fontWeight: "700", color: colors.ink },
   itemPack: { fontSize: 11.5, color: colors.inkMuted, marginTop: 2 },
   itemWeight: { fontSize: 11.5, color: colors.greenMid, marginTop: 3, fontWeight: "600" },
   itemQty: { fontSize: 13, color: colors.inkMuted },
   itemTotal: { fontSize: 14.5, fontWeight: "700", color: colors.ink, marginTop: 3 },
 
-  sumRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
+  sumRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm, gap: spacing.md },
   sumLabel: { fontSize: 13, color: colors.inkMuted, flex: 1 },
-  sumValue: { fontSize: 13.5, fontWeight: "600", color: colors.ink },
+  sumValue: { fontSize: 13.5, fontWeight: "600", color: colors.ink, flexShrink: 0 },
 
-  noteBox: {
-    flexDirection: "row",
-    gap: 7,
-    backgroundColor: colors.greenSoft,
-    borderRadius: radius.sm,
-    padding: spacing.md,
-    marginTop: spacing.sm,
-  },
-  noteText: { flex: 1, fontSize: 11.5, color: colors.ink, lineHeight: 16.5 },
+  noteText: { fontSize: 12.5, color: colors.inkMuted, lineHeight: 18, marginTop: spacing.sm },
 
   reorderBtn: {
     flexDirection: "row",
@@ -272,8 +272,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
     backgroundColor: colors.greenDeep,
-    borderRadius: radius.sm,
+    borderRadius: radius.md,
     paddingVertical: 15,
+    minHeight: 48,
     marginTop: spacing.xl,
   },
   reorderText: { color: colors.onDark, fontWeight: "700", fontSize: 15 },

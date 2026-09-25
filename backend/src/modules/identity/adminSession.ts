@@ -9,7 +9,13 @@ export function adminRefreshCookieConfig(
 ): RefreshCookieConfig {
   return {
     name: ADMIN_REFRESH_COOKIE_NAME,
-    secure: environment === "production",
+    // Staging is served over HTTPS too, so its refresh cookie must not be
+    // downgraded to an insecure browser cookie merely because it is not live
+    // production.
+    secure: environment === "production" || environment === "staging",
+    // Hosted Admin and API are cross-site. Retain HttpOnly, Secure, exact
+    // CORS and the refresh route's custom CSRF header; keep local HTTP strict.
+    sameSite: environment === "production" || environment === "staging" ? "none" : "strict",
     path: "/admin/auth",
     csrfHeader: { name: "x-gagan-client", value: "admin-web" },
   };

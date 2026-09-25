@@ -54,7 +54,14 @@ router.get("/auth/me", requireAdminIdentity, async (req: AdminRequest, res) => {
     where: { id: req.adminId },
     select: { id: true, name: true, email: true },
   });
-  res.json({ admin, permissions: req.staffAuth?.permissions ?? [] });
+  res.json({
+    admin,
+    // The portal needs the *employee* id, not the login id: reporting scope,
+    // self-approval and "is this my own row" are all questions about the
+    // StaffUser behind the login.
+    staffId: req.staffAuth?.staffId ?? null,
+    permissions: req.staffAuth?.permissions ?? [],
+  });
 });
 
 router.use(

@@ -1,3 +1,5 @@
+import type { EntityBalances } from "./index";
+
 export interface HomeSalesRep {
   name: string;
   phone: string;
@@ -31,6 +33,17 @@ export interface QuickOrderItem {
   unitSize: string;
   unitsPerCase: number;
   casePrice: string | null;
+  commercialRate?: string | number | null;
+  rateBasis?: string;
+  rateLabel?: string | null;
+  caseWeightKg?: number | null;
+  pricePerKg?: number | null;
+  orderable?: boolean;
+  gstPending?: boolean;
+  taxStatus?: "PENDING" | "READY" | "NOT_READY";
+  orderingReason?: string | null;
+  imageStatus?: "exact" | "placeholder" | "pending";
+  imageLabel?: string | null;
 }
 
 export interface HomeActiveOrder {
@@ -43,13 +56,77 @@ export interface HomeActiveOrder {
   expectedDeliveryAt: string | null;
 }
 
+/** One logical product with the packs it is sold in. The SKU stays the order unit. */
+export interface HomeSku {
+  id: string;
+  productId: string;
+  productName: string;
+  packLabel: string;
+  packDetail: string;
+  unitSize: string;
+  unit: string;
+  unitsPerCase: number;
+  price: number | null;
+  caseWeightKg?: number | null;
+  pricePerKg?: number | null;
+  commercialRate?: number | null;
+  rateBasis?: string;
+  rateLabel?: string | null;
+  isOverride?: boolean;
+  catalogStatus?: string;
+  orderable?: boolean;
+  gstPending?: boolean;
+  taxStatus?: "PENDING" | "READY" | "NOT_READY";
+  orderingStatus?: string;
+  orderingReason?: string | null;
+  imageUrl?: string | null;
+  imageStatus?: "exact" | "placeholder" | "pending";
+  imageLabel?: string | null;
+  availability?: { status?: string; available?: number | null } | null;
+}
+
+export interface HomeProductGroup {
+  id: string;
+  name: string;
+  category: string;
+  imageUrl: string | null;
+  description: string | null;
+  productIds: string[];
+  skus: HomeSku[];
+  hasMultiplePacks: boolean;
+}
+
+export interface HomeLastOrderItem {
+  variantId: string;
+  productId: string;
+  name: string;
+  category: string;
+  imageUrl: string | null;
+  packLabel: string;
+  packDetail: string;
+  qty: number;
+  /** Current selling price from the live price list. */
+  price: number;
+}
+
+export interface HomeLastOrder {
+  id: string;
+  createdAt: string;
+  status: string;
+  items: HomeLastOrderItem[];
+}
+
 export interface HomePayload {
   retailer: { id: string; name: string; phone: string; tier: string };
   salesRep: HomeSalesRep | null;
   credit: HomeCredit;
+  financialSummary?: { entityBalances?: EntityBalances };
   scheme: HomeScheme | null;
   quickOrder: QuickOrderItem[];
+  productGroups: HomeProductGroup[];
+  categories: string[];
   activeOrder: HomeActiveOrder | null;
+  lastOrder: HomeLastOrder | null;
   config: { freeDeliveryThreshold: number; minOrderValue: number; supportPhone: string | null };
   badges: { notifications: number; activeOffers: number };
 }

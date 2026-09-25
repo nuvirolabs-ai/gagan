@@ -3,7 +3,8 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    // Fixture scripts carry logic that a UAT depends on, so they are tested too.
+    include: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
     restoreMocks: true,
     // Integration suites share one PostgreSQL schema and intentionally exercise
     // row locks. Serial files avoid cross-suite teardown races on that schema.

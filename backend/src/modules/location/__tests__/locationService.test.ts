@@ -8,11 +8,11 @@ function fakePrisma() {
     update: vi.fn(),
   };
   const history = { create: vi.fn() };
-  const visits = { create: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() };
+  const visits = { create: vi.fn(), findFirst: vi.fn().mockResolvedValue(null), findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() };
   const retailer = { findUnique: vi.fn() };
   const staffUser = { findUnique: vi.fn() };
   const auditEvent = { create: vi.fn() };
-  const tx = { retailerLocation: location, retailerLocationHistory: history, salesVisit: visits, retailer, staffUser, auditEvent };
+  const tx = { $queryRaw: vi.fn(), retailerLocation: location, retailerLocationHistory: history, salesVisit: visits, retailer, staffUser, auditEvent };
   return {
     retailerLocation: location,
     retailerLocationHistory: history,
@@ -125,9 +125,48 @@ describe("LocationService", () => {
       reviewRadiusMeters: 500,
     });
 
-    await service.checkOut({ visitId: "visit-1", salespersonId: "staff-1", latitude: 18.5201, longitude: 73.8501, accuracyMeters: 10 });
+    await service.checkOut({ visitId: "visit-1", salespersonId: "staff-1", latitude: 18.5201, longitude: 73.8501, accuracyMeters: 10, outcome: "order_placed" });
     expect(prisma.salesVisit.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "visit-1" }, data: expect.objectContaining({ checkedOutAccuracyMeters: 10 }) })
     );
+  });
+
+  it("requires a controlled reason when a visit ends without an order", async () => {
+    const prisma = fakePrisma();
+    prisma.salesVisit.findUnique.mockResolvedValue({ id: "visit-1", salespersonId: "staff-1", purpose: "sales_call" });
+    const service = new LocationService(prisma, { maxAccuracyMeters: 50, verifiedRadiusMeters: 150, reviewRadiusMeters: 500 });
+    await expect(service.checkOut({
+      visitId: "visit-1",
+      salespersonId: "staff-1",
+      latitude: 18.52,
+      longitude: 73.85,
+      accuracyMeters: 10,
+      outcome: "no_order",
+    })).rejects.toMatchObject({ code: "no_order_reason_required" });
+    expect(prisma.salesVisit.update).not.toHaveBeenCalled();
+  });
+
+  it("stores the selected no-order reason in the visit note", async () => {
+    const prisma = fakePrisma();
+    prisma.salesVisit.findUnique.mockResolvedValue({
+      id: "visit-1",
+      salespersonId: "staff-1",
+      retailerId: "retailer-1",
+      storeLatitudeSnapshot: null,
+      storeLongitudeSnapshot: null,
+      checkedOutAt: null,
+    });
+    prisma.salesVisit.update.mockResolvedValue({ id: "visit-1", checkedOutAt: new Date() });
+    const service = new LocationService(prisma, { maxAccuracyMeters: 50, verifiedRadiusMeters: 150, reviewRadiusMeters: 500 });
+    await service.checkOut({
+      visitId: "visit-1",
+      salespersonId: "staff-1",
+      latitude: 18.52,
+      longitude: 73.85,
+      accuracyMeters: 10,
+      outcome: "no_order",
+      noOrderReason: "price_issue",
+    });
+    expect(prisma.salesVisit.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ notes: "No-order reason: Price issue" }) }));
   });
 });

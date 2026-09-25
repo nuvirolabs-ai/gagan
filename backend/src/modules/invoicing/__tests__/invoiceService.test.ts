@@ -181,4 +181,33 @@ describe("createInvoiceForDelivery", () => {
     ).rejects.toMatchObject({ code: "incomplete_delivery_resolution" });
     expect(await prisma.invoice.count({ where: { orderId: ids.validationOrder } })).toBe(0);
   });
+
+  it("does not replay another order's invoice when an idempotency key is reused", async () => {
+    const invoice = await prisma.invoice.findUniqueOrThrow({ where: { orderId: ids.order } });
+    await expect(createInvoiceForDelivery({ orderId: ids.validationOrder,
+      lines: [{ orderItemId: ids.validationFirstItem, deliveredCases: 1 }, { orderItemId: ids.validationSecondItem, deliveredCases: 1 }],
+      occurredAt: new Date(), idempotencyKey: invoice.idempotencyKey,
+    })).rejects.toMatchObject({ code: "invoice_replay_conflict" });
+    expect(await prisma.invoice.count({ where: { orderId: ids.validationOrder } })).toBe(0);
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: ids.validationOrder } })).status).toBe("out_for_delivery");
+  });
+
+  it("rejects precision the stored delivery cannot preserve", async () => {
+    await expect(createInvoiceForDelivery({ orderId: ids.validationOrder,
+      lines: [{ orderItemId: ids.validationFirstItem, deliveredCases: 1, deliveredWeightKg: 10.1234 }, { orderItemId: ids.validationSecondItem, deliveredCases: 1 }],
+      occurredAt: new Date(), idempotencyKey: randomUUID(),
+    })).rejects.toMatchObject({ code: "invalid_delivered_weight_precision" });
+    expect(await prisma.invoice.count({ where: { orderId: ids.validationOrder } })).toBe(0);
+  });
+
+  it.each([
+    [{ orderItemId: ids.firstItem, deliveredCases: 1 }, { orderItemId: ids.secondItem, deliveredCases: 1 }],
+    [{ orderItemId: ids.firstItem, deliveredCases: 2, deliveredWeightKg: 19 }, { orderItemId: ids.secondItem, deliveredCases: 1 }],
+  ])("rejects a retry that changes accepted delivery quantities %j", async (...lines) => {
+    const invoice = await prisma.invoice.findUniqueOrThrow({ where: { orderId: ids.order } });
+    await expect(createInvoiceForDelivery({ orderId: ids.order, lines,
+      occurredAt: new Date(), idempotencyKey: invoice.idempotencyKey,
+    })).rejects.toMatchObject({ code: "invoice_replay_conflict" });
+    expect(Number((await prisma.retailer.findUniqueOrThrow({ where: { id: ids.retailer } })).currentBalance)).toBe(3000);
+  });
 });

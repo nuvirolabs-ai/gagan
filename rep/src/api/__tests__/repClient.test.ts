@@ -48,6 +48,8 @@ describe("staff auth API", () => {
       retailerId: "retailer-1",
       amount: 250,
       method: "cash",
+      reference: "RCPT-123",
+      notes: "Retailer requested a call next week",
       idempotencyKey: "receipt-1234",
     });
 
@@ -59,6 +61,8 @@ describe("staff auth API", () => {
           retailerId: "retailer-1",
           amount: 250,
           method: "cash",
+          reference: "RCPT-123",
+          notes: "Retailer requested a call next week",
           idempotencyKey: "receipt-1234",
         }),
       }),
@@ -77,26 +81,27 @@ describe("staff auth API", () => {
     expect(request).toHaveBeenNthCalledWith(2, "/rep/kyc/case-1/submit", expect.objectContaining({ method: "POST" }), true);
   });
 
-  it("reads the Ocean Home and stock hubs through the staff session", async () => {
-    const request = vi.fn()
-      .mockResolvedValueOnce({ sales: { today: 0 }, route: { stops: [] } })
-      .mockResolvedValueOnce({ stockTakeAvailable: false, items: [] });
+  it("punches pending retailer demand idempotently and converts only through the review endpoint", async () => {
+    const request = vi.fn().mockResolvedValue({ intent: { id: "intent-1" } });
     const store = { load: vi.fn(), save: vi.fn(), clear: vi.fn() };
     const api = createStaffApi(request, store);
-    await api.home();
-    await api.stock();
-    expect(request).toHaveBeenNthCalledWith(1, "/rep/home");
-    expect(request).toHaveBeenNthCalledWith(2, "/rep/stock");
-  });
 
-  it("proposes a retailer and updates assigned commercial fields", async () => {
-    const request = vi.fn().mockResolvedValue({ proposal: { id: "proposal-1" } });
-    const store = { load: vi.fn(), save: vi.fn(), clear: vi.fn() };
-    const api = createStaffApi(request, store);
-    await api.proposeRetailer({ partyName: "Sharma Kirana", creditLimit: 40000, grade: "A", paymentTermDays: 21 });
-    await api.updateRetailerProfile("retailer-1", { creditLimit: 50000, grade: "B", paymentTermDays: 30 });
-    expect(request).toHaveBeenNthCalledWith(1, "/rep/retailer-proposals", expect.objectContaining({ method: "POST" }), true);
-    expect(request).toHaveBeenNthCalledWith(2, "/rep/retailers/retailer-1/profile", expect.objectContaining({ method: "PATCH" }), true);
+    await api.proposalDemandCatalog("proposal-1");
+    await api.punchProposalOrderIntent("proposal-1", [{ variantId: "sku-1", qty: 2 }], "punch-1");
+    await api.proposalOrderIntent("intent-1");
+    await api.convertProposalOrderIntent("intent-1", { quoteId: "quote-1", revision: 3 });
+
+    expect(request).toHaveBeenNthCalledWith(1, "/rep/retailer-proposals/proposal-1/catalog");
+    expect(request).toHaveBeenNthCalledWith(2, "/rep/retailer-proposals/proposal-1/order-intents", expect.objectContaining({
+      method: "POST",
+      headers: { "Idempotency-Key": "punch-1" },
+      body: JSON.stringify({ items: [{ variantId: "sku-1", qty: 2 }] }),
+    }));
+    expect(request).toHaveBeenNthCalledWith(3, "/rep/retailer-proposal-order-intents/intent-1");
+    expect(request).toHaveBeenNthCalledWith(4, "/rep/retailer-proposal-order-intents/intent-1/convert", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ commercial: { quoteId: "quote-1", revision: 3 } }),
+    }), true);
   });
 
   it("sends receipt bytes without exposing a storage key", async () => {
@@ -107,5 +112,25 @@ describe("staff auth API", () => {
     const [, options, auth] = request.mock.calls[0];
     expect(auth).toBe(true);
     expect(JSON.parse(String(options.body))).toMatchObject({ evidence: { contentType: "image/jpeg", bodyBase64: "cmVjZWlwdA==" } });
+  });
+
+  it("loads the assigned retailer ledger with a sequence cursor", async () => {
+    const request = vi.fn().mockResolvedValue({ entries: [], nextCursor: null });
+    const store = { load: vi.fn(), save: vi.fn(), clear: vi.fn() };
+    const api = createStaffApi(request, store);
+
+    await api.retailerLedger("retailer-1", "123");
+
+    expect(request).toHaveBeenCalledWith("/rep/retailers/retailer-1/ledger?beforeSequence=123");
+  });
+
+  it("provides a staff-session client for hierarchy-scoped team performance", async () => {
+    const request = vi.fn().mockResolvedValue({ team: { salespeople: 1 } });
+    const store = { load: vi.fn(), save: vi.fn(), clear: vi.fn() };
+    const api = createStaffApi(request, store);
+
+    expect(typeof api.salesLeader).toBe("function");
+    await api.salesLeader();
+    expect(request).toHaveBeenCalledWith("/rep/sales-leader");
   });
 });

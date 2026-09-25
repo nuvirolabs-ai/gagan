@@ -8,6 +8,7 @@ import { staffAppAccess } from "../modules/identity/staffAppAccess";
 export interface RepRequest extends Request {
   repId?: string;
   staffId?: string;
+  permissions?: string[];
 }
 
 export async function requireRep(req: RepRequest, res: Response, next: NextFunction) {
@@ -37,6 +38,7 @@ export async function requireRep(req: RepRequest, res: Response, next: NextFunct
     }
     req.staffId = staff.id;
     req.repId = staff.salesRepId;
+    req.permissions = claims.permissions;
     next();
   } catch (error) {
     if (error instanceof SessionError) {

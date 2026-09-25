@@ -40,7 +40,9 @@ const manageStaff = requirePermission(Permissions.STAFF_MANAGE);
 
 export function createAdminStaffRouter(options: AdminStaffRouterOptions) {
   const router = Router();
-  router.use(options.authenticate, manageStaff);
+  // Scoped to this router's own paths so unrelated routes on the same mount
+  // prefix are not answered with 403.
+  router.use(["/staff", "/roles"], options.authenticate, manageStaff);
 
   router.get(
     "/staff",

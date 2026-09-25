@@ -5,40 +5,84 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api } from "../api/client";
 import { useCart } from "../context/CartContext";
-import { colors, radius, spacing, shadow, inr } from "../theme";
+import { colors, radius, spacing, inr } from "../theme";
 import ProductThumb from "../components/ProductThumb";
-import { QtyStepper } from "../components/ui";
+import MiniCartBar from "../components/MiniCartBar";
+import { QtyStepper, EmptyState, ScreenSkeleton, SectionTitle } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
+import { canChangeCatalogQuantity } from "../lib/catalogInteractions";
+import { catalogPricePresentation } from "../lib/catalogPricePresentation";
 
 export default function ProductDetailScreen({ route, navigation }: any) {
+  const insets = useSafeAreaInsets();
   const { productId } = route.params;
   const { lines, addLine, updateQty } = useCart();
   const { t } = useLanguage();
   const [product, setProduct] = useState<any | null>(null);
   const [selected, setSelected] = useState<any | null>(null);
   const [config, setConfig] = useState<any>({ freeDeliveryThreshold: 0, minOrderValue: 0 });
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
+    setLoadError(false);
     api
       .getProduct(productId)
       .then((res) => {
         setProduct(res);
-        setSelected(res.variants[0] ?? null);
+        // The API groups every pack of this product onto one page and says
+        // which one was asked for, so following a link to a specific pack
+        // opens here with that pack chosen rather than on a duplicate page.
+        const requested =
+          res.variants.find((variant: any) => variant.id === res.selectedVariantId) ??
+          res.variants[0] ??
+          null;
+        setSelected(requested);
         setConfig(res.config ?? {});
       })
-      .catch(() => setProduct(null));
+      .catch(() => {
+        setProduct(null);
+        setLoadError(true);
+      });
   }, [productId]);
+
+  if (loadError) {
+    return (
+      <View style={styles.center}>
+        <EmptyState
+          icon="alert-circle-outline"
+          title={t("product.loadError")}
+          body={t("errors.checkConnection")}
+          actionLabel={t("common.retry")}
+          onAction={() => {
+            setLoadError(false);
+            api
+              .getProduct(productId)
+              .then((res) => {
+                setProduct(res);
+                setSelected(
+                  res.variants.find((variant: any) => variant.id === res.selectedVariantId) ??
+                    res.variants[0] ??
+                    null
+                );
+                setConfig(res.config ?? {});
+              })
+              .catch(() => setLoadError(true));
+          }}
+        />
+      </View>
+    );
+  }
 
   if (!product) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.green} />
+        <ScreenSkeleton featured rows={3} />
       </View>
     );
   }
@@ -46,7 +90,7 @@ export default function ProductDetailScreen({ route, navigation }: any) {
   const inCart = selected ? (lines.find((l) => l.variantId === selected.id)?.qty ?? 0) : 0;
 
   const setQty = (next: number) => {
-    if (!selected || selected.price == null) return;
+    if (!selected || !canChangeCatalogQuantity(selected, inCart, next)) return;
     if (inCart === 0 && next > 0) {
       addLine({
         variantId: selected.id,
@@ -61,15 +105,19 @@ export default function ProductDetailScreen({ route, navigation }: any) {
   };
 
   const lineTotal = selected?.price != null ? Number(selected.price) * Math.max(inCart, 1) : 0;
+  const priceDisplay = catalogPricePresentation(selected);
+  const canAddSelected = selected ? canChangeCatalogQuantity(selected, inCart, inCart + 1) : false;
 
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 220 }} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
           <ProductThumb
             name={product.name}
             category={product.category}
-            imageUrl={product.imageUrl}
+            imageUrl={selected?.imageStatus === "placeholder" || selected?.imageStatus === "pending" ? null : selected?.imageUrl ?? product.imageUrl}
+            imageStatus={selected?.imageStatus}
+            imageLabel={selected?.imageLabel}
             size={168}
           />
         </View>
@@ -77,8 +125,9 @@ export default function ProductDetailScreen({ route, navigation }: any) {
         <View style={styles.body}>
           <Text style={styles.category}>{product.category.toUpperCase()}</Text>
           <Text style={styles.name}>{product.name}</Text>
+          {product.description ? <Text style={styles.description}>{product.description}</Text> : null}
 
-          <Text style={styles.sectionLabel}>{t("product.packSize")}</Text>
+          <SectionTitle>{t("product.packSize")}</SectionTitle>
           <View style={styles.variantRow}>
             {product.variants.map((v: any) => {
               const active = selected?.id === v.id;
@@ -87,12 +136,14 @@ export default function ProductDetailScreen({ route, navigation }: any) {
                   key={v.id}
                   style={[styles.variant, active && styles.variantActive]}
                   onPress={() => setSelected(v)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
                 >
                   <Text style={[styles.variantTitle, active && styles.variantTitleActive]}>
-                    {v.unitSize} × {v.unitsPerCase}
+                    {v.packLabel ?? v.unitSize}
                   </Text>
                   <Text style={[styles.variantSub, active && styles.variantSubActive]}>
-                    {v.caseWeightKg}kg case
+                    {v.packDetail ?? `${v.unitSize} × ${v.unitsPerCase}`}
                   </Text>
                 </TouchableOpacity>
               );
@@ -100,36 +151,41 @@ export default function ProductDetailScreen({ route, navigation }: any) {
           </View>
 
           {selected && (
-            <View style={styles.priceCard}>
-              <View style={styles.between}>
-                <View>
-                  <Text style={styles.priceLabel}>{t("product.pricePerCase")}</Text>
-                  <Text style={styles.price}>
-                    {selected.price != null ? inr(selected.price) : t("product.onRequest")}
-                  </Text>
-                </View>
-                {selected.pricePerKg != null && (
-                  <View style={styles.perKgBox}>
-                    <Text style={styles.perKgValue}>{inr(selected.pricePerKg)}</Text>
-                    <Text style={styles.perKgLabel}>{t("product.perKg")}</Text>
-                  </View>
-                )}
+            <View style={styles.priceBand}>
+              <View>
+                <Text style={styles.priceLabel}>{selected.rateBasis?.toLowerCase() === "quintal" ? "Commercial rate" : t("product.pricePerCase")}</Text>
+                <Text
+                  style={styles.price}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
+                  {priceDisplay.primary}
+                </Text>
               </View>
-              {selected.isOverride && (
-                <View style={styles.override}>
-                  <Ionicons name="pricetag" size={11} color={colors.green} />
-                  <Text style={styles.overrideText}>{t("product.override")}</Text>
+              {priceDisplay.perKg && (
+                <View style={styles.perKgBox}>
+                  <Text style={styles.perKgValue}>{priceDisplay.perKg}</Text>
                 </View>
               )}
             </View>
           )}
+          {priceDisplay.caseEquivalent ? <Text style={styles.rateLabel}>{priceDisplay.caseEquivalent}</Text> : null}
+          {selected?.rateBasis?.toLowerCase() === "quintal" || selected?.rateLabel ? <Text style={styles.rateLabel}>Excluding GST</Text> : null}
+          {selected?.gstPending || selected?.taxStatus === "PENDING" ? <Text style={styles.pendingOrder}>GST pending — final tax will be applied before invoicing.</Text> : null}
+          {selected?.rateBasis?.toLowerCase() === "quintal" || selected?.rateLabel ? <Text style={styles.rateLabel}>Excluding GST</Text> : null}
+          {selected?.orderable === false ? <Text style={styles.pendingOrder}>{selected.orderingReason ?? "Ordering setup pending"}</Text> : null}
+          {selected?.isOverride ? (
+            <View style={styles.override}>
+              <Ionicons name="pricetag" size={11} color={colors.green} />
+              <Text style={styles.overrideText}>{t("product.override")}</Text>
+            </View>
+          ) : null}
 
-          <View style={styles.infoCard}>
+          <View style={styles.infoList}>
             <View style={styles.infoRow}>
               <MaterialCommunityIcons name="scale-balance" size={17} color={colors.green} />
-              <Text style={styles.infoText}>
-                {t("product.billedWeight")}
-              </Text>
+              <Text style={styles.infoText}>{t("product.billedWeight")}</Text>
             </View>
             <View style={styles.infoRow}>
               <Feather name="truck" size={16} color={colors.green} />
@@ -147,28 +203,31 @@ export default function ProductDetailScreen({ route, navigation }: any) {
         </View>
       </ScrollView>
 
-      <View style={styles.bar}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.barLabel}>{inCart > 0 ? `${inCart} case(s) in cart` : t("product.subtotal")}</Text>
-          <Text style={styles.barValue}>{inr(lineTotal)}</Text>
-        </View>
-        {inCart > 0 ? (
-          <View style={styles.barActions}>
-            <QtyStepper qty={inCart} onChange={setQty} />
-            <TouchableOpacity style={styles.viewCart} onPress={() => navigation.navigate("Main", { screen: "Cart" })}>
-              <Text style={styles.viewCartText}>{t("product.viewCart")}</Text>
-            </TouchableOpacity>
+      <View style={[styles.footer, { paddingBottom: insets.bottom }]}>
+        <MiniCartBar onPress={() => navigation.navigate("Main", { screen: "Cart" })} />
+        <View style={styles.bar}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.barLabel}>{inCart > 0 ? `${inCart} case(s) in cart` : t("product.subtotal")}</Text>
+            <Text style={styles.barValue}>{inr(lineTotal)}</Text>
           </View>
-        ) : (
-          <TouchableOpacity
-            style={[styles.addBtn, selected?.price == null && styles.addBtnDisabled]}
-            disabled={selected?.price == null}
-            onPress={() => setQty(1)}
-          >
-            <Ionicons name="cart-outline" size={17} color={colors.onDark} />
-            <Text style={styles.addBtnText}>{t("product.addToCart")}</Text>
-          </TouchableOpacity>
-        )}
+          {inCart > 0 ? (
+            <View style={styles.barActions}>
+              <QtyStepper qty={inCart} onChange={setQty} />
+              <TouchableOpacity style={styles.viewCart} onPress={() => navigation.navigate("Main", { screen: "Cart" })}>
+                <Text style={styles.viewCartText}>{t("product.viewCart")}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[styles.addBtn, !canAddSelected && styles.addBtnDisabled]}
+              disabled={!canAddSelected}
+              onPress={() => setQty(1)}
+            >
+              <Ionicons name="cart-outline" size={17} color={colors.onDark} />
+              <Text style={styles.addBtnText}>{t("product.addToCart")}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -176,86 +235,74 @@ export default function ProductDetailScreen({ route, navigation }: any) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
-  between: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  center: { flex: 1, backgroundColor: colors.bg },
+  footer: { position: "absolute", left: 0, right: 0, bottom: 0 },
 
   hero: {
     alignItems: "center",
     paddingVertical: spacing.xxl,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.cream,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    borderRadius: radius.lg,
   },
   body: { padding: spacing.lg },
-  category: { fontSize: 10.5, fontWeight: "800", color: colors.gold, letterSpacing: 1 },
-  name: { fontSize: 24, fontWeight: "700", color: colors.ink, marginTop: 4 },
-
-  sectionLabel: {
-    fontSize: 12.5,
-    fontWeight: "700",
-    color: colors.inkMuted,
-    marginTop: spacing.xl,
-    marginBottom: spacing.sm,
+  category: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: colors.accentStrong,
+    letterSpacing: 0.8,
   },
+  name: { fontSize: 26, fontWeight: "700", color: colors.ink, marginTop: 4 },
+  description: { fontSize: 14, color: colors.inkMuted, lineHeight: 20, marginTop: spacing.sm },
+
   variantRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   variant: {
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingVertical: 9,
-    paddingHorizontal: 14,
-    backgroundColor: colors.surface,
-  },
-  variantActive: { borderColor: colors.green, backgroundColor: colors.greenSoft },
-  variantTitle: { fontSize: 14, fontWeight: "700", color: colors.ink },
-  variantTitleActive: { color: colors.green },
-  variantSub: { fontSize: 11, color: colors.inkMuted, marginTop: 1 },
-  variantSubActive: { color: colors.greenMid },
-
-  priceCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    marginTop: spacing.xl,
     borderWidth: 1,
     borderColor: colors.border,
-    ...shadow.card,
-  },
-  priceLabel: { fontSize: 12, color: colors.inkMuted },
-  price: { fontSize: 26, fontWeight: "700", color: colors.ink, marginTop: 2 },
-  perKgBox: {
-    backgroundColor: colors.greenSoft,
     borderRadius: radius.sm,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    alignItems: "center",
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    minHeight: 44,
+    justifyContent: "center",
+    backgroundColor: "transparent",
   },
-  perKgValue: { fontSize: 15, fontWeight: "700", color: colors.green },
-  perKgLabel: { fontSize: 10, color: colors.greenMid, marginTop: 1 },
+  variantActive: { borderColor: colors.accentPrimary, backgroundColor: colors.accentPrimary },
+  variantTitle: { fontSize: 14, fontWeight: "700", color: colors.ink },
+  variantTitleActive: { color: colors.onAccent },
+  variantSub: { fontSize: 11, color: colors.inkMuted, marginTop: 1 },
+  variantSubActive: { color: colors.accentStrong },
+
+  priceBand: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    marginTop: spacing.xl,
+    paddingBottom: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+    gap: spacing.md,
+  },
+  priceLabel: { fontSize: 12, color: colors.inkMuted, fontWeight: "600" },
+  price: { fontSize: 26, fontWeight: "700", color: colors.ink, marginTop: 2, maxWidth: 200 },
+  perKgBox: { alignItems: "flex-end" },
+  perKgValue: { fontSize: 15, fontWeight: "700", color: colors.ink },
+  perKgLabel: { fontSize: 10, color: colors.inkMuted, marginTop: 1 },
+  rateLabel: { fontSize: 11, color: colors.inkMuted, marginTop: spacing.sm },
+  pendingOrder: { fontSize: 12, color: colors.warning, fontWeight: "700", marginTop: spacing.sm },
   override: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    marginTop: spacing.md,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    marginTop: spacing.sm,
   },
   overrideText: { fontSize: 11.5, color: colors.green, fontWeight: "600" },
 
-  infoCard: {
-    backgroundColor: colors.greenSoft,
-    borderRadius: radius.md,
-    padding: spacing.lg,
-    marginTop: spacing.lg,
-    gap: spacing.md,
-  },
+  infoList: { marginTop: spacing.lg, gap: spacing.md },
   infoRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
-  infoText: { flex: 1, fontSize: 12.5, color: colors.ink, lineHeight: 18 },
+  infoText: { flex: 1, fontSize: 12.5, color: colors.inkMuted, lineHeight: 18 },
 
   bar: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
@@ -263,7 +310,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
     paddingBottom: spacing.xxl,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },
   barLabel: { fontSize: 11.5, color: colors.inkMuted },
@@ -274,6 +321,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingVertical: 12,
     paddingHorizontal: 16,
+    minHeight: 44,
+    justifyContent: "center",
   },
   viewCartText: { color: colors.onDark, fontWeight: "700", fontSize: 13.5 },
   addBtn: {
@@ -284,6 +333,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingVertical: 13,
     paddingHorizontal: 22,
+    minHeight: 44,
   },
   addBtnDisabled: { opacity: 0.45 },
   addBtnText: { color: colors.onDark, fontWeight: "700", fontSize: 14.5 },

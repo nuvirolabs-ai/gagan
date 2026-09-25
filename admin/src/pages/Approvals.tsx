@@ -10,6 +10,7 @@ type ApprovalRequest = {
   order?: { id: string; orderNo: number; orderTotal: number | string; createdAt: string } | null;
   assessment: { reasons: string[]; projectedExposure: number | string };
   disputes?: Array<{ id: string; status: string; writtenPosition: string; resolution?: string | null }>;
+  commercialStatus?: { currentLabel?: string | null; isOnHold?: boolean; holdReason?: string | null; timeline?: Array<{ id: string; label: string; createdAt: string; actor?: { name: string } | null }> } | null;
 };
 
 const REASON_LABELS: Record<string, string> = {
@@ -160,7 +161,7 @@ export default function Approvals() {
               onClick={() => void open(request.id)}
               aria-label={`${request.retailer.name}, order ${request.order?.orderNo ?? ""}`}
             >
-              <span><strong>{request.retailer.name}</strong><small>Order #{request.order?.orderNo} · {reasonLabel(request.assessment.reasons[0])}</small></span>
+              <span><strong>{request.retailer.name}</strong><small>Order #{request.order?.orderNo} · {reasonLabel(request.assessment.reasons[0])}{request.commercialStatus?.currentLabel ? ` · ${request.commercialStatus.currentLabel}` : ""}</small></span>
               <strong>{inr(Number(request.order?.orderTotal ?? 0))}</strong>
             </button>
           ))}
@@ -171,6 +172,7 @@ export default function Approvals() {
             <>
               <div className="muted small">{selected.retailer.name}</div>
               <h2>Order #{selected.order?.orderNo}</h2>
+              {selected.commercialStatus ? <div className="internal-status-detail"><strong>{selected.commercialStatus.isOnHold ? "❌ Sales Order On Hold" : selected.commercialStatus.currentLabel ?? "No internal status recorded"}</strong>{selected.commercialStatus.holdReason ? <span>Reason: {selected.commercialStatus.holdReason}</span> : null}<div className="internal-status-timeline">{(selected.commercialStatus.timeline ?? []).slice(-4).map((event) => <span key={event.id}>{event.label} · {new Date(event.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}{event.actor?.name ? ` · ${event.actor.name}` : ""}</span>)}</div></div> : null}
               <div className="approval-exposure">
                 <strong>{inr(Number(selected.assessment.projectedExposure))} projected exposure</strong>
                 <span>{inr(Number(selected.order?.orderTotal ?? 0))} order value</span>

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "approval": {
+    "approvalId": "OWNER_APPROVAL_REQUIRED",
+    "revision": 1,
+    "approvedBy": "OWNER_APPROVAL_REQUIRED",
+    "approvedAt": "2026-09-17T00:00:00.000Z",
+    "scope": "Real catalogue configuration approval — replace this scope before use",
+    "source": {
+      "workbookSha256": "f9f69849c37421bd48a0326d50239cb2ebf0ff47b955bc56915556446fa9e5a6",
+      "sourceVersion": "sku-wise-item-list-2026-09-16-v1",
+      "imageIndexSha256": "41da39cf271c7cb37f363c39a128cb2d59b4205ee2359ff145cca898dcb3cc2d"
+    }
+  },
+  "imageMappingRevision": "IMAGES_REVISION_REQUIRED",
+  "records": [],
+  "retireCandidates": []
+}

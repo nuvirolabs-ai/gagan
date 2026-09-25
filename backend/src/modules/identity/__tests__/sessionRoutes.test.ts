@@ -2,6 +2,7 @@ import express from "express";
 import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
 import type { OtpRouteService } from "../otpRoutes";
+import { adminRefreshCookieConfig } from "../adminSession";
 import {
   createSessionRouter,
   type SessionRouteService,
@@ -17,7 +18,7 @@ const claims = {
   exp: 2,
 };
 
-function setup(refreshCookie = false) {
+function setup(refreshCookie = false, hosted = false) {
   const now = new Date("2026-08-20T10:00:00.000Z");
   const session = {
     id: "session-1",
@@ -61,7 +62,7 @@ function setup(refreshCookie = false) {
       otpService,
       resolvePhone: async () => "+919812345670",
       refreshCookie: refreshCookie
-        ? {
+        ? hosted ? adminRefreshCookieConfig("staging") : {
             name: "gagan_admin_refresh",
             secure: true,
             csrfHeader: { name: "x-gagan-client", value: "admin-web" },
@@ -73,6 +74,26 @@ function setup(refreshCookie = false) {
 }
 
 describe("session routes", () => {
+  it("rotates and clears hosted cross-site cookies with matching security attributes", async () => {
+    const { app, sessions } = setup(true, true);
+    const missing = await request(app).post("/refresh").set("x-gagan-client", "admin-web");
+    expect(missing.status).toBe(400);
+    expect(sessions.refresh).not.toHaveBeenCalled();
+    const refreshed = await request(app).post("/refresh")
+      .set("x-gagan-client", "admin-web")
+      .set("Cookie", "gagan_admin_refresh=old-refresh-token-that-is-long");
+    expect(refreshed.status).toBe(200);
+    expect(refreshed.body).not.toHaveProperty("refreshToken");
+    const logout = await request(app).post("/logout").set("Authorization", "Bearer access");
+    expect(logout.status).toBe(204);
+    expect(sessions.revokeSession).toHaveBeenCalledOnce();
+    for (const response of [refreshed, logout]) {
+      const cookie = response.headers["set-cookie"][0];
+      for (const attribute of ["HttpOnly", "Secure", "SameSite=None", "Path=/admin/auth"]) expect(cookie).toContain(attribute);
+      expect(cookie).not.toContain("Domain=");
+    }
+    expect(logout.headers["set-cookie"][0]).toContain("Expires=Thu, 01 Jan 1970");
+  });
   it("rotates refresh tokens without returning private session fields", async () => {
     const { app, sessions } = setup();
     const response = await request(app)

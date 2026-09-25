@@ -10,6 +10,8 @@ export interface Product {
   id: string;
   name: string;
   category: string;
+  imageUrl?: string | null;
+  description?: string | null;
   variants: Variant[];
 }
 
@@ -32,10 +34,51 @@ export interface OrderItem {
   variant?: { unitSize: string; unit: string; unitsPerCase: number; product: { name: string } };
 }
 
+export type SalesOrderState = "punched" | "created";
+
+export interface EntityAmounts {
+  jainTraders: number;
+  padamInternational: number;
+  unattributed: number;
+}
+
+export type FinancialAttributionStatus = "complete" | "contains_unattributed" | "review_required";
+
+export interface EntityBreakdown extends EntityAmounts {
+  attributionStatus: FinancialAttributionStatus;
+}
+
+export interface EntityBalances {
+  outstanding: EntityAmounts;
+  overdue: EntityAmounts;
+  attributionStatus: FinancialAttributionStatus;
+}
+
+export interface PaymentInvoiceOption {
+  id: string;
+  invoiceNumber: number;
+  orderNo: number | null;
+  invoiceDate: string;
+  dueDate: string;
+  total: number;
+  outstanding: number;
+  entityBalances: EntityAmounts;
+  attributionStatus: FinancialAttributionStatus;
+  paymentEligible: boolean;
+}
+
+export interface PaymentAllocationReadback {
+  invoice: { id: string; invoiceNumber: number; orderNo: number | null };
+  amount: number;
+  jainAmount: number | null;
+  padamAmount: number | null;
+}
+
 export interface Order {
   id: string;
   orderNo: number;
   status: "placed" | "confirmed" | "packed" | "out_for_delivery" | "delivered" | "rejected";
+  salesOrderState?: SalesOrderState;
   orderTotal: string;
   createdAt: string;
   items: OrderItem[];
@@ -48,4 +91,6 @@ export interface LedgerEntry {
   amount: string | number;
   balanceAfter: string | number;
   createdAt: string;
+  entityBreakdown?: EntityBreakdown;
+  paymentAllocations?: PaymentAllocationReadback[];
 }

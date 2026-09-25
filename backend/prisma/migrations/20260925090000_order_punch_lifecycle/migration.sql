@@ -1,0 +1,1 @@
+ALTER TYPE "CommercialStatusCode" ADD VALUE 'SALES_ORDER_PUNCHED';

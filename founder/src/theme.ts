@@ -61,6 +61,7 @@ export const type = {
 };
 
 export const TAB_BAR_SPACE = 64;
+export const SCREEN_PAD_TOP = 8;
 
 export type Tone = "up" | "down" | "warn" | "muted" | "accent";
 

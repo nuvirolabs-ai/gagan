@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
-import { requireAdmin } from "../../lib/adminAuth";
+import { AdminRequest, requireAdmin } from "../../lib/adminAuth";
 import { ageAllRetailers } from "../../lib/ageing";
 import { financialLedgerFor } from "../../modules/finance/financialQueries";
 import { financialSummaryFor } from "../../modules/finance/financialSummary";
@@ -10,73 +10,67 @@ import {
   settleSucceededPayment,
 } from "../../modules/payments/paymentService";
 import { nextQuarterlyCheckpoint } from "../../modules/credit/reviewSchedule";
+import { CommercialStatusCode } from "@prisma/client";
+import { internalStatusForRetailer, recordCommercialStatusEvent } from "../../modules/commercialStatus/statusService";
 
 const router = Router();
 router.use(requireAdmin);
 
 router.get("/retailers", async (_req, res) => {
   const retailers = await prisma.retailer.findMany({
-    include: { tier: true, salesRep: true, group: true, transporter: true, beat: true, buyerCategory: true, buyerSubCategory: true },
+    include: { tier: true, salesRep: true },
     orderBy: { name: "asc" },
   });
   const summary = await Promise.all(retailers.map(async (r) => {
-    const financial = (await financialSummaryFor(prisma, r.id))!;
+    const [financialResult, commercialStatus] = await Promise.all([
+      financialSummaryFor(prisma, r.id),
+      internalStatusForRetailer(r.id),
+    ]);
+    const financial = financialResult!;
     return {
       id: r.id,
       name: r.name,
       phone: r.phone,
       shopAddress: r.shopAddress,
-      contactPerson: r.contactPerson,
       deliveryCity: r.deliveryCity,
-      grade: r.grade,
-      paymentTermDays: r.paymentTermDays,
-      gstin: r.gstin,
-      upiId: r.upiId,
-      group: r.group ? { id: r.group.id, name: r.group.name } : null,
-      transporter: r.transporter ? { id: r.transporter.id, name: r.transporter.name } : null,
-      beat: r.beat ? { id: r.beat.id, name: r.beat.name } : null,
-      buyerCategory: r.buyerCategory ? { id: r.buyerCategory.id, name: r.buyerCategory.name } : null,
-      buyerSubCategory: r.buyerSubCategory ? { id: r.buyerSubCategory.id, name: r.buyerSubCategory.name } : null,
       tier: { id: r.tier.id, name: r.tier.name },
+      internalSegment: r.internalSegment,
       salesRep: r.salesRep ? { id: r.salesRep.id, name: r.salesRep.name } : null,
       creditLimit: financial.creditLimit,
       currentBalance: financial.outstanding,
       overdueAmount: financial.overdue,
       available: financial.availableCredit,
       financialSummary: financial,
+      commercialStatus,
     };
   }));
   res.json({ retailers: summary });
 });
 
 router.get("/retailers/:id", async (req, res) => {
-  const retailer = await prisma.retailer.findUnique({
+  const [retailer, commercialStatus] = await Promise.all([prisma.retailer.findUnique({
     where: { id: req.params.id },
     include: {
       tier: true,
       salesRep: true,
-      group: true,
-      transporter: true,
-      beat: true,
-      buyerCategory: true,
-      buyerSubCategory: true,
       priceOverrides: { include: { variant: { include: { product: true } } } },
     },
-  });
+  }), internalStatusForRetailer(req.params.id)]);
   if (!retailer) return res.status(404).json({ error: "Retailer not found" });
-  res.json({ retailer });
+  res.json({ retailer, commercialStatus });
 });
 
 const createSchema = z.object({
   name: z.string().min(1),
   phone: z.string().min(10).max(15),
   shopAddress: z.string().min(1),
+  deliveryCity: z.string().trim().min(2).max(120).optional(),
   tierId: z.string(),
   creditLimit: z.number().min(0).default(0),
   salesRepId: z.string().optional(),
 });
 
-router.post("/retailers", async (req, res) => {
+router.post("/retailers", async (req: AdminRequest, res) => {
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
@@ -93,6 +87,13 @@ router.post("/retailers", async (req, res) => {
     const nextReviewAt = nextQuarterlyCheckpoint(created.createdAt);
     await tx.creditProfile.create({
       data: { retailerId: created.id, rating: "N", accountCreatedAt: created.createdAt, nextReviewAt },
+    });
+    await recordCommercialStatusEvent(tx, {
+      code: CommercialStatusCode.ACCOUNT_OPENED,
+      retailerId: created.id,
+      actorStaffId: req.staffAuth?.staffId ?? null,
+      metadata: { source: "admin_retailer_creation", lifecycle: created.status },
+      idempotencyKey: `account-opened:${created.id}`,
     });
     return created;
   });
@@ -111,6 +112,27 @@ router.post("/retailers/:id/tier", async (req, res) => {
     data: { tierId: parsed.data.tierId },
     include: { tier: true },
   });
+  res.json({ retailer });
+});
+
+router.post("/retailers/:id/internal-segment", async (req, res) => {
+  const parsed = z.object({ internalSegment: z.enum(["A", "B", "C"]).nullable() }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid internal segment" });
+
+  const retailer = await prisma.retailer.update({
+    where: { id: req.params.id },
+    data: { internalSegment: parsed.data.internalSegment },
+    select: { id: true, internalSegment: true, tierId: true },
+  });
+  res.json({ retailer });
+});
+
+// Routing geography is explicit operational data. It is intentionally kept
+// separate from shopAddress so the quote engine never parses free text.
+router.post("/retailers/:id/delivery-city", async (req, res) => {
+  const parsed = z.object({ deliveryCity: z.string().trim().min(2).max(120) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid delivery city" });
+  const retailer = await prisma.retailer.update({ where: { id: req.params.id }, data: { deliveryCity: parsed.data.deliveryCity } });
   res.json({ retailer });
 });
 
@@ -135,8 +157,8 @@ router.post("/retailers/:id/price-override", async (req, res) => {
     where: {
       retailerId_variantId: { retailerId: req.params.id, variantId: parsed.data.variantId },
     },
-    update: { price: parsed.data.price },
-    create: { retailerId: req.params.id, variantId: parsed.data.variantId, price: parsed.data.price },
+    update: { price: parsed.data.price, rateBasis:"case" },
+    create: { retailerId: req.params.id, variantId: parsed.data.variantId, price: parsed.data.price, rateBasis:"case" },
   });
   res.json({ override });
 });

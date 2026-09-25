@@ -21,6 +21,35 @@ export const colors = {
   danger: "#C4462F",
   dangerSoft: "#F6E2DD",
 
+  /* ---------------------------- semantic roles ---------------------------- */
+
+  /**
+   * The warm brand accent. It carries recognition and progress towards a goal —
+   * achievements, target bars, the pack a shopper has chosen — which is what
+   * keeps green for actions instead of colouring the whole product green.
+   *
+   * `accentPrimary` is a surface colour only: at 2.6:1 on white it is not a
+   * legible text colour. Text on top of it uses `onAccent`; accent-coloured
+   * text on a light background uses `accentStrong`.
+   */
+  accentPrimary: "#C9992B",
+  accentStrong: "#8A6A12",
+  accentSoft: "#F5E7C9",
+  onAccent: "#16241B",
+
+  /**
+   * Status stays status. These never borrow the accent, so "warning" cannot be
+   * confused with "you are doing well".
+   */
+  success: "#1F5132",
+  successSoft: "#E7F0E9",
+  warning: "#9A6510",
+  warningSoft: "#FBEFD8",
+  error: "#C4462F",
+  errorSoft: "#F6E2DD",
+  info: "#2F5B8F",
+  infoSoft: "#DFEAF6",
+
   border: "#E7E1D4",
   track: "#DFDACD",
 };
@@ -68,11 +97,49 @@ export const shadow = {
   },
 };
 
+/** Tab content + normal visual gap, excluding the changing system inset. */
+export const TAB_BAR_SPACE = 72;
+
+/** Additional space only when the live mini-cart is actually visible. */
+export const MINI_CART_SPACE = 72;
+
+export function retailerTabBarMetrics(itemCount: number, safeAreaBottom: number): {
+  paddingBottom: number;
+  contentSpace: number;
+} {
+  const inset = Number.isFinite(safeAreaBottom) ? Math.max(0, safeAreaBottom) : 0;
+  return {
+    paddingBottom: inset + spacing.sm,
+    contentSpace: TAB_BAR_SPACE + inset + (itemCount > 0 ? MINI_CART_SPACE : 0),
+  };
+}
+
+export function tabBarContentSpace(itemCount: number, safeAreaBottom = 0): number {
+  return retailerTabBarMetrics(itemCount, safeAreaBottom).contentSpace;
+}
+
 /**
- * Vertical space the floating tab bar occupies. Screens inside the tab
- * navigator must reserve this at the bottom or content hides behind it.
+ * WCAG 2.1 relative luminance, used to keep the palette honest: a token pair
+ * that fails contrast is a bug the tests catch rather than something a reader
+ * has to squint at.
  */
-export const TAB_BAR_SPACE = 96;
+function relativeLuminance(hex: string): number {
+  const value = hex.replace("#", "");
+  const channels = [0, 2, 4].map((offset) => {
+    const channel = parseInt(value.slice(offset, offset + 2), 16) / 255;
+    return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+/** Contrast ratio between two token colours, 1 (identical) to 21 (max). */
+export function contrastRatio(foreground: string, background: string): number {
+  const a = relativeLuminance(foreground);
+  const b = relativeLuminance(background);
+  const lighter = Math.max(a, b);
+  const darker = Math.min(a, b);
+  return (lighter + 0.05) / (darker + 0.05);
+}
 
 /** 68000 -> "₹68,000" using the Indian digit grouping the design uses. */
 export function inr(value: number): string {

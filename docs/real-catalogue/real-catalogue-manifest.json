@@ -1,0 +1,5161 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "fileName": "1-SKU-WISE-ITEM-LIST-16-09-26-UPDATED.xlsx",
+    "sha256": "f9f69849c37421bd48a0326d50239cb2ebf0ff47b955bc56915556446fa9e5a6",
+    "sheet": "PRODUCT LIST",
+    "headerRow": 2,
+    "dataRows": 111,
+    "uniqueVariantRows": 105,
+    "duplicateSourceRows": [
+      68,
+      69,
+      70,
+      71,
+      72,
+      73
+    ],
+    "version": "sku-wise-item-list-2026-09-16-v1",
+    "batchKey": "real-catalogue:sku-wise-item-list-2026-09-16-v1:f9f69849c37421bd48a0326d50239cb2ebf0ff47b955bc56915556446fa9e5a6"
+  },
+  "imageSource": {
+    "driveFolderUrl": "https://drive.google.com/drive/folders/1JJMyEPQSVtWstUaovGZCFMgpllnTg92e",
+    "folderCount": 4,
+    "fileCount": 104,
+    "indexSha256": "41da39cf271c7cb37f363c39a128cb2d59b4205ee2359ff145cca898dcb3cc2d"
+  },
+  "records": [
+    {
+      "sourceRows": [
+        3
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "BROKEN",
+        "skuName": "BROKEN (30 Kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "5400"
+      },
+      "productKey": "real-catalogue:product:724e5996749c901ed4779afe64cbd20ae9eceac8031a52d6ffccc46b84dd4655",
+      "variantKey": "real-catalogue:variant:02231e3b302d337360ec2267a0651f8b3592c8c5a2374ca06f1b8521c3d5f84b",
+      "productName": "Gagan Broken",
+      "category": "Rice",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "5400",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_BROKEN (30 Kg x 1).jpg",
+            "driveFileId": "1hkfrnRfRBD-cJfM0GRwlBIySGho2XGfO"
+          }
+        ],
+        "assetPath": "/catalog-images/real/02231e3b302d337360ec2267a0651f8b3592c8c5a2374ca06f1b8521c3d5f84b.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        4
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "CHOICE",
+        "skuName": "CHOICE (30 Kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "8100"
+      },
+      "productKey": "real-catalogue:product:e73d3c95716118514a064a096ca2418860f650b92cfcc66d4112a2203e90d939",
+      "variantKey": "real-catalogue:variant:6986bb1ebc542536524718be661a0a6a2fce3362cd7d5de3494298f74ce1e820",
+      "productName": "Gagan Choice",
+      "category": "Rice",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "8100",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_CHOICE (30 Kg x 1).jpg",
+            "driveFileId": "16gdTIEwAIivYQ2NitYN0Ralg-Cv8IXJE"
+          }
+        ],
+        "assetPath": "/catalog-images/real/6986bb1ebc542536524718be661a0a6a2fce3362cd7d5de3494298f74ce1e820.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        5
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "CLASSIC",
+        "skuName": "CLASSIC (30 Kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "9550"
+      },
+      "productKey": "real-catalogue:product:23d9b875ea0fa163648bb45cd9dccac12f7e0946a7b5ce357228011a0d7f2c8b",
+      "variantKey": "real-catalogue:variant:a667124b440dc8dbda60a6e6a6b39902bdf280c0c1e08b1f2fbf02a365a38302",
+      "productName": "Gagan Classic",
+      "category": "Rice",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "9550",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_CLASSIC (30 Kg x 1).jpg",
+            "driveFileId": "10N3rGviONAYtKy6RnUVpzmpKPqYL_gJD"
+          }
+        ],
+        "assetPath": "/catalog-images/real/a667124b440dc8dbda60a6e6a6b39902bdf280c0c1e08b1f2fbf02a365a38302.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        6
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "",
+        "skuName": "CLASSIC (1 kg x 20)",
+        "packingSize": "1 KG",
+        "masterBagBoxSize": "20 KG BOX",
+        "pricePerQuintal": "9950"
+      },
+      "productKey": "real-catalogue:product:23d9b875ea0fa163648bb45cd9dccac12f7e0946a7b5ce357228011a0d7f2c8b",
+      "variantKey": "real-catalogue:variant:5384545e9b77a863445d7e860b611a9017fc3e9705a6024e035688d2a0f5727e",
+      "productName": "Gagan Classic",
+      "category": "Rice",
+      "unitSize": "1 KG",
+      "unit": "kg",
+      "unitsPerCase": 20,
+      "unitWeightKg": "1",
+      "caseWeightKg": "20",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "9950",
+      "priceBasis": "quintal",
+      "masterContainer": "BOX",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": null,
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_CLASSIC (1 kg x 20).jpg",
+            "driveFileId": "1uGPW4Cf16UJkwrvv7nqLHYEJreNwysuO"
+          }
+        ],
+        "assetPath": "/catalog-images/real/5384545e9b77a863445d7e860b611a9017fc3e9705a6024e035688d2a0f5727e.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "approved_routing_bag_equivalent_requires_review"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        7
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "",
+        "skuName": "CLASSIC (5 kg x 4)",
+        "packingSize": "5 KG",
+        "masterBagBoxSize": "20 KG BOX",
+        "pricePerQuintal": "9950"
+      },
+      "productKey": "real-catalogue:product:23d9b875ea0fa163648bb45cd9dccac12f7e0946a7b5ce357228011a0d7f2c8b",
+      "variantKey": "real-catalogue:variant:32f10132475d9334a9348831bdd6581692b2e8c6efe66f06aea4cfadcae95e72",
+      "productName": "Gagan Classic",
+      "category": "Rice",
+      "unitSize": "5 KG",
+      "unit": "kg",
+      "unitsPerCase": 4,
+      "unitWeightKg": "5",
+      "caseWeightKg": "20",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "9950",
+      "priceBasis": "quintal",
+      "masterContainer": "BOX",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": null,
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_CLASSIC (5 kg x 4).jpg",
+            "driveFileId": "1uwv3Fe7fwEXrNlM9Z9jzHPOU8_RTCrtS"
+          }
+        ],
+        "assetPath": "/catalog-images/real/32f10132475d9334a9348831bdd6581692b2e8c6efe66f06aea4cfadcae95e72.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "approved_routing_bag_equivalent_requires_review"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        8
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "",
+        "skuName": "CLASSIC (10 kg x 4)",
+        "packingSize": "10 KG",
+        "masterBagBoxSize": "40KG BAG",
+        "pricePerQuintal": "9750"
+      },
+      "productKey": "real-catalogue:product:23d9b875ea0fa163648bb45cd9dccac12f7e0946a7b5ce357228011a0d7f2c8b",
+      "variantKey": "real-catalogue:variant:f682c314a576296a64b08cfda50d2dfad0b4805e65432324652f4fb9289d58f1",
+      "productName": "Gagan Classic",
+      "category": "Rice",
+      "unitSize": "10 KG",
+      "unit": "kg",
+      "unitsPerCase": 4,
+      "unitWeightKg": "10",
+      "caseWeightKg": "40",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "9750",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_CLASSIC (10 kg x 4).jpg",
+            "driveFileId": "19bIOGkau0JAWQYsgVDVKoT_X9-iA_yzd"
+          }
+        ],
+        "assetPath": "/catalog-images/real/f682c314a576296a64b08cfda50d2dfad0b4805e65432324652f4fb9289d58f1.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        9
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "EXCELLENT",
+        "skuName": "EXCELLENT (30 Kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "10200"
+      },
+      "productKey": "real-catalogue:product:e79d7cb48704557c83b3fb55743f017efdd092981b6a9f9d4cf0920308f58951",
+      "variantKey": "real-catalogue:variant:f200ae837c0369ea38d9144aabf5f6f9509ea1a2c6ec5322e5dac940bc797b91",
+      "productName": "Gagan Excellent",
+      "category": "Rice",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "10200",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_EXCELLENT (30 Kg x 1).jpg",
+            "driveFileId": "1KoiqlqEOSYqY-Pfp4GZbRRb0FuQ9uSmJ"
+          }
+        ],
+        "assetPath": "/catalog-images/real/f200ae837c0369ea38d9144aabf5f6f9509ea1a2c6ec5322e5dac940bc797b91.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        10
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "",
+        "skuName": "EXCELLENT (5 kg x 4)",
+        "packingSize": "5 KG",
+        "masterBagBoxSize": "20 KG BOX",
+        "pricePerQuintal": "10600"
+      },
+      "productKey": "real-catalogue:product:e79d7cb48704557c83b3fb55743f017efdd092981b6a9f9d4cf0920308f58951",
+      "variantKey": "real-catalogue:variant:fb415e8a10496c88d0cab5d1c2bccef15245eaa93fbbbacc9e2fcf78394e7696",
+      "productName": "Gagan Excellent",
+      "category": "Rice",
+      "unitSize": "5 KG",
+      "unit": "kg",
+      "unitsPerCase": 4,
+      "unitWeightKg": "5",
+      "caseWeightKg": "20",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "10600",
+      "priceBasis": "quintal",
+      "masterContainer": "BOX",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": null,
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_EXCELLENT (5 kg x 4).jpg",
+            "driveFileId": "13gbnjajV2b5FM8OujzpsGk6XzFKXjepU"
+          }
+        ],
+        "assetPath": "/catalog-images/real/fb415e8a10496c88d0cab5d1c2bccef15245eaa93fbbbacc9e2fcf78394e7696.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "approved_routing_bag_equivalent_requires_review"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        11
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "",
+        "skuName": "EXCELLENT (10 kg x 4)",
+        "packingSize": "10 KG",
+        "masterBagBoxSize": "40KG BAG",
+        "pricePerQuintal": "10400"
+      },
+      "productKey": "real-catalogue:product:e79d7cb48704557c83b3fb55743f017efdd092981b6a9f9d4cf0920308f58951",
+      "variantKey": "real-catalogue:variant:e6a5be6d1aeb00c9feb3e792984f4baed74fcc81f2683d4ec4717e85a5afa893",
+      "productName": "Gagan Excellent",
+      "category": "Rice",
+      "unitSize": "10 KG",
+      "unit": "kg",
+      "unitsPerCase": 4,
+      "unitWeightKg": "10",
+      "caseWeightKg": "40",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "10400",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_EXCELLENT (10 kg x 4).jpg",
+            "driveFileId": "1jPD2EXbDOjV1HYJoL13A4kGXcsdtvsPJ"
+          }
+        ],
+        "assetPath": "/catalog-images/real/e6a5be6d1aeb00c9feb3e792984f4baed74fcc81f2683d4ec4717e85a5afa893.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        12
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "PREMIUM",
+        "skuName": "PREMIUM (30 Kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "12600"
+      },
+      "productKey": "real-catalogue:product:5c0e26a9b11f3385de98dbabbefd06c1966377e104683eb036ef5990e96367d3",
+      "variantKey": "real-catalogue:variant:ba454310e612a4b8b761e28f18afdbf087966e693b76b3f5a301723fbd2afb72",
+      "productName": "Gagan Premium",
+      "category": "Rice",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "12600",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_PREMIUM (30 Kg x 1).jpg",
+            "driveFileId": "1-w6kZFku1Z_Fs2R1KTzfJljvb8Mkee52"
+          }
+        ],
+        "assetPath": "/catalog-images/real/ba454310e612a4b8b761e28f18afdbf087966e693b76b3f5a301723fbd2afb72.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        13
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "",
+        "skuName": "PREMIUM (5 kg x 4)",
+        "packingSize": "5 KG",
+        "masterBagBoxSize": "20 KG BOX",
+        "pricePerQuintal": "13000"
+      },
+      "productKey": "real-catalogue:product:5c0e26a9b11f3385de98dbabbefd06c1966377e104683eb036ef5990e96367d3",
+      "variantKey": "real-catalogue:variant:815edb22ab7f21bf20105116b59d628af336ca76c870d875663c7989c7621010",
+      "productName": "Gagan Premium",
+      "category": "Rice",
+      "unitSize": "5 KG",
+      "unit": "kg",
+      "unitsPerCase": 4,
+      "unitWeightKg": "5",
+      "caseWeightKg": "20",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "13000",
+      "priceBasis": "quintal",
+      "masterContainer": "BOX",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": null,
+      "image": {
+        "status": "ambiguous",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_PREMIUM (5 kg x 4)-11.jpg",
+            "driveFileId": "17PiZPvttp0pURm9-Ns1aUiiq8G8Xqfar"
+          },
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_PREMIUM (5 kg x 4)-18.jpg",
+            "driveFileId": "1sxWyDzFk7-ZBBkKMpqjRiEWXByE45sbX"
+          }
+        ],
+        "assetPath": null
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "approved_routing_bag_equivalent_requires_review",
+        "image_mapping_ambiguous"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        14
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "",
+        "skuName": "PREMIUM (1 kg x 20)",
+        "packingSize": "1 KG",
+        "masterBagBoxSize": "20 KG BOX",
+        "pricePerQuintal": "13000"
+      },
+      "productKey": "real-catalogue:product:5c0e26a9b11f3385de98dbabbefd06c1966377e104683eb036ef5990e96367d3",
+      "variantKey": "real-catalogue:variant:ac48b15265e81a4261e9727851db7849bbdddc21e33c7b86a76ebdd90e6e9d27",
+      "productName": "Gagan Premium",
+      "category": "Rice",
+      "unitSize": "1 KG",
+      "unit": "kg",
+      "unitsPerCase": 20,
+      "unitWeightKg": "1",
+      "caseWeightKg": "20",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "13000",
+      "priceBasis": "quintal",
+      "masterContainer": "BOX",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": null,
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_PREMIUM (1 kg x 20).jpg",
+            "driveFileId": "17LNfd8ZUgeaFpz-7QKGHYdXPN6ia6a32"
+          }
+        ],
+        "assetPath": "/catalog-images/real/ac48b15265e81a4261e9727851db7849bbdddc21e33c7b86a76ebdd90e6e9d27.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "approved_routing_bag_equivalent_requires_review"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        15
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "",
+        "skuName": "PREMIUM (10 kg x 4)",
+        "packingSize": "10 KG",
+        "masterBagBoxSize": "40KG BAG",
+        "pricePerQuintal": "12800"
+      },
+      "productKey": "real-catalogue:product:5c0e26a9b11f3385de98dbabbefd06c1966377e104683eb036ef5990e96367d3",
+      "variantKey": "real-catalogue:variant:f8aa52e1e7267f8bbc1a3684071a2c24361bcd20ae7788678793d9f3c554e30f",
+      "productName": "Gagan Premium",
+      "category": "Rice",
+      "unitSize": "10 KG",
+      "unit": "kg",
+      "unitsPerCase": 4,
+      "unitWeightKg": "10",
+      "caseWeightKg": "40",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "12800",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "missing",
+        "candidates": [],
+        "assetPath": null
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "image_missing"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        16
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "REGULAR",
+        "skuName": "REGULAR (30 Kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "6350"
+      },
+      "productKey": "real-catalogue:product:3ee2c0a591c944084d72bb1a53899af8e3165a01511df969dbe6ec3898904ddc",
+      "variantKey": "real-catalogue:variant:9431426f81359e45af2a791956b83e82c1f7f05680e441bd484617fd5843707b",
+      "productName": "Gagan Regular",
+      "category": "Rice",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "6350",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_REGULAR (30 Kg x 1).jpg",
+            "driveFileId": "1IzP87tk60zljiRIqfr4OwkqQHCT6Ud3J"
+          }
+        ],
+        "assetPath": "/catalog-images/real/9431426f81359e45af2a791956b83e82c1f7f05680e441bd484617fd5843707b.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        17
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "ROZANA",
+        "skuName": "ROZANA (30 Kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "8950"
+      },
+      "productKey": "real-catalogue:product:f2c0fdca56bde14689561697897323cf70813254a5aaa2b6d3ab1a54756b9553",
+      "variantKey": "real-catalogue:variant:9160161df7d963295aac224961a4dcfb685dc0cdedc0a39be2a63d15bca731f4",
+      "productName": "Gagan Rozana",
+      "category": "Rice",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "8950",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_ROZANA (30 Kg x 1).jpg",
+            "driveFileId": "1K5zr2-YUP1F52TDEVxPQlqFOBhkD5Vh2"
+          }
+        ],
+        "assetPath": "/catalog-images/real/9160161df7d963295aac224961a4dcfb685dc0cdedc0a39be2a63d15bca731f4.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        18
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "",
+        "skuName": "ROZANA (1 kg x 20)",
+        "packingSize": "1 KG",
+        "masterBagBoxSize": "20 KG BOX",
+        "pricePerQuintal": "9350"
+      },
+      "productKey": "real-catalogue:product:f2c0fdca56bde14689561697897323cf70813254a5aaa2b6d3ab1a54756b9553",
+      "variantKey": "real-catalogue:variant:2cd971929e1cacecddd274b692af8534da5cf017a222861511a8af45443bad1e",
+      "productName": "Gagan Rozana",
+      "category": "Rice",
+      "unitSize": "1 KG",
+      "unit": "kg",
+      "unitsPerCase": 20,
+      "unitWeightKg": "1",
+      "caseWeightKg": "20",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "9350",
+      "priceBasis": "quintal",
+      "masterContainer": "BOX",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": null,
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_ROZANA (1 kg x 20).jpg",
+            "driveFileId": "1zobQwvP7wTismtIvRs8ZQzUBaCpsS1hO"
+          }
+        ],
+        "assetPath": "/catalog-images/real/2cd971929e1cacecddd274b692af8534da5cf017a222861511a8af45443bad1e.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "approved_routing_bag_equivalent_requires_review"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        19
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "",
+        "skuName": "ROZANA (5 kg x 4)",
+        "packingSize": "5 KG",
+        "masterBagBoxSize": "20 KG BOX",
+        "pricePerQuintal": "9350"
+      },
+      "productKey": "real-catalogue:product:f2c0fdca56bde14689561697897323cf70813254a5aaa2b6d3ab1a54756b9553",
+      "variantKey": "real-catalogue:variant:66427feb81cd4a9cdb2c69f9e096344cf415547f576f6d2973929727bb6ae230",
+      "productName": "Gagan Rozana",
+      "category": "Rice",
+      "unitSize": "5 KG",
+      "unit": "kg",
+      "unitsPerCase": 4,
+      "unitWeightKg": "5",
+      "caseWeightKg": "20",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "9350",
+      "priceBasis": "quintal",
+      "masterContainer": "BOX",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": null,
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_ROZANA (5 kg x 4).jpg",
+            "driveFileId": "1LX8Xvit6p2HeWazEeNA0q0VxkCAp7po3"
+          }
+        ],
+        "assetPath": "/catalog-images/real/66427feb81cd4a9cdb2c69f9e096344cf415547f576f6d2973929727bb6ae230.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "approved_routing_bag_equivalent_requires_review"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        20
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "",
+        "skuName": "ROZANA (10 kg x 4)",
+        "packingSize": "10 KG",
+        "masterBagBoxSize": "40KG BAG",
+        "pricePerQuintal": "9150"
+      },
+      "productKey": "real-catalogue:product:f2c0fdca56bde14689561697897323cf70813254a5aaa2b6d3ab1a54756b9553",
+      "variantKey": "real-catalogue:variant:5276199c619107ea86179da2e297fc290e29f1e6251cd7d3a44a4f9106884fb6",
+      "productName": "Gagan Rozana",
+      "category": "Rice",
+      "unitSize": "10 KG",
+      "unit": "kg",
+      "unitsPerCase": 4,
+      "unitWeightKg": "10",
+      "caseWeightKg": "40",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "9150",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_ROZANA (10 kg x 4).jpg",
+            "driveFileId": "1VWi5s8mkxBmiR9bwqm1flPML0UvlW_3x"
+          }
+        ],
+        "assetPath": "/catalog-images/real/5276199c619107ea86179da2e297fc290e29f1e6251cd7d3a44a4f9106884fb6.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        21
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "SELECT",
+        "skuName": "SELECT (30 Kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "7250"
+      },
+      "productKey": "real-catalogue:product:92eb2853499b5f27fec63c864ea45ed302d05a09e06f6dafb87dbb798c6d4cdc",
+      "variantKey": "real-catalogue:variant:562de73d616384b084b22bc68f7bd0bcee03c9dd389b8aad78dce3d2cd7c3154",
+      "productName": "Gagan Select",
+      "category": "Rice",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "7250",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_SELECT (30 Kg x 1).jpg",
+            "driveFileId": "1FJTXk7FFX3eiWQEjsHxeBAFz4Rr9DIEZ"
+          }
+        ],
+        "assetPath": "/catalog-images/real/562de73d616384b084b22bc68f7bd0bcee03c9dd389b8aad78dce3d2cd7c3154.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        22
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "",
+        "skuName": "SELECT (1 kg x 20)",
+        "packingSize": "1 KG",
+        "masterBagBoxSize": "20 KG BOX",
+        "pricePerQuintal": "7650"
+      },
+      "productKey": "real-catalogue:product:92eb2853499b5f27fec63c864ea45ed302d05a09e06f6dafb87dbb798c6d4cdc",
+      "variantKey": "real-catalogue:variant:6f2c8d8ab5a027d7d9a96b1cd2076aefb49ca2dc44911d84a90e5529fcf750ca",
+      "productName": "Gagan Select",
+      "category": "Rice",
+      "unitSize": "1 KG",
+      "unit": "kg",
+      "unitsPerCase": 20,
+      "unitWeightKg": "1",
+      "caseWeightKg": "20",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "7650",
+      "priceBasis": "quintal",
+      "masterContainer": "BOX",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": null,
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_SELECT (1 kg x 20).jpg",
+            "driveFileId": "13LLodwgaMDSofsnKhmV1MeLCd-Vei2Kr"
+          }
+        ],
+        "assetPath": "/catalog-images/real/6f2c8d8ab5a027d7d9a96b1cd2076aefb49ca2dc44911d84a90e5529fcf750ca.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "approved_routing_bag_equivalent_requires_review"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        23
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "",
+        "skuName": "SELECT (5 kg x 4)",
+        "packingSize": "5 KG",
+        "masterBagBoxSize": "20 KG BOX",
+        "pricePerQuintal": "7650"
+      },
+      "productKey": "real-catalogue:product:92eb2853499b5f27fec63c864ea45ed302d05a09e06f6dafb87dbb798c6d4cdc",
+      "variantKey": "real-catalogue:variant:7fc553f8d04897225035690e6a955e3c17cc5d29f89e470b5ccc4cfec5503312",
+      "productName": "Gagan Select",
+      "category": "Rice",
+      "unitSize": "5 KG",
+      "unit": "kg",
+      "unitsPerCase": 4,
+      "unitWeightKg": "5",
+      "caseWeightKg": "20",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "7650",
+      "priceBasis": "quintal",
+      "masterContainer": "BOX",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": null,
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_SELECT (5 kg x 4).jpg",
+            "driveFileId": "1Ann9bMVgclRGmKyCIF9BfFsao_ghAvor"
+          }
+        ],
+        "assetPath": "/catalog-images/real/7fc553f8d04897225035690e6a955e3c17cc5d29f89e470b5ccc4cfec5503312.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "approved_routing_bag_equivalent_requires_review"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        24
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "",
+        "skuName": "SELECT (10 kg x 4)",
+        "packingSize": "10 KG",
+        "masterBagBoxSize": "40KG BAG",
+        "pricePerQuintal": "7450"
+      },
+      "productKey": "real-catalogue:product:92eb2853499b5f27fec63c864ea45ed302d05a09e06f6dafb87dbb798c6d4cdc",
+      "variantKey": "real-catalogue:variant:a8d791dc48e1de04e289e18a168b7573f75f01f9b59193d6d280af177fc09611",
+      "productName": "Gagan Select",
+      "category": "Rice",
+      "unitSize": "10 KG",
+      "unit": "kg",
+      "unitsPerCase": 4,
+      "unitWeightKg": "10",
+      "caseWeightKg": "40",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "7450",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_SELECT (10 kg x 4).jpg",
+            "driveFileId": "1DET6d4j1qZL0xygPcDVRguliMIXGsepX"
+          }
+        ],
+        "assetPath": "/catalog-images/real/a8d791dc48e1de04e289e18a168b7573f75f01f9b59193d6d280af177fc09611.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        25
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "SUPER",
+        "skuName": "SUPER (30 Kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "10600"
+      },
+      "productKey": "real-catalogue:product:840633fb86efa371130985e209b68f45646269d0496226f01a7bd0eaaee913e1",
+      "variantKey": "real-catalogue:variant:b333abec0be1339d3a5568003a29a5645ce1566e525233c8069583df7c717e77",
+      "productName": "Gagan Super",
+      "category": "Rice",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "10600",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_SUPER (30 Kg x 1).jpg",
+            "driveFileId": "14shkJbLxND-vkj4Z2DGu-VowOcxRrY5n"
+          }
+        ],
+        "assetPath": "/catalog-images/real/b333abec0be1339d3a5568003a29a5645ce1566e525233c8069583df7c717e77.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        26
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "",
+        "skuName": "SUPER (1 kg x 20)",
+        "packingSize": "1 KG",
+        "masterBagBoxSize": "20 KG BOX",
+        "pricePerQuintal": "11000"
+      },
+      "productKey": "real-catalogue:product:840633fb86efa371130985e209b68f45646269d0496226f01a7bd0eaaee913e1",
+      "variantKey": "real-catalogue:variant:6b5e5c560082615e81ab69edb1045ce7f90a9859121635bd20c9c98ef22dd1e4",
+      "productName": "Gagan Super",
+      "category": "Rice",
+      "unitSize": "1 KG",
+      "unit": "kg",
+      "unitsPerCase": 20,
+      "unitWeightKg": "1",
+      "caseWeightKg": "20",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "11000",
+      "priceBasis": "quintal",
+      "masterContainer": "BOX",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": null,
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_SUPER (1 kg x 20).jpg",
+            "driveFileId": "1NXAaoIlq8x_EISsQc6LRbi-bHDrRh9Nv"
+          }
+        ],
+        "assetPath": "/catalog-images/real/6b5e5c560082615e81ab69edb1045ce7f90a9859121635bd20c9c98ef22dd1e4.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "approved_routing_bag_equivalent_requires_review"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        27
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "",
+        "skuName": "SUPER (5 kg x 4)",
+        "packingSize": "5 KG",
+        "masterBagBoxSize": "20 KG BOX",
+        "pricePerQuintal": "11000"
+      },
+      "productKey": "real-catalogue:product:840633fb86efa371130985e209b68f45646269d0496226f01a7bd0eaaee913e1",
+      "variantKey": "real-catalogue:variant:6dc0f354e3458336039f19efba23733e82bc8686da0663e150fad3d08c5ae187",
+      "productName": "Gagan Super",
+      "category": "Rice",
+      "unitSize": "5 KG",
+      "unit": "kg",
+      "unitsPerCase": 4,
+      "unitWeightKg": "5",
+      "caseWeightKg": "20",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "11000",
+      "priceBasis": "quintal",
+      "masterContainer": "BOX",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": null,
+      "image": {
+        "status": "missing",
+        "candidates": [],
+        "assetPath": null
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "approved_routing_bag_equivalent_requires_review",
+        "image_missing"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        28
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "",
+        "skuName": "SUPER (10 kg x 4)",
+        "packingSize": "10 KG",
+        "masterBagBoxSize": "40KG BAG",
+        "pricePerQuintal": "10800"
+      },
+      "productKey": "real-catalogue:product:840633fb86efa371130985e209b68f45646269d0496226f01a7bd0eaaee913e1",
+      "variantKey": "real-catalogue:variant:3363c578316a382b8e7201f93ed00b0b34d8605868ba103e5e660c2d214562ac",
+      "productName": "Gagan Super",
+      "category": "Rice",
+      "unitSize": "10 KG",
+      "unit": "kg",
+      "unitsPerCase": 4,
+      "unitWeightKg": "10",
+      "caseWeightKg": "40",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "10800",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "ambiguous",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_SUPER (10 kg x 4)-12.jpg",
+            "driveFileId": "1-Ol-ZcUU5nxCkkiS-Y4GUpy4y3gMUmqM"
+          },
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_SUPER (10 kg x 4)-19.jpg",
+            "driveFileId": "1T6Iq8V5Ahwiy0z7M_6ieJiELz8WtULr6"
+          }
+        ],
+        "assetPath": null
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "image_mapping_ambiguous"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        29
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "SUPREME",
+        "skuName": "SUPREME (30 Kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "12100"
+      },
+      "productKey": "real-catalogue:product:3f89ba2689d5cb5de14208b1053cf48d5cfcbcc72f25e8241c1c8f68a152fc5a",
+      "variantKey": "real-catalogue:variant:5852d46bbfef7e77ecbf1adebdf1cdbbef47497c6e0d557f0dde71df56b6f2a1",
+      "productName": "Gagan Supreme",
+      "category": "Rice",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "12100",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_SUPREME (30 Kg x 1).jpg",
+            "driveFileId": "1d0EOa6KCf5xs8DgA9UOFiNOqg5bmnm_R"
+          }
+        ],
+        "assetPath": "/catalog-images/real/5852d46bbfef7e77ecbf1adebdf1cdbbef47497c6e0d557f0dde71df56b6f2a1.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        30
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "",
+        "skuName": "SUPREME (5 kg x 4)",
+        "packingSize": "5 KG",
+        "masterBagBoxSize": "20 KG BOX",
+        "pricePerQuintal": "12500"
+      },
+      "productKey": "real-catalogue:product:3f89ba2689d5cb5de14208b1053cf48d5cfcbcc72f25e8241c1c8f68a152fc5a",
+      "variantKey": "real-catalogue:variant:3d450edb9dd9c87ccbe85ce183366c594ea5b8af02782cab3b273d1854427b46",
+      "productName": "Gagan Supreme",
+      "category": "Rice",
+      "unitSize": "5 KG",
+      "unit": "kg",
+      "unitsPerCase": 4,
+      "unitWeightKg": "5",
+      "caseWeightKg": "20",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "12500",
+      "priceBasis": "quintal",
+      "masterContainer": "BOX",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": null,
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_SUPREME (5 kg x 4).jpg",
+            "driveFileId": "1OIN8-6Sw7wxQUI4jTI8ZuAtFQxpiOumE"
+          }
+        ],
+        "assetPath": "/catalog-images/real/3d450edb9dd9c87ccbe85ce183366c594ea5b8af02782cab3b273d1854427b46.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "approved_routing_bag_equivalent_requires_review"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        31
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN BASMATI RICE",
+        "itemName": "",
+        "skuName": "SUPREME (10 kg x 4)",
+        "packingSize": "10 KG",
+        "masterBagBoxSize": "40KG BAG",
+        "pricePerQuintal": "12300"
+      },
+      "productKey": "real-catalogue:product:3f89ba2689d5cb5de14208b1053cf48d5cfcbcc72f25e8241c1c8f68a152fc5a",
+      "variantKey": "real-catalogue:variant:de3389cdcad81d7438de03f4fc7678d389a6ef581b940f602956edd31569390b",
+      "productName": "Gagan Supreme",
+      "category": "Rice",
+      "unitSize": "10 KG",
+      "unit": "kg",
+      "unitsPerCase": 4,
+      "unitWeightKg": "10",
+      "caseWeightKg": "40",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "12300",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_SUPREME (10 kg x 4).jpg",
+            "driveFileId": "1jsrqiOUEuq4FN9VgufbMxcSdCJL7btdq"
+          }
+        ],
+        "assetPath": "/catalog-images/real/de3389cdcad81d7438de03f4fc7678d389a6ef581b940f602956edd31569390b.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        32
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "SEHMAT",
+        "groupName": "SEHMAT BASMATI RICE",
+        "itemName": "SEHMAT RICE G11",
+        "skuName": "SEHMAT G 11",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "9300"
+      },
+      "productKey": "real-catalogue:product:25d49dcfeeaa8af0d0a7ebf5b259ea6de36fad4ac59e7a92ab46a40945f4abeb",
+      "variantKey": "real-catalogue:variant:de19f250eb9d5c96ba3ae973e5c6f609f7be2901a388cf7ec4bd0ab14ef48a8f",
+      "productName": "Sehmat G 11",
+      "category": "Rice",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "packing_size_and_master_bag",
+      "pricePerQuintal": "9300",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_SEHMAT G 11 30kg.jpg",
+            "driveFileId": "1RTik4vtEO5xmQ2yfu-5yC0wBS0cokrxE"
+          }
+        ],
+        "assetPath": "/catalog-images/real/de19f250eb9d5c96ba3ae973e5c6f609f7be2901a388cf7ec4bd0ab14ef48a8f.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        33
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "SEHMAT",
+        "groupName": "SEHMAT BASMATI RICE",
+        "itemName": "SEHMAT RICE G21",
+        "skuName": "SEHMAT G 21",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "7000"
+      },
+      "productKey": "real-catalogue:product:5f5d6ca84db2ee0685f994ad8407af7b630babff27669b579aa88c338741d6a2",
+      "variantKey": "real-catalogue:variant:6d206958c53ff8fb010afe096fe2b4b06552e965b3b221b15d8a70877a05534c",
+      "productName": "Sehmat G 21",
+      "category": "Rice",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "packing_size_and_master_bag",
+      "pricePerQuintal": "7000",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_SEHMAT G 21 30kg.jpg",
+            "driveFileId": "1hVxleKjj08Iua7gvGeuRBGGkebQjYSv5"
+          }
+        ],
+        "assetPath": "/catalog-images/real/6d206958c53ff8fb010afe096fe2b4b06552e965b3b221b15d8a70877a05534c.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        34
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "SEHMAT",
+        "groupName": "SEHMAT BASMATI RICE",
+        "itemName": "SEHMAT RICE G31",
+        "skuName": "SEHMAT G 31",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "5950"
+      },
+      "productKey": "real-catalogue:product:eb93be759a02f292576d2af75600546d31470bcbc4a3fe9e0793f887f0709407",
+      "variantKey": "real-catalogue:variant:568b4bdca50e981478ef6151ecd95f88ac0d2d312c04687915603852dd305b26",
+      "productName": "Sehmat G 31",
+      "category": "Rice",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "packing_size_and_master_bag",
+      "pricePerQuintal": "5950",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_SEHMAT G 31 30kg.jpg",
+            "driveFileId": "1Y2sT9NEd0zGCuGOzjNMXX1ULK8Q_BBB6"
+          }
+        ],
+        "assetPath": "/catalog-images/real/568b4bdca50e981478ef6151ecd95f88ac0d2d312c04687915603852dd305b26.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        35
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "SEHMAT",
+        "groupName": "SEHMAT BASMATI RICE",
+        "itemName": "SEHMAT RICE G41",
+        "skuName": "SEHMAT G 41",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "5650"
+      },
+      "productKey": "real-catalogue:product:3b2b164aa88e10d11ee282e354decc08f2966c06ae0602025bbaf6f5f801c3cf",
+      "variantKey": "real-catalogue:variant:b660ebaa5399a7c55f842630ce7ed878911a2aded6338f97d481f92df06a98ae",
+      "productName": "Sehmat G 41",
+      "category": "Rice",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "packing_size_and_master_bag",
+      "pricePerQuintal": "5650",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_SEHMAT G 41 30kg.jpg",
+            "driveFileId": "1lkCobbJK93SdQydeo6d02WibJdgkGsRB"
+          }
+        ],
+        "assetPath": "/catalog-images/real/b660ebaa5399a7c55f842630ce7ed878911a2aded6338f97d481f92df06a98ae.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        36
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "SEHMAT",
+        "groupName": "SEHMAT BASMATI RICE",
+        "itemName": "SEHMAT RICE G51",
+        "skuName": "SEHMAT G 51",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "4350"
+      },
+      "productKey": "real-catalogue:product:8b35a89a745d36587497e82195951f07cba7b523002ad6122341e43ff99c2aa7",
+      "variantKey": "real-catalogue:variant:f429cca02881590b7b4c639f0136be955b6ff72f6e374ddc2e70bd76042361da",
+      "productName": "Sehmat G 51",
+      "category": "Rice",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "packing_size_and_master_bag",
+      "pricePerQuintal": "4350",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_SEHMAT G 51 30kg.jpg",
+            "driveFileId": "1LjqZPdNczbpdg5SlPPb-kUTGJ7aWHEDT"
+          }
+        ],
+        "assetPath": "/catalog-images/real/f429cca02881590b7b4c639f0136be955b6ff72f6e374ddc2e70bd76042361da.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        37
+      ],
+      "source": {
+        "typeOfItem": "RICE",
+        "brandName": "SEHMAT",
+        "groupName": "SEHMAT BASMATI RICE",
+        "itemName": "SEHMAT RICE G61",
+        "skuName": "SEHMAT G 61",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "3850"
+      },
+      "productKey": "real-catalogue:product:daaa2b6ed689cb4681e5982486ff117632650019bd3e3166f4eb02899e8b28f3",
+      "variantKey": "real-catalogue:variant:6813b24c7629a6e9c18ad9eba36654c9c0c9ac633af5e3a3ecf992bb69dcad29",
+      "productName": "Sehmat G 61",
+      "category": "Rice",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "packing_size_and_master_bag",
+      "pricePerQuintal": "3850",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Rice",
+            "folderId": "1lU6H0mQnmSbzMTHzm-zaFQcrVY3k35j3",
+            "fileName": "IMG_SEHMAT G 61 30kg.jpg",
+            "driveFileId": "1x1PmnkskBJEI8fulYHWIGstIfMrVgHZR"
+          }
+        ],
+        "assetPath": "/catalog-images/real/6813b24c7629a6e9c18ad9eba36654c9c0c9ac633af5e3a3ecf992bb69dcad29.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        38
+      ],
+      "source": {
+        "typeOfItem": "TOOR DAL",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN TOOR DAL",
+        "itemName": "GAGAN TOOR DAL",
+        "skuName": "GAGAN TOOR DAL (30 KG X 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "13150"
+      },
+      "productKey": "real-catalogue:product:551aa33f0549bc49c39c633260d0f6c3c154b5762ccf6d4bbe92ba670a2deca8",
+      "variantKey": "real-catalogue:variant:6a41827096499accb29beb4d9dfe78daee0abeb9710099e6077089bf09607b97",
+      "productName": "Gagan Toor Dal",
+      "category": "Daal",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "13150",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_GAGAN TOOR DAL (30 KG X 1).jpg",
+            "driveFileId": "1KewzWNtNZLsygl1U_u_pCCBp-30aUEoq"
+          }
+        ],
+        "assetPath": "/catalog-images/real/6a41827096499accb29beb4d9dfe78daee0abeb9710099e6077089bf09607b97.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        39
+      ],
+      "source": {
+        "typeOfItem": "TOOR DAL",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN TOOR DAL",
+        "itemName": "",
+        "skuName": "GAGAN TOOR DAL (5 KG X 6)",
+        "packingSize": "5 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "13500"
+      },
+      "productKey": "real-catalogue:product:551aa33f0549bc49c39c633260d0f6c3c154b5762ccf6d4bbe92ba670a2deca8",
+      "variantKey": "real-catalogue:variant:0e4bbca5e1e21210f914a589fccdc2d888c060985e1d2e2b2b67108b73504192",
+      "productName": "Gagan Toor Dal",
+      "category": "Daal",
+      "unitSize": "5 KG",
+      "unit": "kg",
+      "unitsPerCase": 6,
+      "unitWeightKg": "5",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "13500",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_GAGAN TOOR DAL (5 KG X 6).jpg",
+            "driveFileId": "1z8ubfwzPzlVZ_rCw2Kq6X0rKmNyBuJ--"
+          }
+        ],
+        "assetPath": "/catalog-images/real/0e4bbca5e1e21210f914a589fccdc2d888c060985e1d2e2b2b67108b73504192.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        40
+      ],
+      "source": {
+        "typeOfItem": "TOOR DAL",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN TOOR DAL",
+        "itemName": "",
+        "skuName": "GAGAN TOOR DAL (1 KG X 30)",
+        "packingSize": "1 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "13550"
+      },
+      "productKey": "real-catalogue:product:551aa33f0549bc49c39c633260d0f6c3c154b5762ccf6d4bbe92ba670a2deca8",
+      "variantKey": "real-catalogue:variant:9c31a2091770a1c75ef53d180ed7426fcf79b7cca832973c888ae5915bb761a9",
+      "productName": "Gagan Toor Dal",
+      "category": "Daal",
+      "unitSize": "1 KG",
+      "unit": "kg",
+      "unitsPerCase": 30,
+      "unitWeightKg": "1",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "13550",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_GAGAN TOOR DAL (1 KG X 30).jpg",
+            "driveFileId": "1yTMu1z8SPhwZdf6VoPSF_yRTOqaT5ODU"
+          }
+        ],
+        "assetPath": "/catalog-images/real/9c31a2091770a1c75ef53d180ed7426fcf79b7cca832973c888ae5915bb761a9.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        41
+      ],
+      "source": {
+        "typeOfItem": "TOOR DAL",
+        "brandName": "LAXMI",
+        "groupName": "LAXMI TOOR DAL",
+        "itemName": "LAXMI TOOR DAL",
+        "skuName": "LPP TOOR DAL (30KG X 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "13900"
+      },
+      "productKey": "real-catalogue:product:c6b7706f00f9c8bf7346168c19b37fd0b778ac5c85e8deb007e11a07f76a3f27",
+      "variantKey": "real-catalogue:variant:47c6b982b6a1218c6ddb266333ce677950ff1bca15fb740fe6db107f610ab406",
+      "productName": "Laxmi LPP Toor Dal",
+      "category": "Daal",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "13900",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "LAXMI_TOOR",
+      "routingBagEquivalent": null,
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Laxmi Toor Dal",
+            "folderId": "1eF5vaQGrwOLjhLwROHl5Ia86GbdhCQ8s",
+            "fileName": "IMG_LPP TOOR DAL (30 KG X 1).jpg",
+            "driveFileId": "1TdmLIf2kULgXIrH0TQeFHA-MyK_cf8EG"
+          }
+        ],
+        "assetPath": "/catalog-images/real/47c6b982b6a1218c6ddb266333ce677950ff1bca15fb740fe6db107f610ab406.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        42
+      ],
+      "source": {
+        "typeOfItem": "TOOR DAL",
+        "brandName": "LAXMI",
+        "groupName": "LAXMI TOOR DAL",
+        "itemName": "",
+        "skuName": "LPP TOOR DAL (1KG X 30)",
+        "packingSize": "1 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "14300"
+      },
+      "productKey": "real-catalogue:product:c6b7706f00f9c8bf7346168c19b37fd0b778ac5c85e8deb007e11a07f76a3f27",
+      "variantKey": "real-catalogue:variant:915fbc612b0b708b9b729583ed176d0b1eda61b982ff3412adeef4a490b3b6a8",
+      "productName": "Laxmi LPP Toor Dal",
+      "category": "Daal",
+      "unitSize": "1 KG",
+      "unit": "kg",
+      "unitsPerCase": 30,
+      "unitWeightKg": "1",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "14300",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "LAXMI_TOOR",
+      "routingBagEquivalent": null,
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Laxmi Toor Dal",
+            "folderId": "1eF5vaQGrwOLjhLwROHl5Ia86GbdhCQ8s",
+            "fileName": "IMG_LPP TOOR DAL (1 KG X 30).jpg",
+            "driveFileId": "1geUjAjCfdCLpt-wsYx78EOKfGO2HDW3R"
+          }
+        ],
+        "assetPath": "/catalog-images/real/915fbc612b0b708b9b729583ed176d0b1eda61b982ff3412adeef4a490b3b6a8.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        43
+      ],
+      "source": {
+        "typeOfItem": "TOOR DAL",
+        "brandName": "LAXMI",
+        "groupName": "LAXMI TOOR DAL",
+        "itemName": "",
+        "skuName": "LPP TOOR DAL (5KG X 10)",
+        "packingSize": "5 KG",
+        "masterBagBoxSize": "50KG BAG",
+        "pricePerQuintal": "14300"
+      },
+      "productKey": "real-catalogue:product:c6b7706f00f9c8bf7346168c19b37fd0b778ac5c85e8deb007e11a07f76a3f27",
+      "variantKey": "real-catalogue:variant:9bdb59f4b15ddbe67e1f9db1a546dd2bb4cf400b66cf6f833b5561bc2929bd10",
+      "productName": "Laxmi LPP Toor Dal",
+      "category": "Daal",
+      "unitSize": "5 KG",
+      "unit": "kg",
+      "unitsPerCase": 10,
+      "unitWeightKg": "5",
+      "caseWeightKg": "50",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "14300",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "LAXMI_TOOR",
+      "routingBagEquivalent": null,
+      "image": {
+        "status": "missing",
+        "candidates": [],
+        "assetPath": null
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "image_missing"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        44
+      ],
+      "source": {
+        "typeOfItem": "POHA",
+        "brandName": "SEHMAT",
+        "groupName": "SEHMAT GOLD POHA",
+        "itemName": "GOLD POHA",
+        "skuName": "SEHMAT GOLD POHA (35 KG X 1)",
+        "packingSize": "35 KG",
+        "masterBagBoxSize": "35KG BAG",
+        "pricePerQuintal": "5750"
+      },
+      "productKey": "real-catalogue:product:ba9d4771e23caec477df86e1c54368625be1a47972163251264aad8fdcd1b5df",
+      "variantKey": "real-catalogue:variant:f6860bdd651fdb8af3479af70abb9dc5002f190d864c1d234127126e02f80112",
+      "productName": "Sehmat Gold Poha",
+      "category": "Breakfast",
+      "unitSize": "35 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "35",
+      "caseWeightKg": "35",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "5750",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Sehmat Poha -Sabudana - Instant Mix",
+            "folderId": "1BIPQ9xGHSEUBGcj3p_CuOOqXkf-Tk-Wx",
+            "fileName": "IMG_SEHMAT GOLD POHA (35 KG X 1).jpg",
+            "driveFileId": "1v90W_xoSyKeWJwD-0EkS9JAf6S7bgdmh"
+          }
+        ],
+        "assetPath": "/catalog-images/real/f6860bdd651fdb8af3479af70abb9dc5002f190d864c1d234127126e02f80112.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        45
+      ],
+      "source": {
+        "typeOfItem": "POHA",
+        "brandName": "SEHMAT",
+        "groupName": "SEHMAT GOLD POHA",
+        "itemName": "",
+        "skuName": "SEHMAT GOLD POHA (1 KG X 30)",
+        "packingSize": "1 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "6150"
+      },
+      "productKey": "real-catalogue:product:ba9d4771e23caec477df86e1c54368625be1a47972163251264aad8fdcd1b5df",
+      "variantKey": "real-catalogue:variant:9686ab16b5768997ea245dd067035a7dd258c2b23c896972d258ff4e1db64373",
+      "productName": "Sehmat Gold Poha",
+      "category": "Breakfast",
+      "unitSize": "1 KG",
+      "unit": "kg",
+      "unitsPerCase": 30,
+      "unitWeightKg": "1",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "6150",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "missing",
+        "candidates": [],
+        "assetPath": null
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "image_missing"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        46
+      ],
+      "source": {
+        "typeOfItem": "POHA",
+        "brandName": "SEHMAT",
+        "groupName": "SEHMAT GOLD POHA",
+        "itemName": "",
+        "skuName": "SEHMAT GOLD POHA (500 gm x 60)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "6250"
+      },
+      "productKey": "real-catalogue:product:ba9d4771e23caec477df86e1c54368625be1a47972163251264aad8fdcd1b5df",
+      "variantKey": "real-catalogue:variant:45eabfdce8b7cf4b20634fa0f25cf87131924822728fed0d0b6009ed62a9f7cc",
+      "productName": "Sehmat Gold Poha",
+      "category": "Breakfast",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 60,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "6250",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Sehmat Poha -Sabudana - Instant Mix",
+            "folderId": "1BIPQ9xGHSEUBGcj3p_CuOOqXkf-Tk-Wx",
+            "fileName": "IMG_SEHMAT GOLD POHA (500 gm x 60).jpg",
+            "driveFileId": "1d4diWO7R3YtMcdczpRU4q2DAns3a_yy4"
+          }
+        ],
+        "assetPath": "/catalog-images/real/45eabfdce8b7cf4b20634fa0f25cf87131924822728fed0d0b6009ed62a9f7cc.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        47
+      ],
+      "source": {
+        "typeOfItem": "POHA",
+        "brandName": "SEHMAT",
+        "groupName": "SEHMAT POHA",
+        "itemName": "POHA",
+        "skuName": "SEHMAT POHA (1 KG X 30)",
+        "packingSize": "1 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "5600"
+      },
+      "productKey": "real-catalogue:product:efa4d532de92c7dfe0ce56f169c9a6d1511c3e5f5478562b5376bc9fae6cef86",
+      "variantKey": "real-catalogue:variant:311e912c3c7c4e21feda3ce4de46323b3ad0e8bb18d291837aaeadca7e487a9c",
+      "productName": "Sehmat Poha",
+      "category": "Breakfast",
+      "unitSize": "1 KG",
+      "unit": "kg",
+      "unitsPerCase": 30,
+      "unitWeightKg": "1",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "5600",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "missing",
+        "candidates": [],
+        "assetPath": null
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "image_missing"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        48
+      ],
+      "source": {
+        "typeOfItem": "POHA",
+        "brandName": "SEHMAT",
+        "groupName": "SEHMAT POHA",
+        "itemName": "",
+        "skuName": "SEHMAT POHA (35 KG X 1)",
+        "packingSize": "35 KG",
+        "masterBagBoxSize": "35KG BAG",
+        "pricePerQuintal": "5200"
+      },
+      "productKey": "real-catalogue:product:efa4d532de92c7dfe0ce56f169c9a6d1511c3e5f5478562b5376bc9fae6cef86",
+      "variantKey": "real-catalogue:variant:a4089ed691a3d894fb02b0d37643a24487f4302cbd12c5a43f2e5ac02b4d8913",
+      "productName": "Sehmat Poha",
+      "category": "Breakfast",
+      "unitSize": "35 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "35",
+      "caseWeightKg": "35",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "5200",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "ambiguous",
+        "candidates": [
+          {
+            "folder": "Sehmat Poha -Sabudana - Instant Mix",
+            "folderId": "1BIPQ9xGHSEUBGcj3p_CuOOqXkf-Tk-Wx",
+            "fileName": "IMG_SEHMAT POHA (35 KG X 1)-02.jpg",
+            "driveFileId": "1fRm6WQbpA0TYp8IMZgSQYP9GZW9ZyHhx"
+          },
+          {
+            "folder": "Sehmat Poha -Sabudana - Instant Mix",
+            "folderId": "1BIPQ9xGHSEUBGcj3p_CuOOqXkf-Tk-Wx",
+            "fileName": "IMG_SEHMAT POHA (35 KG X 1)-12.jpg",
+            "driveFileId": "1ET_NikhFA195yQgKiUjgOYf7hblALIVg"
+          }
+        ],
+        "assetPath": null
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "image_mapping_ambiguous"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        49
+      ],
+      "source": {
+        "typeOfItem": "POHA",
+        "brandName": "SEHMAT",
+        "groupName": "SEHMAT POHA",
+        "itemName": "",
+        "skuName": "SEHMAT POHA (500 gm x 60)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "5700"
+      },
+      "productKey": "real-catalogue:product:efa4d532de92c7dfe0ce56f169c9a6d1511c3e5f5478562b5376bc9fae6cef86",
+      "variantKey": "real-catalogue:variant:e5665b9329870f9a8717c348600a79a6c8cec024ee204d9ee00e2f1d6f64dbac",
+      "productName": "Sehmat Poha",
+      "category": "Breakfast",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 60,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "5700",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Sehmat Poha -Sabudana - Instant Mix",
+            "folderId": "1BIPQ9xGHSEUBGcj3p_CuOOqXkf-Tk-Wx",
+            "fileName": "IMG_SEHMAT POHA (500 gm x 60).jpg",
+            "driveFileId": "1KIow23pPnabgtyRLPLVicw0IfroZA41z"
+          }
+        ],
+        "assetPath": "/catalog-images/real/e5665b9329870f9a8717c348600a79a6c8cec024ee204d9ee00e2f1d6f64dbac.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        50
+      ],
+      "source": {
+        "typeOfItem": "SABUDANA",
+        "brandName": "SEHMAT",
+        "groupName": "SEHMAT SABUDANA",
+        "itemName": "SABUDANA",
+        "skuName": "SABUDANA (500 gm x 60)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "8260"
+      },
+      "productKey": "real-catalogue:product:0cc2741f188dcb9520b07c132eb72ec7e246612d8b5683b194c90956c2ed79c1",
+      "variantKey": "real-catalogue:variant:bdb0c714b53031a5713393da605846d8c5a2f1586d67428667c73839d0dc1cb1",
+      "productName": "Sehmat Sabudana",
+      "category": "Breakfast",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 60,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "8260",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Sehmat Poha -Sabudana - Instant Mix",
+            "folderId": "1BIPQ9xGHSEUBGcj3p_CuOOqXkf-Tk-Wx",
+            "fileName": "IMG_SABUDANA (500 gm x 60).jpg",
+            "driveFileId": "1hfOorWoExKrsldlp-W1GiqL96kCsasF8"
+          }
+        ],
+        "assetPath": "/catalog-images/real/bdb0c714b53031a5713393da605846d8c5a2f1586d67428667c73839d0dc1cb1.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        51
+      ],
+      "source": {
+        "typeOfItem": "SABUDANA",
+        "brandName": "SEHMAT",
+        "groupName": "SEHMAT SABUDANA",
+        "itemName": "",
+        "skuName": "SABUDANA (1 kg x 30)",
+        "packingSize": "1 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "8200"
+      },
+      "productKey": "real-catalogue:product:0cc2741f188dcb9520b07c132eb72ec7e246612d8b5683b194c90956c2ed79c1",
+      "variantKey": "real-catalogue:variant:194ea2534b58dfb4f2b19b9d5c3a525ba90d7ebff2f5a230fb5bd9cccf45ad97",
+      "productName": "Sehmat Sabudana",
+      "category": "Breakfast",
+      "unitSize": "1 KG",
+      "unit": "kg",
+      "unitsPerCase": 30,
+      "unitWeightKg": "1",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "8200",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Sehmat Poha -Sabudana - Instant Mix",
+            "folderId": "1BIPQ9xGHSEUBGcj3p_CuOOqXkf-Tk-Wx",
+            "fileName": "IMG_SABUDANA (1 kg x 30).jpg",
+            "driveFileId": "10068nxPZLR7v4g9fbwncTduGBeoXDYe_"
+          }
+        ],
+        "assetPath": "/catalog-images/real/194ea2534b58dfb4f2b19b9d5c3a525ba90d7ebff2f5a230fb5bd9cccf45ad97.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        52
+      ],
+      "source": {
+        "typeOfItem": "SABUDANA",
+        "brandName": "SEHMAT",
+        "groupName": "SEHMAT SABUDANA",
+        "itemName": "",
+        "skuName": "SABUDANA (30 kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "7800"
+      },
+      "productKey": "real-catalogue:product:0cc2741f188dcb9520b07c132eb72ec7e246612d8b5683b194c90956c2ed79c1",
+      "variantKey": "real-catalogue:variant:e31a28a29799bb1c161fe12f15b39e88a46de7c17badc144b223b8c2039c4934",
+      "productName": "Sehmat Sabudana",
+      "category": "Breakfast",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "7800",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Sehmat Poha -Sabudana - Instant Mix",
+            "folderId": "1BIPQ9xGHSEUBGcj3p_CuOOqXkf-Tk-Wx",
+            "fileName": "IMG_SABUDANA (30 kg x 1).jpg",
+            "driveFileId": "1a9z4k7b8Ylb-u2RHXx0beOML1l8UTS7o"
+          }
+        ],
+        "assetPath": "/catalog-images/real/e31a28a29799bb1c161fe12f15b39e88a46de7c17badc144b223b8c2039c4934.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        53
+      ],
+      "source": {
+        "typeOfItem": "OTHER DAL",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "CHANA DAL",
+        "skuName": "CHANA DAL (1 kg x 30)",
+        "packingSize": "1 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "10100"
+      },
+      "productKey": "real-catalogue:product:6184e6efbe7b603ddfd5829c2b646590623eef51174e734b9243e4eb833272ba",
+      "variantKey": "real-catalogue:variant:e2fe23c7040a0dde1f9eac5e28788b4469ee9a907b7f56f87a54f9ad1dee6daa",
+      "productName": "Neel Gagan Chana Dal",
+      "category": "Daal",
+      "unitSize": "1 KG",
+      "unit": "kg",
+      "unitsPerCase": 30,
+      "unitWeightKg": "1",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "10100",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_CHANA DAL (1 kg x 30).jpg",
+            "driveFileId": "1Dk1CqZ_9BPqtAvwgqX0ACY05lRMwnk3Y"
+          }
+        ],
+        "assetPath": "/catalog-images/real/e2fe23c7040a0dde1f9eac5e28788b4469ee9a907b7f56f87a54f9ad1dee6daa.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        54
+      ],
+      "source": {
+        "typeOfItem": "OTHER DAL",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "CHANA DAL (30 kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "9700"
+      },
+      "productKey": "real-catalogue:product:6184e6efbe7b603ddfd5829c2b646590623eef51174e734b9243e4eb833272ba",
+      "variantKey": "real-catalogue:variant:f37c4388f7b9f9504465fb10fdb80cc0a5cda791edb4d0ac055e07d2da2d3f89",
+      "productName": "Neel Gagan Chana Dal",
+      "category": "Daal",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "9700",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_CHANA DAL (30 kg x 1).jpg",
+            "driveFileId": "1gtS-YCv0aXESGwH3v8DNbtwnsVeN0vrr"
+          }
+        ],
+        "assetPath": "/catalog-images/real/f37c4388f7b9f9504465fb10fdb80cc0a5cda791edb4d0ac055e07d2da2d3f89.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        55
+      ],
+      "source": {
+        "typeOfItem": "OTHER DAL",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "CHANA DAL (1 kg x 10)",
+        "packingSize": "1 KG",
+        "masterBagBoxSize": "10KG BAG",
+        "pricePerQuintal": "10100"
+      },
+      "productKey": "real-catalogue:product:6184e6efbe7b603ddfd5829c2b646590623eef51174e734b9243e4eb833272ba",
+      "variantKey": "real-catalogue:variant:a2e1eda543dac53bdc28cba4923a8e921dd8e358a7e68e4c8ee3c3ffe7eca8ab",
+      "productName": "Neel Gagan Chana Dal",
+      "category": "Daal",
+      "unitSize": "1 KG",
+      "unit": "kg",
+      "unitsPerCase": 10,
+      "unitWeightKg": "1",
+      "caseWeightKg": "10",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "10100",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_CHANA DAL (1 kg x 10).jpg",
+            "driveFileId": "1j8zxSqmj7uyXQ7RV2uNgb_n7-fsMUS2E"
+          }
+        ],
+        "assetPath": "/catalog-images/real/a2e1eda543dac53bdc28cba4923a8e921dd8e358a7e68e4c8ee3c3ffe7eca8ab.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        56
+      ],
+      "source": {
+        "typeOfItem": "OTHER DAL",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "MASOOR DAL",
+        "skuName": "MASOOR DAL (30 kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "8600"
+      },
+      "productKey": "real-catalogue:product:3ff065e73c1054dc38c8d1de70b02accfc1e8238c568f318ee26ce984940a290",
+      "variantKey": "real-catalogue:variant:9116b615447e3932b3749ace2c4db8ac77ca6a98382546db989e64776891a15a",
+      "productName": "Neel Gagan Masoor Dal",
+      "category": "Daal",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "8600",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_MASOOR DAL (30 kg x 1).jpg",
+            "driveFileId": "1WgyFxsdDq-rQgKSuu0AS8UWQ9geFYssx"
+          }
+        ],
+        "assetPath": "/catalog-images/real/9116b615447e3932b3749ace2c4db8ac77ca6a98382546db989e64776891a15a.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        57
+      ],
+      "source": {
+        "typeOfItem": "OTHER DAL",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "MASOOR DAL (500 gm x 60)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "9350"
+      },
+      "productKey": "real-catalogue:product:3ff065e73c1054dc38c8d1de70b02accfc1e8238c568f318ee26ce984940a290",
+      "variantKey": "real-catalogue:variant:27bd998d310536154a1198575554caeb7d36909feb81d550aeb3c25ffb3a0b14",
+      "productName": "Neel Gagan Masoor Dal",
+      "category": "Daal",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 60,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "9350",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_MASOOR DAL (500 gm x 60).jpg",
+            "driveFileId": "1ZTZNE0x-akD6CqNsee8cqT-ZOMIY4bXP"
+          }
+        ],
+        "assetPath": "/catalog-images/real/27bd998d310536154a1198575554caeb7d36909feb81d550aeb3c25ffb3a0b14.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        58
+      ],
+      "source": {
+        "typeOfItem": "OTHER DAL",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "MASOOR DAL (500 gm x 20)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "10KG BAG",
+        "pricePerQuintal": "9350"
+      },
+      "productKey": "real-catalogue:product:3ff065e73c1054dc38c8d1de70b02accfc1e8238c568f318ee26ce984940a290",
+      "variantKey": "real-catalogue:variant:f38f2d5b6bf7e83c53e2d80c8f12de4601b53bed50d2e1cdd4073b477862aa22",
+      "productName": "Neel Gagan Masoor Dal",
+      "category": "Daal",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 20,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "10",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "9350",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_MASOOR DAL (500 gm x 20).jpg",
+            "driveFileId": "1vH2q4Svpf0RCmlDjL61JN9U48ZAIgK3I"
+          }
+        ],
+        "assetPath": "/catalog-images/real/f38f2d5b6bf7e83c53e2d80c8f12de4601b53bed50d2e1cdd4073b477862aa22.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        59
+      ],
+      "source": {
+        "typeOfItem": "OTHER DAL",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "MOONG CHILKA",
+        "skuName": "MOONG CHILKA (1 kg x 30)",
+        "packingSize": "1 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "10900"
+      },
+      "productKey": "real-catalogue:product:2e5988029f06d6425ed5230727ac8d7ea9d522183122dd5d3a8223b666967df7",
+      "variantKey": "real-catalogue:variant:7be120a2436e0c5443db6e0577364b89af20440707acbc262807fd5ce0dba5ad",
+      "productName": "Neel Gagan Moong Chilka",
+      "category": "Daal",
+      "unitSize": "1 KG",
+      "unit": "kg",
+      "unitsPerCase": 30,
+      "unitWeightKg": "1",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "10900",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_MOONG CHILKA (1 kg x 30).jpg",
+            "driveFileId": "19xeEh2vjIaOQ4LnE_sIj4wU6WT8YPn3p"
+          }
+        ],
+        "assetPath": "/catalog-images/real/7be120a2436e0c5443db6e0577364b89af20440707acbc262807fd5ce0dba5ad.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        60
+      ],
+      "source": {
+        "typeOfItem": "OTHER DAL",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "MOONG CHILKA (1 kg x 10)",
+        "packingSize": "1 KG",
+        "masterBagBoxSize": "10KG BAG",
+        "pricePerQuintal": "10900"
+      },
+      "productKey": "real-catalogue:product:2e5988029f06d6425ed5230727ac8d7ea9d522183122dd5d3a8223b666967df7",
+      "variantKey": "real-catalogue:variant:1c0513775d214034371c8a805f84f9e70fe14ff6f9a22dc8e10286e7b6180db5",
+      "productName": "Neel Gagan Moong Chilka",
+      "category": "Daal",
+      "unitSize": "1 KG",
+      "unit": "kg",
+      "unitsPerCase": 10,
+      "unitWeightKg": "1",
+      "caseWeightKg": "10",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "10900",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_MOONG CHILKA (1 kg x 10).jpg",
+            "driveFileId": "1Ky1yCxZ0Ho2qoKq4ehv0NfuRHHp4Emwo"
+          }
+        ],
+        "assetPath": "/catalog-images/real/1c0513775d214034371c8a805f84f9e70fe14ff6f9a22dc8e10286e7b6180db5.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        61
+      ],
+      "source": {
+        "typeOfItem": "OTHER DAL",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "MOONG CHILKA (30 kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "10500"
+      },
+      "productKey": "real-catalogue:product:2e5988029f06d6425ed5230727ac8d7ea9d522183122dd5d3a8223b666967df7",
+      "variantKey": "real-catalogue:variant:e1c3acce4d0e4e4bcf313adf455a1a532f1e8d7cf2bceae025b7c562ca89a875",
+      "productName": "Neel Gagan Moong Chilka",
+      "category": "Daal",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "10500",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_MOONG CHILKA (30 kg x 1).jpg",
+            "driveFileId": "1qB4zD9fLJHw_10R9ezr3_3mr80vmcHCK"
+          }
+        ],
+        "assetPath": "/catalog-images/real/e1c3acce4d0e4e4bcf313adf455a1a532f1e8d7cf2bceae025b7c562ca89a875.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        62,
+        68
+      ],
+      "source": {
+        "typeOfItem": "OTHER DAL",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "MOONG MOGAR",
+        "skuName": "MOONG MOGAR (1 kg x 30)",
+        "packingSize": "1 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "12400"
+      },
+      "productKey": "real-catalogue:product:4c1df9c309a861410f84733a5f3a2686bec61247f1eade723c6fc7defd2b5265",
+      "variantKey": "real-catalogue:variant:e535d7da3321fb6423fef606df3ecbf50204fc8abbe7a5d25bc6a5a91b3ac5f4",
+      "productName": "Neel Gagan Moong Mogar",
+      "category": "Daal",
+      "unitSize": "1 KG",
+      "unit": "kg",
+      "unitsPerCase": 30,
+      "unitWeightKg": "1",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "12400",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "missing",
+        "candidates": [],
+        "assetPath": null
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "image_missing"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        63,
+        69
+      ],
+      "source": {
+        "typeOfItem": "OTHER DAL",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "MOONG MOGAR (1 kg x 10)",
+        "packingSize": "1 KG",
+        "masterBagBoxSize": "10KG BAG",
+        "pricePerQuintal": "12400"
+      },
+      "productKey": "real-catalogue:product:4c1df9c309a861410f84733a5f3a2686bec61247f1eade723c6fc7defd2b5265",
+      "variantKey": "real-catalogue:variant:da457c6ff0b76a0f673eb1cdac8e5b606e2bc402c795f0184bf9613be10fc698",
+      "productName": "Neel Gagan Moong Mogar",
+      "category": "Daal",
+      "unitSize": "1 KG",
+      "unit": "kg",
+      "unitsPerCase": 10,
+      "unitWeightKg": "1",
+      "caseWeightKg": "10",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "12400",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "missing",
+        "candidates": [],
+        "assetPath": null
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "image_missing"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        64,
+        70
+      ],
+      "source": {
+        "typeOfItem": "OTHER DAL",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "MOONG MOGAR (30 kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "12000"
+      },
+      "productKey": "real-catalogue:product:4c1df9c309a861410f84733a5f3a2686bec61247f1eade723c6fc7defd2b5265",
+      "variantKey": "real-catalogue:variant:e7b7e9d68e498933ae261b7b1a96eea25929f7ca82fd2994d82465ed76ed1888",
+      "productName": "Neel Gagan Moong Mogar",
+      "category": "Daal",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "12000",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "ambiguous",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_MOONG MOGAR (30 kg x 1)-13.jpg",
+            "driveFileId": "1BEO2_kziBjyvbSdbbjjRxv4ZtR1pRpiP"
+          },
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_MOONG MOGAR (30 kg x 1)-15.jpg",
+            "driveFileId": "1ZuML69vXbheCHKqvbv_-LZckYmE34Zdi"
+          }
+        ],
+        "assetPath": null
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "image_mapping_ambiguous"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        65,
+        71
+      ],
+      "source": {
+        "typeOfItem": "OTHER DAL",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "URAD CHILKA",
+        "skuName": "URAD CHILKA (30 kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "12400"
+      },
+      "productKey": "real-catalogue:product:8997dea775bf8bb831a6a6fb1953e0697ac2a88c8024aef1f5ebfe8bd08f02ec",
+      "variantKey": "real-catalogue:variant:17ec761e26a7b2dd77e063a9b73469483d239a3fc01b3bfc549cefa352b56fd5",
+      "productName": "Neel Gagan Urad Chilka",
+      "category": "Daal",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "12400",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "ambiguous",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_URAD CHILKA (30 kg x 1)-14.jpg",
+            "driveFileId": "1l0ptFDsDFrsGaRiQuuBtOWBx1YMJFMZS"
+          },
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_URAD CHILKA (30 kg x 1)-16.jpg",
+            "driveFileId": "1OuA_RS670tDKfcAeX_X34tRMqHm8TJW-"
+          }
+        ],
+        "assetPath": null
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "image_mapping_ambiguous"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        66,
+        72
+      ],
+      "source": {
+        "typeOfItem": "OTHER DAL",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "URAD CHILKA (500 gm x 60)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "12850"
+      },
+      "productKey": "real-catalogue:product:8997dea775bf8bb831a6a6fb1953e0697ac2a88c8024aef1f5ebfe8bd08f02ec",
+      "variantKey": "real-catalogue:variant:2040a65ae112a76240b46c17d25e901a3c2bc8bbfdde6b1c6f2bcbf86ea0bffe",
+      "productName": "Neel Gagan Urad Chilka",
+      "category": "Daal",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 60,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "12850",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_URAD CHILKA (500 gm x 60).jpg",
+            "driveFileId": "1QrK76pg_c-DOJCfJ7SD_BBC-WuwI-rwj"
+          }
+        ],
+        "assetPath": "/catalog-images/real/2040a65ae112a76240b46c17d25e901a3c2bc8bbfdde6b1c6f2bcbf86ea0bffe.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        67,
+        73
+      ],
+      "source": {
+        "typeOfItem": "OTHER DAL",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "URAD CHILKA (500 gm x 20)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "10KG BAG",
+        "pricePerQuintal": "12850"
+      },
+      "productKey": "real-catalogue:product:8997dea775bf8bb831a6a6fb1953e0697ac2a88c8024aef1f5ebfe8bd08f02ec",
+      "variantKey": "real-catalogue:variant:0b0400883e8aa4ba6de01fc31bd61f3d9c927ddfb73bc4f207ee8261fe90ea60",
+      "productName": "Neel Gagan Urad Chilka",
+      "category": "Daal",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 20,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "10",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "12850",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_URAD CHILKA (500 gm x 20).jpg",
+            "driveFileId": "1mW-bfqyAjirvz_g7tTjETG8ztB0eWy6Q"
+          }
+        ],
+        "assetPath": "/catalog-images/real/0b0400883e8aa4ba6de01fc31bd61f3d9c927ddfb73bc4f207ee8261fe90ea60.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        74
+      ],
+      "source": {
+        "typeOfItem": "OTHER DAL",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "URAD MOGAR",
+        "skuName": "URAD MOGAR (30 kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "14200"
+      },
+      "productKey": "real-catalogue:product:19445f20780bdc38b5a922ee890cd84f1b44f0710d4626af9c14cd43d71f5581",
+      "variantKey": "real-catalogue:variant:0a8307b2c0031235850351e866cdec67d8089e3117b3e51861d1bae82e3ab669",
+      "productName": "Neel Gagan Urad Mogar",
+      "category": "Daal",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "14200",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_URAD MOGAR (30 kg x 1).jpg",
+            "driveFileId": "1qcG-u1CsszOUEYlDSzMvNPdg_qK77fsf"
+          }
+        ],
+        "assetPath": "/catalog-images/real/0a8307b2c0031235850351e866cdec67d8089e3117b3e51861d1bae82e3ab669.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        75
+      ],
+      "source": {
+        "typeOfItem": "OTHER DAL",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "URAD MOGAR (500 gm x 60)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "14650"
+      },
+      "productKey": "real-catalogue:product:19445f20780bdc38b5a922ee890cd84f1b44f0710d4626af9c14cd43d71f5581",
+      "variantKey": "real-catalogue:variant:e326ef4b062adb7b6bcc6f8c0d9d020c89b7d42e40d009c1696b0e099d2ced10",
+      "productName": "Neel Gagan Urad Mogar",
+      "category": "Daal",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 60,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "14650",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_URAD MOGAR (500 gm x 60).jpg",
+            "driveFileId": "1cyUIUU8S-h9mKQwGCnKPCnGMul0YQPZN"
+          }
+        ],
+        "assetPath": "/catalog-images/real/e326ef4b062adb7b6bcc6f8c0d9d020c89b7d42e40d009c1696b0e099d2ced10.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        76
+      ],
+      "source": {
+        "typeOfItem": "OTHER DAL",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "URAD MOGAR (500 gm x 20)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "10KG BAG",
+        "pricePerQuintal": "14650"
+      },
+      "productKey": "real-catalogue:product:19445f20780bdc38b5a922ee890cd84f1b44f0710d4626af9c14cd43d71f5581",
+      "variantKey": "real-catalogue:variant:680ea6d6c0a89653cb0d4bbadd6a88706c451a8fd18868c6e27c902d30c64d44",
+      "productName": "Neel Gagan Urad Mogar",
+      "category": "Daal",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 20,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "10",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "14650",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_URAD MOGAR (500 gm x 20).jpg",
+            "driveFileId": "1lGOsgMY-kFuY60IJAxXgMRwvQte0NNP7"
+          }
+        ],
+        "assetPath": "/catalog-images/real/680ea6d6c0a89653cb0d4bbadd6a88706c451a8fd18868c6e27c902d30c64d44.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        77
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "CHAWALI",
+        "skuName": "CHAWALI (30 kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "9900"
+      },
+      "productKey": "real-catalogue:product:87bd85820ec0deab7d21a1e34aaca5724dff9f97526833d1fa0123f400ca2dcc",
+      "variantKey": "real-catalogue:variant:ae99e992558d57bb70bf6db6c50f23411c26425bb29e6986efa79ec11bee81d7",
+      "productName": "Neel Gagan Chawali",
+      "category": "Daal",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "9900",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "missing",
+        "candidates": [],
+        "assetPath": null
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "image_missing"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        78
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "CHAWALI (500 gm x 60)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "10350"
+      },
+      "productKey": "real-catalogue:product:87bd85820ec0deab7d21a1e34aaca5724dff9f97526833d1fa0123f400ca2dcc",
+      "variantKey": "real-catalogue:variant:6ebd153a78f9777065491a58a8b5ac75baf07319f2fd1389d0556f4c2f213566",
+      "productName": "Neel Gagan Chawali",
+      "category": "Daal",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 60,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "10350",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_CHAWALI (500 gm x 60).jpg",
+            "driveFileId": "1v28uK2c0dixfmXZxVC6w6bQeWF-l4aDW"
+          }
+        ],
+        "assetPath": "/catalog-images/real/6ebd153a78f9777065491a58a8b5ac75baf07319f2fd1389d0556f4c2f213566.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        79
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "CHAWALI (500 gm x 20)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "10KG BAG",
+        "pricePerQuintal": "10350"
+      },
+      "productKey": "real-catalogue:product:87bd85820ec0deab7d21a1e34aaca5724dff9f97526833d1fa0123f400ca2dcc",
+      "variantKey": "real-catalogue:variant:7e4b829737c7ff0177bb72d66b4a26fecacd9c05b4eeeb452c7d4cf7668b8e46",
+      "productName": "Neel Gagan Chawali",
+      "category": "Daal",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 20,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "10",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "10350",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_CHAWALI (500 gm x 20).jpg",
+            "driveFileId": "1wCCSk0jKpY-1hfh7PUGd8pHo1vJU5iJf"
+          }
+        ],
+        "assetPath": "/catalog-images/real/7e4b829737c7ff0177bb72d66b4a26fecacd9c05b4eeeb452c7d4cf7668b8e46.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        80
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "KABULI CHANA",
+        "skuName": "KABULI CHANA (30 kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "10700"
+      },
+      "productKey": "real-catalogue:product:07286493f7aa74abe977a435df4357bb74c613cfa062f6fcd530a1e66b3e04ad",
+      "variantKey": "real-catalogue:variant:e286b520df0de2692f1d71691d5f13859d347fa920f87f3574df7c812c575a5d",
+      "productName": "Neel Gagan Kabuli Chana",
+      "category": "Daal",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "10700",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_KABULI CHANA (30 kg x 1).jpg",
+            "driveFileId": "1ZiD3oBrxixxSl1CY25CcxaC91NWWTD1c"
+          }
+        ],
+        "assetPath": "/catalog-images/real/e286b520df0de2692f1d71691d5f13859d347fa920f87f3574df7c812c575a5d.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        81
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "KABULI CHANA (500 gm x 60)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "11150"
+      },
+      "productKey": "real-catalogue:product:07286493f7aa74abe977a435df4357bb74c613cfa062f6fcd530a1e66b3e04ad",
+      "variantKey": "real-catalogue:variant:a19e7e942ed062cd56192d9e467e5f5615aab4578693274f7b81efbf24fb4f61",
+      "productName": "Neel Gagan Kabuli Chana",
+      "category": "Daal",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 60,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "11150",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_KABULI CHANA (500 gm x 60).jpg",
+            "driveFileId": "1hVMdDPSPT36XHjFweWTgfjKoKrIUMW2S"
+          }
+        ],
+        "assetPath": "/catalog-images/real/a19e7e942ed062cd56192d9e467e5f5615aab4578693274f7b81efbf24fb4f61.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        82
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "KABULI CHANA (500 gm x 20)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "10KG BAG",
+        "pricePerQuintal": "11150"
+      },
+      "productKey": "real-catalogue:product:07286493f7aa74abe977a435df4357bb74c613cfa062f6fcd530a1e66b3e04ad",
+      "variantKey": "real-catalogue:variant:9f517f5e06b12883efbb33d1e2192e143d19b5db155573cbf0c4539cc9601097",
+      "productName": "Neel Gagan Kabuli Chana",
+      "category": "Daal",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 20,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "10",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "11150",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_KABULI CHANA (500 gm x 20).jpg",
+            "driveFileId": "122VhObmiuYxAPPza50-xKWadrKLg9b-z"
+          }
+        ],
+        "assetPath": "/catalog-images/real/9f517f5e06b12883efbb33d1e2192e143d19b5db155573cbf0c4539cc9601097.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        83
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "MASOOR WHOLE",
+        "skuName": "MASOOR WHOLE (30 kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "8100"
+      },
+      "productKey": "real-catalogue:product:10e26b47b78efeb1d885aa3f548f1556b8c9e7d28ea0b6dccf51f418d2e9be2f",
+      "variantKey": "real-catalogue:variant:6010fa8e5743e2dd2fca1103434eb6674eb9bca5787b9ec7e0daf66013badfbd",
+      "productName": "Neel Gagan Masoor Whole",
+      "category": "Daal",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "8100",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_MASOOR WHOLE (30 kg x 1).jpg",
+            "driveFileId": "1Z00rEiIR3LhUu_1tNc340RvLN1ZCWppd"
+          }
+        ],
+        "assetPath": "/catalog-images/real/6010fa8e5743e2dd2fca1103434eb6674eb9bca5787b9ec7e0daf66013badfbd.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        84
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "MASOOR WHOLE (500 gm x 60)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "8550"
+      },
+      "productKey": "real-catalogue:product:10e26b47b78efeb1d885aa3f548f1556b8c9e7d28ea0b6dccf51f418d2e9be2f",
+      "variantKey": "real-catalogue:variant:f00f4d4bb554801e6eb3aef5854d7670ebe84210a42a2801d619eca5b057b446",
+      "productName": "Neel Gagan Masoor Whole",
+      "category": "Daal",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 60,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "8550",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_MASOOR WHOLE (500 gm x 60).jpg",
+            "driveFileId": "1tW4x0J397qyQIpR846Mo7O-LNnCNL94R"
+          }
+        ],
+        "assetPath": "/catalog-images/real/f00f4d4bb554801e6eb3aef5854d7670ebe84210a42a2801d619eca5b057b446.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        85
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "MASOOR WHOLE (500 gm x 20)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "10KG BAG",
+        "pricePerQuintal": "8700"
+      },
+      "productKey": "real-catalogue:product:10e26b47b78efeb1d885aa3f548f1556b8c9e7d28ea0b6dccf51f418d2e9be2f",
+      "variantKey": "real-catalogue:variant:e55b88c7e690b2f818dc1538005acd2960a32d4464ab64febc878f902e2cdcdc",
+      "productName": "Neel Gagan Masoor Whole",
+      "category": "Daal",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 20,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "10",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "8700",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_MASOOR WHOLE (500 gm x 20).jpg",
+            "driveFileId": "12fGNhbF9Yal4T5ov8GHbszZC-YJ5oCNg"
+          }
+        ],
+        "assetPath": "/catalog-images/real/e55b88c7e690b2f818dc1538005acd2960a32d4464ab64febc878f902e2cdcdc.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        86
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "MOONG WHOLE",
+        "skuName": "MOONG WHOLE (30 kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "10800"
+      },
+      "productKey": "real-catalogue:product:f6ce12b7a264c7cee2956740e7c345acd942fbcb2d42e98cee9087a93dcbd23b",
+      "variantKey": "real-catalogue:variant:7cffa46a3cec5bba30e45fd02cfc5a45a1c6f4fa7120bed1f3cce7303e315ce0",
+      "productName": "Neel Gagan Moong Whole",
+      "category": "Daal",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "10800",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_MOONG WHOLE (30 kg x 1).jpg",
+            "driveFileId": "1xRpanTecOPvU0oowNCs7Zd1_x9ZY5_Su"
+          }
+        ],
+        "assetPath": "/catalog-images/real/7cffa46a3cec5bba30e45fd02cfc5a45a1c6f4fa7120bed1f3cce7303e315ce0.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        87
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "MOONG WHOLE (500 gm x 60)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "11250"
+      },
+      "productKey": "real-catalogue:product:f6ce12b7a264c7cee2956740e7c345acd942fbcb2d42e98cee9087a93dcbd23b",
+      "variantKey": "real-catalogue:variant:5f437d090adde8bdc51c65fb9c94752b2f19aa45a60c537389e63e4e96ac8f6a",
+      "productName": "Neel Gagan Moong Whole",
+      "category": "Daal",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 60,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "11250",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_MOONG WHOLE (500 gm x 60).jpg",
+            "driveFileId": "1fuOpnIBEaJXAVs0ozIaaZWa_ROB1UvGQ"
+          }
+        ],
+        "assetPath": "/catalog-images/real/5f437d090adde8bdc51c65fb9c94752b2f19aa45a60c537389e63e4e96ac8f6a.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        88
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "MOONG WHOLE (500 gm x 20)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "10KG BAG",
+        "pricePerQuintal": "11250"
+      },
+      "productKey": "real-catalogue:product:f6ce12b7a264c7cee2956740e7c345acd942fbcb2d42e98cee9087a93dcbd23b",
+      "variantKey": "real-catalogue:variant:c7e7409800cfd7478ca5b440a2d14a2f44b7460694f84bfa3bfd85c1cc27cd23",
+      "productName": "Neel Gagan Moong Whole",
+      "category": "Daal",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 20,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "10",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "11250",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_MOONG WHOLE (500 gm x 20).jpg",
+            "driveFileId": "1utivc32m-qe_Kx-mFVHFnyFdQWmPGWUg"
+          }
+        ],
+        "assetPath": "/catalog-images/real/c7e7409800cfd7478ca5b440a2d14a2f44b7460694f84bfa3bfd85c1cc27cd23.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        89
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "MOTH",
+        "skuName": "MOTH (30 kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "9800"
+      },
+      "productKey": "real-catalogue:product:66ba57f56bb2889f1b62d37ed88d13d0c525fabe2244ea55bcc02a9adb6a0373",
+      "variantKey": "real-catalogue:variant:e07b690239af24ab3366632ce47d47d69d0e761984a8ce9d0a9bae3abd9ef2db",
+      "productName": "Neel Gagan Moth",
+      "category": "Daal",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "9800",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_MOTH (30 kg x 1).jpg",
+            "driveFileId": "1iVMfl_zB2k3AMfqmkgMtsCkcEgs-D7iw"
+          }
+        ],
+        "assetPath": "/catalog-images/real/e07b690239af24ab3366632ce47d47d69d0e761984a8ce9d0a9bae3abd9ef2db.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        90
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "MOTH (500 gm x 60)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "10250"
+      },
+      "productKey": "real-catalogue:product:66ba57f56bb2889f1b62d37ed88d13d0c525fabe2244ea55bcc02a9adb6a0373",
+      "variantKey": "real-catalogue:variant:e6b3a1db092de8897ae66185c99e9908fa4d21ff9c786f04c2b55719578edcff",
+      "productName": "Neel Gagan Moth",
+      "category": "Daal",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 60,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "10250",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_MOTH (500 gm x 60).jpg",
+            "driveFileId": "1QF64ytJm1jpc2q9EAd3OdREUJ_a_3ORw"
+          }
+        ],
+        "assetPath": "/catalog-images/real/e6b3a1db092de8897ae66185c99e9908fa4d21ff9c786f04c2b55719578edcff.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        91
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "MOTH (500 gm x 20)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "10KG BAG",
+        "pricePerQuintal": "10250"
+      },
+      "productKey": "real-catalogue:product:66ba57f56bb2889f1b62d37ed88d13d0c525fabe2244ea55bcc02a9adb6a0373",
+      "variantKey": "real-catalogue:variant:8eb6927c2d12ecc7e108366787ec83e8555a359ac4dbc466c0b40362dedd2c8b",
+      "productName": "Neel Gagan Moth",
+      "category": "Daal",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 20,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "10",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "10250",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_MOTH (500 gm x 20).jpg",
+            "driveFileId": "1mEUmhOiSg46YiRZO-J_-b9RE8mpJKSUO"
+          }
+        ],
+        "assetPath": "/catalog-images/real/8eb6927c2d12ecc7e108366787ec83e8555a359ac4dbc466c0b40362dedd2c8b.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        92
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "RAJMA CHITRA",
+        "skuName": "RAJMA CHITRA (30 kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "13400"
+      },
+      "productKey": "real-catalogue:product:01caf1c9469fe4c4d84a8bb86005f50e0d3dfa72cd0f206b7f99974ed275e885",
+      "variantKey": "real-catalogue:variant:fc7b151e5e427e6bed2fa2c5b603c9aa6f6c4fc349848b83e2e043a531590b0d",
+      "productName": "Neel Gagan Rajma Chitra",
+      "category": "Daal",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "13400",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_RAJMA CHITRA (30 kg x 1).jpg",
+            "driveFileId": "16DujI9j4DiIJDobGqq34ey9r_8cBY7bc"
+          }
+        ],
+        "assetPath": "/catalog-images/real/fc7b151e5e427e6bed2fa2c5b603c9aa6f6c4fc349848b83e2e043a531590b0d.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        93
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "RAJMA CHITRA (500 gm x 60)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "13850"
+      },
+      "productKey": "real-catalogue:product:01caf1c9469fe4c4d84a8bb86005f50e0d3dfa72cd0f206b7f99974ed275e885",
+      "variantKey": "real-catalogue:variant:ecca51fc7db600b244f642c03a0d28ffb02b40f0513cc12e3fba46402fa4ec16",
+      "productName": "Neel Gagan Rajma Chitra",
+      "category": "Daal",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 60,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "13850",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_RAJMA CHITRA (500 gm x 60).jpg",
+            "driveFileId": "1-AZOOSPOaNXZZWYlT6VgiwpHawqJ_fy1"
+          }
+        ],
+        "assetPath": "/catalog-images/real/ecca51fc7db600b244f642c03a0d28ffb02b40f0513cc12e3fba46402fa4ec16.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        94
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "RAJMA CHITRA (500 gm x 20)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "10KG BAG",
+        "pricePerQuintal": "13850"
+      },
+      "productKey": "real-catalogue:product:01caf1c9469fe4c4d84a8bb86005f50e0d3dfa72cd0f206b7f99974ed275e885",
+      "variantKey": "real-catalogue:variant:0d6ee8ae7ce4c66b7dde886989f7fb274af4081b5f06bc19b9934d74a728b691",
+      "productName": "Neel Gagan Rajma Chitra",
+      "category": "Daal",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 20,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "10",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "13850",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_RAJMA CHITRA (500 gm x 20).jpg",
+            "driveFileId": "1cKH582g_Plut20vLkYjjDRbg598DoyIY"
+          }
+        ],
+        "assetPath": "/catalog-images/real/0d6ee8ae7ce4c66b7dde886989f7fb274af4081b5f06bc19b9934d74a728b691.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        95
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "RAJMA KASHMIRI",
+        "skuName": "RAJMA KASHMIRI (30 kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "14200"
+      },
+      "productKey": "real-catalogue:product:3f8a3dd8202f56188940a07b8a8bc50accaf3a32693b6c712e8eadd734f285c1",
+      "variantKey": "real-catalogue:variant:807e8ceb38a85431cef557c7cc131cfb0e20b02ab0fd7ab54c1eea12634e1ac8",
+      "productName": "Neel Gagan Rajma Kashmiri",
+      "category": "Daal",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "14200",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_RAJMA KASHMIRI (30 kg x 1).jpg",
+            "driveFileId": "1HUr4GnlZ4cIaeTNP-ZX5xSjpkVtfZf6K"
+          }
+        ],
+        "assetPath": "/catalog-images/real/807e8ceb38a85431cef557c7cc131cfb0e20b02ab0fd7ab54c1eea12634e1ac8.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        96
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "RAJMA KASHMIRI (500 gm x 60)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "14650"
+      },
+      "productKey": "real-catalogue:product:3f8a3dd8202f56188940a07b8a8bc50accaf3a32693b6c712e8eadd734f285c1",
+      "variantKey": "real-catalogue:variant:d6e3080a8d0cd0e1083ee075014b78f16ad75968bb3bdd6fe298dbd7524f6d66",
+      "productName": "Neel Gagan Rajma Kashmiri",
+      "category": "Daal",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 60,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "14650",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_RAJMA KASHMIRI (500 gm x 60).jpg",
+            "driveFileId": "1Kt_pWQqug0hT6u0JmzuTuA55BCFYrcgJ"
+          }
+        ],
+        "assetPath": "/catalog-images/real/d6e3080a8d0cd0e1083ee075014b78f16ad75968bb3bdd6fe298dbd7524f6d66.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        97
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "RAJMA KASHMIRI (500 gm x 20)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "10KG BAG",
+        "pricePerQuintal": "14650"
+      },
+      "productKey": "real-catalogue:product:3f8a3dd8202f56188940a07b8a8bc50accaf3a32693b6c712e8eadd734f285c1",
+      "variantKey": "real-catalogue:variant:25a7a74513b8757b00911c1ffe89eaafbc73a3bda0df034bfde33f576ecd7c7a",
+      "productName": "Neel Gagan Rajma Kashmiri",
+      "category": "Daal",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 20,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "10",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "14650",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_RAJMA KASHMIRI (500 gm x 20).jpg",
+            "driveFileId": "1g5-qzv0A0xTaMtzXBfxO2GbUrk4BfCCS"
+          }
+        ],
+        "assetPath": "/catalog-images/real/25a7a74513b8757b00911c1ffe89eaafbc73a3bda0df034bfde33f576ecd7c7a.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        98
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "RED CHANA",
+        "skuName": "RED CHANA (30 kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "9400"
+      },
+      "productKey": "real-catalogue:product:840b28b899b71bf2eb6bbe60c6f17397dd34acc31a3facef2542c57973ba9f60",
+      "variantKey": "real-catalogue:variant:fd2a21905018938355fa25eb46c78fa771af2e92f0971c4e56189561cce7b24b",
+      "productName": "Neel Gagan Red Chana",
+      "category": "Daal",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "9400",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_RED CHANA (30 kg x 1).jpg",
+            "driveFileId": "1Y-Smv1ZmtGPxY2WQazNRCeGIIqa760HB"
+          }
+        ],
+        "assetPath": "/catalog-images/real/fd2a21905018938355fa25eb46c78fa771af2e92f0971c4e56189561cce7b24b.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        99
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "RED CHANA (500 gm x 60)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "9850"
+      },
+      "productKey": "real-catalogue:product:840b28b899b71bf2eb6bbe60c6f17397dd34acc31a3facef2542c57973ba9f60",
+      "variantKey": "real-catalogue:variant:907505f5f07be16d097b437af10ac8a046b8f656fcfb38f03d05a6e27633436a",
+      "productName": "Neel Gagan Red Chana",
+      "category": "Daal",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 60,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "9850",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_RED CHANA (500 gm x 60).jpg",
+            "driveFileId": "1Ri0VtUUJeUUxfNu3uRrFjq5BIA7vnLSn"
+          }
+        ],
+        "assetPath": "/catalog-images/real/907505f5f07be16d097b437af10ac8a046b8f656fcfb38f03d05a6e27633436a.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        100
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "RED CHANA (500 gm x 20)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "10KG BAG",
+        "pricePerQuintal": "9850"
+      },
+      "productKey": "real-catalogue:product:840b28b899b71bf2eb6bbe60c6f17397dd34acc31a3facef2542c57973ba9f60",
+      "variantKey": "real-catalogue:variant:4bcef6423115851a638c141e9bd93fce632a304d757162366194592b59a3bbcd",
+      "productName": "Neel Gagan Red Chana",
+      "category": "Daal",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 20,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "10",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "9850",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_RED CHANA (500 gm x 20).jpg",
+            "driveFileId": "130gzWPUjbOptvLhDDc8Z-dWZfImsXgxt"
+          }
+        ],
+        "assetPath": "/catalog-images/real/4bcef6423115851a638c141e9bd93fce632a304d757162366194592b59a3bbcd.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        101
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "URAD WHOLE",
+        "skuName": "URAD WHOLE (30 kg x 1)",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "12500"
+      },
+      "productKey": "real-catalogue:product:d50adaba4b0a4a8e6a0abb257fa35ee74a9cddc5ca7d457342ac4e746d3f35b2",
+      "variantKey": "real-catalogue:variant:8d281b5782612923383d9e11495d32eccefbbf9f689bc6471b0d361f909f48aa",
+      "productName": "Neel Gagan Urad Whole",
+      "category": "Daal",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "12500",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "missing",
+        "candidates": [],
+        "assetPath": null
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "image_missing"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        102
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "URAD WHOLE (500 gm x 60)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "12950"
+      },
+      "productKey": "real-catalogue:product:d50adaba4b0a4a8e6a0abb257fa35ee74a9cddc5ca7d457342ac4e746d3f35b2",
+      "variantKey": "real-catalogue:variant:e9a12ec8a7a2d566de1053d0b5ebd3d6f36e01b691f3751f15fbd7c9e05414ed",
+      "productName": "Neel Gagan Urad Whole",
+      "category": "Daal",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 60,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "12950",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "missing",
+        "candidates": [],
+        "assetPath": null
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "image_missing"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        103
+      ],
+      "source": {
+        "typeOfItem": "KHADA ANAJ",
+        "brandName": "NEEL GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "",
+        "skuName": "URAD WHOLE (500 gm x 20)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "10KG BAG",
+        "pricePerQuintal": "12950"
+      },
+      "productKey": "real-catalogue:product:d50adaba4b0a4a8e6a0abb257fa35ee74a9cddc5ca7d457342ac4e746d3f35b2",
+      "variantKey": "real-catalogue:variant:b58b34ae3e925bae5fd174fe110a97f17e32dc32130ee03d46a75b987befd24c",
+      "productName": "Neel Gagan Urad Whole",
+      "category": "Daal",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 20,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "10",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "12950",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "missing",
+        "candidates": [],
+        "assetPath": null
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval",
+        "image_missing"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        104
+      ],
+      "source": {
+        "typeOfItem": "OTHER DAL",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "CHANA DAL",
+        "skuName": "LITE CHANA DAL 30 KG",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "8800"
+      },
+      "productKey": "real-catalogue:product:1e458b6ad002f04de2bd5939abef78b249c316b810f46103a38d7e025ef324eb",
+      "variantKey": "real-catalogue:variant:5142dbc86fef7844410565e2de5fbd59bc90751c634c243a5e5d653781f62cb1",
+      "productName": "Gagan Lite Chana Dal 30 Kg",
+      "category": "Daal",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "packing_size_and_master_bag",
+      "pricePerQuintal": "8800",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_LITE CHANA DAL 30 KG.jpg",
+            "driveFileId": "1HkBLV5dtKi2dv7jnVjcaKBfkoZ2D640C"
+          }
+        ],
+        "assetPath": "/catalog-images/real/5142dbc86fef7844410565e2de5fbd59bc90751c634c243a5e5d653781f62cb1.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        105
+      ],
+      "source": {
+        "typeOfItem": "OTHER DAL",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "MOONG CHILKA",
+        "skuName": "LITE MOONG CHILKA 30 KG",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "9000"
+      },
+      "productKey": "real-catalogue:product:729f1faef2db17987883a0b9f5edef35c5d76f00fa4c84112d753bd64169f0ca",
+      "variantKey": "real-catalogue:variant:73c08c829a9fa6a347e548cd39e7ee279f0cdc32571cabdf1dfa35062b29dce6",
+      "productName": "Gagan Lite Moong Chilka 30 Kg",
+      "category": "Daal",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "packing_size_and_master_bag",
+      "pricePerQuintal": "9000",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_LITE MOONG CHILKA 30 KG.jpg",
+            "driveFileId": "13FYg1IFk8OB2DbEjAnE1uAcQjSkOoII2"
+          }
+        ],
+        "assetPath": "/catalog-images/real/73c08c829a9fa6a347e548cd39e7ee279f0cdc32571cabdf1dfa35062b29dce6.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        106
+      ],
+      "source": {
+        "typeOfItem": "OTHER DAL",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "MOONG MOGAR",
+        "skuName": "LITE MOONG MOGAR 30 KG",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "10600"
+      },
+      "productKey": "real-catalogue:product:22d067c3d0ff856fffc0f63c35367318edc59abe844ed6e5f0d3fce844f67e4b",
+      "variantKey": "real-catalogue:variant:4d7f7f212ee8e5630b0b5554e485d3d14c6d87a5676c447f95852f2c164b5c5f",
+      "productName": "Gagan Lite Moong Mogar 30 Kg",
+      "category": "Daal",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "packing_size_and_master_bag",
+      "pricePerQuintal": "10600",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_LITE MOONG MOGAR 30 KG.jpg",
+            "driveFileId": "1dwU8EqElCJmo1CX05-JaNwINmDjG0oG_"
+          }
+        ],
+        "assetPath": "/catalog-images/real/4d7f7f212ee8e5630b0b5554e485d3d14c6d87a5676c447f95852f2c164b5c5f.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        107
+      ],
+      "source": {
+        "typeOfItem": "OTHER DAL",
+        "brandName": "GAGAN",
+        "groupName": "GAGAN OTHER PRODUCTS",
+        "itemName": "URAD MOGAR",
+        "skuName": "LITE URAD MOGAR 30 KG",
+        "packingSize": "30 KG",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "13100"
+      },
+      "productKey": "real-catalogue:product:6693a97905cb49702b894677075a9fe12ddf097be3b5b5e84801a99c20bc7de5",
+      "variantKey": "real-catalogue:variant:e66d43225b783f94417cdbea41719e6561bac4bb04b8095ab7e98bea3d9a2f1d",
+      "productName": "Gagan Lite Urad Mogar 30 Kg",
+      "category": "Daal",
+      "unitSize": "30 KG",
+      "unit": "kg",
+      "unitsPerCase": 1,
+      "unitWeightKg": "30",
+      "caseWeightKg": "30",
+      "conversionSource": "packing_size_and_master_bag",
+      "pricePerQuintal": "13100",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "OTHER",
+      "routingBagEquivalent": "1.000",
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Gagan Dal & Whole Grain",
+            "folderId": "1Srx693Qy1CNT9p-Zsgo4V4VjuPB0AuuO",
+            "fileName": "IMG_LITE URAD MOGAR 30 KG.jpg",
+            "driveFileId": "13xa4bDYyq4hHjvM8OZqDHJMRpOzrVknH"
+          }
+        ],
+        "assetPath": "/catalog-images/real/e66d43225b783f94417cdbea41719e6561bac4bb04b8095ab7e98bea3d9a2f1d.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        108
+      ],
+      "source": {
+        "typeOfItem": "INSTANT MIX",
+        "brandName": "SEHMAT",
+        "groupName": "SEHMAT INSTANT MIX",
+        "itemName": "DAHI VADA",
+        "skuName": "DAHI VADA (500 gm x 60)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "16000"
+      },
+      "productKey": "real-catalogue:product:2f88ef081b5e668456b4ccf3653f6e804139250a46e373eeb608af0904786932",
+      "variantKey": "real-catalogue:variant:24819208c37690e1f89f76027f035d250653522b00e9e0c0ae9cc6303abff43a",
+      "productName": "Sehmat Dahi Vada",
+      "category": "Breakfast",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 60,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "16000",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "INSTANT_MIX",
+      "routingBagEquivalent": null,
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Sehmat Poha -Sabudana - Instant Mix",
+            "folderId": "1BIPQ9xGHSEUBGcj3p_CuOOqXkf-Tk-Wx",
+            "fileName": "IMG_DAHI VADA (500 gm x 60).jpg",
+            "driveFileId": "1z8YxGTEP0_9o6bL6jy7DpIuknWNQE01Z"
+          }
+        ],
+        "assetPath": "/catalog-images/real/24819208c37690e1f89f76027f035d250653522b00e9e0c0ae9cc6303abff43a.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        109
+      ],
+      "source": {
+        "typeOfItem": "INSTANT MIX",
+        "brandName": "SEHMAT",
+        "groupName": "SEHMAT INSTANT MIX",
+        "itemName": "DOSA",
+        "skuName": "DOSA (400 gm x 75)",
+        "packingSize": "400 GM",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "12300"
+      },
+      "productKey": "real-catalogue:product:e5d1a81cfa643b3c9a0bd776f1f7bd27f25437cf3e28827b7a809e08989b3ac0",
+      "variantKey": "real-catalogue:variant:6cc465117077ec7230914f7fd55945c42fb3852ac914ff47dbb421612c20e679",
+      "productName": "Sehmat Dosa",
+      "category": "Breakfast",
+      "unitSize": "400 GM",
+      "unit": "kg",
+      "unitsPerCase": 75,
+      "unitWeightKg": "0.4",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "12300",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "INSTANT_MIX",
+      "routingBagEquivalent": null,
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Sehmat Poha -Sabudana - Instant Mix",
+            "folderId": "1BIPQ9xGHSEUBGcj3p_CuOOqXkf-Tk-Wx",
+            "fileName": "IMG_DOSA (400 gm x 75).jpg",
+            "driveFileId": "1GRrGbxfS3RSx4ShwFMcuS3uWxFKOBW0V"
+          }
+        ],
+        "assetPath": "/catalog-images/real/6cc465117077ec7230914f7fd55945c42fb3852ac914ff47dbb421612c20e679.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        110
+      ],
+      "source": {
+        "typeOfItem": "INSTANT MIX",
+        "brandName": "SEHMAT",
+        "groupName": "SEHMAT INSTANT MIX",
+        "itemName": "IDLI",
+        "skuName": "IDLI (400 gm x 75)",
+        "packingSize": "400 GM",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "12700"
+      },
+      "productKey": "real-catalogue:product:a8e3590b610e0dda3e4d7ceaa679142125e03bc6684f00d65c84f561892b460b",
+      "variantKey": "real-catalogue:variant:414f571010614e17a37e56f7b1e1369f081a33489c1bdf092e37da3b35b957e7",
+      "productName": "Sehmat Idli",
+      "category": "Breakfast",
+      "unitSize": "400 GM",
+      "unit": "kg",
+      "unitsPerCase": 75,
+      "unitWeightKg": "0.4",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "12700",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "INSTANT_MIX",
+      "routingBagEquivalent": null,
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Sehmat Poha -Sabudana - Instant Mix",
+            "folderId": "1BIPQ9xGHSEUBGcj3p_CuOOqXkf-Tk-Wx",
+            "fileName": "IMG_IDLI (400 gm x 75).jpg",
+            "driveFileId": "1x5A2PrH-Ns6EaSwHAnvpa7-iU-AKvx8Z"
+          }
+        ],
+        "assetPath": "/catalog-images/real/414f571010614e17a37e56f7b1e1369f081a33489c1bdf092e37da3b35b957e7.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        111
+      ],
+      "source": {
+        "typeOfItem": "INSTANT MIX",
+        "brandName": "SEHMAT",
+        "groupName": "SEHMAT INSTANT MIX",
+        "itemName": "KHAMAN",
+        "skuName": "KHAMAN (400 gm x 75)",
+        "packingSize": "400 GM",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "14500"
+      },
+      "productKey": "real-catalogue:product:7b595e22847a790023abf5e3f7ed0a35eb713cdab5b26ad3c900ea2a972d4fc8",
+      "variantKey": "real-catalogue:variant:8bad6ed3fc837ee549b59bd5f3a50787becb019a0c545d4c2824d94e10be1f24",
+      "productName": "Sehmat Khaman",
+      "category": "Breakfast",
+      "unitSize": "400 GM",
+      "unit": "kg",
+      "unitsPerCase": 75,
+      "unitWeightKg": "0.4",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "14500",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "INSTANT_MIX",
+      "routingBagEquivalent": null,
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Sehmat Poha -Sabudana - Instant Mix",
+            "folderId": "1BIPQ9xGHSEUBGcj3p_CuOOqXkf-Tk-Wx",
+            "fileName": "IMG_KHAMAN (400 gm x 75).jpg",
+            "driveFileId": "1ujUknx2JiVMncWtEndCHrCZ2U09HPlVo"
+          }
+        ],
+        "assetPath": "/catalog-images/real/8bad6ed3fc837ee549b59bd5f3a50787becb019a0c545d4c2824d94e10be1f24.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        112
+      ],
+      "source": {
+        "typeOfItem": "INSTANT MIX",
+        "brandName": "SEHMAT",
+        "groupName": "SEHMAT INSTANT MIX",
+        "itemName": "MOONG BHAJIYA",
+        "skuName": "MOONG BHAJIYA (500 gm x 60)",
+        "packingSize": "500 GM",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "16400"
+      },
+      "productKey": "real-catalogue:product:1cc8fcc9a5bfffbbdfa35203bd0cf6238fd77f1fb7c3b6c19ccee4931302ae0a",
+      "variantKey": "real-catalogue:variant:a343893ab6ef05ca8f035487f501a27e118264796c7626e71166c49ed210e2e8",
+      "productName": "Sehmat Moong Bhajiya",
+      "category": "Breakfast",
+      "unitSize": "500 GM",
+      "unit": "kg",
+      "unitsPerCase": 60,
+      "unitWeightKg": "0.5",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "16400",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "INSTANT_MIX",
+      "routingBagEquivalent": null,
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Sehmat Poha -Sabudana - Instant Mix",
+            "folderId": "1BIPQ9xGHSEUBGcj3p_CuOOqXkf-Tk-Wx",
+            "fileName": "IMG_MOONG BHAJIYA (500 gm x 60).jpg",
+            "driveFileId": "1xB2Ru7AIT24Rq889Md1ZwwDfrv6tf8AZ"
+          }
+        ],
+        "assetPath": "/catalog-images/real/a343893ab6ef05ca8f035487f501a27e118264796c7626e71166c49ed210e2e8.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    },
+    {
+      "sourceRows": [
+        113
+      ],
+      "source": {
+        "typeOfItem": "INSTANT MIX",
+        "brandName": "SEHMAT",
+        "groupName": "SEHMAT INSTANT MIX",
+        "itemName": "UTTAPAM",
+        "skuName": "UTTAPAM (400 gm x 75)",
+        "packingSize": "400 GM",
+        "masterBagBoxSize": "30KG BAG",
+        "pricePerQuintal": "11600"
+      },
+      "productKey": "real-catalogue:product:94b41579eeaf98e55695330f3822e0051c07f14debc663335473faba1c0e53d5",
+      "variantKey": "real-catalogue:variant:6eb1709651c3c1e0ae35b7095c1744c04a13ebe400d477c5aed4b8d006935035",
+      "productName": "Sehmat Uttapam",
+      "category": "Breakfast",
+      "unitSize": "400 GM",
+      "unit": "kg",
+      "unitsPerCase": 75,
+      "unitWeightKg": "0.4",
+      "caseWeightKg": "30",
+      "conversionSource": "sku_name",
+      "pricePerQuintal": "11600",
+      "priceBasis": "quintal",
+      "masterContainer": "BAG",
+      "routingClass": "INSTANT_MIX",
+      "routingBagEquivalent": null,
+      "image": {
+        "status": "matched",
+        "candidates": [
+          {
+            "folder": "Sehmat Poha -Sabudana - Instant Mix",
+            "folderId": "1BIPQ9xGHSEUBGcj3p_CuOOqXkf-Tk-Wx",
+            "fileName": "IMG_UTTAPAM (400 gm x 75).jpg",
+            "driveFileId": "15498rbdLU3wl-fc61z-5y4XK-a9R28cB"
+          }
+        ],
+        "assetPath": "/catalog-images/real/6eb1709651c3c1e0ae35b7095c1744c04a13ebe400d477c5aed4b8d006935035.jpg"
+      },
+      "readinessBlockers": [
+        "stable_internal_catalogue_identity_requires_approval",
+        "gst_percent_requires_approval",
+        "inventory_mapping_requires_approval",
+        "price_tier_requires_approval"
+      ],
+      "catalogStatus": "pending_review"
+    }
+  ]
+}

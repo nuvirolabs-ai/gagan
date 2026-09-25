@@ -19,7 +19,14 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "ts-node prisma/seed.ts",
     "financial:backfill": "ts-node --transpile-only scripts/backfillFinancialCore.ts",
-    "financial:reconcile": "ts-node --transpile-only scripts/reconcileFinancialCore.ts"
+    "financial:reconcile": "ts-node --transpile-only scripts/reconcileFinancialCore.ts",
+    "check:sales-org-readiness": "ts-node --transpile-only scripts/checkSalesOrgReadiness.ts",
+    "seed:staging-hierarchy": "ts-node --transpile-only scripts/seedStagingHierarchy.ts",
+    "seed:field-uat": "ts-node --transpile-only scripts/seedFieldUat.ts",
+    "seed:sales-visual-uat": "ts-node --transpile-only scripts/seedSalesVisualUat.ts",
+    "seed:founder-uat": "ts-node --transpile-only scripts/seedFounderUat.ts",
+    "catalogue:real": "ts-node --transpile-only scripts/realCatalogueImport.ts",
+    "catalogue:seed-gst-pending-inventory": "ts-node --transpile-only scripts/seedApprovedStagingInventory.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1115.0",
@@ -33,7 +40,11 @@
     "express-async-errors": "^3.1.1",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.2",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^3.23.8"
+  },
+  "overrides": {
+    "qs": "6.16.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

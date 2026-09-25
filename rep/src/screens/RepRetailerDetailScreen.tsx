@@ -1,23 +1,45 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Image,
   View,
   Text,
-  ScrollView,
-  TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   Alert,
   Linking,
+  Pressable,
+  ScrollView,
 } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { repApi } from "../api/repClient";
 import { captureForegroundLocation } from "../location/deviceLocation";
 import { useRep } from "../context/RepContext";
-import { colors, radius, spacing, shadow, inr } from "../theme";
-import { StatusPill } from "../components/ui";
+import { staffCapabilities } from "../auth/staffCapabilities";
+import { colors, inr, spacing } from "../theme";
+import { formatOrderRef } from "../lib/orderRef";
+import {
+  AppScreen,
+  FocusCard,
+  InitialsBadge,
+  PrimaryButton,
+  SecondaryButton,
+  SectionHeader,
+  Skeleton,
+  StatusChip,
+  StatusPill,
+  Surface,
+  TextButton,
+  TimelineEvent,
+  KeyboardSafeScrollView,
+} from "../components/ui";
+import ActivityComposer, { ACTIVITY_LABELS } from "../components/ActivityComposer";
+import EntityAttribution from "../components/EntityAttribution";
+import { haptic } from "../feedback/haptics";
 import { useLanguage } from "../i18n/LanguageContext";
+import { checkInErrorKey } from "../location/checkInErrors";
+import { activeRetailerVisit } from "./activeRetailerVisit";
 
 const LEDGER_LABELS: Record<string, string> = {
   invoice: "Invoice",
@@ -27,248 +49,685 @@ const LEDGER_LABELS: Record<string, string> = {
 };
 
 export default function RepRetailerDetailScreen({ route, navigation }: any) {
+  const insets = useSafeAreaInsets();
   const { retailerId } = route.params;
-  const { setActiveRetailer } = useRep();
+  const { setActiveRetailer, staff } = useRep();
   const { t } = useLanguage();
+  const capabilities = staffCapabilities(staff?.permissions ?? []);
   const [data, setData] = useState<any | null>(null);
   const [location, setLocation] = useState<any | null>(null);
   const [activeVisit, setActiveVisit] = useState<any | null>(null);
+  const [activeVisitElsewhere, setActiveVisitElsewhere] = useState<any | null>(null);
+  const [recentVisits, setRecentVisits] = useState<any[]>([]);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [marketingHistory, setMarketingHistory] = useState<any[]>([]);
+  const [marketingHistoryExpanded, setMarketingHistoryExpanded] = useState(false);
+  const [marketingHistoryLoaded, setMarketingHistoryLoaded] = useState(false);
+  const [marketingHistoryLoading, setMarketingHistoryLoading] = useState(false);
+  const [marketingHistoryFailed, setMarketingHistoryFailed] = useState(false);
+  const [expandedExecutionId, setExpandedExecutionId] = useState<string | null>(null);
+  const marketingHistoryRequest = useRef(0);
+  const [baseline, setBaseline] = useState<any | null>(null);
+  const [opportunities, setOpportunities] = useState<any[]>([]);
+  const [todayField, setTodayField] = useState<any | null>(null);
+  const [schemes, setSchemes] = useState<any[]>([]);
+  const [composing, setComposing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const autoStartAttempted = useRef(false);
+  const checkInPending = useRef(false);
+  const [checkingIn, setCheckingIn] = useState(false);
+
+  const load = useCallback(async () => {
+    const [retailerData, locationData, visitData, activityData, baselineData, opportunityData, todayData, schemeData] = await Promise.all([
+      repApi.retailer(retailerId),
+      repApi.getLocation(retailerId),
+      repApi.visits(),
+      capabilities.canLogActivity
+        ? repApi.customerActivities(retailerId).catch(() => ({ activities: [] }))
+        : Promise.resolve({ activities: [] }),
+      repApi.retailerBaseline(retailerId).catch(() => ({ baseline: null })),
+      repApi.opportunities(50).catch(() => ({ actions: [] })),
+      repApi.today().catch(() => null),
+      repApi.schemes(retailerId).catch(() => ({ schemes: [] })),
+    ]);
+    const allVisits = visitData.visits ?? [];
+    const visits = allVisits.filter((visit: any) => visit.retailerId === retailerId);
+    const activeVisits = activeRetailerVisit(allVisits, retailerId);
+    setData(retailerData);
+    setLocation(locationData.location);
+    setActiveVisit(activeVisits.activeVisit);
+    setActiveVisitElsewhere(activeVisits.activeVisitElsewhere);
+    setRecentVisits(visits.slice(0, 5));
+    setActivities(activityData.activities ?? []);
+    setBaseline(baselineData.baseline ?? null);
+    setOpportunities((opportunityData.actions ?? []).filter((item: any) => item.retailerId === retailerId));
+    setTodayField(todayData);
+    setSchemes(schemeData.schemes ?? []);
+  }, [retailerId, capabilities.canLogActivity]);
+
+  useEffect(() => {
+    marketingHistoryRequest.current += 1;
+    setMarketingHistory([]);
+    setMarketingHistoryExpanded(false);
+    setMarketingHistoryLoaded(false);
+    setMarketingHistoryLoading(false);
+    setMarketingHistoryFailed(false);
+    setExpandedExecutionId(null);
+  }, [retailerId]);
+
+  const toggleMarketingHistory = async () => {
+    if (marketingHistoryExpanded) {
+      setMarketingHistoryExpanded(false);
+      return;
+    }
+    setMarketingHistoryExpanded(true);
+    if (marketingHistoryLoaded || marketingHistoryLoading) return;
+    const requestId = ++marketingHistoryRequest.current;
+    setMarketingHistoryLoading(true);
+    setMarketingHistoryFailed(false);
+    try {
+      const result = await repApi.marketingHistory(retailerId);
+      if (marketingHistoryRequest.current === requestId) {
+        setMarketingHistory(result.executions ?? []);
+        setMarketingHistoryLoaded(true);
+      }
+    } catch {
+      if (marketingHistoryRequest.current === requestId) setMarketingHistoryFailed(true);
+    } finally {
+      if (marketingHistoryRequest.current === requestId) setMarketingHistoryLoading(false);
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
-      Promise.all([repApi.retailer(retailerId), repApi.getLocation(retailerId), repApi.visits()])
-        .then(([retailerData, locationData, visitData]) => {
-          setData(retailerData);
-          setLocation(locationData.location);
-          setActiveVisit((visitData.visits ?? []).find((visit: any) => visit.retailerId === retailerId && !visit.checkedOutAt) ?? null);
+      load()
+        .catch(() => {
+          setData(null);
+          setLocation(null);
         })
-        .catch(() => { setData(null); setLocation(null); })
         .finally(() => setLoading(false));
-    }, [retailerId])
+    }, [load])
   );
+
+  // Home's next-visit action can take the salesperson straight into the
+  // existing, location-verified check-in flow. If the store still needs a
+  // location, the normal detail screen remains the honest recovery path.
+  useEffect(() => {
+    if (
+      !route.params?.startVisit ||
+      !data ||
+      location?.status !== "VERIFIED" ||
+      activeVisit ||
+      activeVisitElsewhere ||
+      autoStartAttempted.current ||
+      checkInPending.current
+    ) return;
+    autoStartAttempted.current = true;
+    checkInPending.current = true;
+    setCheckingIn(true);
+    void captureForegroundLocation().then(async (reading) => {
+      if (reading.kind !== "captured") {
+        Alert.alert("Location needed", reading.kind === "permission_denied" ? "Allow location while using the app to start this visit." : reading.message);
+        return;
+      }
+      try {
+        const result = await repApi.checkIn(retailerId, reading);
+        if (!result.visit?.id) throw new Error("visit_response_missing_id");
+        haptic("medium");
+        setActiveVisit(result.visit);
+        setActiveRetailer(retailerId);
+        navigation.navigate("RepCatalog", { visitId: result.visit.id, retailerId, retailerName: data.retailer.name });
+      } catch (error) {
+        if (error instanceof Error && error.message === "visit_already_open") void load().catch(() => undefined);
+        Alert.alert("Couldn't start visit", t(checkInErrorKey(error)));
+      }
+    }).catch((error) => {
+      if (error instanceof Error && error.message === "visit_already_open") void load().catch(() => undefined);
+      Alert.alert("Couldn't start visit", t(checkInErrorKey(error)));
+    })
+      .finally(() => {
+        checkInPending.current = false;
+        setCheckingIn(false);
+      });
+  }, [activeVisit, activeVisitElsewhere, data, load, location?.status, navigation, retailerId, route.params?.startVisit, t]);
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.green} />
-      </View>
+      <AppScreen>
+        <View style={styles.pad}>
+          <Skeleton height={88} radius={22} />
+          <View style={{ height: 16 }} />
+          <Skeleton height={120} radius={16} />
+        </View>
+      </AppScreen>
     );
   }
   if (!data) {
     return (
-      <View style={styles.center}>
+      <AppScreen>
         <Text style={styles.muted}>{t("errors.generic")}</Text>
-      </View>
+      </AppScreen>
     );
   }
 
-  const { retailer, credit, recentOrders, recentLedger, kyc } = data;
+  const { retailer, credit, recentOrders, recentLedger, kyc, financialSummary } = data;
   const kycApproved = retailer.lifecycle === "active" && (kyc?.status === "approved" || kyc?.legacyVerified === true);
   const blocked = credit.available <= 0 || !kycApproved;
+  const visiting = Boolean(activeVisit && !activeVisit.checkedOutAt);
+  const lastOrder = recentOrders[0];
+  const todayStop = todayField?.route?.stops?.find((stop: any) => stop.retailer?.id === retailer.id);
 
   const startKyc = async () => {
     navigation.navigate("KycCapture", { retailerId: retailer.id, retailerName: retailer.name });
   };
 
   const startOrder = () => {
+    if (activeVisitElsewhere) return;
     setActiveRetailer(retailer.id);
-    navigation.navigate("RepCatalog", { retailerId: retailer.id, retailerName: retailer.name });
+    navigation.navigate("RepCatalog", { retailerId: retailer.id, retailerName: retailer.name, visitId: activeVisit?.id });
   };
 
   const captureStoreLocation = async (mode: "capture" | "verify") => {
     const reading = await captureForegroundLocation();
-    if (reading.kind === "permission_denied") return Alert.alert("Location permission needed", reading.canAskAgain ? "Allow while using the app so you can verify this store." : "Turn on location access in Settings.");
+    if (reading.kind === "permission_denied")
+      return Alert.alert(
+        "Location permission needed",
+        reading.canAskAgain
+          ? "Allow while using the app so you can verify this store."
+          : "Turn on location access in Settings."
+      );
     if (reading.kind === "unavailable") return Alert.alert("Location unavailable", reading.message);
     try {
-      const result = mode === "verify"
-        ? await repApi.verifyLocation(retailer.id, reading)
-        : await repApi.captureLocation(retailer.id, reading);
+      const result =
+        mode === "verify"
+          ? await repApi.verifyLocation(retailer.id, reading)
+          : await repApi.captureLocation(retailer.id, reading);
       setLocation(result.location);
-      Alert.alert(result.location.status === "VERIFIED" ? "Store verified" : "Location captured", result.location.status === "VERIFIED" ? "This store location is now verified." : "A second reading will verify this location.");
+      Alert.alert(
+        result.location.status === "VERIFIED" ? "Store verified" : "Location captured",
+        result.location.status === "VERIFIED"
+          ? "This store location is now verified."
+          : "A second reading will verify this location."
+      );
     } catch (error: any) {
-      Alert.alert("Couldn't save location", error?.message === "location_accuracy_too_low" ? "The GPS reading isn't accurate enough. Move near the storefront and try again." : "Try again when you're online.");
+      Alert.alert(
+        "Couldn't save location",
+        error?.message === "location_accuracy_too_low"
+          ? "The GPS reading isn't accurate enough. Move near the storefront and try again."
+          : "Try again when you're online."
+      );
     }
   };
 
   const checkIn = async () => {
-    const reading = await captureForegroundLocation();
-    if (reading.kind !== "captured") return Alert.alert("Location needed", reading.kind === "permission_denied" ? "Allow location while using the app to check in." : reading.message);
+    if (activeVisitElsewhere) {
+      return Alert.alert(t("visit.activeVisitElsewhere"), t("visit.finishBeforeAnother"));
+    }
+    if (checkInPending.current) return;
+    checkInPending.current = true;
+    setCheckingIn(true);
     try {
+      const reading = await captureForegroundLocation();
+      if (reading.kind !== "captured") {
+        haptic("warning");
+        return Alert.alert(
+          "Location needed",
+          reading.kind === "permission_denied"
+            ? "Allow location while using the app to check in."
+            : reading.message
+        );
+      }
       const result = await repApi.checkIn(retailer.id, reading);
+      if (!result.visit?.id) throw new Error("visit_response_missing_id");
+      haptic("medium");
       setActiveVisit(result.visit);
-      const message = result.visit.verificationStatus === "VERIFIED" ? "Visit verified." : result.visit.verificationStatus === "OUTSIDE_STORE_AREA" ? "You're outside the registered store area. You can try again or leave this visit for review." : "Location captured. This visit is available for review.";
-      Alert.alert("Check-in recorded", message);
-    } catch { Alert.alert("Couldn't check in", "Try again when you're online."); }
+      setActiveRetailer(retailer.id);
+      navigation.navigate("RepCatalog", { retailerId: retailer.id, retailerName: retailer.name, visitId: result.visit.id });
+    } catch (error) {
+      if (error instanceof Error && error.message === "visit_already_open") void load().catch(() => undefined);
+      Alert.alert("Couldn't check in", t(checkInErrorKey(error)));
+    } finally {
+      checkInPending.current = false;
+      setCheckingIn(false);
+    }
   };
 
-  const checkOut = async () => {
-    if (!activeVisit) return;
-    const reading = await captureForegroundLocation();
-    if (reading.kind !== "captured") return Alert.alert("Location needed", "Allow location while using the app to check out.");
-    try { const result = await repApi.checkOut(activeVisit.id, reading); setActiveVisit(result.visit); Alert.alert("Checked out", "Your visit time has been recorded."); } catch { Alert.alert("Couldn't check out", "Try again when you're online."); }
+  const openVisit = (visit: any) =>
+    navigation.navigate("Visit", {
+      visitId: visit.id,
+      retailerId: retailer.id,
+      retailerName: retailer.name,
+    });
+
+  const resumeActiveVisitElsewhere = () => {
+    if (!activeVisitElsewhere) return;
+    navigation.navigate("Visit", {
+      visitId: activeVisitElsewhere.id,
+      retailerId: activeVisitElsewhere.retailerId,
+      retailerName: activeVisitElsewhere.retailer?.name ?? t("retailer.title"),
+    });
   };
+
+  const openMaps = () => {
+    if (location?.latitude == null || location?.longitude == null) {
+      return Alert.alert("No saved location", "Capture the store location first.");
+    }
+    const { latitude, longitude } = location;
+    Linking.openURL(
+      `geo:${latitude},${longitude}?q=${latitude},${longitude}(${encodeURIComponent(retailer.name)})`
+    ).catch(() => Linking.openURL(`https://maps.google.com/?q=${latitude},${longitude}`));
+  };
+
+  const locationLabel =
+    location?.status === "VERIFIED"
+      ? "Location verified"
+      : location?.status === "CAPTURED"
+        ? "Location captured"
+        : location?.status === "NEEDS_REVIEW"
+          ? "Location needs review"
+          : "Location needed";
 
   return (
-    <View style={styles.screen}>
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120 }}>
+    <AppScreen>
+      <KeyboardSafeScrollView contentContainerStyle={[styles.content, { paddingBottom: 140 + insets.bottom }]}>
         <View style={styles.head}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {retailer.name
-                .split(" ")
-                .map((p: string) => p[0])
-                .slice(0, 2)
-                .join("")}
-            </Text>
-          </View>
+          <InitialsBadge name={retailer.name} size={56} tone={credit.overdue > 0 ? "danger" : "green"} />
           <View style={{ flex: 1 }}>
             <Text style={styles.name}>{retailer.name}</Text>
-            <Text style={styles.sub}>{retailer.shopAddress}</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.callBtn}
-            onPress={() => Linking.openURL(`tel:${retailer.phone}`)}
-          >
-            <Ionicons name="call" size={17} color={colors.onDark} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.editBtn}
-            onPress={() => navigation.navigate("EditRetailer", { retailerId: retailer.id })}
-          >
-            <Ionicons name="create-outline" size={17} color={colors.green} />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.kycCard}>
-          <View style={styles.between}>
-            <View><Text style={styles.creditTitle}>{t("retailer.kycVerification")}</Text><Text style={styles.rowSub}>{kyc?.status ? `Case ${kyc.status.replace("_", " ")}` : t("common.retry")}</Text></View>
-            <StatusPill status={kyc?.status === "approved" ? "active" : "pending"} />
-          </View>
-          {kyc?.status !== "approved" ? <><Text style={styles.warnText}>{t("kyc.title")}</Text><TouchableOpacity style={styles.kycButton} onPress={() => void startKyc()}><Text style={styles.kycButtonText}>{kyc ? t("retailer.continueKyc") : t("retailer.startKyc")}</Text></TouchableOpacity></> : <Text style={styles.successText}>{t("retailer.documentsApproved")}</Text>}
-        </View>
-
-        <View style={styles.locationCard}>
-          <View style={styles.between}>
-            <View><Text style={styles.creditTitle}>{t("retailer.storeLocation")}</Text><Text style={styles.rowSub}>{location?.status === "VERIFIED" ? "✓ Verified" : location?.status === "CAPTURED" ? "Captured — verify while at the store" : location?.status === "NEEDS_REVIEW" ? "Needs review" : "Not set"}</Text></View>
-            <MaterialCommunityIcons name="map-marker-radius-outline" size={22} color={colors.green} />
-          </View>
-          <View style={styles.locationActions}>
-            {location?.status === "VERIFIED" ? <TouchableOpacity style={styles.visitButton} onPress={() => void checkIn()}><Ionicons name="locate-outline" size={16} color={colors.onDark} /><Text style={styles.visitButtonText}>{activeVisit ? t("retailer.checkIn") : t("retailer.checkIn")}</Text></TouchableOpacity> : <TouchableOpacity style={styles.locationButton} onPress={() => void captureStoreLocation(location?.status === "CAPTURED" ? "verify" : "capture")}><Text style={styles.locationButtonText}>{location?.status === "CAPTURED" ? t("retailer.verifyStore") : t("retailer.setStore")}</Text></TouchableOpacity>}
-            {activeVisit && !activeVisit.checkedOutAt ? <TouchableOpacity style={styles.locationButton} onPress={() => void checkOut()}><Text style={styles.locationButtonText}>{t("retailer.checkOut")}</Text></TouchableOpacity> : null}
-          </View>
-          {activeVisit?.verificationStatus ? <Text style={styles.rowSub}>Visit: {activeVisit.verificationStatus === "VERIFIED" ? "Verified" : activeVisit.verificationStatus === "OUTSIDE_STORE_AREA" ? "Outside store area" : "Needs review"}{activeVisit.distanceFromStoreMeters != null ? ` · ${Math.round(Number(activeVisit.distanceFromStoreMeters))} m` : ""}</Text> : null}
-        </View>
-
-        <View style={styles.creditCard}>
-          <View style={styles.between}>
-            <Text style={styles.creditTitle}>{t("retailer.creditPosition")}</Text>
-            <View style={styles.tierBadge}>
-              <MaterialCommunityIcons name="crown" size={11} color={colors.gold} />
-              <Text style={styles.tierText}>{retailer.tier}</Text>
+            <Text style={styles.address} numberOfLines={2}>
+              {retailer.shopAddress}
+            </Text>
+            <View style={styles.chips}>
+              {retailer.tier ? (
+                <StatusChip label={`${retailer.tier} retailer`} tone={retailer.tier.toLowerCase() === "gold" ? "gold" : "neutral"} />
+              ) : null}
+              {retailer.internalSegment ? (
+                <StatusChip label={`Internal segment ${retailer.internalSegment}`} tone="neutral" />
+              ) : null}
+              <StatusChip
+                label={locationLabel}
+                tone={location?.status === "VERIFIED" ? "green" : location?.status === "NEEDS_REVIEW" ? "warning" : "neutral"}
+              />
             </View>
           </View>
+        </View>
 
-          <View style={styles.creditRow}>
-            <View style={styles.creditCell}>
-              <Text style={styles.creditLabel}>{t("profile.outstanding")}</Text>
-              <Text style={styles.creditBig}>{inr(credit.outstanding)}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("retailer.openOutstandingLedger", { name: retailer.name })}
+          onPress={() => navigation.navigate("RepRetailerOutstanding", { retailerId: retailer.id, retailerName: retailer.name })}
+          style={({ pressed }) => [pressed && { opacity: 0.82 }]}
+        >
+          <Surface>
+            <View style={styles.moneyRow}>
+              <View style={styles.moneyCell}>
+                <Text style={styles.moneyLabel}>{t("profile.outstanding")}</Text>
+                <Text style={styles.moneyValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                  {inr(credit.outstanding)}
+                </Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={22} color={colors.primary} />
             </View>
-            <View style={styles.creditCell}>
-              <Text style={styles.creditLabel}>{t("profile.availableCredit")}</Text>
-              <Text style={[styles.creditBig, { color: blocked ? colors.danger : colors.green }]}>
-                {inr(credit.available)}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.track}>
-            <View
-              style={[
-                styles.fill,
-                {
-                  width: `${Math.min(100, credit.utilisationPct)}%`,
-                  backgroundColor: credit.utilisationPct >= 90 ? colors.danger : colors.green,
-                },
-              ]}
+            <EntityAttribution
+              amounts={financialSummary?.entityBalances?.outstanding}
+              overdue={financialSummary?.entityBalances?.overdue}
+              expectedOverdue={Number(credit.overdue)}
+              status={financialSummary?.entityBalances?.attributionStatus}
+              expectedTotal={Number(credit.outstanding)}
             />
-          </View>
-          <Text style={styles.limitLine}>
-            {credit.utilisationPct}% of {inr(credit.creditLimit)} limit used
-          </Text>
+          </Surface>
+        </Pressable>
 
-          {credit.overdue > 0 && (
-            <View style={styles.warn}>
-              <Ionicons name="alert-circle" size={14} color={colors.danger} />
-              <Text style={styles.warnText}>
-                {inr(credit.overdue)} is overdue — collect before taking a large order.
-              </Text>
+        {baseline ? (
+          <Surface>
+            <SectionHeader title="Store intelligence" />
+            <View style={styles.intelligenceGrid}>
+              <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Last order</Text><Text style={styles.intelligenceValue}>{baseline.lastOrderAt ? new Date(baseline.lastOrderAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "No order yet"}</Text></View>
+              <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Days since order</Text><Text style={styles.intelligenceValue}>{baseline.daysSinceLastOrder ?? "—"}</Text></View>
+              <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Average order</Text><Text style={styles.intelligenceValue}>{baseline.averageOrderValue == null ? "—" : inr(baseline.averageOrderValue)}</Text></View>
+              <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Usual cycle</Text><Text style={styles.intelligenceValue}>{baseline.medianIntervalDays == null ? "Building" : `${baseline.medianIntervalDays} days`}</Text></View>
+              <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Last visit</Text><Text style={styles.intelligenceValue}>{baseline.lastVisitAt ? new Date(baseline.lastVisitAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"}</Text></View>
+              <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Route today</Text><Text style={styles.intelligenceValue}>{todayStop ? (todayStop.status === "visited" ? "Visited" : "Planned") : "Not planned"}</Text></View>
             </View>
-          )}
-        </View>
+            <Text style={styles.intelligenceFoot}>Regular categories: {baseline.regularCategories?.length ? baseline.regularCategories.join(", ") : "Building from order history"}</Text>
+            {baseline.trend !== "unknown" ? <StatusChip label={`Recent order trend ${baseline.trend}`} tone={baseline.trend === "rising" ? "green" : baseline.trend === "falling" ? "warning" : "neutral"} /> : null}
+            {opportunities.length > 0 ? (
+              <View style={styles.attentionBox}><Text style={styles.attentionTitle}>Needs attention</Text>{opportunities.slice(0, 2).map((item) => <Text key={item.id ?? item.headline} style={styles.muted}>• {item.headline}</Text>)}</View>
+            ) : null}
+          </Surface>
+        ) : null}
 
-        <Text style={styles.sectionTitle}>{t("retailer.recentOrders")}</Text>
-        <View style={styles.card}>
+        {schemes.length > 0 ? (
+          <Surface>
+            <SectionHeader title="Schemes for this store" />
+            {schemes.map((scheme) => (
+              <View key={scheme.id} style={styles.schemeRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.lineTitle}>{scheme.name}</Text>
+                  <Text style={styles.muted}>{scheme.headline} · Benefit {inr(scheme.discountAmount)}</Text>
+                  {scheme.progressPct != null ? <Text style={styles.muted}>{inr(scheme.progress)} of {inr(scheme.targetAmount)} delivered · {scheme.progressPct}%</Text> : <Text style={styles.muted}>Progress is calculated from delivered orders.</Text>}
+                </View>
+                {scheme.remaining != null ? <StatusChip label={scheme.remaining > 0 ? `${inr(scheme.remaining)} to go` : "Unlocked"} tone={scheme.remaining > 0 ? "gold" : "green"} /> : null}
+              </View>
+            ))}
+          </Surface>
+        ) : null}
+
+        {recentOrders.length >= 3 ? (
+          <Surface>
+            <SectionHeader title="Last 6 orders" />
+            <Text style={styles.muted}>A small view of this store's recent order value.</Text>
+            <View style={styles.orderBars}>
+              {recentOrders.slice(0, 6).map((order: any) => {
+                const value = Number(order.orderTotal) || 0;
+                const max = Math.max(...recentOrders.slice(0, 6).map((item: any) => Number(item.orderTotal) || 0), 1);
+                return <View key={order.id} style={styles.orderBarRow}><Text style={styles.orderBarDate}>{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</Text><View style={styles.orderBarTrack}><View style={[styles.orderBarFill, { width: `${Math.max(5, (value / max) * 100)}%` }]} /></View><Text style={styles.orderBarValue}>{inr(value)}</Text></View>;
+              })}
+            </View>
+          </Surface>
+        ) : null}
+
+        {credit.overdue > 0 ? (
+          <FocusCard tone="danger">
+            <Text style={styles.insight}>{inr(credit.overdue)} overdue</Text>
+            <Text style={styles.insightBody}>Collect before taking a large order.</Text>
+          </FocusCard>
+        ) : lastOrder ? (
+          <Text style={styles.insightQuiet}>
+            Last order {new Date(lastOrder.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} ·{" "}
+            {inr(Number(lastOrder.orderTotal))}
+          </Text>
+        ) : null}
+
+        {activeVisitElsewhere ? (
+          <FocusCard tone="gold">
+            <Text style={styles.visitEyebrow}>{t("visit.activeVisitElsewhere")}</Text>
+            <Text style={styles.visitTime}>{activeVisitElsewhere.retailer?.name ?? t("retailer.title")}</Text>
+            <Text style={styles.muted}>{t("visit.finishBeforeAnother")}</Text>
+            <SecondaryButton label={t("visit.resumeActiveVisit")} icon="exit-outline" onPress={resumeActiveVisitElsewhere} />
+          </FocusCard>
+        ) : visiting ? (
+          <FocusCard>
+            <Text style={styles.visitEyebrow}>{t("customer.visitInProgress")}</Text>
+            <Text style={styles.visitTime}>
+              {new Date(activeVisit.checkedInAt).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}
+              {activeVisit.distanceFromStoreMeters != null
+                ? ` · ${Math.round(Number(activeVisit.distanceFromStoreMeters))} m`
+                : ""}
+            </Text>
+            <PrimaryButton label={t("customer.takeOrder")} icon="cart-outline" disabled={blocked} onPress={startOrder} />
+            <View style={styles.actions}>
+              <View style={{ flex: 1 }}>
+                {capabilities.canCollect && (Number(credit.outstanding) > 0 || Number(credit.overdue) > 0) ? (
+                  <SecondaryButton
+                    label={t("customer.collect")}
+                    icon="wallet-outline"
+                    onPress={() => navigation.navigate("Collections", { retailerId: retailer.id })}
+                  />
+                ) : <View />}
+              </View>
+              <View style={{ flex: 1 }}>
+                <SecondaryButton label={t("visit.finish")} icon="exit-outline" onPress={() => openVisit(activeVisit)} />
+              </View>
+            </View>
+            {capabilities.canLogActivity ? (
+              composing ? (
+                <ActivityComposer
+                  retailerId={retailer.id}
+                  visitId={activeVisit.id}
+                  onCancel={() => setComposing(false)}
+                  onLogged={() => {
+                    setComposing(false);
+                    void load();
+                  }}
+                />
+              ) : (
+                <TextButton label={t("customer.logActivity")} onPress={() => setComposing(true)} />
+              )
+            ) : null}
+          </FocusCard>
+        ) : (
+          <View style={{ gap: spacing.sm }}>
+            {location?.status === "VERIFIED" ? (
+              <PrimaryButton label={checkingIn ? "Checking in…" : t("retailer.checkIn")} disabled={checkingIn} icon="locate-outline" onPress={() => void checkIn()} />
+            ) : (
+              <PrimaryButton
+                label={location?.status === "CAPTURED" ? t("retailer.verifyStore") : t("retailer.setStore")}
+                icon="location-outline"
+                onPress={() => void captureStoreLocation(location?.status === "CAPTURED" ? "verify" : "capture")}
+              />
+            )}
+            <View style={styles.actions}>
+              <View style={{ flex: 1 }}>
+                <SecondaryButton label={t("customer.navigate")} icon="navigate-outline" onPress={openMaps} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <SecondaryButton
+                  label={t("customer.call")}
+                  icon="call-outline"
+                  onPress={() => Linking.openURL(`tel:${retailer.phone}`)}
+                />
+              </View>
+            </View>
+          </View>
+        )}
+
+        {kyc?.status !== "approved" ? (
+          <Surface>
+            <SectionHeader title={t("retailer.kycVerification")} />
+            <Text style={styles.muted}>{kyc?.status ? `Case ${kyc.status.replace("_", " ")}` : t("kyc.title")}</Text>
+            <TextButton
+              label={kyc ? t("retailer.continueKyc") : t("retailer.startKyc")}
+              onPress={() => void startKyc()}
+            />
+          </Surface>
+        ) : null}
+
+        {staff?.permissions.includes("survey.respond") ? (
+          <Surface level={1}>
+            <SectionHeader title="Market survey" />
+            <Text style={styles.muted}>Capture this store's current view while you are here.</Text>
+            <TextButton
+              label="Open store surveys"
+              onPress={() => navigation.navigate("MarketSurveys", { retailerId: retailer.id, retailerName: retailer.name })}
+            />
+          </Surface>
+        ) : null}
+
+        {capabilities.canLogActivity ? (
+          <View>
+            <SectionHeader
+              title={t("customer.activityTimeline")}
+              action={
+                capabilities.canRaiseIssues ? (
+                  <TextButton
+                    label={t("customer.raiseIssue")}
+                    onPress={() =>
+                      navigation.navigate("Issues", { retailerId: retailer.id, retailerName: retailer.name })
+                    }
+                  />
+                ) : undefined
+              }
+            />
+            {activities.length === 0 ? (
+              <Text style={styles.muted}>{t("customer.noActivity")}</Text>
+            ) : (
+              activities.slice(0, 8).map((activity: any, index: number, list: any[]) => {
+                const event = <TimelineEvent
+                  icon="clipboard-outline"
+                  title={ACTIVITY_LABELS[activity.type] ?? activity.type}
+                  context={[activity.salesperson?.name, activity.notes, activity.followUpAt ? `Follow-up ${new Date(activity.followUpAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}` : null].filter(Boolean).join(" · ")}
+                  time={new Date(activity.occurredAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                  last={index === list.length - 1}
+                />;
+                return activity.orderId ? <Pressable key={activity.id} accessibilityRole="button" onPress={() => navigation.navigate("OrderDetail", { orderId: activity.orderId })}>{event}</Pressable> : <View key={activity.id}>{event}</View>;
+              })
+            )}
+            {!visiting && !activeVisitElsewhere && !composing ? (
+              <TextButton label={t("customer.logActivity")} onPress={() => setComposing(true)} />
+            ) : null}
+            {!visiting && !activeVisitElsewhere && composing ? (
+              <ActivityComposer
+                retailerId={retailer.id}
+                visitId={undefined}
+                onCancel={() => setComposing(false)}
+                onLogged={() => {
+                  setComposing(false);
+                  void load();
+                }}
+              />
+            ) : null}
+          </View>
+        ) : null}
+
+        {capabilities.canCompleteTasks ? (
+          <View>
+            <View style={styles.historyHeader}>
+              <Text style={styles.lineTitle}>{t("customer.marketingHistory")}</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ expanded: marketingHistoryExpanded }}
+                onPress={() => void toggleMarketingHistory()}
+                style={styles.historyToggle}
+              >
+                <Text style={styles.historyToggleText}>
+                  {marketingHistoryExpanded
+                    ? t("customer.closeMarketingHistory")
+                    : t("customer.openMarketingHistory")}
+                </Text>
+                <MaterialCommunityIcons
+                  name={marketingHistoryExpanded ? "chevron-up" : "chevron-down"}
+                  size={18}
+                  color={colors.primary}
+                />
+              </Pressable>
+            </View>
+            {marketingHistoryExpanded ? (
+              marketingHistoryLoading ? (
+                <Text style={styles.muted}>{t("common.loading")}</Text>
+              ) : marketingHistoryFailed ? (
+                <Text style={styles.muted}>{t("customer.marketingHistoryLoadFailed")}</Text>
+              ) : marketingHistory.length === 0 ? (
+                <Text style={styles.muted}>{t("customer.marketingHistoryEmpty")}</Text>
+              ) : (
+                marketingHistory.map((execution: any, index: number) => {
+                  const executionId = execution.task.id;
+                  const photosExpanded = expandedExecutionId === executionId;
+                  const recordedAt = execution.task.completedAt ?? execution.evidence[0]?.createdAt;
+                  return (
+                    <View key={executionId}>
+                      <TimelineEvent
+                        icon="image-multiple-outline"
+                        title={execution.task.title}
+                        context={[execution.salesperson?.name, execution.task.status.replace(/_/g, " ")].filter(Boolean).join(" · ")}
+                        time={recordedAt
+                          ? new Date(recordedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+                          : undefined}
+                        last={index === marketingHistory.length - 1}
+                      />
+                      <View style={styles.historyEvidenceAction}>
+                        <TextButton
+                          label={t(photosExpanded ? "customer.hideEvidence" : "customer.viewEvidence", { count: execution.evidence.length })}
+                          onPress={() => setExpandedExecutionId(photosExpanded ? null : executionId)}
+                        />
+                      </View>
+                      {photosExpanded ? (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.historyPhotos}>
+                          {execution.evidence.map((item: any) => item.signedUrl ? (
+                            <Image
+                              key={item.id}
+                              source={{ uri: item.signedUrl }}
+                              style={styles.historyPhoto}
+                              resizeMode="contain"
+                              accessibilityLabel={`${execution.task.title} evidence`}
+                            />
+                          ) : null)}
+                        </ScrollView>
+                      ) : null}
+                    </View>
+                  );
+                })
+              )
+            ) : null}
+          </View>
+        ) : null}
+
+        {recentVisits.length > 0 ? (
+          <View>
+            <SectionHeader title="Recent visits" />
+            {recentVisits.map((visit: any, index: number) => (
+              <TimelineEvent
+                key={visit.id}
+                icon="location-outline"
+                title={new Date(visit.checkedInAt).toLocaleDateString("en-IN", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
+                context={[
+                  visit.outcome ? visit.outcome.replace(/_/g, " ") : "In progress",
+                  visit.verificationStatus === "VERIFIED" ? "Verified" : "Needs review",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+                last={index === recentVisits.length - 1}
+              />
+            ))}
+          </View>
+        ) : null}
+
+        <View>
+          <SectionHeader title={t("retailer.recentOrders")} />
           {recentOrders.length === 0 ? (
             <Text style={styles.muted}>{t("retailer.noOrders")}</Text>
           ) : (
-            recentOrders.map((o: any, i: number) => (
-              <View
-                key={o.id}
-                style={[styles.row, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}
-              >
+            recentOrders.map((o: any, index: number) => (
+              <Pressable key={o.id} style={({ pressed }) => [styles.line, pressed && { opacity: 0.72 }]} onPress={() => navigation.navigate("OrderDetail", { orderId: o.id })} accessibilityRole="button" accessibilityLabel={`Open ${formatOrderRef(o)}`}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.rowTitle}>
-                    GGN-{String(o.orderNo).padStart(5, "0")}
+                  <Text style={styles.lineTitle}>
+                    {formatOrderRef(o)}
                     {o.placedBy === "rep" ? "  · by you" : ""}
                   </Text>
-                  <Text style={styles.rowSub}>
-                    {new Date(o.createdAt).toLocaleDateString("en-IN", {
-                      day: "numeric",
-                      month: "short",
-                    })}{" "}
-                    · {o.items.length} item{o.items.length > 1 ? "s" : ""}
+                  <Text style={styles.muted}>
+                    {new Date(o.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} · {o.items.length}{" "}
+                    item{o.items.length > 1 ? "s" : ""}
                   </Text>
+                  {o.commercialStatus?.currentLabel ? <Text style={styles.internalStatus}>{o.commercialStatus.currentLabel}</Text> : null}
                 </View>
                 <View style={{ alignItems: "flex-end", gap: 4 }}>
-                  <Text style={styles.rowValue}>{inr(Number(o.orderTotal))}</Text>
+                  <Text style={styles.lineValue}>{inr(Number(o.orderTotal))}</Text>
                   <StatusPill status={o.status} />
                 </View>
-              </View>
+              </Pressable>
             ))
           )}
         </View>
 
-        <Text style={styles.sectionTitle}>{t("retailer.recentLedger")}</Text>
-        <View style={styles.card}>
+        <View>
+          <SectionHeader title={t("retailer.recentLedger")} />
           {recentLedger.length === 0 ? (
             <Text style={styles.muted}>{t("retailer.noTransactions")}</Text>
           ) : (
-            recentLedger.map((e: any, i: number) => (
-              <View
-                key={e.id}
-                style={[styles.row, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}
-              >
+            recentLedger.map((e: any) => (
+              <View key={e.id} style={styles.line}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.rowTitle}>
-                    {LEDGER_LABELS[e.type] ?? "Ledger entry"}
+                  <Text style={styles.lineTitle}>{LEDGER_LABELS[e.type] ?? "Ledger entry"}</Text>
+                  <Text style={styles.muted}>
+                    {new Date(e.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
                   </Text>
-                  <Text style={styles.rowSub}>
-                    {new Date(e.createdAt).toLocaleDateString("en-IN", {
-                      day: "numeric",
-                      month: "short",
-                    })}
-                  </Text>
+                  <EntityAttribution
+                    amounts={e.entityBreakdown}
+                    status={e.entityBreakdown?.attributionStatus}
+                    expectedTotal={Number(e.amount)}
+                    compact
+                  />
                 </View>
                 <Text
                   style={[
-                    styles.rowValue,
+                    styles.lineValue,
                     {
-                      color:
-                        (e.direction ? e.direction === "debit" : e.type === "invoice")
-                          ? colors.danger
-                          : colors.green,
+                      color: (e.direction ? e.direction === "debit" : e.type === "invoice") ? colors.danger : colors.primary,
                     },
                   ]}
                 >
@@ -279,154 +738,86 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
             ))
           )}
         </View>
-      </ScrollView>
+      </KeyboardSafeScrollView>
 
-      <View style={styles.bar}>
-        <TouchableOpacity
-          style={[styles.orderBtn, blocked && styles.orderBtnDisabled]}
-          disabled={blocked}
-          onPress={startOrder}
-        >
-          <Ionicons name="cart-outline" size={18} color={colors.onDark} />
-          <Text style={styles.orderBtnText}>
-            {credit.available <= 0 ? "No credit available" : !kycApproved ? "KYC approval required" : "Place order for this shop"}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+      {!visiting && !activeVisitElsewhere ? (
+        <View style={[styles.bar, { paddingBottom: spacing.section + insets.bottom }]}>
+          <PrimaryButton
+            label={
+              credit.available <= 0
+                ? "No credit available"
+                : !kycApproved
+                  ? "KYC approval required"
+                  : t("orders.place")
+            }
+            icon="cart-outline"
+            disabled={blocked}
+            onPress={startOrder}
+          />
+        </View>
+      ) : null}
+    </AppScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
-  muted: { color: colors.inkMuted, fontSize: 13 },
-  between: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-
-  head: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.lg },
-  avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: radius.pill,
-    backgroundColor: colors.greenSoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: { fontSize: 16, fontWeight: "800", color: colors.green },
-  name: { fontSize: 19, fontWeight: "700", color: colors.ink },
-  sub: { fontSize: 12.5, color: colors.inkMuted, marginTop: 2 },
-  callBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.pill,
-    backgroundColor: colors.greenDeep,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  editBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.pill,
-    backgroundColor: colors.greenSoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  creditCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadow.card,
-  },
-  kycCard: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginTop: spacing.md },
-  locationCard: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginTop: spacing.md },
-  locationActions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
-  locationButton: { flex: 1, backgroundColor: colors.greenSoft, borderRadius: radius.sm, padding: spacing.md, alignItems: "center" },
-  locationButtonText: { color: colors.green, fontWeight: "700", fontSize: 12 },
-  visitButton: { flex: 1, backgroundColor: colors.greenDeep, borderRadius: radius.sm, padding: spacing.md, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6 },
-  visitButtonText: { color: colors.onDark, fontWeight: "700", fontSize: 12 },
-  kycButton: { marginTop: spacing.md, backgroundColor: colors.greenSoft, borderRadius: radius.md, padding: spacing.md, alignItems: "center" },
-  kycButtonText: { color: colors.green, fontWeight: "700" },
-  successText: { color: colors.green, fontSize: 12, marginTop: spacing.sm },
-  creditTitle: { fontSize: 14.5, fontWeight: "700", color: colors.ink },
-  tierBadge: {
+  pad: { padding: spacing.xl },
+  content: { padding: spacing.xl, gap: spacing.section, paddingBottom: 140 },
+  head: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
+  name: { fontSize: 26, fontWeight: "700", color: colors.ink, letterSpacing: -0.6 },
+  address: { fontSize: 13, color: colors.textSecondary, marginTop: 4, lineHeight: 18 },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 },
+  moneyRow: { flexDirection: "row", gap: spacing.lg },
+  moneyCell: { flex: 1 },
+  moneyLabel: { fontSize: 12, color: colors.textSecondary },
+  moneyValue: { fontSize: 24, fontWeight: "700", color: colors.ink, marginTop: 4 },
+  insight: { fontSize: 17, fontWeight: "600", color: colors.danger },
+  insightBody: { fontSize: 13, color: colors.textSecondary },
+  insightQuiet: { fontSize: 13, color: colors.textSecondary, lineHeight: 18 },
+  visitEyebrow: { fontSize: 12, fontWeight: "600", color: colors.primary, textTransform: "uppercase", letterSpacing: 0.4 },
+  visitTime: { fontSize: 15, color: colors.ink },
+  actions: { flexDirection: "row", gap: spacing.sm },
+  muted: { fontSize: 13, color: colors.textSecondary, lineHeight: 18 },
+  historyHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, flexWrap: "wrap" },
+  historyToggle: { flexDirection: "row", alignItems: "center", gap: 2, minHeight: 40 },
+  historyToggleText: { fontSize: 13, color: colors.primary, fontWeight: "600" },
+  historyEvidenceAction: { marginLeft: 46, marginTop: -spacing.sm },
+  historyPhotos: { gap: spacing.sm, paddingLeft: 46, paddingVertical: spacing.sm },
+  historyPhoto: { width: 112, height: 88, borderRadius: 4, backgroundColor: colors.track },
+  internalStatus: { fontSize: 11.5, color: colors.blueInk, fontWeight: "600", marginTop: 3 },
+  line: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
-    backgroundColor: colors.goldSoft,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: radius.pill,
+    gap: spacing.md,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.separator,
   },
-  tierText: { fontSize: 10.5, fontWeight: "800", color: "#8A6A12" },
-  creditRow: { flexDirection: "row", marginTop: spacing.lg },
-  creditCell: { flex: 1 },
-  creditLabel: { fontSize: 11.5, color: colors.inkMuted },
-  creditBig: { fontSize: 19, fontWeight: "700", color: colors.ink, marginTop: 3 },
-  track: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.track,
-    overflow: "hidden",
-    marginTop: spacing.lg,
-  },
-  fill: { height: "100%", borderRadius: 3 },
-  limitLine: { fontSize: 11.5, color: colors.inkMuted, marginTop: spacing.sm },
-  warn: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 6,
-    backgroundColor: colors.dangerSoft,
-    borderRadius: radius.sm,
-    padding: spacing.md,
-    marginTop: spacing.md,
-  },
-  warnText: { flex: 1, fontSize: 11.5, color: colors.danger, fontWeight: "600", lineHeight: 16 },
-
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.inkMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginTop: spacing.xl,
-    marginBottom: spacing.sm,
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  row: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.md },
-  rowTitle: { fontSize: 14, fontWeight: "700", color: colors.ink },
-  rowSub: { fontSize: 11.5, color: colors.inkMuted, marginTop: 2 },
-  rowValue: { fontSize: 14, fontWeight: "700", color: colors.ink },
-
+  lineTitle: { fontSize: 15, fontWeight: "700", color: colors.ink },
+  lineValue: { fontSize: 14, fontWeight: "600", color: colors.ink },
   bar: {
     position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
     backgroundColor: colors.surface,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,
-    paddingBottom: spacing.xxl,
+    paddingBottom: spacing.section,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: colors.separator,
   },
-  orderBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: colors.greenDeep,
-    borderRadius: radius.sm,
-    paddingVertical: 15,
-  },
-  orderBtnDisabled: { opacity: 0.4 },
-  orderBtnText: { color: colors.onDark, fontWeight: "700", fontSize: 15 },
+  intelligenceGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
+  intelligenceCell: { width: "46%" },
+  intelligenceValue: { fontSize: 15, fontWeight: "600", color: colors.ink, marginTop: 3 },
+  intelligenceFoot: { fontSize: 12, color: colors.textSecondary, lineHeight: 17, marginTop: spacing.md },
+  attentionBox: { marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.separator, gap: 4 },
+  attentionTitle: { fontSize: 13, fontWeight: "600", color: colors.danger },
+  orderBars: { marginTop: spacing.md, gap: spacing.sm },
+  orderBarRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  orderBarDate: { width: 42, fontSize: 11, color: colors.textSecondary },
+  orderBarTrack: { flex: 1, height: 8, borderRadius: 99, backgroundColor: colors.track, overflow: "hidden" },
+  orderBarFill: { height: "100%", borderRadius: 99, backgroundColor: colors.blue },
+  orderBarValue: { width: 64, textAlign: "right", fontSize: 11, color: colors.ink },
+  schemeRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.separator },
 });

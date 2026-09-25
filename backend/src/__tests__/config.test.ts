@@ -51,6 +51,17 @@ describe("parseEnv", () => {
     expect(env.DISABLE_JOBS).toBe(true);
   });
 
+  it("allows the staging API to host the single scheduler set", () => {
+    const env = parseEnv({
+      ...base,
+      NODE_ENV: "staging",
+      SAP_MODE: "mock",
+      STAGING_RUN_JOBS_IN_API: "true",
+    });
+
+    expect(env.STAGING_RUN_JOBS_IN_API).toBe(true);
+  });
+
   it("rejects local evidence storage in production", () => {
     expect(() =>
       parseEnv({

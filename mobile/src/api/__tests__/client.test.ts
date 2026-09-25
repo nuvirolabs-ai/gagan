@@ -20,4 +20,20 @@ describe("retailer auth API", () => {
     expect(store.save).toHaveBeenCalledWith({ accessToken: "access", refreshToken: "refresh" });
     expect(result.retailer.name).toBe("Shah Stores");
   });
+
+  it("uploads proof bytes against a specific payment through the retailer session", async () => {
+    const request = vi.fn().mockResolvedValue({ evidence: { id: "evidence-1", paymentId: "payment-1" } });
+    const api = createRetailerApi(request, { load: vi.fn(), save: vi.fn(), clear: vi.fn() });
+
+    await api.attachPaymentEvidence("payment-1", { contentType: "image/jpeg", bodyBase64: "cHJvb2Y=" });
+
+    expect(request).toHaveBeenCalledWith(
+      "/payments/payment-1/evidence",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ contentType: "image/jpeg", bodyBase64: "cHJvb2Y=" }),
+      }),
+      true
+    );
+  });
 });

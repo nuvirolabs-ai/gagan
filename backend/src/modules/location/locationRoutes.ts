@@ -4,12 +4,57 @@ import type { AuthedRequest } from "../../lib/auth";
 import type { IdentityAuthedRequest } from "../identity/sessionAuth";
 import { Permissions } from "../identity/roleCatalog";
 import { LocationServiceError, defaultLocationService, type LocationService } from "./locationService";
+import { NO_ORDER_REASONS } from "../field/fieldDomain";
+import { VISIT_OUTCOMES } from "./visitOutcome";
 
 const coordinateSchema = z.object({
   latitude: z.number().finite().min(-90).max(90),
   longitude: z.number().finite().min(-180).max(180),
   accuracyMeters: z.number().finite().positive(),
   devicePlatform: z.string().trim().max(30).optional(),
+});
+
+// Check-in and check-out carry the operational shape of the visit alongside
+// the coordinates: why the salesperson came, and what came of it.
+const checkInSchema = coordinateSchema.extend({
+  purpose: z
+    .enum(["sales_call", "collection", "service", "onboarding", "merchandising", "other"])
+    .optional(),
+});
+
+const checkOutSchema = coordinateSchema.extend({
+  outcome: z
+    .enum([
+      "order_placed",
+      "no_order",
+      "payment_collected",
+      "follow_up_required",
+      "issue_raised",
+      "shop_closed",
+      "decision_maker_unavailable",
+      "other",
+    ])
+    .optional(),
+  notes: z.string().trim().max(1000).optional(),
+  outcomes: z.array(z.enum(VISIT_OUTCOMES)).min(1).max(VISIT_OUTCOMES.length).optional(),
+  followUpAt: z
+    .string()
+    .refine((value) => !Number.isNaN(Date.parse(value)))
+    .transform((value) => new Date(value))
+    .optional(),
+  noOrderReason: z.enum(NO_ORDER_REASONS).optional(),
+}).superRefine((value, context) => {
+  if (!value.outcome && !value.outcomes?.length) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["outcomes"], message: "visit_outcome_required" });
+  }
+  if (value.outcome !== "no_order" && !value.outcomes?.includes("no_order")) return;
+  if (!value.noOrderReason) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["noOrderReason"], message: "no_order_reason_required" });
+    return;
+  }
+  if (value.noOrderReason === "other" && !value.notes?.trim()) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["notes"], message: "no_order_note_required" });
+  }
 });
 
 function permission(permissionName: string) {
@@ -88,7 +133,7 @@ export function createLocationRouter(options: {
   });
 
   router.post("/rep/retailers/:retailerId/check-in", options.staffAuthenticate, permission(Permissions.LOCATION_CAPTURE), async (req: IdentityAuthedRequest, res, next) => {
-    const parsed = coordinateSchema.safeParse(req.body);
+    const parsed = checkInSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "invalid_location_coordinates" });
     try {
       await service.assertAssignedSalesperson(req.identityAuth!.subjectId, req.params.retailerId);
@@ -97,7 +142,7 @@ export function createLocationRouter(options: {
   });
 
   router.post("/rep/visits/:visitId/check-out", options.staffAuthenticate, permission(Permissions.LOCATION_CAPTURE), async (req: IdentityAuthedRequest, res, next) => {
-    const parsed = coordinateSchema.safeParse(req.body);
+    const parsed = checkOutSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "invalid_location_coordinates" });
     try { res.json({ visit: await service.checkOut({ ...parsed.data, visitId: req.params.visitId, salespersonId: req.identityAuth!.subjectId }) }); } catch (error) { sendError(error, res, next); }
   });

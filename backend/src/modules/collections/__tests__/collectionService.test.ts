@@ -1,6 +1,7 @@
 import { randomInt, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "../../../lib/prisma";
+import { getObjectStorage } from "../../../platform/storage/storageRuntime";
 import { CollectionService } from "../collectionService";
 
 const ids = {
@@ -13,6 +14,13 @@ const ids = {
 const service = new CollectionService();
 
 beforeAll(async () => {
+  const url = new URL(process.env.DATABASE_URL ?? "");
+  if (!["localhost", "127.0.0.1"].includes(url.hostname)
+    || !url.pathname.includes("test")
+    || process.env.STORAGE_PROVIDER !== "local") {
+    throw new Error("Disposable local DB and filesystem storage required");
+  }
+
   await prisma.tier.create({
     data: { id: ids.tier, name: `collection-test-${ids.tier}`, paymentTermDays: 15 },
   });
@@ -77,6 +85,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  const evidence = await prisma.collectionEvidence.findMany({
+    where: { submission: { retailerId: ids.retailer } },
+    select: { objectKey: true },
+  });
+  await Promise.all(evidence.map(({ objectKey }) => getObjectStorage().delete(objectKey)));
   await prisma.collectionEvidence.deleteMany({ where: { submission: { retailerId: ids.retailer } } });
   await prisma.collectionSubmission.deleteMany({ where: { retailerId: ids.retailer } });
   await prisma.collectionAssignment.deleteMany({ where: { retailerId: ids.retailer } });
@@ -88,6 +101,7 @@ afterAll(async () => {
   await prisma.order.deleteMany({ where: { retailerId: ids.retailer } });
   await prisma.retailer.deleteMany({ where: { id: ids.retailer } });
   await prisma.tier.deleteMany({ where: { id: ids.tier } });
+  expect(await prisma.collectionEvidence.count({ where: { submission: { retailerId: ids.retailer } } })).toBe(0);
   await prisma.$disconnect();
 });
 
@@ -177,6 +191,6 @@ describe("field collection workflow", () => {
     expect(first.paymentId).toBe(second.paymentId);
     expect(await prisma.payment.count({ where: { id: first.paymentId } })).toBe(1);
     expect(await prisma.financialLedgerEntry.count({ where: { paymentId: first.paymentId } })).toBe(1);
-    expect(await prisma.collectionSubmission.count({ where: { status: "confirmed" } })).toBe(1);
+    expect(await prisma.collectionSubmission.count({ where: { status: "confirmed", retailerId: ids.retailer } })).toBe(1);
   });
 });

@@ -1,63 +1,85 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   RefreshControl,
   Linking,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect } from "@react-navigation/native";
-import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
+import { useFocusEffect, useScrollToTop } from "@react-navigation/native";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { api } from "../api/client";
-import { HomePayload, QuickOrderItem } from "../types/home";
+import { HomePayload, HomeProductGroup } from "../types/home";
 import { useCart } from "../context/CartContext";
-import { colors, radius, spacing, shadow, inr } from "../theme";
-import ProductThumb from "../components/ProductThumb";
-import CreditRing from "../components/CreditRing";
+import { colors, radius, spacing, inr, tabBarContentSpace } from "../theme";
+import ProductGroupCard, { type ProductGroupLike, type Sku } from "../components/ProductGroupCard";
+import HomeSkeleton from "../components/home/HomeSkeleton";
+import RetailerPromoCarousel from "../components/home/RetailerPromoCarousel";
+import AccountStrip from "../components/home/AccountStrip";
 import { useLanguage } from "../i18n/LanguageContext";
+import { formatOrderRef } from "../lib/orderRef";
+import {
+  accountModel,
+  featuredGroup,
+  formatDeliveryWhen,
+  greetingForHour,
+  groupNameForSku,
+  headerCopy,
+  reorderLines,
+} from "../lib/homePresentation";
+import { buildRetailerPromotions, promotionDestination } from "../lib/retailerPromotions";
+import { canChangeCatalogQuantity } from "../lib/catalogInteractions";
+import { homeProductPreview } from "../lib/homeProductPreview";
 
-const ORDER_STEPS = ["confirmed", "packed", "out_for_delivery", "delivered"] as const;
-const STEP_META: Record<(typeof ORDER_STEPS)[number], { label: string; icon: string }> = {
-  confirmed: { label: "Confirmed", icon: "clipboard-check-outline" },
-  packed: { label: "Packed", icon: "package-variant-closed" },
-  out_for_delivery: { label: "Out for Delivery", icon: "truck-outline" },
-  delivered: { label: "Delivered", icon: "check-circle-outline" },
+const ALL_CATEGORY = "All";
+const CATEGORY_LABELS: Record<string, string> = {
+  All: "All",
+  Pulses: "Daal",
+  Daal: "Daal",
+  Rice: "Rice",
+  Sugar: "Sugar",
+  Staples: "Staples",
+  Breakfast: "Breakfast",
 };
-
-function greeting(t: (key: string) => string): string {
-  const h = new Date().getHours();
-  if (h < 12) return t("home.goodMorning");
-  if (h < 17) return t("home.goodAfternoon");
-  return t("home.goodEvening");
-}
-
 export default function HomeScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
+  const narrow = useWindowDimensions().width < 360;
   const { lines, addLine, updateQty } = useCart();
+  const cartCount = lines.reduce((count, line) => count + line.qty, 0);
   const { t } = useLanguage();
   const [data, setData] = useState<HomePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [financeStale, setFinanceStale] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORY);
+  const dataRef = useRef<HomePayload | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  useScrollToTop(scrollRef);
+  dataRef.current = data;
+  const promotions = useMemo(() => buildRetailerPromotions(data?.productGroups ?? []), [data?.productGroups]);
 
   const load = useCallback(async () => {
     const res = await api.getHome();
     setData(res);
+    setFinanceStale(false);
   }, []);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      setLoading(true);
-      // A rejected session clears the token and bounces to Login; swallow the
-      // rejection here so it doesn't surface as an unhandled promise.
+      const hasData = dataRef.current != null;
+      if (!hasData) setLoading(true);
       load()
         .catch(() => {
-          if (!cancelled) setData(null);
+          if (!cancelled) {
+            if (!dataRef.current) setData(null);
+            else setFinanceStale(true);
+          }
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
@@ -70,682 +92,436 @@ export default function HomeScreen({ navigation }: any) {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await load().catch(() => {});
+    await load().catch(() => { setFinanceStale(true); });
     setRefreshing(false);
   };
 
   const qtyFor = (variantId: string) => lines.find((l) => l.variantId === variantId)?.qty ?? 0;
 
-  const bump = (item: QuickOrderItem, delta: number) => {
-    if (item.casePrice == null) return;
-    const current = qtyFor(item.variantId);
-    if (current === 0 && delta > 0) {
-      addLine({
-        variantId: item.variantId,
-        productName: item.name,
-        packSize: `${item.unitSize} × ${item.unitsPerCase}`,
-        unitPrice: Number(item.casePrice),
-        qty: 1,
-      });
-    } else {
-      updateQty(item.variantId, current + delta);
-    }
-  };
-
   if (loading && !data) {
-    return (
-      <View style={[styles.screen, styles.center]}>
-        <ActivityIndicator size="large" color={colors.green} />
-      </View>
-    );
+    return <HomeSkeleton top={insets.top + spacing.sm} bottomSpace={tabBarContentSpace(cartCount, insets.bottom)} />;
   }
   if (!data) {
     return (
-      <View style={[styles.screen, styles.center]}>
-        <Text style={styles.muted}>{t("errors.generic")}</Text>
-        <TouchableOpacity style={styles.retry} onPress={onRefresh}>
+      <View style={[styles.screen, styles.center, { paddingTop: insets.top }]}>
+        <Text style={styles.errorTitle}>{t("home.loadError")}</Text>
+        <Text style={styles.errorBody}>{t("errors.checkConnection")}</Text>
+        <TouchableOpacity style={styles.retry} onPress={onRefresh} accessibilityRole="button">
           <Text style={styles.retryText}>{t("common.retry")}</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  const { retailer, salesRep, credit, scheme, quickOrder, activeOrder, config, badges } = data;
-  const schemePct = scheme ? Math.min(100, (scheme.progress / scheme.targetAmount) * 100) : 0;
+  const { retailer, salesRep, scheme, activeOrder, config } = data;
+  const lastOrder = data.lastOrder ?? null;
+  const credit = data.credit;
+  const categories = data.categories ?? [];
+  const productGroups: HomeProductGroup[] = data.productGroups ?? [];
+  const visibleGroups = productGroups.filter(
+    (group) => selectedCategory === ALL_CATEGORY || group.category === selectedCategory
+  );
+  const featured = featuredGroup(visibleGroups);
+  const shelf = visibleGroups.filter((group) => group.id !== featured?.id);
+  const previewShelf = homeProductPreview(shelf);
+  // Product discovery owns the primary Home real estate. Order status is
+  // intentionally rendered as a compact secondary row below the promotions.
+  const header = headerCopy({ activeOrder: null, scheme });
+  const account = accountModel(credit, data?.financialSummary?.entityBalances);
+  const hour = new Date().getHours();
+  const arriving = formatDeliveryWhen(activeOrder?.expectedDeliveryAt);
+  const addableUsual = reorderLines(lastOrder, productGroups);
+
+  const setSkuQty = (sku: Sku, next: number) => {
+    const current = qtyFor(sku.id);
+    if (!canChangeCatalogQuantity(sku, current, next)) return;
+    if (current === 0 && next > 0) {
+      addLine({
+        variantId: sku.id,
+        productName: groupNameForSku(productGroups, sku.id),
+        packSize: sku.packDetail,
+        unitPrice: Number(sku.price),
+        qty: next,
+      });
+      return;
+    }
+    updateQty(sku.id, next);
+  };
+
+  const addLastOrder = () => {
+    addableUsual.forEach((line) => addLine(line));
+    navigation.navigate("Cart");
+  };
+
+  const openProduct = (group: ProductGroupLike) => {
+    const productId = group.skus[0]?.productId;
+    if (productId) navigation.navigate("ProductDetail", { productId });
+  };
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={styles.screen}
-      contentContainerStyle={{ paddingTop: insets.top + spacing.sm, paddingBottom: 140 }}
+      contentContainerStyle={{ paddingTop: insets.top + spacing.sm, paddingBottom: tabBarContentSpace(cartCount, insets.bottom) + 16 }}
       showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.green} />}
     >
-      {/* Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.logo}>
+        <View style={styles.brandRow}>
+          <Text style={styles.wordmark}>
             GAGA<Text style={{ color: colors.green }}>N</Text>
           </Text>
-          <Text style={styles.tagline}>NUTRITION. DELIVERED.</Text>
-        </View>
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.iconBtn} accessibilityLabel={t("profile.support")}>
-            <Ionicons name="notifications-outline" size={20} color={colors.ink} />
-            {badges.notifications > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{badges.notifications}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.iconBtn}
-            accessibilityLabel={t("profile.support")}
-            onPress={() => config.supportPhone && Linking.openURL(`tel:${config.supportPhone}`)}
-          >
-            <MaterialCommunityIcons name="headset" size={20} color={colors.ink} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Greeting + salesman */}
-      <View style={styles.greetRow}>
-        <View style={styles.greetBlock}>
-          <Text style={styles.greetSmall}>{greeting(t)}</Text>
-          <Text style={styles.greetName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-            {retailer.name} 👋
-          </Text>
-        </View>
-        {salesRep && (
-          <View style={styles.repCard}>
-            <View style={styles.repAvatar}>
-              <Text style={styles.repInitials}>
-                {salesRep.name
-                  .split(" ")
-                  .map((p) => p[0])
-                  .slice(0, 2)
-                  .join("")}
-              </Text>
-            </View>
-            <View style={styles.repText}>
-              <Text style={styles.repLabel}>{t("home.salesman")}</Text>
-              <Text style={styles.repName} numberOfLines={1}>
-                {salesRep.name}
-              </Text>
-            </View>
+          {config.supportPhone ? (
             <TouchableOpacity
-              style={styles.repCall}
-              accessibilityLabel={`Call ${salesRep.name}`}
-              onPress={() => Linking.openURL(`tel:${salesRep.phone}`)}
+              style={styles.iconBtn}
+              accessibilityLabel={t("profile.support")}
+              onPress={() => Linking.openURL(`tel:${config.supportPhone}`)}
             >
-              <Ionicons name="call" size={16} color={colors.onDark} />
+              <MaterialCommunityIcons name="headset" size={18} color={colors.ink} />
             </TouchableOpacity>
-          </View>
-        )}
+          ) : null}
+        </View>
+        <Text style={styles.greet}>{t(greetingForHour(hour))}</Text>
+        <Text
+          style={[styles.store, narrow && styles.storeNarrow]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.7}
+        >
+          {retailer.name}
+        </Text>
+        <Text style={styles.subtitle} numberOfLines={2}>
+          {header.kind === "scheme"
+            ? t("home.schemeAway", { amount: inr(scheme?.remaining ?? 0) })
+            : t(header.subtitle)}
+        </Text>
       </View>
 
-      {/* Outstanding + credit */}
-      <View style={styles.moneyRow}>
-        <View style={styles.outstandingCard}>
-          <View style={styles.rowCenter}>
-            <Text style={styles.outstandingLabel}>{t("home.outstandingAmount")}</Text>
-            <Ionicons name="information-circle-outline" size={13} color={colors.onDarkMuted} style={{ marginLeft: 4 }} />
-          </View>
-          <Text style={styles.outstandingValue}>{inr(credit.outstanding)}</Text>
-          {credit.overdue > 0 && <Text style={styles.overdue}>Overdue: {inr(credit.overdue)}</Text>}
-          <TouchableOpacity style={styles.ledgerBtn} onPress={() => navigation.navigate("Ledger")}>
-            <Text style={styles.ledgerBtnText}>{t("home.viewLedger")}</Text>
-            <Ionicons name="arrow-forward" size={15} color={colors.onDark} />
-          </TouchableOpacity>
-        </View>
+      <TouchableOpacity
+        style={styles.searchBar}
+        activeOpacity={0.85}
+        onPress={() => navigation.navigate("Products")}
+        accessibilityRole="search"
+        accessibilityLabel={t("catalog.search")}
+      >
+        <Ionicons name="search" size={17} color={colors.inkFaint} />
+        <Text style={styles.searchPlaceholder}>{t("catalog.search")}</Text>
+      </TouchableOpacity>
 
-        <View style={styles.creditCard}>
-          <View style={styles.rowBetween}>
-            <View style={{ flex: 1, paddingRight: spacing.sm }}>
-              <Text style={styles.creditLabel}>{t("home.creditLimit")}</Text>
-              <Text style={styles.creditValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                {inr(credit.creditLimit)}
-              </Text>
-            </View>
-            <CreditRing pct={credit.utilisationPct} />
-          </View>
-          <View style={styles.creditTrack}>
-            <View style={[styles.creditFill, { width: `${Math.min(100, credit.utilisationPct)}%` }]} />
-          </View>
-          <View style={styles.creditSplit}>
-            <View style={styles.creditSplitCell}>
-              <Text style={styles.creditSplitLabel}>{t("home.used")}</Text>
-              <Text style={styles.creditSplitValue}>{inr(credit.used)}</Text>
-            </View>
-            <View style={styles.creditDivider} />
-            <View style={styles.creditSplitCell}>
-              <Text style={styles.creditSplitLabel}>{t("home.available")}</Text>
-              <Text style={[styles.creditSplitValue, { color: colors.green }]}>{inr(credit.available)}</Text>
-            </View>
-          </View>
-        </View>
+      <RetailerPromoCarousel
+        promotions={promotions}
+        onPress={(promotion) => {
+          const destination = promotionDestination(promotion);
+          navigation.navigate(destination.screen, destination.params);
+        }}
+      />
+
+      {/* Account finance */}
+      <View style={styles.sectionSpace}>
+        <AccountStrip
+          account={account}
+          onPay={() => navigation.navigate("Pay")}
+          onLedger={() => navigation.navigate("Ledger")}
+        />
+        {financeStale ? <Text style={styles.financeStale}>Account totals may be out of date. Pull to refresh.</Text> : null}
       </View>
 
-      {/* Scheme banner */}
-      {scheme && (
-        <TouchableOpacity style={styles.scheme} activeOpacity={0.9}>
-          <View style={{ flex: 1 }}>
-            <View style={styles.rowCenter}>
-              <MaterialCommunityIcons name="crown" size={15} color={colors.gold} />
-              <Text style={styles.schemeTag}>{scheme.name}</Text>
-            </View>
-            <Text style={styles.schemeHeadline}>{scheme.headline}</Text>
-            <View style={styles.schemeTrack}>
-              <View style={[styles.schemeFill, { width: `${schemePct}%` }]} />
-            </View>
-            <Text style={styles.schemeFoot}>
-              {scheme.remaining > 0
-                ? `You are ${inr(scheme.remaining)} away from unlocking`
-                : `Unlocked — ${inr(scheme.discountAmount)} discount earned`}
-            </Text>
-          </View>
-          <View style={styles.schemeChevron}>
-            <Ionicons name="chevron-forward" size={18} color={colors.onDark} />
-          </View>
-        </TouchableOpacity>
-      )}
-
-      {/* Quick order */}
+      {/* Shop by category */}
       <View style={styles.sectionHead}>
-        <Text style={styles.sectionTitle}>{t("home.quickOrder")}</Text>
+        <Text style={styles.sectionTitle}>{t("home.shopByCategory")}</Text>
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipRow}
+      >
+        {[ALL_CATEGORY, ...categories].map((value) => {
+          const active = selectedCategory === value;
+          const label = value === ALL_CATEGORY ? t("home.allCategories") : CATEGORY_LABELS[value] ?? value;
+          return (
+            <TouchableOpacity
+              key={value}
+              style={[styles.chip, active && styles.chipActive]}
+              onPress={() => setSelectedCategory(value)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={label}
+            >
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      {/* Products */}
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionTitle}>
+          {selectedCategory === ALL_CATEGORY
+            ? t("home.products")
+            : CATEGORY_LABELS[selectedCategory] ?? selectedCategory}
+        </Text>
         <TouchableOpacity style={styles.rowCenter} onPress={() => navigation.navigate("Products")}>
           <Text style={styles.link}>{t("home.viewProducts")}</Text>
           <Ionicons name="arrow-forward" size={13} color={colors.green} style={{ marginLeft: 3 }} />
         </TouchableOpacity>
       </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.md }}
-      >
-        {quickOrder.map((item) => {
-          const qty = qtyFor(item.variantId);
-          return (
-            <View key={item.variantId} style={styles.productCard}>
-              <ProductThumb name={item.name} category={item.category} imageUrl={item.imageUrl} />
-              <Text style={styles.productName} numberOfLines={1}>
-                {item.name}
-              </Text>
-              <Text style={styles.productPack}>
-                {item.unitSize} × {item.unitsPerCase}
-              </Text>
-              <Text style={styles.productPrice}>
-                {item.casePrice != null ? `${inr(Number(item.casePrice))} / case` : "—"}
-              </Text>
-              {qty > 0 ? (
-                <View style={styles.stepper}>
-                  <TouchableOpacity style={styles.stepBtn} onPress={() => bump(item, -1)}>
-                    <Ionicons name="remove" size={15} color={colors.ink} />
-                  </TouchableOpacity>
-                  <Text style={styles.stepQty}>{qty}</Text>
-                  <TouchableOpacity style={styles.stepBtn} onPress={() => bump(item, 1)}>
-                    <Ionicons name="add" size={15} color={colors.ink} />
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <TouchableOpacity style={styles.addBtn} onPress={() => bump(item, 1)}>
-                  <Ionicons name="add" size={17} color={colors.onDark} />
-                </TouchableOpacity>
-              )}
-            </View>
-          );
-        })}
-      </ScrollView>
-
-      {/* Active order */}
-      <View style={styles.sectionHead}>
-        <Text style={styles.sectionTitle}>{t("home.myOrders")}</Text>
-        <TouchableOpacity style={styles.rowCenter} onPress={() => navigation.navigate("Orders")}>
-          <Text style={styles.link}>{t("home.viewOrders")}</Text>
-          <Ionicons name="arrow-forward" size={13} color={colors.green} style={{ marginLeft: 3 }} />
-        </TouchableOpacity>
+      <View style={styles.productList}>
+        {visibleGroups.length === 0 ? (
+          <Text style={styles.emptyProducts}>{t("home.noProductsInCategory")}</Text>
+        ) : (
+          <>
+            {featured ? (
+              <ProductGroupCard
+                key={featured.id}
+                group={featured}
+                qtyFor={qtyFor}
+                onChangeQty={setSkuQty}
+                onOpen={() => openProduct(featured)}
+                appearance="featured"
+              />
+            ) : null}
+            {previewShelf.map((group) => (
+              <ProductGroupCard
+                key={group.id}
+                group={group}
+                qtyFor={qtyFor}
+                onChangeQty={setSkuQty}
+                onOpen={() => openProduct(group)}
+                appearance="row"
+              />
+            ))}
+          </>
+        )}
       </View>
+
+      {/* Latest order */}
       {activeOrder ? (
         <TouchableOpacity
-          style={styles.orderCard}
-          activeOpacity={0.9}
-          onPress={() => navigation.navigate("DeliveryTracking", { orderId: activeOrder.id })}
+          style={styles.latestOrder}
+          activeOpacity={0.88}
+          onPress={() => navigation.navigate("OrderDetail", { orderId: activeOrder.id })}
+          accessibilityRole="button"
+          accessibilityLabel={`${t("home.yourOrder")} ${formatOrderRef(activeOrder)}`}
         >
-          <View style={styles.orderTop}>
-            <View style={styles.orderIcon}>
-              <MaterialCommunityIcons name="truck-outline" size={22} color={colors.onDark} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.orderId} numberOfLines={1}>
-                Order #GGN-{String(activeOrder.orderNo).padStart(5, "0")}
-              </Text>
-              <Text style={styles.orderMeta}>
-                Placed on{" "}
-                {new Date(activeOrder.createdAt).toLocaleDateString("en-IN", {
-                  day: "numeric",
-                  month: "short",
-                })}
-                {"  ·  "}
-                {new Date(activeOrder.createdAt).toLocaleTimeString("en-IN", {
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}
-              </Text>
-              {activeOrder.expectedDeliveryAt && (
-                <Text style={styles.orderMeta} numberOfLines={1}>
-                  Expected today by{" "}
-                  {new Date(activeOrder.expectedDeliveryAt).toLocaleTimeString("en-IN", {
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })}
+          <View style={styles.latestOrderCopy}>
+            <Text style={styles.latestOrderLabel}>Latest order</Text>
+            <Text style={styles.latestOrderId} numberOfLines={1}>{formatOrderRef(activeOrder)}</Text>
+            <Text style={styles.latestOrderMeta} numberOfLines={1}>
+              {arriving ? t("home.arriving", { when: arriving }) : t("home.orderOnTheWay")}
+            </Text>
+          </View>
+          <Text style={styles.latestOrderTotal}>{inr(activeOrder.orderTotal)}</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+        </TouchableOpacity>
+      ) : null}
+
+      {/* Order again */}
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionTitle}>{t("home.orderAgain")}</Text>
+      </View>
+      {lastOrder && addableUsual.length > 0 ? (
+        <View style={styles.usual}>
+          {lastOrder.items.map((item) => {
+            const live = addableUsual.find((line) => line.variantId === item.variantId);
+            if (!live) return null;
+            return (
+              <View key={item.variantId} style={styles.usualRow}>
+                <Text style={styles.usualName} numberOfLines={1}>
+                  {live.productName}
                 </Text>
-              )}
-            </View>
-            <View style={styles.orderRight}>
-              <Text style={styles.orderTotal}>{inr(activeOrder.orderTotal)}</Text>
-              <View style={styles.statusPill}>
-                <Text style={styles.statusPillText}>
-                  {STEP_META[activeOrder.status as keyof typeof STEP_META]?.label ?? "Placed"}
+                <Text style={styles.usualQty}>
+                  {t("home.cases", { count: item.qty })}
                 </Text>
               </View>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} style={{ marginTop: 2 }} />
-          </View>
-
-          <View style={styles.timeline}>
-            {ORDER_STEPS.map((step, i) => {
-              const currentIndex = ORDER_STEPS.indexOf(activeOrder.status as any);
-              const done = currentIndex >= 0 && i <= currentIndex;
-              const isCurrent = i === currentIndex;
-              return (
-                <View key={step} style={styles.timelineStep}>
-                  {i > 0 && <View style={[styles.timelineBar, done && styles.timelineBarDone]} />}
-                  <View style={[styles.timelineDot, done && styles.timelineDotDone, isCurrent && styles.timelineDotCurrent]}>
-                    <MaterialCommunityIcons
-                      name={STEP_META[step].icon as any}
-                      size={13}
-                      color={done ? colors.onDark : colors.inkFaint}
-                    />
-                  </View>
-                  <Text style={[styles.timelineLabel, isCurrent && styles.timelineLabelCurrent]} numberOfLines={1}>
-                    {STEP_META[step].label}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-        </TouchableOpacity>
+            );
+          })}
+          <TouchableOpacity
+            style={styles.usualBtn}
+            onPress={addLastOrder}
+            accessibilityRole="button"
+            accessibilityLabel={t("home.addLastOrder")}
+          >
+            <Text style={styles.usualBtnText}>{t("home.addLastOrder")}</Text>
+          </TouchableOpacity>
+        </View>
       ) : (
-        <View style={[styles.orderCard, styles.emptyOrder]}>
-          <Text style={styles.muted}>{t("home.noOrdersProgress")}</Text>
+        <View style={styles.quietEmpty}>
+          <Text style={styles.quietTitle}>{t("home.noOrderHistory")}</Text>
+          <Text style={styles.quietBody}>{t("home.noOrderHistoryBody")}</Text>
+          <TouchableOpacity onPress={() => navigation.navigate("Products")}>
+            <Text style={styles.link}>{t("home.viewProducts")}</Text>
+          </TouchableOpacity>
         </View>
       )}
 
-      {/* Action tiles */}
-      <View style={styles.tileRow}>
-        {[
-          { icon: "refresh", label: "Repeat Order", lib: Ionicons, onPress: () => navigation.navigate("Orders") },
-          { icon: "cube-outline", label: "My Orders", lib: Ionicons, onPress: () => navigation.navigate("Orders") },
-          { icon: "cash-outline", label: "Payments", lib: Ionicons, onPress: () => navigation.navigate("Ledger") },
-          { icon: "document-text-outline", label: "Ledger", lib: Ionicons, onPress: () => navigation.navigate("Ledger") },
-        ].map((t) => (
-          <TouchableOpacity key={t.label} style={styles.tile} onPress={t.onPress}>
-            <t.lib name={t.icon as any} size={20} color={colors.green} />
-            <Text style={styles.tileLabel} numberOfLines={2}>
-              {t.label}
+      {salesRep ? (
+        <View style={styles.support}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.supportLabel}>{t("home.salesman")}</Text>
+            <Text style={styles.supportName} numberOfLines={1}>
+              {salesRep.name}
             </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.supportCall}
+            accessibilityLabel={t("home.callSalesperson", { name: salesRep.name })}
+            onPress={() => Linking.openURL(`tel:${salesRep.phone}`)}
+          >
+            <Ionicons name="call" size={16} color={colors.onDark} />
+            <Text style={styles.supportCallText}>{t("home.call")}</Text>
           </TouchableOpacity>
-        ))}
-        <TouchableOpacity style={styles.offersTile} activeOpacity={0.9}>
-          <Ionicons name="chevron-forward" size={15} color={colors.onDarkMuted} style={styles.offersChevron} />
-          <Text style={styles.offersGift}>🎁</Text>
-          <View style={styles.offersText}>
-            <Text style={styles.offersTitle}>{t("home.offers")}</Text>
-            <Text style={styles.offersCount} numberOfLines={1}>
-              {badges.activeOffers} Active Offers
-            </Text>
-          </View>
-        </TouchableOpacity>
-      </View>
-
-      {/* Info strip */}
-      <View style={styles.infoStrip}>
-        <View style={styles.infoCell}>
-          <Feather name="truck" size={17} color={colors.green} />
-          <View style={styles.infoText}>
-            <Text style={styles.infoTitle}>{t("home.freeDelivery")}</Text>
-            <Text style={styles.infoSub}>On orders above {inr(config.freeDeliveryThreshold)}</Text>
-          </View>
         </View>
-        <View style={styles.infoCell}>
-          <Feather name="calendar" size={17} color={colors.green} />
-          <View style={styles.infoText}>
-            <Text style={styles.infoTitle}>{t("home.nextDelivery")}</Text>
-            <Text style={styles.infoSub}>
-              Tomorrow,{" "}
-              {new Date(Date.now() + 86400000).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-            </Text>
-          </View>
-        </View>
-        <View style={styles.infoCell}>
-          <Feather name="shopping-bag" size={17} color={colors.green} />
-          <View style={styles.infoText}>
-            <Text style={styles.infoTitle}>{t("home.minimumOrder")}</Text>
-            <Text style={styles.infoSub}>{inr(config.minOrderValue)}</Text>
-          </View>
-        </View>
-      </View>
+      ) : null}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  center: { alignItems: "center", justifyContent: "center" },
+  center: { alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.xl },
   rowCenter: { flexDirection: "row", alignItems: "center" },
-  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  muted: { color: colors.inkMuted, fontSize: 14 },
-  retry: {
-    marginTop: spacing.md,
-    backgroundColor: colors.green,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: radius.sm,
-  },
-  retryText: { color: colors.onDark, fontWeight: "700" },
 
-  header: {
+  header: { paddingHorizontal: spacing.lg, marginBottom: spacing.md },
+  brandRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.md,
   },
-  logo: { fontSize: 27, fontWeight: "700", color: colors.green, letterSpacing: 1 },
-  tagline: { fontSize: 8.5, fontWeight: "700", color: colors.gold, letterSpacing: 1.5, marginTop: 1 },
-  headerActions: { flexDirection: "row", gap: spacing.sm },
+  wordmark: { fontSize: 13, fontWeight: "800", color: colors.green, letterSpacing: 1.6 },
   iconBtn: {
-    width: 42,
-    height: 42,
+    width: 40,
+    height: 40,
     borderRadius: radius.pill,
     backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center",
-    ...shadow.card,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  badge: {
-    position: "absolute",
-    top: -2,
-    right: -2,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: colors.danger,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 4,
-    borderWidth: 2,
-    borderColor: colors.bg,
-  },
-  badgeText: { color: colors.onDark, fontSize: 10, fontWeight: "800" },
+  greet: { fontSize: 14, color: colors.inkMuted, fontWeight: "500" },
+  store: { fontSize: 26, fontWeight: "700", color: colors.ink, marginTop: 2 },
+  storeNarrow: { fontSize: 22 },
+  subtitle: { fontSize: 14, color: colors.ink, marginTop: 6, fontWeight: "500", lineHeight: 20 },
 
-  greetRow: {
+  searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: spacing.lg,
-    gap: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  greetBlock: { flex: 1 },
-  greetSmall: { fontSize: 14, color: colors.inkMuted, fontWeight: "500" },
-  greetName: { fontSize: 22, fontWeight: "700", color: colors.ink, marginTop: 2 },
-  repCard: {
-    flexDirection: "row",
-    alignItems: "center",
+    gap: spacing.sm,
     backgroundColor: colors.surface,
     borderRadius: radius.md,
-    padding: spacing.sm,
-    gap: spacing.sm,
-    width: 172,
-    ...shadow.card,
-  },
-  repAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.pill,
-    backgroundColor: colors.greenSoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  repInitials: { fontSize: 12, fontWeight: "800", color: colors.green },
-  repText: { flex: 1 },
-  repLabel: { fontSize: 10, color: colors.inkMuted, fontWeight: "500" },
-  repName: { fontSize: 13, fontWeight: "700", color: colors.ink },
-  repCall: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.pill,
-    backgroundColor: colors.greenDeep,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  moneyRow: { flexDirection: "row", paddingHorizontal: spacing.lg, gap: spacing.md, marginBottom: spacing.lg },
-  outstandingCard: {
-    flex: 1,
-    backgroundColor: colors.greenDeep,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    justifyContent: "space-between",
-  },
-  outstandingLabel: { color: colors.onDarkMuted, fontSize: 12.5, fontWeight: "500" },
-  outstandingValue: { color: colors.onDark, fontSize: 26, fontWeight: "700", marginTop: spacing.sm },
-  overdue: { color: "#F0837A", fontSize: 12.5, fontWeight: "600", marginTop: 4 },
-  ledgerBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "rgba(255,255,255,0.12)",
-    borderRadius: radius.sm,
-    paddingVertical: 11,
-    paddingHorizontal: spacing.md,
-    marginTop: spacing.lg,
-  },
-  ledgerBtnText: { color: colors.onDark, fontWeight: "700", fontSize: 13.5 },
-
-  creditCard: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    ...shadow.card,
-  },
-  creditLabel: { fontSize: 12.5, color: colors.inkMuted, fontWeight: "500" },
-  creditValue: { fontSize: 19, fontWeight: "700", color: colors.ink, marginTop: 2 },
-  creditTrack: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.track,
-    overflow: "hidden",
-    marginTop: spacing.md,
-  },
-  creditFill: { height: "100%", backgroundColor: colors.green, borderRadius: 3 },
-  creditSplit: { flexDirection: "row", alignItems: "center", marginTop: spacing.md },
-  creditSplitCell: { flex: 1 },
-  creditDivider: { width: 1, height: 26, backgroundColor: colors.border, marginHorizontal: spacing.sm },
-  creditSplitLabel: { fontSize: 11.5, color: colors.inkMuted },
-  creditSplitValue: { fontSize: 14, fontWeight: "700", color: colors.ink, marginTop: 2 },
-
-  scheme: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.cream,
+    borderWidth: 1,
+    borderColor: colors.border,
     marginHorizontal: spacing.lg,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    marginBottom: spacing.xxl,
-    gap: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    minHeight: 44,
+    marginBottom: spacing.md,
   },
-  schemeTag: { fontSize: 10.5, fontWeight: "800", color: colors.gold, letterSpacing: 0.8, marginLeft: 4 },
-  schemeHeadline: { fontSize: 17, fontWeight: "700", color: colors.ink, marginTop: 6, lineHeight: 23 },
-  schemeTrack: {
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: "rgba(0,0,0,0.10)",
-    overflow: "hidden",
-    marginTop: spacing.md,
-  },
-  schemeFill: { height: "100%", backgroundColor: colors.green, borderRadius: 3 },
-  schemeFoot: { fontSize: 12, color: colors.inkMuted, marginTop: spacing.sm, fontWeight: "500" },
-  schemeChevron: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.pill,
-    backgroundColor: colors.greenDeep,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  searchPlaceholder: { fontSize: 14, color: colors.inkFaint },
 
+  latestOrder: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.sm,
+  },
+  latestOrderCopy: { flex: 1, minWidth: 0 },
+  latestOrderLabel: { fontSize: 10.5, fontWeight: "800", color: colors.accentStrong, textTransform: "uppercase", letterSpacing: 0.6 },
+  latestOrderId: { fontSize: 14, fontWeight: "700", color: colors.ink, marginTop: 2 },
+  latestOrderMeta: { fontSize: 11.5, color: colors.inkMuted, marginTop: 1 },
+  latestOrderTotal: { fontSize: 14, fontWeight: "800", color: colors.ink, maxWidth: 88, textAlign: "right" },
+
+  sectionSpace: { marginTop: spacing.md },
   sectionHead: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
+    marginTop: spacing.sm,
   },
-  sectionTitle: { fontSize: 18, fontWeight: "700", color: colors.ink },
+  sectionTitle: { fontSize: 13, fontWeight: "700", color: colors.inkMuted, letterSpacing: 0.6, textTransform: "uppercase" },
   link: { fontSize: 13, fontWeight: "600", color: colors.green },
 
-  productCard: {
-    width: 132,
-    backgroundColor: colors.surface,
+  usual: { paddingHorizontal: spacing.lg, marginBottom: spacing.lg, gap: 8 },
+  usualRow: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: spacing.md },
+  usualName: { flex: 1, fontSize: 15, fontWeight: "600", color: colors.ink },
+  usualQty: { fontSize: 13, color: colors.inkMuted, fontWeight: "600", flexShrink: 0 },
+  usualBtn: {
+    marginTop: spacing.sm,
+    backgroundColor: colors.greenDeep,
     borderRadius: radius.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  productName: { fontSize: 14, fontWeight: "700", color: colors.ink, marginTop: spacing.md },
-  productPack: { fontSize: 11.5, color: colors.inkMuted, marginTop: 2 },
-  productPrice: { fontSize: 13.5, fontWeight: "700", color: colors.ink, marginTop: spacing.sm },
-  stepper: {
-    flexDirection: "row",
+    paddingVertical: 12,
     alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: colors.goldSoft,
-    borderRadius: radius.sm,
-    paddingHorizontal: 6,
-    paddingVertical: 5,
-    marginTop: spacing.md,
-  },
-  stepBtn: { width: 24, height: 24, alignItems: "center", justifyContent: "center" },
-  stepQty: { fontSize: 14, fontWeight: "700", color: colors.ink },
-  addBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.sm,
-    backgroundColor: colors.greenDeep,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: spacing.md,
-  },
-
-  orderCard: {
-    backgroundColor: colors.surface,
-    marginHorizontal: spacing.lg,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    marginBottom: spacing.xxl,
-    ...shadow.card,
-  },
-  emptyOrder: { alignItems: "center", paddingVertical: spacing.xxl },
-  orderTop: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
-  orderIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.sm,
-    backgroundColor: colors.greenDeep,
-    alignItems: "center",
+    minHeight: 44,
     justifyContent: "center",
   },
-  orderId: { fontSize: 14.5, fontWeight: "700", color: colors.ink },
-  orderMeta: { fontSize: 11, color: colors.inkMuted, marginTop: 2 },
-  orderRight: { alignItems: "flex-end", maxWidth: 104 },
-  orderTotal: { fontSize: 14.5, fontWeight: "700", color: colors.ink },
-  statusPill: {
-    backgroundColor: colors.greenSoft,
-    borderRadius: radius.sm,
-    paddingHorizontal: 7,
-    paddingVertical: 4,
-    marginTop: 6,
-  },
-  statusPillText: { fontSize: 9.5, fontWeight: "700", color: colors.green, textAlign: "center" },
+  usualBtnText: { color: colors.onDark, fontWeight: "700", fontSize: 14 },
 
-  timeline: { flexDirection: "row", marginTop: spacing.xl },
-  timelineStep: { flex: 1, alignItems: "center" },
-  timelineBar: {
-    position: "absolute",
-    top: 13,
-    right: "50%",
-    left: "-50%",
-    height: 2,
-    backgroundColor: colors.track,
-  },
-  timelineBarDone: { backgroundColor: colors.green },
-  timelineDot: {
-    width: 27,
-    height: 27,
+  quietEmpty: { paddingHorizontal: spacing.lg, marginBottom: spacing.lg, gap: 4 },
+  quietTitle: { fontSize: 14.5, fontWeight: "700", color: colors.ink },
+  quietBody: { fontSize: 13, color: colors.inkMuted, lineHeight: 18 },
+
+  chipRow: { paddingHorizontal: spacing.lg, gap: spacing.sm, paddingBottom: spacing.md },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    minHeight: 36,
+    justifyContent: "center",
     borderRadius: radius.pill,
-    backgroundColor: colors.surfaceAlt,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  timelineDotDone: { backgroundColor: colors.greenMid },
-  timelineDotCurrent: { backgroundColor: colors.green },
-  timelineLabel: { fontSize: 9.5, color: colors.inkMuted, marginTop: 6, fontWeight: "600" },
-  timelineLabelCurrent: { color: colors.green, fontWeight: "800" },
-
-  tileRow: {
-    flexDirection: "row",
-    paddingHorizontal: spacing.lg,
-    gap: spacing.sm,
-    marginBottom: spacing.lg,
-  },
-  tile: {
-    flex: 1,
-    aspectRatio: 0.86,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
     borderWidth: 1,
     borderColor: colors.border,
-    paddingHorizontal: 2,
+    backgroundColor: "transparent",
   },
-  tileLabel: { fontSize: 9.5, fontWeight: "600", color: colors.ink, textAlign: "center", lineHeight: 12 },
-  offersTile: {
-    flex: 1.9,
-    backgroundColor: colors.greenDeep,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  offersChevron: { position: "absolute", top: spacing.md, right: spacing.sm, zIndex: 2 },
-  offersText: { width: "78%" },
-  offersTitle: { color: colors.onDark, fontSize: 13.5, fontWeight: "700", lineHeight: 18 },
-  offersCount: { color: colors.onDarkMuted, fontSize: 10, marginTop: 4 },
-  offersGift: { position: "absolute", right: -6, bottom: -8, fontSize: 44, opacity: 0.9 },
+  chipActive: { backgroundColor: colors.greenDeep, borderColor: colors.greenDeep },
+  chipText: { fontSize: 13, fontWeight: "700", color: colors.inkMuted },
+  chipTextActive: { color: colors.onDark },
 
-  infoStrip: {
+  productList: { paddingHorizontal: spacing.lg, marginBottom: spacing.lg },
+  emptyProducts: { fontSize: 13, color: colors.inkMuted, paddingVertical: spacing.lg },
+
+
+  support: {
     flexDirection: "row",
-    backgroundColor: colors.greenSoft,
+    alignItems: "center",
     marginHorizontal: spacing.lg,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    gap: spacing.sm,
+    marginBottom: spacing.lg,
+    gap: spacing.md,
   },
-  infoCell: { flex: 1, flexDirection: "row", alignItems: "flex-start", gap: 5 },
-  infoText: { flex: 1 },
-  infoTitle: { fontSize: 10, fontWeight: "700", color: colors.ink },
-  infoSub: { fontSize: 9, color: colors.inkMuted, marginTop: 1, lineHeight: 12 },
+  supportLabel: { fontSize: 11, color: colors.inkMuted, fontWeight: "600" },
+  supportName: { fontSize: 15, fontWeight: "700", color: colors.ink, marginTop: 1 },
+  supportCall: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.greenDeep,
+    borderRadius: radius.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    minHeight: 40,
+  },
+  supportCallText: { color: colors.onDark, fontWeight: "700", fontSize: 13 },
+
+  errorTitle: { fontSize: 16, fontWeight: "700", color: colors.ink, textAlign: "center" },
+  errorBody: { fontSize: 13.5, color: colors.inkMuted, marginTop: 6, textAlign: "center" },
+  financeStale: { marginHorizontal: spacing.lg, color: colors.inkMuted, fontSize: 12, marginBottom: spacing.sm },
+  retry: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.green,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: radius.sm,
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  retryText: { color: colors.onDark, fontWeight: "700" },
 });

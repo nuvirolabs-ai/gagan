@@ -3,8 +3,12 @@ import {
   repApi,
   staffSessionStore,
   setRepUnauthorizedHandler,
+  setRepAccount,
 } from "../api/repClient";
 import { CartLine } from "../types";
+import { isAuthenticationFailure } from "../auth/sessionFetch";
+import { isRecoverableOtpError } from "../auth/otpErrors";
+import { staffIdentityCache } from "../auth/identityCache";
 import { useLanguage } from "../i18n/LanguageContext";
 
 interface Rep {
@@ -26,7 +30,7 @@ interface RepContextValue {
   staff: StaffIdentity | null;
   loading: boolean;
   login: (phone: string, otp: string) => Promise<void>;
-  requestOtp: (phone: string) => Promise<void>;
+  requestOtp: (phone: string) => Promise<string>;
   logout: () => Promise<void>;
 
   /** Retailer the rep is currently ordering for. */
@@ -42,6 +46,7 @@ interface RepContextValue {
 
 const RepContext = createContext<RepContextValue | undefined>(undefined);
 
+
 export function RepProvider({ children }: { children: React.ReactNode }) {
   const { beginLoginSelection, resetSelectionGate } = useLanguage();
   const [rep, setRep] = useState<Rep | null>(null);
@@ -53,8 +58,12 @@ export function RepProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setRepUnauthorizedHandler(() => {
+      void staffIdentityCache.clear();
       setRep(null);
+      setRepAccount(null);
       setStaff(null);
+      setActiveRetailerId(null);
+      setLines([]);
       resetSelectionGate();
     });
     return () => setRepUnauthorizedHandler(null);
@@ -69,12 +78,29 @@ export function RepProvider({ children }: { children: React.ReactNode }) {
       }
       try {
         const res = await repApi.me();
-        setStaff(res.staff);
+        setRepAccount(res.staff.id);
+    setStaff(res.staff);
         setRep(res.rep);
-      } catch {
-        await staffSessionStore.clear();
-        setStaff(null);
-        setRep(null);
+        await staffIdentityCache.save({ staff: res.staff, rep: res.rep ?? null });
+      } catch (error) {
+        // A salesperson opening the app in a dead zone must not be signed out:
+        // only the server rejecting the session ends it. Anything else — no
+        // signal, a 5xx — falls back to the last identity the server confirmed
+        // so the day's work can continue and sync later.
+        if (isAuthenticationFailure(error)) {
+          await staffSessionStore.clear();
+          await staffIdentityCache.clear();
+          setRepAccount(null);
+      setStaff(null);
+          setRep(null);
+        } else {
+          const cached = await staffIdentityCache.load();
+          if (cached) {
+            setRepAccount(cached.staff.id);
+            setStaff(cached.staff);
+            setRep(cached.rep);
+          }
+        }
       } finally {
         setLoading(false);
       }
@@ -85,22 +111,38 @@ export function RepProvider({ children }: { children: React.ReactNode }) {
     const result = await repApi.requestOtp(phone);
     if (typeof result.challengeId !== "string") throw new Error("Could not start OTP challenge");
     setChallengeId(result.challengeId);
+    return result.challengeId;
   };
 
-  const login = async (phone: string, otp: string) => {
-    if (!challengeId) throw new Error("Request a new OTP first");
-    const res = await repApi.verifyOtp(challengeId, phone, otp);
+  const acceptSession = async (res: { staff: StaffIdentity; rep: Rep | null }) => {
     setChallengeId(null);
+    setRepAccount(res.staff.id);
     setStaff(res.staff);
     setRep(res.rep);
+    await staffIdentityCache.save({ staff: res.staff, rep: res.rep ?? null });
     beginLoginSelection();
   };
 
+  const login = async (phone: string, otp: string) => {
+    setRepAccount(null);
+    const verify = async (id: string) => acceptSession(await repApi.verifyOtp(id, phone, otp));
+    try {
+      const id = challengeId ?? (await requestOtp(phone));
+      await verify(id);
+    } catch (error) {
+      if (!isRecoverableOtpError(error)) throw error;
+      await verify(await requestOtp(phone));
+    }
+  };
+
   const logout = async () => {
+    setRepAccount(null);
     try {
       await repApi.logout();
     } finally {
+      await staffIdentityCache.clear();
       setChallengeId(null);
+      setRepAccount(null);
       setStaff(null);
       setRep(null);
       resetSelectionGate();

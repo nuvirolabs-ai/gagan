@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { api, inr } from "../api";
+import { api } from "../api";
+
+const inr = (value: number) => `₹${Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 
 export default function Catalog() {
   const [products, setProducts] = useState<any[]>([]);
@@ -51,8 +53,7 @@ export default function Catalog() {
     <div>
       <h1 className="page-title">Catalog</h1>
       <p className="page-sub">
-        SKUs and tier pricing. Prices are per case; the invoice rate per kg is derived from case
-        weight.
+        Rates show their stored basis. Kilogram and case equivalents are derived from the configured pack weight. GST and freight are calculated in the commercial quote.
       </p>
 
       {error && <div className="banner error">{error}</div>}
@@ -89,15 +90,20 @@ export default function Catalog() {
                       </td>
                       <td className="small">
                         {v.unitSize} × {v.unitsPerCase}
+                        {v.sellingEntity && <div><a href="/commercial">Edit company, rate basis & GST</a></div>}
                       </td>
                       <td className="right small muted">{caseWeight} kg</td>
                       {v.prices.map((pr: any) => {
+                        const basis = pr.rateBasis ?? "case";
+                        const perKg = pr.price == null ? null : basis === "quintal" ? pr.price / 100 : caseWeight > 0 ? pr.price / caseWeight : null;
+                        const equivalent = pr.price != null && caseWeight > 0 && basis === "quintal" ? Math.round(pr.price * caseWeight) / 100 : null;
                         const cellKey = key(v.id, pr.tierId);
                         const isEditing = editing === cellKey;
                         return (
                           <td key={pr.tierId} className="right">
                             {isEditing ? (
                               <div className="row" style={{ justifyContent: "flex-end" }}>
+                                <span className="small">INR / {basis}</span>
                                 <input
                                   type="number"
                                   min={0}
@@ -123,12 +129,9 @@ export default function Catalog() {
                                   setDraft(pr.price == null ? "" : String(pr.price));
                                 }}
                               >
-                                {pr.price == null ? "Set price" : inr(pr.price)}
-                                <span className="muted small" style={{ marginLeft: 6 }}>
-                                  {pr.price != null && caseWeight > 0
-                                    ? `(${inr(pr.price / caseWeight)}/kg)`
-                                    : ""}
-                                </span>
+                                <span>{pr.price == null ? "Set price" : `${inr(pr.price)} / ${basis}`}</span>
+                                {perKg != null && <span className="muted small" style={{ display: "block" }}>{inr(perKg)} / kg</span>}
+                                {equivalent != null && <span className="muted small" style={{ display: "block" }}>{inr(equivalent)} / {caseWeight} KG case</span>}
                               </button>
                             )}
                           </td>

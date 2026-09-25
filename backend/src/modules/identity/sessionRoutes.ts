@@ -37,6 +37,7 @@ export interface SessionRouteService extends SessionAuthenticator {
 export interface RefreshCookieConfig {
   name: string;
   secure: boolean;
+  sameSite?: "strict" | "lax" | "none";
   path?: string;
   csrfHeader?: { name: string; value: string };
 }
@@ -55,7 +56,7 @@ function refreshCookieOptions(config: RefreshCookieConfig): CookieOptions {
   return {
     httpOnly: true,
     secure: config.secure,
-    sameSite: "strict",
+    sameSite: config.sameSite ?? "strict",
     path: config.path ?? "/",
     maxAge: REFRESH_COOKIE_MAX_AGE_MS,
   };

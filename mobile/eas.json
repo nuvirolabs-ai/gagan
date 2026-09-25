@@ -1,0 +1,25 @@
+{
+  "build": {
+    "staging": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://gagan-srat.onrender.com"
+      }
+    },
+    "staging-hosted-review": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://gagan-srat.onrender.com",
+        "GAGAN_HOSTED_REVIEW": "1",
+        "GAGAN_REVIEW_VERSION_NAME": "1.0.16",
+        "GAGAN_REVIEW_VERSION_CODE": "17"
+      }
+    }
+  }
+}

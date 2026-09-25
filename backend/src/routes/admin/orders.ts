@@ -1,16 +1,18 @@
 import { Router } from "express";
 import { z } from "zod";
-import { OrderStatus } from "@prisma/client";
+import { CommercialStatusCode, OrderStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
-import { requireAdmin } from "../../lib/adminAuth";
+import { AdminRequest, requireAdmin } from "../../lib/adminAuth";
 import {
   createInvoiceForDelivery,
   InvoiceCreationError,
 } from "../../modules/invoicing/invoiceService";
 import { ensureKycApprovedForDispatch, KycGateError } from "../../modules/kyc/kycGate";
+import { attributeOrders } from "../../modules/orders/orderAttribution";
 
 const router = Router();
 router.use(requireAdmin);
+class OrderTransitionConflict extends Error {}
 
 // Orders move forward only, one step at a time. Anything else is a bad request
 // rather than a silent no-op, so a double-clicked button can't skip a stage.
@@ -33,7 +35,21 @@ const orderInclude = {
   retailer: { select: { id: true, name: true, phone: true, shopAddress: true } },
   items: { include: { variant: { include: { product: true } } } },
   delivery: true,
+  commercialStatusEvents: {
+    where: { code: CommercialStatusCode.SALES_ORDER_PUNCHED },
+    select: { code: true, actorStaff: { select: { name: true } } },
+  },
 } as const;
+
+// Prisma's financial ledger sequence is a BigInt. Keep the API response
+// JSON-safe without changing the stored value or the financial calculation.
+function jsonSafe<T>(value: T): T {
+  return JSON.parse(
+    JSON.stringify(value, (_key, nested) =>
+      typeof nested === "bigint" ? nested.toString() : nested
+    )
+  ) as T;
+}
 
 router.get("/orders", async (req, res) => {
   const status = typeof req.query.status === "string" ? req.query.status : undefined;
@@ -45,17 +61,24 @@ router.get("/orders", async (req, res) => {
     orderBy: { createdAt: "desc" },
     take: 200,
   });
-  res.json({ orders });
+  res.json({ orders: await attributeOrders(orders) });
 });
 
 router.get("/orders/:id", async (req, res) => {
   const order = await prisma.order.findUnique({ where: { id: req.params.id }, include: orderInclude });
   if (!order) return res.status(404).json({ error: "Order not found" });
-  res.json({ order });
+  const [attributedOrder] = await attributeOrders([order]);
+  res.json({ order: attributedOrder });
 });
 
 /** Generic forward transition used by approve / reject / pack. */
-async function transition(orderId: string, to: OrderStatus, res: any) {
+export async function transitionOrder(
+  orderId: string,
+  to: OrderStatus,
+  res: any,
+  actorStaffId: string | null,
+  projectOrder: (order: any) => unknown = (order) => order
+) {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) return res.status(404).json({ error: "Order not found" });
 
@@ -70,24 +93,39 @@ async function transition(orderId: string, to: OrderStatus, res: any) {
     if (!authorization) return res.status(409).json({ error: "dispatch_authorization_required" });
   }
 
-  const updated = await prisma.order.update({
-    where: { id: orderId },
-    data: { status: to },
-    include: orderInclude,
+  const updated = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.order.updateMany({
+      where: { id: orderId, status: order.status },
+      data: { status: to },
+    });
+    if(claimed.count!==1) return null;
+    const next=await tx.order.findUniqueOrThrow({where:{id:orderId},include:orderInclude});
+    await tx.auditEvent.create({
+      data: {
+        actorStaffId,
+        action: `order.${to}`,
+        subjectType: "order",
+        subjectId: orderId,
+        metadata: { from: order.status, to },
+      },
+    });
+    return next;
   });
-  res.json({ order: updated });
+  if(!updated) return res.status(409).json({error:"order_transition_conflict"});
+  const [attributedOrder] = await attributeOrders([updated]);
+  res.json({ order: projectOrder(attributedOrder) });
 }
 
-router.post("/orders/:id/approve", (req, res) => transition(req.params.id, "confirmed", res));
-router.post("/orders/:id/reject", (req, res) => transition(req.params.id, "rejected", res));
-router.post("/orders/:id/pack", (req, res) => transition(req.params.id, "packed", res));
+router.post("/orders/:id/approve", (req: AdminRequest, res) => transitionOrder(req.params.id, "confirmed", res, req.staffAuth?.staffId ?? null));
+router.post("/orders/:id/reject", (req: AdminRequest, res) => transitionOrder(req.params.id, "rejected", res, req.staffAuth?.staffId ?? null));
+router.post("/orders/:id/pack", (req: AdminRequest, res) => transitionOrder(req.params.id, "packed", res, req.staffAuth?.staffId ?? null));
 
 const assignSchema = z.object({
   routeId: z.string().min(1),
   deliverySlot: z.string().datetime().optional(),
 });
 
-router.post("/dispatch/:orderId/assign", async (req, res) => {
+router.post("/dispatch/:orderId/assign", async (req: AdminRequest, res) => {
   const parsed = assignSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
 
@@ -116,21 +154,37 @@ router.post("/dispatch/:orderId/assign", async (req, res) => {
       data: { status: "used", usedAt: new Date() },
     });
     if (consumed.count !== 1) return null;
+    const claimed=await tx.order.updateMany({
+      where:{id:order.id,status:order.status},
+      data:{status:"out_for_delivery",expectedDeliveryAt:slot??order.expectedDeliveryAt},
+    });
+    // Throw rather than return: failed state ownership must roll back consumed authorization.
+    if(claimed.count!==1) throw new OrderTransitionConflict("order_transition_conflict");
     await tx.delivery.upsert({
       where: { orderId: order.id },
       update: { routeId: parsed.data.routeId, deliverySlot: slot },
       create: { orderId: order.id, routeId: parsed.data.routeId, deliverySlot: slot },
     });
-    return tx.order.update({
+    const next = await tx.order.findUniqueOrThrow({
       where: { id: order.id },
-      data: { status: "out_for_delivery", expectedDeliveryAt: slot ?? order.expectedDeliveryAt },
       include: orderInclude,
     });
-  });
+    await tx.auditEvent.create({
+      data: {
+        actorStaffId: req.staffAuth?.staffId ?? null,
+        action: "dispatch.assigned",
+        subjectType: "order",
+        subjectId: order.id,
+        metadata: { from:order.status,to:"out_for_delivery",routeId: parsed.data.routeId, authorizationId: authorization.id },
+      },
+    });
+    return next;
+  }).catch(error=>{if(error instanceof OrderTransitionConflict) return null;throw error;});
 
   if (!updated) return res.status(409).json({ error: "dispatch_authorization_expired" });
 
-  res.json({ order: updated });
+  const [attributedOrder] = await attributeOrders([updated]);
+  res.json({ order: attributedOrder });
 });
 
 const podSchema = z.object({
@@ -152,7 +206,7 @@ const podSchema = z.object({
  * entry and moves the retailer's balance. All of it in one transaction so a
  * failure can't leave an invoice without a balance change, or vice versa.
  */
-router.post("/dispatch/:orderId/pod", async (req, res) => {
+router.post("/dispatch/:orderId/pod", async (req: AdminRequest, res) => {
   const parsed = podSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
@@ -200,6 +254,7 @@ router.post("/dispatch/:orderId/pod", async (req, res) => {
         deliveredWeightKg: item.weightDeliveredKg,
       })),
       proof: { podType: parsed.data.podType, capturedAt: occurredAt },
+      ...(req.staffAuth?.staffId ? { actorStaffId: req.staffAuth.staffId } : {}),
     });
     const updated = await prisma.order.findUniqueOrThrow({
       where: { id: order.id },
@@ -207,8 +262,8 @@ router.post("/dispatch/:orderId/pod", async (req, res) => {
     });
     res.json({
       order: updated,
-      invoice,
-      ledgerEntry: invoice.legacyLedgerEntry,
+      invoice: jsonSafe(invoice),
+      ledgerEntry: jsonSafe(invoice.legacyLedgerEntry),
       balanceAfter: Number(invoice.ledgerEntry?.balanceAfter ?? 0),
     });
   } catch (error) {

@@ -1,0 +1,10 @@
+ios
+android
+*.apk
+*.keystore
+*.jks
+.node
+.expo
+.env
+.env.*
+.env.local

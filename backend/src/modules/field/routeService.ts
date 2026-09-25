@@ -1,0 +1,352 @@
+import type { Prisma, PrismaClient } from "@prisma/client";
+import { prisma as defaultPrisma } from "../../lib/prisma";
+import { FieldServiceError } from "./attendanceService";
+import { isWithinScope, nextStop, routeProgress, startOfDay } from "./fieldDomain";
+
+type Db = PrismaClient | any;
+
+const STOP_RETAILER_SELECT = {
+  id: true,
+  name: true,
+  phone: true,
+  shopAddress: true,
+  location: {
+    select: { latitude: true, longitude: true, status: true, accuracyMeters: true },
+  },
+} as const;
+
+export interface PublicRouteStop {
+  id: string;
+  sequence: number;
+  status: "pending" | "visited" | "skipped";
+  purpose: string;
+  note: string | null;
+  skipReason: string | null;
+  visitedAt: Date | null;
+  retailer: {
+    id: string;
+    name: string;
+    phone: string;
+    shopAddress: string;
+    latitude: number | null;
+    longitude: number | null;
+    locationStatus: string;
+  };
+}
+
+function publicStop(stop: any): PublicRouteStop {
+  return {
+    id: stop.id,
+    sequence: stop.sequence,
+    status: stop.status,
+    purpose: stop.purpose,
+    note: stop.note,
+    skipReason: stop.skipReason,
+    visitedAt: stop.visitedAt,
+    retailer: {
+      id: stop.retailer.id,
+      name: stop.retailer.name,
+      phone: stop.retailer.phone,
+      shopAddress: stop.retailer.shopAddress,
+      latitude: stop.retailer.location?.latitude == null ? null : Number(stop.retailer.location.latitude),
+      longitude: stop.retailer.location?.longitude == null ? null : Number(stop.retailer.location.longitude),
+      locationStatus: stop.retailer.location?.status ?? "NOT_SET",
+    },
+  };
+}
+
+/**
+ * Day planning. A route plan schedules retailers that are *already* assigned
+ * to the salesperson through `Retailer.salesRepId` — it is a schedule, not a
+ * second assignment system, and publishing one never changes who owns a store.
+ */
+export class RouteService {
+  constructor(private readonly prisma: Db = defaultPrisma) {}
+
+  /**
+   * Route progress for a whole team on one date, in one query.
+   *
+   * The per-person `routeForDate` is right for a salesperson opening their own
+   * day; a manager's dashboard calling it in a loop is 300 queries for a
+   * national head. This returns just the progress numbers a team view renders,
+   * keyed by salesperson, so team size changes the row count and not the query
+   * count.
+   */
+  async routeProgressForDate(salespersonIds: string[], date: Date) {
+    const progressByStaff = new Map<string, { completionPct: number; visited: number; total: number }>();
+    if (salespersonIds.length === 0) return progressByStaff;
+
+    const plans = await this.prisma.routePlan.findMany({
+      where: { salespersonId: { in: salespersonIds }, planDate: startOfDay(date) },
+      include: { stops: { orderBy: { sequence: "asc" }, include: { retailer: { select: STOP_RETAILER_SELECT } } } },
+    });
+    for (const plan of plans as any[]) {
+      const progress = routeProgress(plan.stops.map(publicStop));
+      progressByStaff.set(plan.salespersonId, {
+        completionPct: progress.completionPct,
+        visited: progress.visited,
+        total: progress.total,
+      });
+    }
+    return progressByStaff;
+  }
+
+  async routeForDate(salespersonId: string, date: Date) {
+    const plan = await this.prisma.routePlan.findUnique({
+      where: { salespersonId_planDate: { salespersonId, planDate: startOfDay(date) } },
+      include: {
+        stops: {
+          orderBy: { sequence: "asc" },
+          include: { retailer: { select: STOP_RETAILER_SELECT } },
+        },
+      },
+    });
+    if (!plan) return null;
+    const stops: PublicRouteStop[] = plan.stops.map(publicStop);
+    return {
+      id: plan.id,
+      planDate: plan.planDate,
+      name: plan.name,
+      status: plan.status,
+      publishedAt: plan.publishedAt,
+      completedAt: plan.completedAt,
+      stops,
+      progress: routeProgress(stops),
+      nextStop: nextStop(stops),
+    };
+  }
+
+  async routeHistory(salespersonId: string, from: Date, to: Date) {
+    const plans = await this.prisma.routePlan.findMany({
+      where: { salespersonId, planDate: { gte: startOfDay(from), lte: startOfDay(to) } },
+      include: { stops: { select: { status: true, sequence: true } } },
+      orderBy: { planDate: "desc" },
+    });
+    return plans.map((plan: any) => ({
+      id: plan.id,
+      planDate: plan.planDate,
+      name: plan.name,
+      status: plan.status,
+      progress: routeProgress(plan.stops),
+    }));
+  }
+
+  async skipStop(input: { stopId: string; salespersonId: string; reason: string }) {
+    if (!input.reason.trim()) throw new FieldServiceError("skip_reason_required", 400);
+    const owner = await this.prisma.routePlanStop.findUnique({
+      where: { id: input.stopId },
+      select: { routePlan: { select: { salespersonId: true } } },
+    });
+    if (!owner || owner.routePlan.salespersonId !== input.salespersonId) throw new FieldServiceError("route_stop_not_found", 404);
+    return this.prisma.$transaction(async (tx: Db) => {
+      // Match upsertPlan's lock order. The pre-read is only for selecting the
+      // lock owner; the stop and its current state are checked again below.
+      await tx.$queryRaw`SELECT "id" FROM "StaffUser" WHERE "id" = ${input.salespersonId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT "id" FROM "RoutePlanStop" WHERE "id" = ${input.stopId} FOR UPDATE`;
+      const stop = await tx.routePlanStop.findUnique({
+        where: { id: input.stopId },
+        include: { routePlan: { select: { salespersonId: true } }, visits: { where: { checkedOutAt: null }, select: { id: true } } },
+      });
+      if (!stop || stop.routePlan.salespersonId !== input.salespersonId) throw new FieldServiceError("route_stop_not_found", 404);
+      if (stop.status !== "pending") throw new FieldServiceError("route_stop_already_settled", 409);
+      if (stop.visits?.length) throw new FieldServiceError("route_stop_visit_active", 409);
+      return tx.routePlanStop.update({
+        where: { id: stop.id },
+        data: { status: "skipped", skipReason: input.reason.trim() },
+      });
+    });
+  }
+
+  /**
+   * Link a planned stop at check-in without counting it as visited. Route
+   * progress is earned only by the explicit, successful visit checkout.
+   */
+  async linkVisitToPlannedStop(input: {
+    visitId: string;
+    salespersonId: string;
+    retailerId: string;
+    at?: Date;
+  }, transaction?: Prisma.TransactionClient) {
+    const at = input.at ?? new Date();
+    const link = async (tx: Prisma.TransactionClient) => {
+    const visit = await tx.salesVisit.findUnique({ where: { id: input.visitId } });
+    if (!visit || visit.salespersonId !== input.salespersonId || visit.retailerId !== input.retailerId) {
+      throw new FieldServiceError("visit_not_found", 404);
+    }
+    if (visit.routeStopId) return null;
+    const stop = await tx.routePlanStop.findFirst({
+      where: {
+        retailerId: input.retailerId,
+        status: "pending",
+        visits: { none: {} },
+        routePlan: {
+          salespersonId: input.salespersonId,
+          planDate: startOfDay(at),
+          status: { in: ["draft", "published"] },
+        },
+      },
+      orderBy: { sequence: "asc" },
+    });
+    if (!stop) return null;
+      await tx.$queryRaw`SELECT "id" FROM "RoutePlanStop" WHERE "id" = ${stop.id} FOR UPDATE`;
+      const current = await tx.routePlanStop.findUnique({
+        where: { id: stop.id },
+        include: { visits: { select: { id: true } } },
+      });
+      if (!current || current.status !== "pending" || current.visits.length) return null;
+      await tx.salesVisit.update({
+        where: { id: input.visitId },
+        data: { routeStopId: stop.id, purpose: stop.purpose },
+      });
+    return stop;
+    };
+    return transaction ? link(transaction) : this.prisma.$transaction(link);
+  }
+
+  /* ------------------------------ management ------------------------------ */
+
+  /**
+   * Create or replace one salesperson's plan for a date. Every retailer in the
+   * plan must already be assigned to that salesperson; anything else is
+   * rejected rather than silently reassigned.
+   */
+  async upsertPlan(input: {
+    salespersonId: string;
+    planDate: Date;
+    name?: string;
+    createdByStaffId: string;
+    stops: Array<{ retailerId: string; purpose?: string; note?: string }>;
+    scopeStaffIds?: string[] | null;
+  }) {
+    // Planning someone's day is a management act: it is confined to the tree.
+    if (!isWithinScope(input.salespersonId, input.scopeStaffIds)) {
+      throw new FieldServiceError("outside_reporting_scope", 403);
+    }
+    const planDate = startOfDay(input.planDate);
+    if (input.stops.length === 0) throw new FieldServiceError("route_requires_stops", 400);
+
+    const retailerIds = input.stops.map((stop) => stop.retailerId);
+    if (new Set(retailerIds).size !== retailerIds.length) {
+      throw new FieldServiceError("route_stop_duplicated", 400);
+    }
+
+    const staff = await this.prisma.staffUser.findUnique({
+      where: { id: input.salespersonId },
+      select: { salesRepId: true, status: true },
+    });
+    if (!staff?.salesRepId || staff.status !== "active") {
+      throw new FieldServiceError("salesperson_not_available", 404);
+    }
+
+    const assigned = await this.prisma.retailer.findMany({
+      where: { id: { in: retailerIds }, salesRepId: staff.salesRepId },
+      select: { id: true },
+    });
+    if (assigned.length !== retailerIds.length) {
+      throw new FieldServiceError("retailer_not_assigned_to_salesperson", 422, {
+        unassigned: retailerIds.filter(
+          (id) => !assigned.some((retailer: any) => retailer.id === id)
+        ),
+      });
+    }
+
+    return this.prisma.$transaction(async (tx: Db) => {
+      await tx.$queryRaw`SELECT "id" FROM "StaffUser" WHERE "id" = ${input.salespersonId} FOR UPDATE`;
+      const existing = await tx.routePlan.findUnique({
+        where: { salespersonId_planDate: { salespersonId: input.salespersonId, planDate } },
+        include: { stops: { select: { id: true, retailerId: true, status: true, visits: { where: { checkedOutAt: null }, select: { id: true } } } } },
+      });
+      if (existing?.stops.some((stop: any) => stop.status !== "pending" || stop.visits?.length)) {
+        throw new FieldServiceError("route_already_in_progress", 409);
+      }
+      const plan = await tx.routePlan.upsert({
+        where: { salespersonId_planDate: { salespersonId: input.salespersonId, planDate } },
+        create: {
+          salespersonId: input.salespersonId,
+          planDate,
+          name: input.name?.trim() || null,
+          createdByStaffId: input.createdByStaffId,
+          status: "draft",
+        },
+        update: { name: input.name?.trim() || null, status: "draft" },
+      });
+      await tx.routePlanStop.deleteMany({ where: { routePlanId: plan.id } });
+      await tx.routePlanStop.createMany({
+        data: input.stops.map((stop, index) => ({
+          routePlanId: plan.id,
+          retailerId: stop.retailerId,
+          sequence: index + 1,
+          purpose: (stop.purpose as any) ?? "sales_call",
+          note: stop.note?.trim() || null,
+        })),
+      });
+      await tx.auditEvent.create({
+        data: {
+          actorStaffId: input.createdByStaffId,
+          action: "route_plan.saved",
+          subjectType: "route_plan",
+          subjectId: plan.id,
+          metadata: { salespersonId: input.salespersonId, stops: input.stops.length },
+        },
+      });
+      return plan;
+    });
+  }
+
+  async publishPlan(input: { planId: string; actorStaffId: string; scopeStaffIds?: string[] | null }) {
+    const plan = await this.prisma.routePlan.findUnique({ where: { id: input.planId } });
+    if (!plan) throw new FieldServiceError("route_plan_not_found", 404);
+    if (!isWithinScope(plan.salespersonId, input.scopeStaffIds)) {
+      throw new FieldServiceError("outside_reporting_scope", 403);
+    }
+    if (plan.status !== "draft") throw new FieldServiceError("route_plan_not_draft", 409);
+    return this.prisma.$transaction(async (tx: Db) => {
+      const published = await tx.routePlan.update({
+        where: { id: plan.id },
+        data: { status: "published", publishedAt: new Date() },
+      });
+      await tx.auditEvent.create({
+        data: {
+          actorStaffId: input.actorStaffId,
+          action: "route_plan.published",
+          subjectType: "route_plan",
+          subjectId: plan.id,
+          metadata: { salespersonId: plan.salespersonId },
+        },
+      });
+      return published;
+    });
+  }
+
+  async listPlans(filters: {
+    salespersonId?: string;
+    from?: Date;
+    to?: Date;
+    scopeStaffIds?: string[] | null;
+  }) {
+    return this.prisma.routePlan.findMany({
+      where: {
+        ...(filters.scopeStaffIds ? { salespersonId: { in: filters.scopeStaffIds } } : {}),
+        ...(filters.salespersonId ? { salespersonId: filters.salespersonId } : {}),
+        ...(filters.from || filters.to
+          ? {
+              planDate: {
+                ...(filters.from ? { gte: startOfDay(filters.from) } : {}),
+                ...(filters.to ? { lte: startOfDay(filters.to) } : {}),
+              },
+            }
+          : {}),
+      },
+      include: {
+        salesperson: { select: { id: true, name: true } },
+        stops: {
+          orderBy: { sequence: "asc" },
+          include: { retailer: { select: { id: true, name: true, shopAddress: true } } },
+        },
+      },
+      orderBy: [{ planDate: "desc" }, { createdAt: "desc" }],
+    });
+  }
+}
+
+export const defaultRouteService = new RouteService();

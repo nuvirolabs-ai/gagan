@@ -1,5 +1,6 @@
 export const Permissions = {
   ORDER_CREATE_FOR_RETAILER: "order.create_for_retailer",
+  ORDER_WAREHOUSE_PROCESS: "order.warehouse_process",
   KYC_SUBMIT: "kyc.submit",
   KYC_VIEW: "kyc.view",
   KYC_REVIEW: "kyc.review",
@@ -15,15 +16,72 @@ export const Permissions = {
   DISPATCH_EXECUTE: "dispatch.execute",
   LEGAL_DECIDE: "legal.decide",
   STAFF_MANAGE: "staff.manage",
+  DATA_IMPORT: "data.import",
   LOCATION_VIEW: "location.view",
   LOCATION_CAPTURE: "location.capture",
   LOCATION_VERIFY: "location.verify",
   VISIT_VIEW: "visit.view",
+  // Field operations. Each of these is a distinct governance boundary: doing
+  // your own day, versus reviewing somebody else's.
+  ATTENDANCE_MANAGE_SELF: "attendance.manage_self",
+  ATTENDANCE_REVIEW: "attendance.review",
+  ROUTE_EXECUTE: "route.execute",
+  ROUTE_MANAGE: "route.manage",
+  ACTIVITY_LOG: "activity.log",
+  TASK_COMPLETE: "task.complete",
+  EXPENSE_SUBMIT: "expense.submit",
+  EXPENSE_REVIEW: "expense.review",
+  ISSUE_RAISE: "issue.raise",
+  ISSUE_REVIEW: "issue.review",
+  // Customer-master governance: proposing a store is field work, admitting it
+  // to the master is not.
   RETAILER_PROPOSE: "retailer.propose",
-  RETAILER_REVIEW: "retailer.review",
+  RETAILER_PROPOSAL_REVIEW: "retailer.proposal_review",
+  SURVEY_RESPOND: "survey.respond",
+  SURVEY_MANAGE: "survey.manage",
+  SURVEY_RESPONSES_VIEW: "survey.responses_view",
+  // Reading a team's performance, as opposed to your own.
+  PERFORMANCE_VIEW_TEAM: "performance.view_team",
+  // Reporting-line administration. ORG_VIEW_ALL lifts the reporting-scope
+  // restriction on every manager surface; it is deliberately separate from the
+  // domain permissions, so holding it alone still grants no domain.
+  ORG_VIEW_ALL: "org.view_all",
+  ORG_MANAGE: "org.manage",
+  // Founder app. Deliberately not implied by platform_admin: operating the
+  // company OS is not the same privilege as reading the executive layer.
+  FOUNDER_VIEW: "founder.view",
+  FOUNDER_DECIDE: "founder.decide",
+  COMMERCIAL_STATUS_VIEW: "commercial.status.view",
+  COMMERCIAL_RATE_APPROVAL_REQUEST: "commercial.rate_approval.request",
+  COMMERCIAL_ORDER_APPROVAL_REQUEST: "commercial.order_approval.request",
+  COMMERCIAL_ORDER_HOLD_MANAGE: "commercial.order_hold.manage",
+  COMMERCIAL_ADVANCE_VIEW: "commercial.advance.view",
+  COMMERCIAL_ADVANCE_CONFIRM: "commercial.advance.confirm",
 } as const;
 
 export type PermissionName = (typeof Permissions)[keyof typeof Permissions];
+
+// The hosted Admin acceptance needs these two permissions only. Keep this
+// narrow scope separate from the global platform_admin catalog so the source
+// catalog remains authoritative for other role-sync operations.
+export const PLATFORM_ADMIN_SURVEY_PERMISSIONS = [
+  Permissions.SURVEY_MANAGE,
+  Permissions.SURVEY_RESPONSES_VIEW,
+] as const satisfies readonly PermissionName[];
+
+// Narrow additive repair for staff roles whose hosted role-permission rows
+// predate Market Surveys. This must not be confused with a full role seed.
+export const STAFF_SURVEY_RESPOND_PERMISSIONS = [
+  Permissions.SURVEY_RESPOND,
+] as const satisfies readonly PermissionName[];
+
+const FOUNDER_ONLY: PermissionName[] = [Permissions.FOUNDER_VIEW, Permissions.FOUNDER_DECIDE];
+
+function operationalPermissions(): PermissionName[] {
+  return Object.values(Permissions).filter(
+    (permission) => !FOUNDER_ONLY.includes(permission as PermissionName)
+  ) as PermissionName[];
+}
 
 export interface RoleDefinition {
   name: string;
@@ -34,23 +92,59 @@ export interface RoleDefinition {
 export const ROLE_DEFINITIONS: RoleDefinition[] = [
   {
     name: "salesperson",
-    description: "Manages assigned retailers, KYC capture and retailer orders.",
-    permissions: [Permissions.ORDER_CREATE_FOR_RETAILER, Permissions.KYC_SUBMIT, Permissions.RETAILER_PROPOSE, Permissions.RECOVERY_VIEW, Permissions.RECOVERY_UPDATE, Permissions.LOCATION_VIEW, Permissions.LOCATION_CAPTURE, Permissions.LOCATION_VERIFY, Permissions.VISIT_VIEW],
+    description: "Manages assigned retailers, KYC capture, retailer orders and their own field day.",
+    permissions: [
+      Permissions.ORDER_CREATE_FOR_RETAILER,
+      Permissions.KYC_SUBMIT,
+      Permissions.RECOVERY_VIEW,
+      Permissions.RECOVERY_UPDATE,
+      Permissions.LOCATION_VIEW,
+      Permissions.LOCATION_CAPTURE,
+      Permissions.LOCATION_VERIFY,
+      Permissions.VISIT_VIEW,
+      Permissions.ATTENDANCE_MANAGE_SELF,
+      Permissions.ROUTE_EXECUTE,
+      Permissions.ACTIVITY_LOG,
+      Permissions.TASK_COMPLETE,
+      Permissions.EXPENSE_SUBMIT,
+      Permissions.ISSUE_RAISE,
+      Permissions.RETAILER_PROPOSE,
+      Permissions.SURVEY_RESPOND,
+      Permissions.COMMERCIAL_STATUS_VIEW,
+      Permissions.COMMERCIAL_RATE_APPROVAL_REQUEST,
+      Permissions.COMMERCIAL_ORDER_APPROVAL_REQUEST,
+    ],
   },
   {
     name: "field_collector",
-    description: "Visits assigned retailers and submits collection evidence.",
-    permissions: [Permissions.COLLECTION_SUBMIT, Permissions.RECOVERY_VIEW, Permissions.RECOVERY_UPDATE, Permissions.LOCATION_VIEW, Permissions.LOCATION_CAPTURE, Permissions.LOCATION_VERIFY, Permissions.VISIT_VIEW],
+    description: "Visits assigned retailers, submits collection evidence and runs their own field day.",
+    permissions: [
+      Permissions.COLLECTION_SUBMIT,
+      Permissions.RECOVERY_VIEW,
+      Permissions.RECOVERY_UPDATE,
+      Permissions.LOCATION_VIEW,
+      Permissions.LOCATION_CAPTURE,
+      Permissions.LOCATION_VERIFY,
+      Permissions.VISIT_VIEW,
+      Permissions.ATTENDANCE_MANAGE_SELF,
+      Permissions.ROUTE_EXECUTE,
+      Permissions.ACTIVITY_LOG,
+      Permissions.TASK_COMPLETE,
+      Permissions.EXPENSE_SUBMIT,
+      Permissions.ISSUE_RAISE,
+      Permissions.RETAILER_PROPOSE,
+      Permissions.SURVEY_RESPOND,
+    ],
   },
   {
     name: "credit_team",
     description: "Operates credit recovery and approved block instructions.",
-    permissions: [Permissions.CREDIT_BLOCK, Permissions.KYC_VIEW, Permissions.KYC_REVIEW, Permissions.RETAILER_REVIEW, Permissions.RECOVERY_VIEW, Permissions.RECOVERY_UPDATE],
+    permissions: [Permissions.CREDIT_BLOCK, Permissions.KYC_VIEW, Permissions.KYC_REVIEW, Permissions.RECOVERY_VIEW, Permissions.RECOVERY_UPDATE],
   },
   {
     name: "sales_coordinator",
     description: "Approves second invoices and acts only through explicit delegation.",
-    permissions: [Permissions.APPROVAL_SECOND_INVOICE],
+    permissions: [Permissions.APPROVAL_SECOND_INVOICE, Permissions.COMMERCIAL_STATUS_VIEW],
   },
   {
     name: "credit_team_lead",
@@ -61,7 +155,6 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       Permissions.CREDIT_BLOCK,
       Permissions.KYC_VIEW,
       Permissions.KYC_REVIEW,
-      Permissions.RETAILER_REVIEW,
       Permissions.RECOVERY_VIEW,
       Permissions.RECOVERY_UPDATE,
     ],
@@ -69,7 +162,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
   {
     name: "accounts",
     description: "Confirms verified collections before financial posting.",
-    permissions: [Permissions.COLLECTION_CONFIRM, Permissions.FINANCIAL_CORRECT, Permissions.KYC_VIEW, Permissions.RECOVERY_VIEW],
+    permissions: [Permissions.COLLECTION_CONFIRM, Permissions.FINANCIAL_CORRECT, Permissions.KYC_VIEW, Permissions.RECOVERY_VIEW, Permissions.COMMERCIAL_STATUS_VIEW, Permissions.COMMERCIAL_ADVANCE_VIEW, Permissions.COMMERCIAL_ADVANCE_CONFIRM],
   },
   {
     name: "dispatch",
@@ -78,12 +171,44 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
   },
   {
     name: "founder_director",
-    description: "Decides legal, settlement and exceptional escalation outcomes.",
-    permissions: [Permissions.LEGAL_DECIDE, Permissions.RECOVERY_VIEW, Permissions.RECOVERY_UPDATE],
+    description: "Decides legal, settlement and exceptional escalation outcomes, and reads the executive layer.",
+    permissions: [
+      Permissions.LEGAL_DECIDE,
+      Permissions.RECOVERY_VIEW,
+      Permissions.RECOVERY_UPDATE,
+      // A director's remit is the whole company, not one reporting line.
+      Permissions.ORG_VIEW_ALL,
+      Permissions.FOUNDER_VIEW,
+      Permissions.FOUNDER_DECIDE,
+    ],
+  },
+  {
+    name: "field_manager",
+    description:
+      "Plans routes and tasks for a field team and reviews their attendance, leave, expenses and service issues.",
+    permissions: [
+      Permissions.ATTENDANCE_REVIEW,
+      Permissions.ROUTE_MANAGE,
+      Permissions.EXPENSE_REVIEW,
+      Permissions.ISSUE_REVIEW,
+      Permissions.VISIT_VIEW,
+      Permissions.LOCATION_VIEW,
+      Permissions.RETAILER_PROPOSAL_REVIEW,
+      Permissions.PERFORMANCE_VIEW_TEAM,
+      Permissions.SURVEY_MANAGE,
+      Permissions.SURVEY_RESPONSES_VIEW,
+      Permissions.COMMERCIAL_STATUS_VIEW,
+      Permissions.COMMERCIAL_ORDER_HOLD_MANAGE,
+    ],
   },
   {
     name: "platform_admin",
     description: "Manages staff identity, roles and delegations.",
-    permissions: Object.values(Permissions),
+    permissions: operationalPermissions(),
+  },
+  {
+    name: "warehouse_operator",
+    description: "Processes confirmed orders through the existing warehouse packing step.",
+    permissions: [Permissions.ORDER_WAREHOUSE_PROCESS],
   },
 ];

@@ -4,6 +4,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { ScreenHeader, EmptyState } from "../components/ui";
 import { repApi } from "../api/repClient";
 import { colors, inr, radius, spacing } from "../theme";
+import { SCREEN_CONTENT_BOTTOM_GAP } from "../layout/viewportPolicy";
 import { useRep } from "../context/RepContext";
 import { staffCapabilities } from "../auth/staffCapabilities";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -51,7 +52,7 @@ export default function ApprovalsScreen({ navigation }: any) {
 
   return (
     <View style={styles.screen}>
-      <ScreenHeader title={t("approvals.title")} subtitle={t("approvals.subtitle")} onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined} right={capabilities.canReviewRatings ? <TouchableOpacity onPress={() => navigation.navigate("RatingReviews")}><Text style={styles.reviewLink}>{t("approvals.ratingReviews")}</Text></TouchableOpacity> : undefined} />
+      <ScreenHeader title={t("approvals.title")} subtitle={t("approvals.subtitle")} right={capabilities.canReviewRatings ? <TouchableOpacity onPress={() => navigation.navigate("RatingReviews")}><Text style={styles.reviewLink}>{t("approvals.ratingReviews")}</Text></TouchableOpacity> : undefined} />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {loading ? <ActivityIndicator style={styles.loader} color={colors.green} /> : items.length === 0 ? (
         <EmptyState icon="check-decagram-outline" title={t("approvals.title")} body={t("approvals.subtitle")} />
@@ -81,7 +82,7 @@ export default function ApprovalsScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   loader: { marginTop: spacing.xxl },
-  list: { padding: spacing.lg, gap: spacing.md },
+  list: { padding: spacing.lg, paddingBottom: SCREEN_CONTENT_BOTTOM_GAP, gap: spacing.md },
   card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.lg },
   between: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   grow: { flex: 1 },

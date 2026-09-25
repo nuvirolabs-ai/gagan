@@ -2,6 +2,9 @@ import { Prisma } from "@prisma/client";
 import { recomputeOverdue } from "../../lib/ageing";
 import { prisma } from "../../lib/prisma";
 import { buildFifoAllocations } from "./allocationService";
+import { invoiceBalances } from "../commercial/service";
+import { CommercialStatusCode } from "@prisma/client";
+import { recordCommercialStatusEvent } from "../commercialStatus/statusService";
 
 export interface SettleSucceededPaymentInput {
   paymentId: string;
@@ -116,10 +119,19 @@ async function settleOnce(
         },
         orderBy: [{ invoiceDate: "asc" }, { createdAt: "asc" }, { id: "asc" }],
       });
-      const { allocations, unallocated } = buildFifoAllocations(
-        invoices,
-        Number(payment.amount)
-      );
+      let allocationResult;
+      if (payment.invoiceScopeId) {
+        await tx.$queryRaw`SELECT "id" FROM "Invoice" WHERE "id"=${payment.invoiceScopeId} FOR UPDATE`;
+        const {invoice,jain,padam} = await invoiceBalances(tx,payment.invoiceScopeId);
+        const a=payment.confirmedJainAmount, b=payment.confirmedPadamAmount;
+        if (invoice.retailerId!==payment.retailerId || !a || !b || a.isNegative() || b.isNegative() || !a.plus(b).eq(payment.amount) || a.gt(jain) || b.gt(padam)) throw new PaymentSettlementError("invoice_entity_allocation_invalid");
+        allocationResult={allocations:[{invoiceId:invoice.id,orderId:invoice.orderId,legacyLedgerEntryId:invoice.legacyLedgerEntryId,amount:Number(payment.amount),outstandingAfter:invoice.outstandingAmount.minus(payment.amount).toNumber()}],unallocated:0};
+      } else {
+        // Legacy settlement cannot consume any newly entity-attributed invoice.
+        if (invoices.some(i=>i.commercialSnapshot!==null)) throw new PaymentSettlementError("invoice_entity_allocation_required");
+        allocationResult=buildFifoAllocations(invoices,Number(payment.amount));
+      }
+      const {allocations,unallocated}=allocationResult;
 
       const advance = input.allowAdvanceCredit;
       if (
@@ -146,6 +158,7 @@ async function settleOnce(
             paymentId: payment.id,
             invoiceId: allocation.invoiceId,
             amount: allocation.amount,
+            ...(payment.invoiceScopeId ? {jainAmount:payment.confirmedJainAmount,padamAmount:payment.confirmedPadamAmount}:{}),
           },
         });
         await tx.invoice.update({
@@ -210,6 +223,22 @@ async function settleOnce(
         data: { currentBalance: balanceAfter },
       });
       await recomputeOverdue(tx, payment.retailerId, input.occurredAt);
+
+      // This is a presentation milestone derived from the canonical, already
+      // settled payment. It is not a second financial record or balance.
+      await recordCommercialStatusEvent(tx, {
+        code: CommercialStatusCode.ADVANCE_PAYMENT_RECEIVED,
+        retailerId: payment.retailerId,
+        actorStaffId: input.allowAdvanceCredit?.actorStaffId ?? payment.confirmedByStaffId,
+        amount: payment.amount,
+        reference: payment.confirmedReference ?? payment.providerRef,
+        metadata: {
+          paymentId: payment.id,
+          invoiceScopeId: payment.invoiceScopeId,
+          paymentStatus: "succeeded",
+        },
+        idempotencyKey: `advance-payment:${payment.id}`,
+      });
 
       return {
         paymentId: payment.id,

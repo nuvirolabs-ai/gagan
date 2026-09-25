@@ -1,0 +1,291 @@
+import type { PrismaClient } from "@prisma/client";
+import { prisma as defaultPrisma } from "../../lib/prisma";
+import { getObjectStorage } from "../../platform/storage/storageRuntime";
+import { ObjectStorageError, type ObjectStorage } from "../../platform/storage/objectStorage";
+import { FieldServiceError } from "./attendanceService";
+import { isWithinScope } from "./fieldDomain";
+
+type Db = PrismaClient | any;
+
+const OPEN_STATUSES = ["open", "in_progress"] as const;
+const TASK_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+export interface TaskEvidenceInput {
+  contentType: string;
+  bodyBase64: string;
+  checksum?: string;
+  location?: { latitude: number; longitude: number; accuracyMeters: number };
+}
+
+/**
+ * Operational tasks a salesperson is asked to do. Tasks are assigned by a
+ * manager or admin; the field app can only move its own tasks forward.
+ */
+export class TaskService {
+  constructor(
+    private readonly prisma: Db = defaultPrisma,
+    private readonly storage: () => ObjectStorage = getObjectStorage
+  ) {}
+
+  async addEvidence(input: {
+    taskId: string;
+    salespersonId: string;
+  } & TaskEvidenceInput) {
+    if (!TASK_PHOTO_TYPES.has(input.contentType)) {
+      throw new FieldServiceError("unsupported_content_type", 422);
+    }
+    const task = await this.prisma.fieldTask.findUnique({ where: { id: input.taskId } });
+    if (!task || task.assignedToStaffId !== input.salespersonId) {
+      throw new FieldServiceError("task_not_found", 404);
+    }
+    if (!task.retailerId) throw new FieldServiceError("task_retailer_required", 422);
+    if (task.status === "cancelled") throw new FieldServiceError("task_already_closed", 409);
+    if (input.location && (
+      input.location.latitude < -90 || input.location.latitude > 90 ||
+      input.location.longitude < -180 || input.location.longitude > 180 ||
+      input.location.accuracyMeters <= 0
+    )) {
+      throw new FieldServiceError("invalid_location", 400);
+    }
+
+    const body = decodeTaskPhoto(input.bodyBase64);
+    let stored;
+    try {
+      stored = await this.storage().put({
+        purpose: "task_activity_photo",
+        contentType: input.contentType,
+        body,
+        checksum: input.checksum,
+      });
+    } catch (error) {
+      if (error instanceof ObjectStorageError) throw new FieldServiceError(error.code, 422);
+      throw new FieldServiceError("task_evidence_storage_failed", 503);
+    }
+
+    try {
+      const evidence = await this.prisma.fieldTaskEvidence.create({
+        data: {
+          taskId: task.id,
+          retailerId: task.retailerId,
+          salespersonId: input.salespersonId,
+          ...stored,
+          latitude: input.location?.latitude,
+          longitude: input.location?.longitude,
+          accuracyMeters: input.location?.accuracyMeters,
+        },
+      });
+      return this.presentEvidence(evidence);
+    } catch (error) {
+      await this.storage().delete(stored.objectKey).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async evidenceForSalesperson(input: { taskId: string; salespersonId: string }) {
+    const task = await this.prisma.fieldTask.findUnique({ where: { id: input.taskId } });
+    if (!task || task.assignedToStaffId !== input.salespersonId) {
+      throw new FieldServiceError("task_not_found", 404);
+    }
+    const rows = await this.prisma.fieldTaskEvidence.findMany({
+      where: { taskId: task.id, salespersonId: input.salespersonId },
+      orderBy: { createdAt: "asc" },
+    });
+    return Promise.all(rows.map((row: any) => this.presentEvidence(row)));
+  }
+
+  async marketingHistoryForSalesperson(input: { retailerId: string; salespersonId: string }) {
+    const staff = await this.prisma.staffUser.findUnique({
+      where: { id: input.salespersonId },
+      select: { salesRepId: true },
+    });
+    if (!staff?.salesRepId) throw new FieldServiceError("retailer_not_assigned", 404);
+    const retailer = await this.prisma.retailer.findFirst({
+      where: { id: input.retailerId, salesRepId: staff.salesRepId },
+      select: { id: true },
+    });
+    if (!retailer) throw new FieldServiceError("retailer_not_assigned", 404);
+    return this.marketingHistory({ retailerId: retailer.id });
+  }
+
+  async marketingHistoryForAdmin(input: { retailerId: string; scopeStaffIds?: string[] | null }) {
+    const retailer = await this.prisma.retailer.findUnique({
+      where: { id: input.retailerId },
+      select: { id: true },
+    });
+    if (!retailer) throw new FieldServiceError("retailer_not_found", 404);
+    return this.marketingHistory({ retailerId: retailer.id, scopeStaffIds: input.scopeStaffIds });
+  }
+
+  private async marketingHistory(input: { retailerId: string; scopeStaffIds?: string[] | null }) {
+    const rows = await this.prisma.fieldTaskEvidence.findMany({
+      where: {
+        retailerId: input.retailerId,
+        ...(input.scopeStaffIds ? { salespersonId: { in: input.scopeStaffIds } } : {}),
+      },
+      include: {
+        task: { select: { id: true, title: true, status: true, completedAt: true } },
+        salesperson: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    });
+    const executions = new Map<string, any>();
+    for (const row of rows) {
+      let execution = executions.get(row.taskId);
+      if (!execution) {
+        execution = { task: row.task, salesperson: row.salesperson, evidence: [] };
+        executions.set(row.taskId, execution);
+      }
+      execution.evidence.push(await this.presentEvidence(row));
+    }
+    return [...executions.values()];
+  }
+
+  private async presentEvidence(evidence: any) {
+    const signedUrl = await this.storage().signedReadUrl(evidence.objectKey, 300).catch(() => null);
+    return {
+      id: evidence.id,
+      taskId: evidence.taskId,
+      retailerId: evidence.retailerId,
+      salespersonId: evidence.salespersonId,
+      contentType: evidence.contentType,
+      sizeBytes: evidence.sizeBytes,
+      createdAt: evidence.createdAt,
+      latitude: evidence.latitude == null ? null : Number(evidence.latitude),
+      longitude: evidence.longitude == null ? null : Number(evidence.longitude),
+      accuracyMeters: evidence.accuracyMeters == null ? null : Number(evidence.accuracyMeters),
+      signedUrl,
+    };
+  }
+
+  async forSalesperson(input: { salespersonId: string; includeClosed?: boolean; limit?: number }) {
+    return this.prisma.fieldTask.findMany({
+      where: {
+        assignedToStaffId: input.salespersonId,
+        ...(input.includeClosed ? {} : { status: { in: [...OPEN_STATUSES] } }),
+      },
+      include: { retailer: { select: { id: true, name: true, shopAddress: true } } },
+      orderBy: [{ status: "asc" }, { dueAt: "asc" }, { createdAt: "desc" }],
+      take: Math.min(input.limit ?? 100, 200),
+    });
+  }
+
+  async updateStatus(input: {
+    taskId: string;
+    salespersonId: string;
+    status: "in_progress" | "done";
+    note?: string;
+  }) {
+    const task = await this.prisma.fieldTask.findUnique({ where: { id: input.taskId } });
+    if (!task || task.assignedToStaffId !== input.salespersonId) {
+      throw new FieldServiceError("task_not_found", 404);
+    }
+    if (task.status === "done" || task.status === "cancelled") {
+      throw new FieldServiceError("task_already_closed", 409);
+    }
+    return this.prisma.fieldTask.update({
+      where: { id: task.id },
+      data: {
+        status: input.status,
+        completedAt: input.status === "done" ? new Date() : null,
+        completionNote: input.note?.trim() || task.completionNote,
+      },
+    });
+  }
+
+  /* ------------------------------ management ------------------------------ */
+
+  async assign(input: {
+    assignedToStaffId: string;
+    createdByStaffId: string;
+    title: string;
+    description?: string;
+    retailerId?: string;
+    routePlanId?: string;
+    priority?: "low" | "normal" | "high" | "urgent";
+    dueAt?: Date;
+    scopeStaffIds?: string[] | null;
+  }) {
+    if (!input.title.trim()) throw new FieldServiceError("task_title_required", 400);
+    // You may only task someone you manage.
+    if (!isWithinScope(input.assignedToStaffId, input.scopeStaffIds)) {
+      throw new FieldServiceError("outside_reporting_scope", 403);
+    }
+    const assignee = await this.prisma.staffUser.findUnique({
+      where: { id: input.assignedToStaffId },
+      select: { id: true, status: true, salesRepId: true },
+    });
+    if (!assignee || assignee.status !== "active") {
+      throw new FieldServiceError("assignee_not_available", 404);
+    }
+    if (input.retailerId) {
+      const retailer = await this.prisma.retailer.findUnique({
+        where: { id: input.retailerId },
+        select: { salesRepId: true },
+      });
+      if (!retailer) throw new FieldServiceError("retailer_not_found", 404);
+      // A task about a store the assignee does not own would be unactionable.
+      if (assignee.salesRepId && retailer.salesRepId !== assignee.salesRepId) {
+        throw new FieldServiceError("retailer_not_assigned_to_salesperson", 422);
+      }
+    }
+    return this.prisma.fieldTask.create({
+      data: {
+        assignedToStaffId: input.assignedToStaffId,
+        createdByStaffId: input.createdByStaffId,
+        retailerId: input.retailerId ?? null,
+        routePlanId: input.routePlanId ?? null,
+        title: input.title.trim(),
+        description: input.description?.trim() || null,
+        priority: input.priority ?? "normal",
+        dueAt: input.dueAt ?? null,
+      },
+    });
+  }
+
+  async cancel(input: { taskId: string; actorStaffId: string; scopeStaffIds?: string[] | null }) {
+    const task = await this.prisma.fieldTask.findUnique({ where: { id: input.taskId } });
+    if (!task) throw new FieldServiceError("task_not_found", 404);
+    if (!isWithinScope(task.assignedToStaffId, input.scopeStaffIds)) {
+      throw new FieldServiceError("outside_reporting_scope", 403);
+    }
+    if (task.status === "done") throw new FieldServiceError("task_already_closed", 409);
+    return this.prisma.fieldTask.update({
+      where: { id: task.id },
+      data: { status: "cancelled", completionNote: `Cancelled by ${input.actorStaffId}` },
+    });
+  }
+
+  async list(filters: {
+    assignedToStaffId?: string;
+    status?: string;
+    retailerId?: string;
+    scopeStaffIds?: string[] | null;
+  }) {
+    return this.prisma.fieldTask.findMany({
+      where: {
+        ...(filters.scopeStaffIds ? { assignedToStaffId: { in: filters.scopeStaffIds } } : {}),
+        ...(filters.assignedToStaffId ? { assignedToStaffId: filters.assignedToStaffId } : {}),
+        ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.retailerId ? { retailerId: filters.retailerId } : {}),
+      },
+      include: {
+        assignedTo: { select: { id: true, name: true } },
+        retailer: { select: { id: true, name: true } },
+      },
+      orderBy: [{ status: "asc" }, { dueAt: "asc" }],
+      take: 200,
+    });
+  }
+}
+
+function decodeTaskPhoto(value: string) {
+  if (typeof value !== "string" || !/^[A-Za-z0-9+/]*={0,2}$/.test(value) || value.length % 4 === 1) {
+    throw new FieldServiceError("invalid_evidence_body", 400);
+  }
+  const body = Buffer.from(value, "base64");
+  if (body.length === 0) throw new FieldServiceError("invalid_evidence_body", 400);
+  return body;
+}
+
+export const defaultTaskService = new TaskService();

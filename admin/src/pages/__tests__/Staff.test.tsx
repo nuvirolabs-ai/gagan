@@ -15,6 +15,10 @@ vi.mock("../../api", () => ({
     removeStaffRole: vi.fn(),
     createDelegation: vi.fn(),
     revokeDelegation: vi.fn(),
+    collectionAssignments: vi.fn(),
+    collectionAssignmentRetailers: vi.fn(),
+    assignCollectionRetailer: vi.fn(),
+    unassignCollectionRetailer: vi.fn(),
   },
 }));
 
@@ -63,6 +67,10 @@ describe("staff administration", () => {
     vi.mocked(api.setStaffStatus).mockResolvedValue({ staff: { ...staff[0], status: "suspended" } });
     vi.mocked(api.assignStaffRole).mockResolvedValue({});
     vi.mocked(api.createDelegation).mockResolvedValue({ delegation: { id: "delegate-1" } });
+    vi.mocked(api.collectionAssignments).mockResolvedValue({ assignments: [] });
+    vi.mocked(api.collectionAssignmentRetailers).mockResolvedValue({ retailers: [] });
+    vi.mocked(api.assignCollectionRetailer).mockResolvedValue({});
+    vi.mocked(api.unassignCollectionRetailer).mockResolvedValue({});
   });
 
   it("creates a staff identity from the focused staff list", async () => {
@@ -131,5 +139,48 @@ describe("staff administration", () => {
         })
       )
     );
+  });
+
+  it("lets Admin grant and revoke retailer collection access for an authorized collector", async () => {
+    const assignedCollectorRole = {
+      id: "role-collector",
+      name: "field_collector",
+      description: "Manages assigned retailers.",
+    };
+    const fieldCollectorCatalog = {
+      ...assignedCollectorRole,
+      permissions: [{ permission: { name: "collection.submit" } }],
+    };
+    vi.mocked(api.staff).mockResolvedValue({
+      staff: [{ ...staff[0], roles: [{ role: assignedCollectorRole }] }],
+    });
+    vi.mocked(api.roles).mockResolvedValue({ roles: [fieldCollectorCatalog, coordinator] });
+    vi.mocked(api.collectionAssignments).mockResolvedValue({
+      assignments: [{ id: "assignment-1", active: true, retailer: { id: "retailer-north", name: "North Star Retail", phone: "9876543210" } }],
+    });
+    vi.mocked(api.collectionAssignmentRetailers).mockResolvedValue({
+      retailers: [{ id: "retailer-south", name: "South Star Retail", phone: "9876543211" }],
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/staff/staff-ravi"]}>
+        <Routes>
+          <Route path="/staff/:staffId" element={<StaffDetail />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole("heading", { name: "Collection rights" })).toBeInTheDocument();
+    expect(await screen.findByText("North Star Retail")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Search retailers"), { target: { value: "South Star" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => expect(api.collectionAssignmentRetailers).toHaveBeenLastCalledWith("staff-ravi", "South Star"));
+    fireEvent.change(screen.getByLabelText("Retailer to assign"), { target: { value: "retailer-south" } });
+    fireEvent.click(screen.getByRole("button", { name: "Assign retailer" }));
+    await waitFor(() => expect(api.assignCollectionRetailer).toHaveBeenCalledWith("staff-ravi", "retailer-south"));
+    await waitFor(() => expect(api.collectionAssignmentRetailers).toHaveBeenLastCalledWith("staff-ravi", "South Star"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove North Star Retail" }));
+    await waitFor(() => expect(api.unassignCollectionRetailer).toHaveBeenCalledWith("assignment-1"));
   });
 });

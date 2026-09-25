@@ -2,10 +2,20 @@ import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../lib/auth";
 import { financialSummaryFor } from "../modules/finance/financialSummary";
+import { publicMediaUrl } from "../lib/media";
+import { groupCatalog } from "../modules/catalog/catalogGrouping";
+import { presentLastOrder } from "../modules/catalog/lastOrder";
+import { catalogueImageState, catalogueOrderingState, catalogueStatusWhere } from "../modules/catalog/catalogueVisibility";
 
 const router = Router();
 
 const ACTIVE_ORDER_STATUSES = ["placed", "confirmed", "packed", "out_for_delivery"] as const;
+
+function casePrice(raw: unknown, rateBasis: string, caseWeightKg: number) {
+  if (raw == null) return null;
+  const rate = Number(raw);
+  return rateBasis === "quintal" ? Math.round(rate * caseWeightKg) / 100 : rate;
+}
 
 // Everything the Home screen needs in one call — the design shows eight distinct
 // data regions and separate endpoints would mean eight round-trips on open.
@@ -20,7 +30,7 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
   const financialSummary = await financialSummaryFor(prisma, retailer.id, now);
   if (!financialSummary) return res.status(404).json({ error: "Retailer not found" });
 
-  const [config, featuredScheme, activeSchemeCount, unreadCount, activeOrder, priceList, products] =
+  const [config, featuredScheme, activeSchemeCount, unreadCount, activeOrder, lastDeliveredOrder, priceList, products] =
     await Promise.all([
       prisma.appConfig.findUnique({ where: { id: "singleton" } }),
       prisma.scheme.findFirst({
@@ -35,24 +45,79 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
         orderBy: { createdAt: "desc" },
         include: { items: true },
       }),
+      prisma.order.findFirst({
+        where: { retailerId: retailer.id, status: "delivered" },
+        orderBy: { createdAt: "desc" },
+        include: { items: { include: { variant: { include: { product: true } } } } },
+      }),
       prisma.priceList.findMany({ where: { tierId: retailer.tierId } }),
-      prisma.product.findMany({ include: { variants: true }, orderBy: { createdAt: "asc" } }),
+      prisma.product.findMany({
+        where: { catalogStatus: catalogueStatusWhere(), variants: { some: { catalogStatus: catalogueStatusWhere() } } },
+        include: { variants: { where: { catalogStatus: catalogueStatusWhere() } } },
+        orderBy: { createdAt: "asc" },
+      }),
     ]);
 
   const overrides = await prisma.priceOverride.findMany({ where: { retailerId: retailer.id } });
   const priceByVariant = new Map(priceList.map((p) => [p.variantId, p.price]));
   const overrideByVariant = new Map(overrides.map((o) => [o.variantId, o.price]));
+  const priceBasisByVariant = new Map(priceList.map((p) => [p.variantId, p.rateBasis]));
+  const overrideBasisByVariant = new Map(overrides.map((o) => [o.variantId, o.rateBasis]));
+  const currentPriceByVariant = new Map<string, number | null>();
+  for (const product of products) {
+    for (const variant of product.variants) {
+      const raw = overrideByVariant.get(variant.id) ?? priceByVariant.get(variant.id);
+      const basis = overrideBasisByVariant.get(variant.id) ?? priceBasisByVariant.get(variant.id) ?? "case";
+      currentPriceByVariant.set(variant.id, casePrice(raw, basis, Number(variant.unitWeightKg) * variant.unitsPerCase));
+    }
+  }
 
-  const quickOrder = products.slice(0, 8).flatMap((product) =>
+  const quickOrder = products.flatMap((product) =>
     product.variants.slice(0, 1).map((v) => ({
       productId: product.id,
       variantId: v.id,
       name: product.name,
       category: product.category,
-      imageUrl: product.imageUrl,
+      imageUrl: publicMediaUrl(req, v.imageUrl ?? product.imageUrl),
       unitSize: v.unitSize,
       unitsPerCase: v.unitsPerCase,
-      casePrice: overrideByVariant.get(v.id) ?? priceByVariant.get(v.id) ?? null,
+      casePrice: casePrice(overrideByVariant.get(v.id) ?? priceByVariant.get(v.id), overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case", Number(v.unitWeightKg) * v.unitsPerCase),
+      commercialRate: overrideByVariant.get(v.id) ?? priceByVariant.get(v.id) ?? null,
+      rateBasis: overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case",
+      rateLabel: (overrideByVariant.get(v.id) ?? priceByVariant.get(v.id)) != null ? `${(overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case") === "quintal" ? "per quintal" : "per case"} · Excluding GST` : null,
+      catalogStatus: v.catalogStatus,
+      ...catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed),
+      ...catalogueImageState(v),
+    }))
+  );
+
+  // Home shows products, not one card per pack: three Toor Dal pack products
+  // used to fill the shelf three times over. Grouped, each logical product
+  // appears once with its packs to choose from.
+  const productGroups = groupCatalog(
+    products.map((product) => ({
+      id: product.id,
+      name: product.name,
+      category: product.category,
+      imageUrl: publicMediaUrl(req, product.imageUrl),
+      description: product.description,
+      sapMaterialId: product.sapMaterialId,
+      variants: product.variants.map((v) => ({
+        id: v.id,
+        unitSize: v.unitSize,
+        unit: v.unit,
+        unitsPerCase: v.unitsPerCase,
+        caseWeightKg: Number(v.unitWeightKg) * v.unitsPerCase,
+        imageUrl: publicMediaUrl(req, v.imageUrl ?? product.imageUrl),
+        price: casePrice(overrideByVariant.get(v.id) ?? priceByVariant.get(v.id), overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case", Number(v.unitWeightKg) * v.unitsPerCase),
+        commercialRate: Number(overrideByVariant.get(v.id) ?? priceByVariant.get(v.id) ?? 0) || null,
+        rateBasis: overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case",
+        rateLabel: (overrideByVariant.get(v.id) ?? priceByVariant.get(v.id)) != null ? `${(overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case") === "quintal" ? "per quintal" : "per case"} · Excluding GST` : null,
+        catalogStatus: v.catalogStatus,
+        ...catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed),
+        ...catalogueImageState(v),
+        isOverride: overrideByVariant.get(v.id) != null,
+      })),
     }))
   );
 
@@ -105,6 +170,8 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
         }
       : null,
     quickOrder,
+    productGroups,
+    categories: [...new Set(products.map((product) => product.category))].sort(),
     activeOrder: activeOrder
       ? {
           id: activeOrder.id,
@@ -116,6 +183,9 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
           expectedDeliveryAt: activeOrder.expectedDeliveryAt,
         }
       : null,
+    lastOrder: presentLastOrder(lastDeliveredOrder, currentPriceByVariant, (url) =>
+      publicMediaUrl(req, url)
+    ),
     config: {
       freeDeliveryThreshold: Number(config?.freeDeliveryThreshold ?? 0),
       minOrderValue: Number(config?.minOrderValue ?? 0),

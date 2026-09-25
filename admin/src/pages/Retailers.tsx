@@ -1,33 +1,29 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, inr } from "../api";
+import { useAuth } from "../useAuth";
 
 export default function Retailers() {
+  const { permissions } = useAuth();
+  const canViewFieldHistory = permissions.includes("route.manage");
   const [retailers, setRetailers] = useState<any[]>([]);
   const [tiers, setTiers] = useState<any[]>([]);
-  const [proposals, setProposals] = useState<any[]>([]);
-  const [selectedProposal, setSelectedProposal] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ name: "", phone: "", shopAddress: "", tierId: "", creditLimit: "" });
-  const [reason, setReason] = useState("");
-  const [challengeId, setChallengeId] = useState("");
-  const [otp, setOtp] = useState("");
-  const [pendingDecision, setPendingDecision] = useState<"approved" | "rejected" | null>(null);
+  const [expandedHistoryRetailerId, setExpandedHistoryRetailerId] = useState<string | null>(null);
+  const [history, setHistory] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [expandedExecutionId, setExpandedExecutionId] = useState<string | null>(null);
+  const [form, setForm] = useState({ name: "", phone: "", shopAddress: "", deliveryCity: "", tierId: "", creditLimit: "" });
 
   const load = async () => {
     setLoading(true);
     try {
-      const [r, t, p] = await Promise.all([
-        api.retailers().catch(() => ({ retailers: [] })),
-        api.tiers().catch(() => ({ tiers: [] })),
-        api.retailerProposals().catch(() => ({ proposals: [] })),
-      ]);
+      const [r, t] = await Promise.all([api.retailers(), api.tiers()]);
       setRetailers(r.retailers);
       setTiers(t.tiers);
-      setProposals(p.proposals ?? []);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load retailers");
@@ -40,6 +36,32 @@ export default function Retailers() {
     load();
   }, []);
 
+  useEffect(() => {
+    if (!canViewFieldHistory) setExpandedHistoryRetailerId(null);
+  }, [canViewFieldHistory]);
+
+  useEffect(() => {
+    if (!expandedHistoryRetailerId) {
+      setHistory([]);
+      setExpandedExecutionId(null);
+      return;
+    }
+    let active = true;
+    setHistory([]);
+    setHistoryLoading(true);
+    api.fieldRetailerMarketingHistory(expandedHistoryRetailerId)
+      .then((result) => {
+        if (active) setHistory(result.executions ?? []);
+      })
+      .catch((err) => {
+        if (active) setError(err instanceof Error ? err.message : "Could not load retailer activity history");
+      })
+      .finally(() => {
+        if (active) setHistoryLoading(false);
+      });
+    return () => { active = false; };
+  }, [expandedHistoryRetailerId]);
+
   const changeTier = async (id: string, tierId: string) => {
     try {
       await api.setTier(id, tierId);
@@ -47,6 +69,17 @@ export default function Retailers() {
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not update tier");
+    }
+  };
+
+  const changeInternalSegment = async (r: any, value: string) => {
+    try {
+      await api.setInternalSegment(r.id, value ? (value as "A" | "B" | "C") : null);
+      setNotice(value ? `${r.name} assigned to internal segment ${value}` : `Internal segment cleared for ${r.name}`);
+      setError(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update internal segment");
     }
   };
 
@@ -67,6 +100,22 @@ export default function Retailers() {
     }
   };
 
+  const changeDeliveryCity = async (r: any) => {
+    const input = window.prompt(`Verified delivery city for ${r.name}`, r.deliveryCity ?? "");
+    if (input == null) return;
+    if (input.trim().length < 2) {
+      setError("Delivery city is required for routed commercial quotes");
+      return;
+    }
+    try {
+      await api.setDeliveryCity(r.id, input.trim());
+      setNotice(`Delivery city for ${r.name} updated`);
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update delivery city");
+    }
+  };
+
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -74,51 +123,16 @@ export default function Retailers() {
         name: form.name,
         phone: form.phone,
         shopAddress: form.shopAddress,
+        ...(form.deliveryCity.trim() ? { deliveryCity: form.deliveryCity.trim() } : {}),
         tierId: form.tierId || tiers[0]?.id,
         creditLimit: Number(form.creditLimit) || 0,
       });
       setNotice(`${form.name} onboarded — they can sign in with ${form.phone}`);
       setCreating(false);
-      setForm({ name: "", phone: "", shopAddress: "", tierId: "", creditLimit: "" });
+      setForm({ name: "", phone: "", shopAddress: "", deliveryCity: "", tierId: "", creditLimit: "" });
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create retailer");
-    }
-  };
-
-  const beginProposal = async (next: "approved" | "rejected") => {
-    if (next === "rejected" && reason.trim().length < 5) {
-      setError("Add a review reason (at least 5 characters).");
-      return;
-    }
-    try {
-      const challenge = await api.requestAdminStepUp();
-      setChallengeId(challenge.challengeId);
-      setOtp("");
-      setPendingDecision(next);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not start verification");
-    }
-  };
-
-  const verifyProposal = async () => {
-    if (!selectedProposal || !pendingDecision || otp.length !== 6) return;
-    try {
-      await api.completeAdminStepUp(challengeId, otp);
-      if (pendingDecision === "approved") {
-        await api.approveRetailerProposal(selectedProposal.id, reason.trim() || "Approved");
-        setNotice(`${selectedProposal.partyName} is now a retailer.`);
-      } else {
-        await api.rejectRetailerProposal(selectedProposal.id, reason.trim());
-        setNotice(`${selectedProposal.partyName} was rejected.`);
-      }
-      setSelectedProposal(null);
-      setPendingDecision(null);
-      setReason("");
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not decide proposal");
     }
   };
 
@@ -128,7 +142,7 @@ export default function Retailers() {
         <div>
           <h1 className="page-title">Retailers</h1>
           <p className="page-sub" style={{ marginBottom: 0 }}>
-            Onboarding, tier assignment and credit limits.
+            Onboarding, commercial tiers, internal segments and credit limits.
           </p>
         </div>
         <button onClick={() => setCreating((v) => !v)}>
@@ -138,73 +152,6 @@ export default function Retailers() {
 
       {error && <div className="banner error">{error}</div>}
       {notice && <div className="banner success">{notice}</div>}
-
-      {proposals.length > 0 && (
-        <section className="card" style={{ marginBottom: 18 }}>
-          <h3 style={{ marginTop: 0 }}>Pending retailer proposals</h3>
-          <div className="approval-layout">
-            <div className="approval-list">
-              {proposals.map((proposal) => (
-                <button
-                  key={proposal.id}
-                  className={`approval-row ${selectedProposal?.id === proposal.id ? "selected" : ""}`}
-                  onClick={() => { setSelectedProposal(proposal); setPendingDecision(null); setReason(""); }}
-                >
-                  <span>
-                    <strong>{proposal.partyName}</strong>
-                    <small>{proposal.mobile} · {proposal.deliveryCity} · Grade {proposal.grade}</small>
-                  </span>
-                </button>
-              ))}
-            </div>
-            <div className="approval-detail">
-              {!selectedProposal ? <div className="empty-state">Select a proposal to review the 24 fields.</div> : (
-                <>
-                  <h2>{selectedProposal.partyName}</h2>
-                  <dl className="muted small" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                    <div>Group: {selectedProposal.group?.name}</div>
-                    <div>Contact: {selectedProposal.contactPerson}</div>
-                    <div>Mobile: {selectedProposal.mobile}</div>
-                    <div>Telephone: {selectedProposal.telephone || "—"}</div>
-                    <div>Transporter: {selectedProposal.transporter?.name}</div>
-                    <div>Address: {selectedProposal.address1}</div>
-                    <div>PIN: {selectedProposal.pin || "—"}</div>
-                    <div>Tehsil: {selectedProposal.tehsil || "—"}</div>
-                    <div>District: {selectedProposal.district || "—"}</div>
-                    <div>State: {selectedProposal.state || "—"}</div>
-                    <div>Delivery city: {selectedProposal.deliveryCity}</div>
-                    <div>Salesman: {selectedProposal.salesman?.name}</div>
-                    <div>Beat: {selectedProposal.beat?.name || "—"}</div>
-                    <div>Tenure: {selectedProposal.shopTenureYears} years</div>
-                    <div>GSTIN: {selectedProposal.gstin || "—"}</div>
-                    <div>Aadhaar: {selectedProposal.aadhaarNumber}</div>
-                    <div>Aadhaar photo: {selectedProposal.aadhaarPhoto ? "Attached" : "Missing"}</div>
-                    <div>Payment terms: {selectedProposal.paymentTermDays} days</div>
-                    <div>Credit limit: {inr(Number(selectedProposal.creditLimit))}</div>
-                    <div>Grade: {selectedProposal.grade}</div>
-                    <div>Category: {selectedProposal.buyerCategory?.name}</div>
-                    <div>Sub category: {selectedProposal.buyerSubCategory?.name || "—"}</div>
-                    <div>UPI: {selectedProposal.upiId || "—"}</div>
-                  </dl>
-                  <label className="field"><span>Review reason</span><textarea aria-label="Review reason" rows={3} value={reason} onChange={(event) => setReason(event.target.value)} /></label>
-                  {!pendingDecision ? (
-                    <div className="approval-actions">
-                      <button className="danger-outline" onClick={() => void beginProposal("rejected")}>Reject</button>
-                      <button onClick={() => void beginProposal("approved")}>Approve retailer</button>
-                    </div>
-                  ) : (
-                    <div className="step-up-box">
-                      <strong>Verify this sensitive action</strong>
-                      <label className="field"><span>Six-digit code</span><input aria-label="Six-digit code" inputMode="numeric" maxLength={6} value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))} /></label>
-                      <button disabled={otp.length !== 6} onClick={() => void verifyProposal()}>Verify and {pendingDecision === "approved" ? "approve" : "reject"}</button>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        </section>
-      )}
 
       {creating && (
         <form className="card" onSubmit={create}>
@@ -250,6 +197,14 @@ export default function Retailers() {
               </select>
             </div>
             <div className="field">
+              <label>Delivery city (routing input)</label>
+              <input
+                value={form.deliveryCity}
+                placeholder="Use the verified destination city"
+                onChange={(e) => setForm({ ...form, deliveryCity: e.target.value })}
+              />
+            </div>
+            <div className="field">
               <label>Credit limit</label>
               <input
                 type="number"
@@ -273,7 +228,8 @@ export default function Retailers() {
             <thead>
               <tr>
                 <th>Retailer</th>
-                <th>Tier</th>
+                <th>Commercial tier</th>
+                <th>Internal segment</th>
                 <th className="right">Credit limit</th>
                 <th className="right">Outstanding</th>
                 <th className="right">Available</th>
@@ -282,15 +238,19 @@ export default function Retailers() {
             </thead>
             <tbody>
               {retailers.map((r) => (
+                <Fragment key={r.id}>
                 <tr key={r.id}>
                   <td>
                     <div style={{ fontWeight: 600 }}>{r.name}</div>
-                    <div className="muted small">{r.phone}{r.deliveryCity ? ` · ${r.deliveryCity}` : ""}{r.grade ? ` · Grade ${r.grade}` : ""}{r.group?.name ? ` · ${r.group.name}` : ""}</div>
+                    <div className="muted small">{r.phone}</div>
+                    <div className="muted small">Delivery: {r.deliveryCity ?? "Not configured"}</div>
+                    {r.commercialStatus?.currentLabel ? <div className="muted small internal-status-inline">{r.commercialStatus.currentLabel}</div> : null}
                   </td>
                   <td>
                     <select
                       value={r.tier.id}
                       onChange={(e) => changeTier(r.id, e.target.value)}
+                      aria-label={`Commercial pricing tier for ${r.name}`}
                       style={{ width: 120 }}
                     >
                       {tiers.map((t) => (
@@ -298,6 +258,19 @@ export default function Retailers() {
                           {t.name}
                         </option>
                       ))}
+                    </select>
+                  </td>
+                  <td>
+                    <select
+                      value={r.internalSegment ?? ""}
+                      onChange={(e) => void changeInternalSegment(r, e.target.value)}
+                      aria-label={`Internal segment for ${r.name}`}
+                      style={{ width: 120 }}
+                    >
+                      <option value="">Unassigned</option>
+                      <option value="A">A</option>
+                      <option value="B">B</option>
+                      <option value="C">C</option>
                     </select>
                   </td>
                   <td className="right">{inr(r.creditLimit)}</td>
@@ -317,12 +290,73 @@ export default function Retailers() {
                       <button className="sm secondary" onClick={() => changeLimit(r)}>
                         Limit
                       </button>
+                      <button className="sm secondary" onClick={() => changeDeliveryCity(r)}>
+                        City
+                      </button>
+                      {canViewFieldHistory ? (
+                        <button
+                          className="sm secondary"
+                          aria-expanded={expandedHistoryRetailerId === r.id}
+                          onClick={() => setExpandedHistoryRetailerId((current) => current === r.id ? null : r.id)}
+                        >
+                          {expandedHistoryRetailerId === r.id ? "Hide history" : "History"}
+                        </button>
+                      ) : null}
                       <Link to={`/ledger/${r.id}`}>
                         <button className="sm secondary">Ledger</button>
                       </Link>
                     </div>
                   </td>
                 </tr>
+                {expandedHistoryRetailerId === r.id ? (
+                  <tr key={`${r.id}-history`}>
+                    <td colSpan={7} style={{ padding: 16, background: "var(--surface-muted, #f7f8f8)" }}>
+                      <div style={{ fontWeight: 650, marginBottom: 10 }}>In-store execution history</div>
+                      {historyLoading ? <div className="muted small">Loading activity history…</div> : null}
+                      {!historyLoading && history.length === 0 ? <div className="muted small">No task executions with photos recorded.</div> : null}
+                      {!historyLoading ? history.map((execution) => {
+                        const photosExpanded = expandedExecutionId === execution.task.id;
+                        const recordedAt = execution.task.completedAt ?? execution.evidence[0]?.createdAt;
+                        return (
+                          <div key={execution.task.id} style={{ borderTop: "1px solid var(--border, #dfe3e3)", padding: "10px 0" }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                              <div>
+                                <div style={{ fontWeight: 600 }}>{execution.task.title}</div>
+                                <div className="muted small">
+                                  {execution.salesperson?.name ?? "Salesperson"}
+                                  {recordedAt ? ` · ${new Date(recordedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}` : ""}
+                                  {` · ${execution.task.status.replace(/_/g, " ")}`}
+                                </div>
+                              </div>
+                              <button
+                                className="sm secondary"
+                                aria-expanded={photosExpanded}
+                                onClick={() => setExpandedExecutionId(photosExpanded ? null : execution.task.id)}
+                              >
+                                {photosExpanded ? "Hide photos" : `View photos (${execution.evidence.length})`}
+                              </button>
+                            </div>
+                            {photosExpanded ? (
+                              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+                                {execution.evidence.map((item: any) => item.signedUrl ? (
+                                  <a key={item.id} href={item.signedUrl} target="_blank" rel="noreferrer">
+                                    <img
+                                      src={item.signedUrl}
+                                      alt={`${execution.task.title} evidence`}
+                                      loading="lazy"
+                                      style={{ display: "block", width: 144, height: 108, objectFit: "contain", borderRadius: 4, background: "var(--surface, white)" }}
+                                    />
+                                  </a>
+                                ) : null)}
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      }) : null}
+                    </td>
+                  </tr>
+                ) : null}
+                </Fragment>
               ))}
             </tbody>
           </table>

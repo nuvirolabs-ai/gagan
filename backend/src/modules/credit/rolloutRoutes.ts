@@ -12,7 +12,9 @@ function csvCell(value: unknown) {
 
 export function createCreditRolloutRouter(options: { authenticate: RequestHandler }) {
   const router = Router();
-  router.use(options.authenticate, requirePermission(Permissions.CREDIT_RATING_CONFIRM));
+  // Scoped to this router's own paths so unrelated routes on the same mount
+  // prefix are not answered with 403.
+  router.use("/credit", options.authenticate, requirePermission(Permissions.CREDIT_RATING_CONFIRM));
 
   router.get("/credit/shadow-comparisons", asyncRoute(async (req, res) => {
     const comparisons = await prisma.creditDecisionComparison.findMany({

@@ -1,5 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Breakdown } from "../pages/Commercial";
 import { api, inr } from "../api";
+import { formatOrderRef } from "../orderRef";
 
 interface Props {
   order: any;
@@ -26,10 +28,12 @@ export default function PodModal({ order, onClose, onDone }: Props) {
   const [podType, setPodType] = useState("photo");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [commercial,setCommercial]=useState<any>(null);
+  const [quotedInput,setQuotedInput]=useState("");
 
   const [lines, setLines] = useState<Line[]>(() =>
     order.items.map((i: any) => {
-      const caseWeightKg = Number(i.variant.unitWeightKg) * i.variant.unitsPerCase;
+      const caseWeightKg = Number(i.caseWeightKgSnapshot ?? Number(i.variant.unitWeightKg) * i.variant.unitsPerCase);
       return {
         orderItemId: i.id,
         name: i.variant.product.name,
@@ -41,6 +45,8 @@ export default function PodModal({ order, onClose, onDone }: Props) {
       };
     })
   );
+  const deliveryInput=JSON.stringify(lines.map(l=>({orderItemId:l.orderItemId,cases:Number(l.qtyDelivered),weightKg:l.weightKg===""?undefined:Number(l.weightKg)})));
+  useEffect(()=>{let active=true;if(order.commercialSnapshot){setCommercial(null);api.deliveryQuote(order.id,JSON.parse(deliveryInput)).then(r=>{if(active){setCommercial(r.commercial);setQuotedInput(deliveryInput);setError(null);}}).catch(()=>{if(active)setError("Cannot price delivery. Check cases and weight.");});}return ()=>{active=false;};},[deliveryInput,order.id,order.commercialSnapshot]);
 
   const update = (id: string, patch: Partial<Line>) =>
     setLines((prev) => prev.map((l) => (l.orderItemId === id ? { ...l, ...patch } : l)));
@@ -66,10 +72,11 @@ export default function PodModal({ order, onClose, onDone }: Props) {
   const variance = preview.total - orderedTotal;
 
   const submit = async () => {
+    if(order.commercialSnapshot && (!commercial || quotedInput!==deliveryInput))return;
     setBusy(true);
     setError(null);
     try {
-      await api.capturePod(
+      const result=await api.capturePod(
         order.id,
         podType,
         lines.map((l) => {
@@ -81,7 +88,7 @@ export default function PodModal({ order, onClose, onDone }: Props) {
           };
         })
       );
-      onDone(`Delivery captured — invoiced ${inr(preview.total)}`);
+      onDone(`Delivery captured — invoiced ${inr(Number(result.invoice.total))}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not capture delivery");
       setBusy(false);
@@ -92,13 +99,14 @@ export default function PodModal({ order, onClose, onDone }: Props) {
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2 style={{ margin: "0 0 4px", fontSize: 18 }}>
-          Capture delivery — GGN-{String(order.orderNo).padStart(5, "0")}
+          Capture delivery — {formatOrderRef(order)}
         </h2>
         <p className="muted small" style={{ margin: "0 0 18px" }}>
           {order.retailer.name} · invoice is generated from delivered weight
         </p>
 
         {error && <div className="banner error">{error}</div>}
+        {commercial && <Breakdown value={commercial}/>}
 
         <div className="field">
           <label htmlFor="podType">Proof of delivery</label>
@@ -149,7 +157,7 @@ export default function PodModal({ order, onClose, onDone }: Props) {
                     />
                   </td>
                   <td className="right" style={{ fontWeight: 700 }}>
-                    {inr(row.lineTotal)}
+                    {order.commercialSnapshot ? "See server breakdown" : inr(row.lineTotal)}
                   </td>
                 </tr>
               );
@@ -164,9 +172,9 @@ export default function PodModal({ order, onClose, onDone }: Props) {
           </div>
           <div className="between" style={{ marginTop: 6 }}>
             <span style={{ fontWeight: 700 }}>Invoice (delivered weight)</span>
-            <span style={{ fontWeight: 700, fontSize: 17 }}>{inr(preview.total)}</span>
+            <span style={{ fontWeight: 700, fontSize: 17 }}>{order.commercialSnapshot ? (commercial?inr(Number(commercial.total)):"Pricing…"):inr(preview.total)}</span>
           </div>
-          {Math.abs(variance) >= 1 && (
+          {!order.commercialSnapshot && Math.abs(variance) >= 1 && (
             <div className="between small" style={{ marginTop: 6 }}>
               <span className="muted">Variance</span>
               <span style={{ color: variance < 0 ? "var(--danger)" : "var(--green)" }}>
@@ -181,8 +189,8 @@ export default function PodModal({ order, onClose, onDone }: Props) {
           <button className="ghost" onClick={onClose} disabled={busy}>
             Cancel
           </button>
-          <button onClick={submit} disabled={busy}>
-            {busy ? "Posting…" : `Confirm & invoice ${inr(preview.total)}`}
+          <button onClick={submit} disabled={busy || (!!order.commercialSnapshot && (!commercial || quotedInput !== deliveryInput))}>
+            {busy ? "Posting…" : order.commercialSnapshot ? (commercial ? `Confirm & invoice ${inr(Number(commercial.total))}` : "Pricing delivery…") : `Confirm & invoice ${inr(preview.total)}`}
           </button>
         </div>
       </div>

@@ -108,7 +108,9 @@ export function createFinancialCorrectionsRouter(
 ) {
   const router = Router();
   const service = options.service ?? defaultService;
-  router.use(options.authenticate, requirePermission(Permissions.FINANCIAL_CORRECT));
+  // Scoped to this router's own paths so unrelated routes on the same mount
+  // prefix are not answered with 403.
+  router.use("/financial", options.authenticate, requirePermission(Permissions.FINANCIAL_CORRECT));
 
   router.get(
     "/financial/correction-targets",

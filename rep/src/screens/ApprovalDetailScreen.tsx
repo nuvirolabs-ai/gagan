@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { repApi } from "../api/repClient";
 import { colors, inr, radius, spacing } from "../theme";
 import { useRep } from "../context/RepContext";
 import { useLanguage } from "../i18n/LanguageContext";
+import { KeyboardSafeScrollView } from "../components/ui";
 
 const reasonLabel = (code: string) => ({
   new_customer_second_invoice: "Second invoice approval",
@@ -88,7 +89,7 @@ export default function ApprovalDetailScreen({ route, navigation }: any) {
   if (!request) return <View style={styles.center}><Text style={styles.error}>{error || t("approval.notFound")}</Text></View>;
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <KeyboardSafeScrollView containerStyle={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.eyebrow}>{request.retailer.name}</Text>
       <Text style={styles.title}>Order #{request.order?.orderNo}</Text>
       <View style={styles.exposure}>
@@ -132,7 +133,7 @@ export default function ApprovalDetailScreen({ route, navigation }: any) {
           <TouchableOpacity disabled={otp.length !== 6} style={[styles.approve, otp.length !== 6 && styles.disabled]} onPress={() => void decide()}><Text style={styles.approveText}>Verify and {pendingDecision === "approved" ? "approve" : "reject"}</Text></TouchableOpacity>
         </View>
       )}
-    </ScrollView>
+    </KeyboardSafeScrollView>
   );
 }
 

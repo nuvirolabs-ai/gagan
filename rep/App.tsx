@@ -4,35 +4,45 @@ import { ActivityIndicator, View } from "react-native";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 
 import { RepProvider, useRep } from "./src/context/RepContext";
+import { FieldProvider } from "./src/context/FieldContext";
 import { LanguageProvider, useLanguage } from "./src/i18n/LanguageContext";
 import { colors } from "./src/theme";
-import { ocean } from "./src/screens/retailerForm/ocean";
-import { OceanTabBar } from "./src/components/OceanTabBar";
-import { staffCapabilities } from "./src/auth/staffCapabilities";
+import { salesTabBarMetrics } from "./src/layout/viewportPolicy";
 
 import RepLoginScreen from "./src/screens/RepLoginScreen";
-import LanguageSelectionScreen from "./src/screens/LanguageSelectionScreen";
-import OceanHomeScreen from "./src/screens/OceanHomeScreen";
-import OrderHubScreen from "./src/screens/OrderHubScreen";
-import StockHubScreen from "./src/screens/StockHubScreen";
-import MoreScreen from "./src/screens/MoreScreen";
 import RepRetailersScreen from "./src/screens/RepRetailersScreen";
 import RepRetailerDetailScreen from "./src/screens/RepRetailerDetailScreen";
+import RepRetailerOutstandingScreen from "./src/screens/RepRetailerOutstandingScreen";
 import RepCatalogScreen from "./src/screens/RepCatalogScreen";
+import RepReviewOrderScreen from "./src/screens/RepReviewOrderScreen";
 import RepAccountScreen from "./src/screens/RepAccountScreen";
 import StaffHomeScreen from "./src/screens/StaffHomeScreen";
 import ApprovalsScreen from "./src/screens/ApprovalsScreen";
 import ApprovalDetailScreen from "./src/screens/ApprovalDetailScreen";
 import RatingReviewsScreen from "./src/screens/RatingReviewsScreen";
 import KycCaptureScreen from "./src/screens/KycCaptureScreen";
+import TodayScreen from "./src/screens/TodayScreen";
+import RouteScreen from "./src/screens/RouteScreen";
+import MyDayScreen from "./src/screens/MyDayScreen";
+import VisitScreen from "./src/screens/VisitScreen";
+import CustomerMapScreen from "./src/screens/CustomerMapScreen";
+import MyActivityScreen from "./src/screens/MyActivityScreen";
+import TeamPerformanceScreen from "./src/screens/TeamPerformanceScreen";
+import ExpensesScreen from "./src/screens/ExpensesScreen";
+import IssuesScreen from "./src/screens/IssuesScreen";
+import IssueDetailScreen from "./src/screens/IssueDetailScreen";
+import OrderDetailScreen from "./src/screens/OrderDetailScreen";
+import OpportunitiesScreen from "./src/screens/OpportunitiesScreen";
 import AddRetailerScreen from "./src/screens/AddRetailerScreen";
-import EditRetailerScreen from "./src/screens/EditRetailerScreen";
-import RoutePlanScreen from "./src/screens/RoutePlanScreen";
-import EndDayScreen from "./src/screens/EndDayScreen";
-import FieldHubScreen from "./src/screens/FieldHubScreen";
+import { staffCapabilities } from "./src/auth/staffCapabilities";
+import LanguageSelectionScreen from "./src/screens/LanguageSelectionScreen";
+import SalesKitScreen from "./src/screens/SalesKitScreen";
+import MarketSurveysScreen from "./src/screens/MarketSurveysScreen";
+import { canOpenMarketSurveys, MARKET_SURVEY_LABEL, MARKET_SURVEY_ROUTE } from "./src/navigation/marketSurveyNavigation";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -43,42 +53,87 @@ const navTheme = {
     ...DefaultTheme.colors,
     background: colors.bg,
     card: colors.surface,
-    primary: colors.sky,
-    text: colors.ink,
-    border: colors.border,
+    primary: colors.blue,
   },
 };
 
 const stackScreenOptions = {
   headerStyle: { backgroundColor: colors.bg },
   headerShadowVisible: false,
-  headerTintColor: colors.navy,
+  headerTintColor: colors.blue,
   headerTitleStyle: { color: colors.ink, fontWeight: "700" as const },
   contentStyle: { backgroundColor: colors.bg },
 };
 
-const oceanFormOptions = {
-  headerStyle: { backgroundColor: ocean.navy },
-  headerTintColor: ocean.sky,
-  headerTitleStyle: { color: ocean.ink, fontWeight: "700" as const },
-  contentStyle: { backgroundColor: ocean.navy },
+/**
+ * Tab icons, keyed by the tab's route name so the shape of the bar can change
+ * with permissions without the icon mapping drifting.
+ */
+const TAB_ICONS: Record<string, string> = {
+  Today: "home-outline",
+  Retailers: "storefront-outline",
+  Work: "briefcase-outline",
+  Activity: "bar-chart-outline",
+  Approvals: "shield-checkmark-outline",
+  More: "ellipsis-horizontal-outline",
 };
 
 function RepTabs() {
+  const { staff } = useRep();
   const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
+  const tabBarMetrics = salesTabBarMetrics(insets.bottom);
+  const capabilities = staffCapabilities(staff?.permissions ?? []);
+  const tabLabel = (name: string) => ({ Today: "Home", Retailers: "Outlets", Activity: "Reports", Work: "Work", Approvals: "Approvals", More: "More" }[name] ?? t(`tabs.${name.toLowerCase()}`));
   return (
     <Tab.Navigator
-      tabBar={(props) => <OceanTabBar {...props} />}
-      screenOptions={{ headerShown: false }}
+      screenOptions={({ route }) => ({
+        // Every tab screen renders its own <ScreenHeader>.
+        headerShown: false,
+        tabBarLabel: tabLabel(route.name),
+        tabBarActiveTintColor: colors.blue,
+        tabBarInactiveTintColor: colors.inkMuted,
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "600", marginBottom: 2 },
+        tabBarItemStyle: { paddingTop: 3 },
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.separator,
+          borderTopWidth: 1,
+          ...tabBarMetrics,
+        },
+        tabBarIcon: ({ color, focused }) => (
+          <View
+            style={{
+              backgroundColor: focused ? colors.blueSoft : "transparent",
+              borderRadius: 17,
+              width: 44,
+              height: 34,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Ionicons
+              name={(TAB_ICONS[route.name] ?? "ellipse-outline") as any}
+              size={20}
+              color={focused ? colors.blue : color}
+            />
+          </View>
+        ),
+      })}
     >
-      <Tab.Screen name="Attendance" component={OceanHomeScreen} options={{ tabBarLabel: t("tabs.attendance") }} />
-      <Tab.Screen name="Order" component={OrderHubScreen} options={{ tabBarLabel: t("tabs.order") }} />
-      <Tab.Screen name="Stock" component={StockHubScreen} options={{ tabBarLabel: t("tabs.stock") }} />
-      <Tab.Screen name="More" component={MoreScreen} options={{ tabBarLabel: t("tabs.more") }} />
+      {/* Today is the salesperson's home: attendance, route, tasks, money due. */}
+      {capabilities.canRunFieldDay && <Tab.Screen name="Today" component={TodayScreen} />}
+      {capabilities.canOrderForRetailers ? (
+        <Tab.Screen name="Retailers" component={RepRetailersScreen} />
+      ) : capabilities.canRunFieldDay ? null : (
+        <Tab.Screen name="Work" component={StaffHomeScreen} />
+      )}
+      {capabilities.canRunFieldDay && <Tab.Screen name="Activity" component={MyActivityScreen} />}
+      {capabilities.canApprove && <Tab.Screen name="Approvals" component={ApprovalsScreen} />}
+      <Tab.Screen name="More" component={RepAccountScreen} />
     </Tab.Navigator>
   );
 }
-
 function RootNavigator() {
   const { staff, loading } = useRep();
   const { selectionRequired, t } = useLanguage();
@@ -86,8 +141,10 @@ function RootNavigator() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.bg }}>
-        <ActivityIndicator size="large" color={colors.sky} />
+      <View
+        style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.bg }}
+      >
+        <ActivityIndicator size="large" color={colors.blue} />
       </View>
     );
   }
@@ -100,37 +157,124 @@ function RootNavigator() {
         <Stack.Screen name="Language" component={LanguageSelectionScreen} options={{ headerShown: false }} />
       ) : (
         <>
-          <Stack.Screen name="RepMain" component={RepTabs} options={{ headerShown: false, title: t("tabs.attendance") }} />
-          <Stack.Screen name="Retailers" component={RepRetailersScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="Account" component={RepAccountScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="Collections" component={StaffHomeScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="Approvals" component={ApprovalsScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="RoutePlan" component={RoutePlanScreen} options={{ title: t("more.route") }} />
-          <Stack.Screen name="EndDay" component={EndDayScreen} options={{ title: t("more.endDay") }} />
-          <Stack.Screen name="Leave" component={FieldHubScreen} initialParams={{ kind: "leave" }} options={{ title: t("more.leave") }} />
-          <Stack.Screen name="Expenses" component={FieldHubScreen} initialParams={{ kind: "expenses" }} options={{ title: t("more.expenses") }} />
-          <Stack.Screen name="SalesKit" component={FieldHubScreen} initialParams={{ kind: "salesKit" }} options={{ title: t("more.salesKit") }} />
           <Stack.Screen
-            name="RepRetailerDetail"
-            component={RepRetailerDetailScreen}
-            options={{ title: t("retailer.title"), headerBackTitle: t("common.back") }}
+            name="RepMain"
+            component={RepTabs}
+            options={{ headerShown: false, title: t("tabs.retailers") }}
           />
-          <Stack.Screen
-            name="RepCatalog"
-            component={RepCatalogScreen}
-            options={{ title: t("orders.new"), headerBackTitle: t("common.back") }}
-          />
-          <Stack.Screen name="KycCapture" component={KycCaptureScreen} options={{ title: t("kyc.title"), headerBackTitle: t("retailer.title") }} />
-          <Stack.Screen
-            name="AddRetailer"
-            component={AddRetailerScreen}
-            options={{ title: t("retailerForm.addTitle"), headerBackTitle: t("common.back"), ...oceanFormOptions }}
-          />
-          <Stack.Screen
-            name="EditRetailer"
-            component={EditRetailerScreen}
-            options={{ title: t("retailerForm.editTitle"), headerBackTitle: t("retailer.title"), ...oceanFormOptions }}
-          />
+          {capabilities.canOrderForRetailers && (
+            <>
+              <Stack.Screen
+                name="RepRetailerDetail"
+                component={RepRetailerDetailScreen}
+                options={{ title: t("retailer.title"), headerBackTitle: t("tabs.retailers") }}
+              />
+              <Stack.Screen
+                name="RepRetailerOutstanding"
+                component={RepRetailerOutstandingScreen}
+                options={{ title: t("retailer.outstandingLedger"), headerBackTitle: t("retailer.title") }}
+              />
+              <Stack.Screen
+                name="RepCatalog"
+                component={RepCatalogScreen}
+                options={{ title: t("orders.new"), headerBackTitle: t("common.back") }}
+              />
+              <Stack.Screen
+                name="RepReviewOrder"
+                component={RepReviewOrderScreen}
+                options={{ title: "Review order", headerBackTitle: t("common.back") }}
+              />
+              <Stack.Screen name="KycCapture" component={KycCaptureScreen} options={{ title: t("kyc.title"), headerBackTitle: t("retailer.title") }} />
+              <Stack.Screen
+                name="Visit"
+                component={VisitScreen}
+                options={{ title: t("visit.title"), headerBackTitle: t("common.back") }}
+              />
+            </>
+          )}
+          {(capabilities.canOrderForRetailers || capabilities.canRunFieldDay) && (
+            <Stack.Screen
+              name="OrderDetail"
+              component={OrderDetailScreen}
+              options={{ title: "Order detail", headerBackTitle: t("common.back") }}
+            />
+          )}
+          {capabilities.canRunFieldDay && (
+            <>
+              <Stack.Screen
+                name="Route"
+                component={RouteScreen}
+                options={{ title: t("route.title"), headerBackTitle: t("tabs.today") }}
+              />
+              <Stack.Screen
+                name="Opportunities"
+                component={OpportunitiesScreen}
+                options={{ title: t("opportunities.title"), headerBackTitle: t("tabs.today") }}
+              />
+            </>
+          )}
+          {capabilities.canViewTeamPerformance && (
+            <Stack.Screen
+              name="TeamPerformance"
+              component={TeamPerformanceScreen}
+              options={{ title: t("team.title"), headerBackTitle: t("tabs.more") }}
+            />
+          )}
+          {capabilities.canProposeRetailers && (
+            <Stack.Screen
+              name="AddRetailer"
+              component={AddRetailerScreen}
+              options={{ title: t("addRetailer.title"), headerBackTitle: t("tabs.customers") }}
+            />
+          )}
+          {capabilities.canManageAttendance && (
+            <Stack.Screen
+              name="MyDay"
+              component={MyDayScreen}
+              options={{ title: t("myday.title"), headerBackTitle: t("tabs.more") }}
+            />
+          )}
+          {capabilities.canRunFieldDay && (
+            <Stack.Screen name="SalesKit" component={SalesKitScreen} options={{ title: "Sales Kit", headerBackTitle: t("tabs.more") }} />
+          )}
+          {canOpenMarketSurveys(staff?.permissions ?? []) && (
+            <Stack.Screen name={MARKET_SURVEY_ROUTE} component={MarketSurveysScreen} options={{ title: MARKET_SURVEY_LABEL, headerBackTitle: t("tabs.more") }} />
+          )}
+          {capabilities.canSeeCustomerMap && (
+            <Stack.Screen
+              name="CustomerMap"
+              component={CustomerMapScreen}
+              options={{ title: t("map.title"), headerBackTitle: t("tabs.more") }}
+            />
+          )}
+          {capabilities.canSubmitExpenses && (
+            <Stack.Screen
+              name="Expenses"
+              component={ExpensesScreen}
+              options={{ title: t("expenses.title"), headerBackTitle: t("tabs.more") }}
+            />
+          )}
+          {capabilities.canRaiseIssues && (
+            <Stack.Screen
+              name="Issues"
+              component={IssuesScreen}
+              options={{ title: t("issues.title"), headerBackTitle: t("tabs.more") }}
+            />
+          )}
+          {capabilities.canRaiseIssues && (
+            <Stack.Screen
+              name="IssueDetail"
+              component={IssueDetailScreen}
+              options={{ title: "Issue detail", headerBackTitle: t("issues.title") }}
+            />
+          )}
+          {(capabilities.canCollect || capabilities.canOrderForRetailers) && (
+            <Stack.Screen
+              name="Collections"
+              component={StaffHomeScreen}
+              options={{ title: t("more.collections"), headerBackTitle: t("tabs.more") }}
+            />
+          )}
           {capabilities.canApprove && (
             <Stack.Screen
               name="ApprovalDetail"
@@ -152,10 +296,12 @@ export default function App() {
     <SafeAreaProvider>
       <LanguageProvider>
         <RepProvider>
-          <NavigationContainer theme={navTheme}>
-            <RootNavigator />
-            <StatusBar style="dark" />
-          </NavigationContainer>
+          <FieldProvider>
+            <NavigationContainer theme={navTheme}>
+              <RootNavigator />
+              <StatusBar style="dark" />
+            </NavigationContainer>
+          </FieldProvider>
         </RepProvider>
       </LanguageProvider>
     </SafeAreaProvider>

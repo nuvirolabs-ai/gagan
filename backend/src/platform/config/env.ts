@@ -3,7 +3,7 @@ import { parseSapB1Config } from "../../lib/sap/b1/config";
 import { parseLocationConfig } from "../../modules/location/locationConfig";
 
 const envSchema = z.object({
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  NODE_ENV: z.enum(["development", "test", "staging", "production"]).default("development"),
   DATABASE_URL: z.string().min(1),
   JWT_SECRET: z.string().min(32),
   REFRESH_TOKEN_SECRET: z.string().min(32),
@@ -28,10 +28,20 @@ const envSchema = z.object({
   OBJECT_STORAGE_ENDPOINT: z.string().url().optional(),
   OBJECT_STORAGE_ACCESS_KEY: z.string().min(1).optional(),
   OBJECT_STORAGE_SECRET_KEY: z.string().min(1).optional(),
+  // Required at the point a sensitive identity value is submitted. Keeping it
+  // optional here lets non-identity local flows boot while still failing closed
+  // instead of persisting Aadhaar plaintext when it is absent.
+  PII_ENCRYPTION_KEY: z.string().min(32).optional(),
   STORE_LOCATION_MAX_ACCURACY_METERS: z.coerce.number().positive().default(50),
   VISIT_VERIFIED_RADIUS_METERS: z.coerce.number().positive().default(150),
   VISIT_REVIEW_RADIUS_METERS: z.coerce.number().positive().default(500),
   DISABLE_JOBS: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  // Render's free tier has no background-worker compute. Staging may run the
+  // same single-instance scheduler inside the API process instead.
+  STAGING_RUN_JOBS_IN_API: z
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true"),

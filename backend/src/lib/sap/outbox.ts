@@ -1,6 +1,10 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "../prisma";
 import { getSapConnector, SapSalesOrderPayload, SapInvoicePayload } from "./index";
+import { buildInvoice } from "../invoicing";
+import { snapshot } from "../../modules/commercial/service";
+import { CommercialStatusCode } from "@prisma/client";
+import { recordCommercialStatusEvent } from "../../modules/commercialStatus/statusService";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -18,6 +22,7 @@ async function salesOrderPayload(db: Db, orderId: string): Promise<SapSalesOrder
 
   return {
     orderId: order.id,
+    ...(order.commercialSnapshot ? {commercial:snapshot(order.commercialSnapshot)!}:{}),
     orderNo: order.orderNo,
     externalReference: order.sapExternalReference ?? `GGN-${String(order.orderNo).padStart(8, "0")}`,
     sapCustomerId: order.retailer.sapCustomerId ?? "",
@@ -30,12 +35,71 @@ async function salesOrderPayload(db: Db, orderId: string): Promise<SapSalesOrder
   };
 }
 
+async function invoicePayload(db: Db, ledgerEntryId: string): Promise<SapInvoicePayload | null> {
+  const entry = await db.ledgerEntry.findUnique({
+    where: { id: ledgerEntryId },
+    include: {
+      retailer: { select: { sapCustomerId: true } },
+      order: { include: { items: { include: { variant: { include: { product: true } } } } } },
+      financialInvoice: { include: { lines: true } },
+    },
+  });
+  if (!entry || !entry.order) return null;
+
+  const savedLines = new Map(entry.financialInvoice?.lines.map(line => [line.orderItemId, line]) ?? []);
+  const calculated = buildInvoice(entry.order.items);
+  if (entry.financialInvoice && entry.order.items.some(item => !savedLines.has(item.id))) {
+    throw new Error("invoice_line_snapshot_incomplete");
+  }
+  // Legacy ledger-only documents have no frozen line totals. Never send a new
+  // interpretation that disagrees with the already-issued financial amount.
+  if (!entry.financialInvoice && calculated.total !== Number(entry.amount)) {
+    throw new Error("legacy_invoice_conversion_review_required");
+  }
+
+  return {
+    ledgerEntryId: entry.id,
+    ...(entry.financialInvoice?.commercialSnapshot ? {commercial:snapshot(entry.financialInvoice.commercialSnapshot)!}:{}),
+    orderId: entry.order.id,
+    sapCustomerId: entry.retailer.sapCustomerId ?? "",
+    amount: Number(entry.amount),
+    invoicedAt: entry.createdAt.toISOString(),
+    lines: entry.order.items.map((i) => ({
+      sapMaterialId: i.variant.product.sapMaterialId ?? "",
+      billedWeightKg: savedLines.has(i.id)
+        ? (savedLines.get(i.id)!.deliveredWeightKg == null ? null : Number(savedLines.get(i.id)!.deliveredWeightKg))
+        : (i.weightDelivered != null ? Number(i.weightDelivered) : null),
+      billedCases: savedLines.has(i.id) ? savedLines.get(i.id)!.deliveredCases : i.qtyDelivered,
+      lineTotal: savedLines.has(i.id)
+        ? Number(savedLines.get(i.id)!.lineTotal)
+        : calculated.lines.find(line => line.orderItemId === i.id)!.lineTotal,
+    })),
+  };
+}
+
 /**
  * Queue an authorized order for posting to SAP. Automatically allowed orders
  * enqueue during creation; approval-held orders enqueue in the same transaction
  * as the final approval and dispatch authorization.
  */
 export async function enqueueSalesOrder(db: Db, orderId: string): Promise<void> {
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, retailerId: true, orderNo: true, placedBy: true },
+  });
+  if (!order) return;
+
+  const authorization = await db.dispatchAuthorization.findFirst({
+    where: {
+      orderId,
+      status: "active",
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+    },
+    orderBy: { version: "desc" },
+    select: { id: true, assessmentId: true, issuedByStaffId: true },
+  });
+  if (!authorization) throw new Error("sales_order_dispatch_not_authorized");
+
   const payload = await salesOrderPayload(db, orderId);
   if (!payload) return;
 
@@ -48,47 +112,32 @@ export async function enqueueSalesOrder(db: Db, orderId: string): Promise<void> 
       payload: payload as unknown as Prisma.InputJsonValue,
     },
   });
+  await recordCommercialStatusEvent(db, {
+    code: CommercialStatusCode.SALES_ORDER_CREATED,
+    retailerId: order.retailerId,
+    orderId,
+    actorStaffId: authorization.issuedByStaffId,
+    metadata: {
+      placedBy: order.placedBy,
+      orderNo: order.orderNo,
+      dispatchAuthorizationId: authorization.id,
+      assessmentId: authorization.assessmentId,
+    },
+    idempotencyKey: `sales-order-created:${orderId}`,
+  });
 }
 
 /** Queue a delivered-weight invoice for posting back into SAP FI/SD. */
 export async function enqueueInvoice(db: Db, ledgerEntryId: string): Promise<void> {
-  const entry = await db.ledgerEntry.findUnique({
-    where: { id: ledgerEntryId },
-    include: {
-      retailer: { select: { sapCustomerId: true } },
-      order: { include: { items: { include: { variant: { include: { product: true } } } } } },
-    },
-  });
-  if (!entry || !entry.order) return;
-
-  const payload: SapInvoicePayload = {
-    ledgerEntryId: entry.id,
-    orderId: entry.order.id,
-    sapCustomerId: entry.retailer.sapCustomerId ?? "",
-    amount: Number(entry.amount),
-    invoicedAt: entry.createdAt.toISOString(),
-    lines: entry.order.items.map((i) => ({
-      sapMaterialId: i.variant.product.sapMaterialId ?? "",
-      billedWeightKg: i.weightDelivered != null ? Number(i.weightDelivered) : null,
-      billedCases: i.qtyDelivered,
-      lineTotal:
-        i.weightDelivered != null
-          ? Math.round(
-              (Number(i.unitPrice) /
-                (Number(i.variant.unitWeightKg) * i.variant.unitsPerCase)) *
-                Number(i.weightDelivered) *
-                100
-            ) / 100
-          : Number(i.unitPrice) * (i.qtyDelivered ?? i.qtyOrdered),
-    })),
-  };
+  const payload = await invoicePayload(db, ledgerEntryId);
+  if (!payload) return;
 
   await db.sapOutbox.upsert({
-    where: { kind_referenceId: { kind: "invoice", referenceId: entry.id } },
+    where: { kind_referenceId: { kind: "invoice", referenceId: ledgerEntryId } },
     update: { payload: payload as unknown as Prisma.InputJsonValue },
     create: {
       kind: "invoice",
-      referenceId: entry.id,
+      referenceId: ledgerEntryId,
       payload: payload as unknown as Prisma.InputJsonValue,
     },
   });
@@ -168,20 +217,51 @@ export async function drainOutbox(
               lastError: null,
             },
           }),
+          prisma.auditEvent.create({
+            data: {
+              actorStaffId: null,
+              action: "sap.sales_order_synced",
+              subjectType: "order",
+              subjectId: item.referenceId,
+              metadata: {
+                outboxId: item.id,
+                sapSalesOrderId: result.sapSalesOrderId,
+                sapDocEntry: result.sapDocEntry ?? null,
+                sapDocNum: result.sapDocNum ?? null,
+                externalReference: payload.externalReference,
+              },
+            },
+          }),
         ]);
       } else {
-        const payload = item.payload as unknown as SapInvoicePayload;
+        // Rebuild invoice payloads from current mappings as well. A delivery
+        // can be completed before SAP customer linking finishes; retrying the
+        // original JSON would preserve an empty CardCode forever.
+        const payload = await invoicePayload(prisma, item.referenceId);
+        if (!payload) throw new Error("Invoice ledger entry no longer exists");
         const result = await connector.postInvoice(payload);
-        await prisma.sapOutbox.update({
-          where: { id: item.id },
-          data: {
-            status: "sent",
-            sapId: result.sapInvoiceId,
-            sentAt: new Date(),
-            attempts: item.attempts + 1,
-            lastError: null,
-          },
-        });
+        await prisma.$transaction([
+          prisma.sapOutbox.update({
+            where: { id: item.id },
+            data: {
+              status: "sent",
+              sapId: result.sapInvoiceId,
+              payload: payload as unknown as Prisma.InputJsonValue,
+              sentAt: new Date(),
+              attempts: item.attempts + 1,
+              lastError: null,
+            },
+          }),
+          prisma.auditEvent.create({
+            data: {
+              actorStaffId: null,
+              action: "sap.invoice_synced",
+              subjectType: "order",
+              subjectId: payload.orderId,
+              metadata: { outboxId: item.id, ledgerEntryId: payload.ledgerEntryId, sapInvoiceId: result.sapInvoiceId },
+            },
+          }),
+        ]);
       }
       sent++;
     } catch (err) {

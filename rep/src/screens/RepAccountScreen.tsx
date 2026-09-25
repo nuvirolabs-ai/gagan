@@ -1,17 +1,36 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { View, Text, StyleSheet, Alert, ScrollView } from "react-native";
 
 import { useRep } from "../context/RepContext";
-import { colors, radius, spacing, shadow } from "../theme";
+import { useField } from "../context/FieldContext";
+import { staffCapabilities } from "../auth/staffCapabilities";
+import { colors, spacing } from "../theme";
+import { SCREEN_CONTENT_BOTTOM_GAP } from "../layout/viewportPolicy";
+import {
+  AppScreen,
+  Banner,
+  FilterChip,
+  InitialsBadge,
+  ListRow,
+  OfflineBanner,
+  SecondaryButton,
+  SectionHeader,
+  StatusChip,
+  Surface,
+  TextButton,
+  useHeaderPaddingTop,
+} from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
-import { initials } from "../home/format";
+import { marketSurveysEntry } from "../navigation/marketSurveyNavigation";
+import { buildApiLabel, buildInfo } from "../buildInfo";
 
 export default function RepAccountScreen({ navigation }: any) {
-  const insets = useSafeAreaInsets();
   const { staff, rep, logout } = useRep();
+  const { today, outbox, flushOutbox } = useField();
   const { language, t, setLanguage } = useLanguage();
+  const headerPaddingTop = useHeaderPaddingTop();
+  const capabilities = staffCapabilities(staff?.permissions ?? []);
+  const onDuty = today?.attendance?.status === "open";
 
   const confirmLogout = () =>
     Alert.alert(t("account.logoutTitle"), t("account.logoutBody"), [
@@ -19,123 +38,204 @@ export default function RepAccountScreen({ navigation }: any) {
       { text: t("account.logout"), style: "destructive", onPress: logout },
     ]);
 
+  const work = [
+    capabilities.canManageAttendance && {
+      icon: "calendar-outline",
+      label: t("more.myDay"),
+      subtitle: t("more.dayHistory"),
+      screen: "MyDay",
+    },
+    capabilities.canRunFieldDay && {
+      icon: "navigate-outline",
+      label: t("route.title"),
+      subtitle: t("more.routeSubtitle"),
+      screen: "Route",
+    },
+    capabilities.canRunFieldDay && {
+      icon: "bulb-outline",
+      label: t("opportunities.title"),
+      subtitle: t("more.attentionSubtitle"),
+      screen: "Opportunities",
+    },
+    capabilities.canRunFieldDay && {
+      icon: "folder-open-outline",
+      label: "Sales Kit",
+      subtitle: "Product and scheme material",
+      screen: "SalesKit",
+    },
+    marketSurveysEntry(staff?.permissions ?? []),
+  ].filter(Boolean) as Array<{ icon: string; label: string; subtitle: string; screen: string }>;
+
+  const grow = [
+    capabilities.canRunFieldDay && {
+      icon: "ribbon-outline",
+      label: t("more.performance"),
+      subtitle: t("more.performanceSubtitle"),
+      screen: "Activity",
+    },
+    capabilities.canViewTeamPerformance && {
+      icon: "people-outline",
+      label: t("team.title"),
+      subtitle: t("team.subtitle"),
+      screen: "TeamPerformance",
+    },
+    capabilities.canProposeRetailers && {
+      icon: "add-circle-outline",
+      label: t("addRetailer.title"),
+      subtitle: t("more.addStoreSubtitle"),
+      screen: "AddRetailer",
+    },
+    capabilities.canSeeCustomerMap && {
+      icon: "map-outline",
+      label: t("more.customerMap"),
+      subtitle: t("more.mapSubtitle"),
+      screen: "CustomerMap",
+    },
+  ].filter(Boolean) as Array<{ icon: string; label: string; subtitle: string; screen: string }>;
+
+  const operations = [
+    capabilities.canSubmitExpenses && {
+      icon: "receipt-outline",
+      label: t("more.expenses"),
+      subtitle: t("more.expensesSubtitle"),
+      screen: "Expenses",
+    },
+    capabilities.canRaiseIssues && {
+      icon: "alert-circle-outline",
+      label: t("more.issues"),
+      subtitle: t("more.issuesSubtitle"),
+      screen: "Issues",
+    },
+    (capabilities.canCollect || staff?.permissions.includes("collection.confirm")) && {
+      icon: "wallet-outline",
+      label: t("more.collections"),
+      subtitle: t("more.collectionsSubtitle"),
+      screen: "Collections",
+    },
+  ].filter(Boolean) as Array<{ icon: string; label: string; subtitle: string; screen: string }>;
+
+  const renderGroup = (title: string, links: typeof work) =>
+    links.length === 0 ? null : (
+      <View>
+        <SectionHeader title={title} />
+        <Surface>
+          {links.map((link, index) => (
+            <ListRow
+              key={link.screen}
+              first={index === 0}
+              icon={link.icon}
+              title={link.label}
+              subtitle={link.subtitle}
+              onPress={() =>
+                navigation.navigate(link.screen, link.screen === "Activity" ? { tab: "performance" } : undefined)
+              }
+            />
+          ))}
+        </Surface>
+      </View>
+    );
+
   return (
-    <View style={styles.screen}>
-      <View style={[styles.hero, { paddingTop: insets.top + spacing.lg }]}>
-        {navigation?.canGoBack?.() ? (
-          <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: spacing.sm }} accessibilityLabel={t("common.back")}>
-            <Ionicons name="chevron-back" size={22} color={colors.onDark} />
-          </TouchableOpacity>
+    <AppScreen>
+      <View style={[styles.moreHeader, { paddingTop: headerPaddingTop }]}>
+        <Text style={styles.moreKicker}>GAGAN SALES COMPANION</Text>
+        <View style={styles.moreTitleRow}>
+          <Text style={styles.moreTitle}>{t("more.title")}</Text>
+          <StatusChip label={onDuty ? t("more.onDuty") : t("more.offDuty")} tone={onDuty ? "green" : "neutral"} />
+        </View>
+      </View>
+      <ScrollView contentContainerStyle={styles.content}>
+        <Surface level={2}>
+          <View style={styles.profile}>
+            <InitialsBadge name={staff?.name ?? "?"} size={56} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.name}>{staff?.name ?? "—"}</Text>
+              <Text style={styles.sub}>{rep ? t("more.sales") : "Staff"}</Text>
+              {staff?.phone ? <Text style={styles.sub}>{staff.phone}</Text> : null}
+            </View>
+            <StatusChip label={onDuty ? t("more.onDuty") : t("more.offDuty")} tone={onDuty ? "green" : "neutral"} />
+          </View>
+        </Surface>
+
+        {outbox.pending > 0 || outbox.failed > 0 ? (
+          <Surface level={1}>
+            <SectionHeader title={t("more.offlineQueue")} />
+            {outbox.failed > 0 ? (
+              <Banner
+                tone="attention"
+                icon="cloud-upload-outline"
+                title={t(
+                  outbox.pending + outbox.failed === 1 ? "more.offlineQueueBody" : "more.offlineQueueBodyPlural",
+                  { count: outbox.pending + outbox.failed }
+                )}
+                body={`${outbox.failed} update${outbox.failed === 1 ? "" : "s"} could not be sent after several tries.`}
+              />
+            ) : (
+              <OfflineBanner
+                title={t(
+                  outbox.pending + outbox.failed === 1 ? "more.offlineQueueBody" : "more.offlineQueueBodyPlural",
+                  { count: outbox.pending + outbox.failed }
+                )}
+                body="Changes will sync when you're connected."
+              />
+            )}
+            <SecondaryButton
+              label={t("more.syncNow")}
+              icon="refresh-outline"
+              onPress={() => void flushOutbox({ retryFailed: true })}
+            />
+          </Surface>
         ) : null}
-        <Text style={styles.kicker}>{t("account.title")}</Text>
-        <View style={styles.identity}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials(staff?.name)}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.name}>{staff?.name ?? "—"}</Text>
-            <Text style={styles.sub}>{staff?.phone ?? ""}</Text>
-          </View>
-          <View style={styles.roleBadge}>
-            <Text style={styles.roleText}>{rep ? "SALES" : "STAFF"}</Text>
-          </View>
+
+        {renderGroup(t("more.myWork"), work)}
+        {renderGroup(t("more.grow"), grow)}
+        {renderGroup(t("more.operations"), operations)}
+
+        <View>
+          <SectionHeader title={t("more.accountGroup")} />
+          <Surface level={2}>
+            <Text style={styles.langLabel}>{t("more.settings")}</Text>
+            <View style={styles.langRow}>
+              <FilterChip label="English" active={language === "en"} onPress={() => void setLanguage("en")} />
+              <FilterChip label="हिन्दी" active={language === "hi"} onPress={() => void setLanguage("hi")} />
+            </View>
+            <Text style={styles.note}>
+              {rep
+                ? "Location is only recorded while you're on duty."
+                : "Your work areas are controlled by permissions assigned by your administrator."}
+            </Text>
+            <TextButton label={t("account.logout")} onPress={confirmLogout} />
+          </Surface>
         </View>
-      </View>
 
-      <View style={styles.languageRow}>
-        <Text style={styles.languageLabel}>{t("account.language")}</Text>
-        <View style={styles.languageChoices}>
-          <TouchableOpacity onPress={() => void setLanguage("en")} style={[styles.languageChoice, language === "en" && styles.languageChoiceActive]}>
-            <Text style={[styles.languageChoiceText, language === "en" && styles.languageChoiceTextActive]}>English</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => void setLanguage("hi")} style={[styles.languageChoice, language === "hi" && styles.languageChoiceActive]}>
-            <Text style={[styles.languageChoiceText, language === "hi" && styles.languageChoiceTextActive]}>हिन्दी</Text>
-          </TouchableOpacity>
+        <View style={styles.buildInfo} accessibilityLabel="Review build identity">
+          <Text style={styles.buildLabel}>Review build</Text>
+          <Text style={styles.buildValue} selectable>
+            {buildInfo.sourceSha === "unpublished"
+              ? "Unpublished local build"
+              : `${buildInfo.version} · ${buildInfo.sourceSha.slice(0, 12)}`}
+          </Text>
+          <Text style={styles.buildMeta}>{buildInfo.channel} · {buildApiLabel(buildInfo.api)}</Text>
         </View>
-      </View>
-
-      <View style={styles.note}>
-        <Ionicons name="information-circle-outline" size={16} color={colors.sky} />
-        <Text style={styles.noteText}>
-          {rep
-            ? "Orders you place are recorded against your name and use each retailer's own pricing and credit limit."
-            : "Your work areas are controlled by permissions assigned by your administrator."}
-        </Text>
-      </View>
-
-      <TouchableOpacity style={styles.logout} onPress={confirmLogout}>
-        <Ionicons name="log-out-outline" size={17} color={colors.danger} />
-        <Text style={styles.logoutText}>{t("account.logout")}</Text>
-      </TouchableOpacity>
-    </View>
+      </ScrollView>
+    </AppScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
-  hero: {
-    backgroundColor: colors.navy,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xl,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  },
-  kicker: { color: colors.onDarkMuted, fontWeight: "700", fontSize: 12, letterSpacing: 0.6, marginBottom: spacing.md },
-  identity: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  avatar: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: colors.sky,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: { fontSize: 18, fontWeight: "800", color: colors.navy },
-  name: { fontSize: 20, fontWeight: "800", color: colors.onDark },
-  sub: { fontSize: 13, color: colors.onDarkMuted, marginTop: 2 },
-  roleBadge: {
-    backgroundColor: "rgba(91,159,212,0.2)",
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: radius.pill,
-  },
-  roleText: { fontSize: 9.5, fontWeight: "800", color: colors.sky, letterSpacing: 0.5 },
-  note: {
-    flexDirection: "row",
-    gap: 8,
-    backgroundColor: colors.surfaceAlt,
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.lg,
-    borderRadius: radius.md,
-    padding: spacing.lg,
-  },
-  noteText: { flex: 1, fontSize: 12.5, color: colors.ink, lineHeight: 18 },
-  logout: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-    marginTop: spacing.xl,
-    paddingVertical: spacing.md,
-  },
-  logoutText: { color: colors.danger, fontWeight: "700", fontSize: 14.5 },
-  languageRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.lg,
-    padding: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadow.card,
-  },
-  languageLabel: { color: colors.ink, fontWeight: "700" },
-  languageChoices: { flexDirection: "row", gap: spacing.xs },
-  languageChoice: { paddingHorizontal: spacing.sm, paddingVertical: 7, borderRadius: radius.sm },
-  languageChoiceActive: { backgroundColor: colors.surfaceAlt },
-  languageChoiceText: { color: colors.inkMuted, fontSize: 12, fontWeight: "600" },
-  languageChoiceTextActive: { color: colors.navy, fontWeight: "800" },
+  moreHeader: { paddingHorizontal: spacing.xl, paddingBottom: spacing.lg, gap: spacing.xs },
+  moreKicker: { color: colors.blueInk, fontSize: 10, fontWeight: "800", letterSpacing: 1.1 },
+  moreTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md },
+  moreTitle: { color: colors.ink, fontSize: 30, lineHeight: 36, fontWeight: "700", letterSpacing: -0.8 },
+  content: { paddingHorizontal: spacing.xl, gap: spacing.section, paddingBottom: SCREEN_CONTENT_BOTTOM_GAP },
+  profile: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  name: { fontSize: 18, fontWeight: "600", color: colors.ink },
+  sub: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
+  langLabel: { fontSize: 15, fontWeight: "600", color: colors.ink, marginBottom: spacing.sm },
+  langRow: { flexDirection: "row", gap: spacing.sm },
+  note: { fontSize: 13, color: colors.textSecondary, lineHeight: 18, marginTop: spacing.md },
+  buildInfo: { paddingHorizontal: spacing.xs, paddingBottom: spacing.sm, gap: 2 },
+  buildLabel: { fontSize: 11, fontWeight: "700", color: colors.textSecondary, letterSpacing: 0.5, textTransform: "uppercase" },
+  buildValue: { fontSize: 12, color: colors.ink, fontWeight: "600" },
+  buildMeta: { fontSize: 11, color: colors.textSecondary },
 });

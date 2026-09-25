@@ -1,0 +1,21 @@
+{
+  "buildCommand": "npx expo export --platform web",
+  "outputDirectory": "dist",
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/founder/:path*",
+      "destination": "https://gagan-staging-api.onrender.com/founder/:path*"
+    },
+    {
+      "source": "/((?!_expo|assets|favicon.ico|index.html).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/founder/:path*",
+      "headers": [{ "key": "Cache-Control", "value": "no-store" }]
+    }
+  ]
+}

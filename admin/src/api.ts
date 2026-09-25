@@ -1,4 +1,10 @@
-const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+const BASE_URL =
+  import.meta.env.VITE_API_URL ??
+  (import.meta.env.DEV
+    ? "http://localhost:4000"
+    : (() => {
+        throw new Error("VITE_API_URL is required outside local development");
+      })());
 let accessToken: string | null = null;
 let refreshPromise: Promise<string> | null = null;
 
@@ -93,6 +99,12 @@ const patch = (path: string, body: unknown) =>
 const remove = (path: string) => request(path, { method: "DELETE" });
 
 export const api = {
+  commercial:()=>request("/admin/commercial"),
+  deliveryQuote:(id:string,lines:unknown)=>post(`/admin/commercial/orders/${id}/delivery-quote`,{lines}),
+  saveCommercialSku:(id:string,body:unknown)=>request(`/admin/commercial/skus/${id}`,{method:"PUT",body:JSON.stringify(body)}),
+  saveCommercialFreight:(id:string,body:unknown)=>request(`/admin/commercial/quotes/${id}/freight`,{method:"PUT",body:JSON.stringify(body)}),
+  commercialBalances:(id:string)=>request(`/admin/commercial/invoices/${id}/balances`),
+  commercialPayment:(id:string,key:string,body:unknown)=>request(`/admin/commercial/invoices/${id}/payments`,{method:"POST",headers:{"Idempotency-Key":key},body:JSON.stringify(body)}),
   login: (email: string, password: string) =>
     request(
       "/admin/auth/login",
@@ -118,6 +130,14 @@ export const api = {
   resolveApprovalDispute: (id: string, outcome: "approved" | "rejected", resolution: string) =>
     post(`/admin/approval-disputes/${id}/resolve`, { outcome, resolution }),
   collections: () => request("/admin/collections"),
+  collectionAssignments: (collectorStaffId: string) =>
+    request(`/admin/collections/collectors/${collectorStaffId}/assignments`),
+  collectionAssignmentRetailers: (collectorStaffId: string, search = "") =>
+    request(`/admin/collections/assignment-retailers?collectorStaffId=${encodeURIComponent(collectorStaffId)}&search=${encodeURIComponent(search)}`),
+  assignCollectionRetailer: (collectorStaffId: string, retailerId: string) =>
+    post("/admin/collections/assignments", { collectorStaffId, retailerId }),
+  unassignCollectionRetailer: (assignmentId: string) =>
+    remove(`/admin/collections/assignments/${assignmentId}`),
   confirmCollection: (id: string) => post(`/admin/collections/${id}/confirm`),
   rejectCollection: (id: string, reason: string) => post(`/admin/collections/${id}/reject`, { reason }),
   recoveryCases: () => request("/admin/recovery"),
@@ -163,9 +183,17 @@ export const api = {
 
   orders: (status?: string) => request(`/admin/orders${status ? `?status=${status}` : ""}`),
   order: (id: string) => request(`/admin/orders/${id}`),
+  warehouseOrders: (status?: "confirmed" | "packed") =>
+    request(`/admin/warehouse-orders${status ? `?status=${status}` : ""}`),
+  warehouseOrder: (id: string) => request(`/admin/warehouse-orders/${id}`),
+  packWarehouseOrder: (id: string) => post(`/admin/warehouse-orders/${id}/pack`),
   approve: (id: string) => post(`/admin/orders/${id}/approve`),
   reject: (id: string) => post(`/admin/orders/${id}/reject`),
   pack: (id: string) => post(`/admin/orders/${id}/pack`),
+  commercialStatuses: (code?: string) => request(`/admin/commercial-status/orders${code ? `?code=${encodeURIComponent(code)}` : ""}`),
+  commercialStatus: (id: string) => request(`/admin/commercial-status/orders/${id}`),
+  holdOrder: (id: string, reason: string, idempotencyKey?: string) => request(`/admin/commercial-status/orders/${id}/hold`, { method: "POST", headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined, body: JSON.stringify({ reason }) }),
+  releaseOrderHold: (id: string, reason?: string, idempotencyKey?: string) => request(`/admin/commercial-status/orders/${id}/release-hold`, { method: "POST", headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined, body: JSON.stringify({ reason }) }),
   assign: (id: string, routeId: string, deliverySlot?: string) =>
     post(`/admin/dispatch/${id}/assign`, { routeId, deliverySlot }),
   capturePod: (
@@ -175,15 +203,15 @@ export const api = {
   ) => post(`/admin/dispatch/${id}/pod`, { podType, items }),
 
   retailers: () => request("/admin/retailers"),
+  fieldRetailerMarketingHistory: (retailerId: string) =>
+    request(`/admin/field/retailers/${retailerId}/marketing-history`),
   retailer: (id: string) => request(`/admin/retailers/${id}`),
-  retailerProposals: () => request("/admin/retailer-proposals"),
   retailerProposal: (id: string) => request(`/admin/retailer-proposals/${id}`),
-  approveRetailerProposal: (id: string, reason?: string) =>
-    post(`/admin/retailer-proposals/${id}/approve`, { reason }),
-  rejectRetailerProposal: (id: string, reason: string) =>
-    post(`/admin/retailer-proposals/${id}/reject`, { reason }),
   createRetailer: (data: unknown) => post("/admin/retailers", data),
   setTier: (id: string, tierId: string) => post(`/admin/retailers/${id}/tier`, { tierId }),
+  setInternalSegment: (id: string, internalSegment: "A" | "B" | "C" | null) =>
+    post(`/admin/retailers/${id}/internal-segment`, { internalSegment }),
+  setDeliveryCity: (id: string, deliveryCity: string) => post(`/admin/retailers/${id}/delivery-city`, { deliveryCity }),
   setCreditLimit: (id: string, creditLimit: number) =>
     post(`/admin/retailers/${id}/credit-limit`, { creditLimit }),
   setPriceOverride: (id: string, variantId: string, price: number) =>
@@ -235,6 +263,181 @@ export const api = {
     if (filters?.to) query.set("to", filters.to);
     const suffix = query.toString();
     return request(`/admin/visits${suffix ? `?${suffix}` : ""}`);
+  },
+
+  /* ------------------------- field operations back office ------------------------ */
+
+  fieldAttendance: (date?: string) =>
+    request(`/admin/field/attendance${date ? `?date=${date}` : ""}`),
+  fieldAttendanceFor: (salespersonId: string, from?: string, to?: string) => {
+    const query = new URLSearchParams();
+    if (from) query.set("from", from);
+    if (to) query.set("to", to);
+    const suffix = query.toString();
+    return request(`/admin/field/attendance/${salespersonId}${suffix ? `?${suffix}` : ""}`);
+  },
+  leaveRequests: (status?: string) =>
+    request(`/admin/field/leave${status ? `?status=${status}` : ""}`),
+  decideLeave: (id: string, decision: "approved" | "rejected", note?: string) =>
+    post(`/admin/field/leave/${id}/decision`, { decision, note }),
+
+  routePlans: (filters?: { salespersonId?: string; from?: string; to?: string }) => {
+    const query = new URLSearchParams();
+    if (filters?.salespersonId) query.set("salespersonId", filters.salespersonId);
+    if (filters?.from) query.set("from", filters.from);
+    if (filters?.to) query.set("to", filters.to);
+    const suffix = query.toString();
+    return request(`/admin/field/routes${suffix ? `?${suffix}` : ""}`);
+  },
+  saveRoutePlan: (body: {
+    salespersonId: string;
+    planDate: string;
+    name?: string;
+    stops: Array<{ retailerId: string; purpose?: string; note?: string }>;
+  }) => post("/admin/field/routes", body),
+  publishRoutePlan: (id: string) => post(`/admin/field/routes/${id}/publish`),
+
+  fieldTasks: (filters?: { salespersonId?: string; status?: string }) => {
+    const query = new URLSearchParams();
+    if (filters?.salespersonId) query.set("salespersonId", filters.salespersonId);
+    if (filters?.status) query.set("status", filters.status);
+    const suffix = query.toString();
+    return request(`/admin/field/tasks${suffix ? `?${suffix}` : ""}`);
+  },
+  assignFieldTask: (body: {
+    assignedToStaffId: string;
+    title: string;
+    description?: string;
+    retailerId?: string;
+    priority?: string;
+    dueAt?: string;
+  }) => post("/admin/field/tasks", body),
+  cancelFieldTask: (id: string) => post(`/admin/field/tasks/${id}/cancel`),
+
+  fieldExpenses: (filters?: { status?: string; salespersonId?: string }) => {
+    const query = new URLSearchParams();
+    if (filters?.status) query.set("status", filters.status);
+    if (filters?.salespersonId) query.set("salespersonId", filters.salespersonId);
+    const suffix = query.toString();
+    return request(`/admin/field/expenses${suffix ? `?${suffix}` : ""}`);
+  },
+  decideExpense: (id: string, decision: "approved" | "rejected", note?: string) =>
+    post(`/admin/field/expenses/${id}/decision`, { decision, note }),
+
+  serviceIssues: (filters?: { status?: string; retailerId?: string }) => {
+    const query = new URLSearchParams();
+    if (filters?.status) query.set("status", filters.status);
+    if (filters?.retailerId) query.set("retailerId", filters.retailerId);
+    const suffix = query.toString();
+    return request(`/admin/field/issues${suffix ? `?${suffix}` : ""}`);
+  },
+  updateServiceIssue: (
+    id: string,
+    body: { status: string; assignedTeam?: string; resolutionNote?: string }
+  ) => post(`/admin/field/issues/${id}/status`, body),
+
+  fieldTeam: (date?: string) => request(`/admin/field/team${date ? `?to=${date}` : ""}`),
+  liveFieldPositions: () => request("/admin/field/tracking/live"),
+  fieldTrack: (salespersonId: string, date?: string) =>
+    request(`/admin/field/tracking/${salespersonId}${date ? `?date=${date}` : ""}`),
+
+  /* --------------------------- sales leadership --------------------------- */
+
+  // The team is the caller's reporting tree, resolved on the server; a
+  // salespersonId narrows within it and is rejected if it falls outside.
+  salesLeader: (salespersonId?: string) =>
+    request(`/admin/sales-leader${salespersonId ? `?salespersonId=${salespersonId}` : ""}`),
+  salesLeaderRanking: (scope: "team" | "territory" | "company", territory?: string) => {
+    const query = new URLSearchParams({ scope });
+    if (territory) query.set("territory", territory);
+    return request(`/admin/sales-leader/ranking?${query.toString()}`);
+  },
+  salesLeaderOpportunities: (view: "team" | "direct" | "person", salespersonId?: string) => {
+    const query = new URLSearchParams({ view });
+    if (salespersonId) query.set("salespersonId", salespersonId);
+    return request(`/admin/sales-leader/opportunities?${query.toString()}`);
+  },
+
+  /* --------------------------- sales organisation ------------------------- */
+
+  orgTree: () => request("/admin/org/tree"),
+  orgUnassigned: () => request("/admin/org/unassigned"),
+  orgStaff: (staffId: string) => request(`/admin/org/staff/${staffId}`),
+  orgEligibleManagers: (staffId: string) => request(`/admin/org/staff/${staffId}/eligible-managers`),
+  setOrgManager: (staffId: string, managerId: string | null, reason?: string) =>
+    post(`/admin/org/staff/${staffId}/manager`, { managerId, reason }),
+
+  retailerProposals: (status?: string) =>
+    request(`/admin/retailer-proposals${status ? `?status=${status}` : ""}`),
+  approveRetailerProposal: (id: string, tierId?: string) =>
+    post(`/admin/retailer-proposals/${id}/approve`, tierId ? { tierId } : {}),
+  rejectRetailerProposal: (id: string, reason: string) =>
+    post(`/admin/retailer-proposals/${id}/reject`, { reason }),
+
+  /* ----------------------------- market surveys ----------------------------- */
+  surveys: (status?: string) => request(`/admin/surveys${status ? `?status=${status}` : ""}`),
+  survey: (id: string) => request(`/admin/surveys/${id}`),
+  createSurvey: (body: unknown) => post("/admin/surveys", body),
+  updateSurvey: (id: string, body: unknown) => patch(`/admin/surveys/${id}`, body),
+  activateSurvey: (id: string) => post(`/admin/surveys/${id}/activate`),
+  closeSurvey: (id: string) => post(`/admin/surveys/${id}/close`),
+  surveyResponses: (id: string, respondentType?: string) => request(`/admin/surveys/${id}/responses${respondentType ? `?respondentType=${respondentType}` : ""}`),
+  surveySummary: (id: string) => request(`/admin/surveys/${id}/summary`),
+
+  salesTargets: (salespersonId?: string) =>
+    request(`/admin/field/targets${salespersonId ? `?salespersonId=${salespersonId}` : ""}`),
+  setSalesTarget: (body: {
+    salespersonId: string;
+    metric: string;
+    periodStart: string;
+    periodEnd: string;
+    targetValue: number;
+  }) => post("/admin/field/targets", body),
+
+  sapStatus: () => request("/admin/sap/status"),
+  sapSync: (entity: "customers" | "materials" | "pricing" | "stock" | "all" = "all") =>
+    post("/admin/sap/sync", { entity }),
+  sapOutbox: (status?: string) =>
+    request(`/admin/sap/outbox${status ? `?status=${status}` : ""}`),
+  sapDrain: () => post("/admin/sap/outbox/drain"),
+  sapRetry: (id: string) => post(`/admin/sap/outbox/${id}/retry`),
+
+  importTypes: () => request("/admin/imports/types"),
+  imports: () => request("/admin/imports"),
+  importJob: (id: string) => request(`/admin/imports/${id}`),
+  importPreview: async (type: string, mode: string, file: File) => {
+    const res = await fetch(`${BASE_URL}/admin/imports/preview`, {
+      method: "POST",
+      body: file,
+      headers: {
+        Authorization: accessToken ? `Bearer ${accessToken}` : "",
+        "Content-Type": "application/octet-stream",
+        "X-File-Name": file.name,
+        "X-Import-Type": type,
+        "X-Import-Mode": mode,
+      },
+      credentials: "include",
+    });
+    const body = await parseResponse(res);
+    if (!res.ok) throw new ApiError(res.status, body);
+    return body;
+  },
+  applyImport: (id: string) => post(`/admin/imports/${id}/apply`, { confirm: true }),
+  importTemplate: async (type: string, format: "csv" | "xlsx") => {
+    const res = await fetch(`${BASE_URL}/admin/imports/templates/${type}.${format}`, {
+      headers: { Authorization: accessToken ? `Bearer ${accessToken}` : "" },
+      credentials: "include",
+    });
+    if (!res.ok) throw new ApiError(res.status, await parseResponse(res));
+    return res.blob();
+  },
+  importErrors: async (id: string) => {
+    const res = await fetch(`${BASE_URL}/admin/imports/${id}/errors.csv`, {
+      headers: { Authorization: accessToken ? `Bearer ${accessToken}` : "" },
+      credentials: "include",
+    });
+    if (!res.ok) throw new ApiError(res.status, await parseResponse(res));
+    return res.blob();
   },
 };
 

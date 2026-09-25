@@ -54,6 +54,13 @@ export const ERROR_COPY: Record<string, string> = {
   /* -------------------------------- access ------------------------------- */
   permission_required: "You do not have permission to do that.",
   admin_access_required: "This area needs a portal login.",
+  target_scope_required: "Choose Personal or Team for this target before saving.",
+  target_writes_paused: "Target changes are temporarily paused during verification. Try again after the cutover.",
+  sales_rep_identity_ambiguous: "More than one SalesRep identity may match. Resolve the contact records before setup.",
+  sales_rep_link_conflict: "This SalesRep link conflicts with the staff contact. Resolve the identity before setup.",
+  role_permission_mismatch: "This role is missing a required permission. Repair the role catalog before setup.",
+  selling_leader_setup_required: "Use the guided Sales Leader setup to link the salesperson identity and roles together.",
+  setup_conflict_retry: "Another setup changed this identity. Reload the staff record and try again.",
 };
 
 /** The sentence for an error, falling back to whatever the API actually said. */

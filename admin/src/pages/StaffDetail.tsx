@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import { readableRole, type Role, type StaffMember } from "../staffTypes";
+import { explain } from "../errorCopy";
 
 type CollectionAssignment = {
   id: string;
@@ -38,6 +39,9 @@ export default function StaffDetail() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [selectedReports, setSelectedReports] = useState<string[]>([]);
+  const [leaderManagerId, setLeaderManagerId] = useState("");
+  const [setupResult, setSetupResult] = useState<any | null>(null);
 
   const member = staff.find((item) => item.id === staffId);
   const canCollect = staffMemberHasPermission(member, roles, "collection.submit");
@@ -97,7 +101,30 @@ export default function StaffDetail() {
   const assignRole = (event: React.FormEvent) => {
     event.preventDefault();
     if (!roleId) return;
+    const name = roles.find((role) => role.id === roleId)?.name;
+    if (name === "field_manager" || (name === "salesperson" && (!member?.salesRepId || member.roles.some(({ role }) => role.name === "field_manager")))) {
+      setError("Use the Selling Sales Leader or Manager only setup below for this role change.");
+      return;
+    }
     void run(() => api.assignStaffRole(staffId, roleId), "Role assigned.");
+  };
+
+  const setupSellingLeader = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await api.setupSellingLeader(staffId, {
+        ...(leaderManagerId ? { managerId: leaderManagerId === "__root__" ? null : leaderManagerId } : {}),
+        ...(selectedReports.length ? { reportIds: selectedReports } : {}),
+      });
+      setSetupResult(result);
+      setNotice("Selling Sales Leader setup completed.");
+      setSelectedReports([]);
+      await load(retailerSearch);
+    } catch (err) {
+      setNotice(null);
+      setError(explain(err, "Could not complete Selling Sales Leader setup"));
+    } finally { setBusy(false); }
   };
 
   const assignCollectionRetailer = (event: React.FormEvent) => {
@@ -190,6 +217,42 @@ export default function StaffDetail() {
             <button type="submit" disabled={busy || !roleId}>Assign role</button>
           </form>
         )}
+      </section>
+
+      <section className="card">
+        <h2 className="section-title">Sales leadership</h2>
+        {member.roles.some(({ role }) => role.name === "salesperson") && !member.salesRepId ? (
+          <p className="banner error">Salesperson identity needs setup before personal work can open.</p>
+        ) : null}
+        <p className="small muted">SalesRep link: {member.salesRepId ?? "Not linked"}</p>
+        <p className="small muted">Current direct reports: {member.directReports?.map((report) => report.name).join(", ") || "None"}</p>
+        <div className="field">
+          <label htmlFor="leader-manager">Reports to</label>
+          <select id="leader-manager" value={leaderManagerId} onChange={(event) => setLeaderManagerId(event.target.value)}>
+            <option value="">Keep current reporting line</option>
+            <option value="__root__">Top level</option>
+            {staff.filter((item) => item.id !== staffId && item.status === "active").map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <span>Direct reports to confirm</span>
+          {staff.filter((item) => item.id !== staffId && item.status === "active").map((item) => (
+            <label key={item.id} className="check-row">
+              <input
+                type="checkbox"
+                aria-label={`${item.name} reports to ${member.name}`}
+                checked={selectedReports.includes(item.id)}
+                onChange={(event) => setSelectedReports((current) => event.target.checked ? [...current, item.id] : current.filter((id) => id !== item.id))}
+              />
+              {item.name}{item.managerId === staffId ? " (already reports here)" : ""}
+            </label>
+          ))}
+        </div>
+        <div className="inline-form">
+          <button disabled={busy || member.status !== "active"} onClick={() => void setupSellingLeader()}>Set up selling Sales Leader</button>
+          <button className="secondary" disabled={busy || member.status !== "active"} onClick={() => void run(() => api.setupManagerOnly(staffId), "Manager-only setup completed.")}>Set up manager only</button>
+        </div>
+        {setupResult ? <p className="small muted">Verified link: {setupResult.staff?.salesRepId ?? "none"} · Roles: {setupResult.roles?.join(", ")}</p> : null}
       </section>
 
       <section className="card">

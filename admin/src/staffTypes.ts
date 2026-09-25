@@ -14,6 +14,9 @@ export interface StaffMember {
   email: string;
   employeeRef?: string | null;
   status: "active" | "suspended" | "revoked";
+  salesRepId?: string | null;
+  managerId?: string | null;
+  directReports?: { id: string; name: string; status: string }[];
   roles: { role: StaffRole }[];
   delegationsHeld: {
     id: string;

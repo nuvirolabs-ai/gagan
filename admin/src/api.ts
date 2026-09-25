@@ -170,6 +170,11 @@ export const api = {
 
   staff: () => request("/admin/staff"),
   roles: () => request("/admin/roles"),
+  setupSellingLeader: (staffId: string, body: { managerId?: string | null; reportIds?: string[]; territory?: string }) =>
+    post(`/admin/staff/${staffId}/selling-leader-setup`, body),
+  createSellingLeader: (body: { newStaff: { name: string; phone: string; email: string; employeeRef?: string }; managerId?: string | null; reportIds?: string[]; territory?: string }) =>
+    post("/admin/staff/selling-leader-setup", body),
+  setupManagerOnly: (staffId: string) => post(`/admin/staff/${staffId}/manager-only-setup`),
   createStaff: (data: unknown) => post("/admin/staff", data),
   setStaffStatus: (id: string, status: "active" | "suspended" | "revoked") =>
     patch(`/admin/staff/${id}/status`, { status }),
@@ -384,10 +389,11 @@ export const api = {
   surveyResponses: (id: string, respondentType?: string) => request(`/admin/surveys/${id}/responses${respondentType ? `?respondentType=${respondentType}` : ""}`),
   surveySummary: (id: string) => request(`/admin/surveys/${id}/summary`),
 
-  salesTargets: (salespersonId?: string) =>
-    request(`/admin/field/targets${salespersonId ? `?salespersonId=${salespersonId}` : ""}`),
+  salesTargets: (salespersonId?: string, scope: "PERSONAL" | "TEAM" | "all" = "all") =>
+    request(`/admin/field/targets?scope=${scope}${salespersonId ? `&salespersonId=${encodeURIComponent(salespersonId)}` : ""}`),
   setSalesTarget: (body: {
     salespersonId: string;
+    scope: "PERSONAL" | "TEAM";
     metric: string;
     periodStart: string;
     periodEnd: string;

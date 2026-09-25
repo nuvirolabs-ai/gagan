@@ -11,6 +11,9 @@ export default function Staff() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", phone: "", email: "", employeeRef: "" });
+  const [newMode, setNewMode] = useState<"staff" | "selling_leader">("staff");
+  const [newManagerId, setNewManagerId] = useState("");
+  const [newReportIds, setNewReportIds] = useState<string[]>([]);
 
   const load = async () => {
     setLoading(true);
@@ -34,14 +37,26 @@ export default function Staff() {
     setBusy(true);
     setError(null);
     try {
-      await api.createStaff({
+      const newStaff = {
         name: form.name,
         phone: form.phone,
         email: form.email,
         employeeRef: form.employeeRef.trim() || undefined,
-      });
-      setNotice(`${form.name} can now receive an assigned role.`);
+      };
+      if (newMode === "selling_leader") {
+        await api.createSellingLeader({
+          newStaff,
+          ...(newManagerId ? { managerId: newManagerId } : {}),
+          ...(newReportIds.length ? { reportIds: newReportIds } : {}),
+        });
+      } else {
+        await api.createStaff(newStaff);
+      }
+      setNotice(newMode === "selling_leader" ? `${form.name} is set up as a selling Sales Leader.` : `${form.name} can now receive an assigned role.`);
       setForm({ name: "", phone: "", email: "", employeeRef: "" });
+      setNewMode("staff");
+      setNewManagerId("");
+      setNewReportIds([]);
       setCreating(false);
       await load();
     } catch (err) {
@@ -71,6 +86,13 @@ export default function Staff() {
       {creating && (
         <form className="card compact-form" onSubmit={create}>
           <h2 className="section-title">New staff identity</h2>
+          <div className="field">
+            <label htmlFor="new-staff-mode">Setup</label>
+            <select id="new-staff-mode" value={newMode} onChange={(event) => setNewMode(event.target.value as "staff" | "selling_leader")}>
+              <option value="staff">Staff identity</option>
+              <option value="selling_leader">Selling Sales Leader</option>
+            </select>
+          </div>
           <div className="form-grid">
             <div className="field">
               <label htmlFor="staff-name">Full name</label>
@@ -89,7 +111,27 @@ export default function Staff() {
               <input id="staff-ref" value={form.employeeRef} onChange={(event) => setForm({ ...form, employeeRef: event.target.value })} />
             </div>
           </div>
-          <button type="submit" disabled={busy}>{busy ? "Creating…" : "Create staff member"}</button>
+          {newMode === "selling_leader" ? (
+            <div className="form-grid">
+              <div className="field">
+                <label htmlFor="new-leader-manager">Reports to</label>
+                <select id="new-leader-manager" value={newManagerId} onChange={(event) => setNewManagerId(event.target.value)}>
+                  <option value="">Top level</option>
+                  {staff.filter((person) => person.status === "active").map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
+                </select>
+              </div>
+              <div className="field">
+                <span>Direct reports</span>
+                {staff.filter((person) => person.status === "active").map((person) => (
+                  <label className="check-row" key={person.id}>
+                    <input type="checkbox" checked={newReportIds.includes(person.id)} onChange={(event) => setNewReportIds((current) => event.target.checked ? [...current, person.id] : current.filter((id) => id !== person.id))} />
+                    {person.name}
+                  </label>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          <button type="submit" disabled={busy}>{busy ? "Creating…" : newMode === "selling_leader" ? "Create selling Sales Leader" : "Create staff member"}</button>
         </form>
       )}
 

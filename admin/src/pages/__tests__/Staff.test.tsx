@@ -19,6 +19,9 @@ vi.mock("../../api", () => ({
     collectionAssignmentRetailers: vi.fn(),
     assignCollectionRetailer: vi.fn(),
     unassignCollectionRetailer: vi.fn(),
+    setupSellingLeader: vi.fn(),
+    setupManagerOnly: vi.fn(),
+    createSellingLeader: vi.fn(),
   },
 }));
 
@@ -33,6 +36,9 @@ const coordinator = {
   name: "sales_coordinator",
   description: "Approves second invoices.",
   permissions: [],
+};
+const fieldManager = {
+  id: "role-manager", name: "field_manager", description: "Manages field reports.", permissions: [],
 };
 
 const staff = [
@@ -71,6 +77,9 @@ describe("staff administration", () => {
     vi.mocked(api.collectionAssignmentRetailers).mockResolvedValue({ retailers: [] });
     vi.mocked(api.assignCollectionRetailer).mockResolvedValue({});
     vi.mocked(api.unassignCollectionRetailer).mockResolvedValue({});
+    vi.mocked(api.setupSellingLeader).mockResolvedValue({ staff: { id: "staff-ravi", salesRepId: "rep-ravi" }, roles: ["salesperson", "field_manager"] });
+    vi.mocked(api.setupManagerOnly).mockResolvedValue({ staff: { id: "staff-ravi", salesRepId: "rep-ravi" }, workspaceMode: "manager_only" });
+    vi.mocked(api.createSellingLeader).mockResolvedValue({ staff: { id: "staff-new", salesRepId: "rep-new" } });
   });
 
   it("creates a staff identity from the focused staff list", async () => {
@@ -95,6 +104,23 @@ describe("staff administration", () => {
         employeeRef: undefined,
       })
     );
+  });
+
+  it("creates a selling Sales Leader through one guided request", async () => {
+    render(<MemoryRouter><Staff /></MemoryRouter>);
+    expect(await screen.findByText("Ravi Kumar")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Add staff member" }));
+    fireEvent.change(screen.getByLabelText("Setup"), { target: { value: "selling_leader" } });
+    fireEvent.change(screen.getByLabelText("Full name"), { target: { value: "Asha Rao" } });
+    fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "9999999999" } });
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "asha@example.com" } });
+    fireEvent.change(screen.getByLabelText("Reports to"), { target: { value: "staff-ravi" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create selling Sales Leader" }));
+    await waitFor(() => expect(api.createSellingLeader).toHaveBeenCalledWith({
+      newStaff: { name: "Asha Rao", phone: "9999999999", email: "asha@example.com", employeeRef: undefined },
+      managerId: "staff-ravi",
+    }));
+    expect(api.createStaff).not.toHaveBeenCalled();
   });
 
   it("assigns a role, suspends access, and delegates bounded authority", async () => {
@@ -139,6 +165,25 @@ describe("staff administration", () => {
         })
       )
     );
+  });
+
+  it("offers atomic selling leader setup with explicit reports and manager-only choice", async () => {
+    vi.mocked(api.roles).mockResolvedValue({ roles: [salesperson, fieldManager] });
+    vi.mocked(api.staff).mockResolvedValue({ staff: [
+      { ...staff[0], salesRepId: null, roles: [{ role: salesperson }], directReports: [] },
+      { ...staff[1], directReports: [] },
+    ] });
+    render(
+      <MemoryRouter initialEntries={["/staff/staff-ravi"]}>
+        <Routes><Route path="/staff/:staffId" element={<StaffDetail />} /></Routes>
+      </MemoryRouter>
+    );
+    expect(await screen.findByText(/salesperson identity needs setup/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Meera Shah reports to Ravi Kumar"));
+    fireEvent.click(screen.getByRole("button", { name: "Set up selling Sales Leader" }));
+    await waitFor(() => expect(api.setupSellingLeader).toHaveBeenCalledWith("staff-ravi", { reportIds: ["staff-meera"] }));
+    fireEvent.click(screen.getByRole("button", { name: "Set up manager only" }));
+    await waitFor(() => expect(api.setupManagerOnly).toHaveBeenCalledWith("staff-ravi"));
   });
 
   it("lets Admin grant and revoke retailer collection access for an authorized collector", async () => {

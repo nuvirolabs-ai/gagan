@@ -16,6 +16,7 @@ function today() {
 export default function FieldPlanning() {
   const [tab, setTab] = useState<"routes" | "tasks" | "targets">("routes");
   const [staff, setStaff] = useState<any[]>([]);
+  const [allStaff, setAllStaff] = useState<any[]>([]);
   const [retailers, setRetailers] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
@@ -39,6 +40,7 @@ export default function FieldPlanning() {
 
   const [targetForm, setTargetForm] = useState({
     salespersonId: "",
+    scope: "PERSONAL" as "PERSONAL" | "TEAM",
     metric: "order_value",
     targetValue: "",
   });
@@ -50,10 +52,14 @@ export default function FieldPlanning() {
         api.retailers(),
         api.routePlans({ from: today(), to: today() }),
         api.fieldTasks(),
-        api.salesTargets(),
+        api.salesTargets(undefined, "all"),
       ]);
-      // Only staff linked to a sales rep can run a field day.
-      setStaff((staffResult.staff ?? []).filter((member: any) => member.salesRepId));
+      // A historical SalesRep link alone does not give a manager-only user a field day.
+      setStaff((staffResult.staff ?? []).filter((member: any) =>
+        member.status === "active" && member.salesRepId &&
+        member.roles?.some(({ role }: any) => role.name === "salesperson")
+      ));
+      setAllStaff(staffResult.staff ?? []);
       setRetailers(retailerResult.retailers ?? []);
       setPlans(planResult.plans ?? []);
       setTasks(taskResult.tasks ?? []);
@@ -125,14 +131,15 @@ export default function FieldPlanning() {
 
   const saveTarget = async () => {
     const value = Number(targetForm.targetValue);
-    if (!targetForm.salespersonId || !Number.isFinite(value) || value <= 0) {
-      setError("Pick a salesperson and enter a positive target.");
+    if (!targetForm.salespersonId || targetForm.targetValue.trim() === "" || !Number.isFinite(value) || value < 0) {
+      setError("Pick an owner and enter a non-negative target.");
       return;
     }
     const now = new Date();
     try {
       await api.setSalesTarget({
         salespersonId: targetForm.salespersonId,
+        scope: targetForm.scope,
         metric: targetForm.metric,
         periodStart: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString(),
         periodEnd: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).toISOString(),
@@ -404,21 +411,26 @@ export default function FieldPlanning() {
         <>
           <div className="card">
             <h2 className="section-title">Set a target for this month</h2>
-            <p className="section-copy">
-              The salesperson's app only shows target-versus-achievement for metrics that have a
-              stored target. Nothing is inferred.
-            </p>
+            <p className="section-copy">Personal and team targets are separate commitments.</p>
             <div className="form-grid">
               <div className="field">
-                <label>Salesperson</label>
+                <label htmlFor="target-scope">Target scope</label>
+                <select id="target-scope" value={targetForm.scope} onChange={(event) => setTargetForm({ ...targetForm, scope: event.target.value as "PERSONAL" | "TEAM", salespersonId: "" })}>
+                  <option value="PERSONAL">Personal</option>
+                  <option value="TEAM">Team</option>
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="target-owner">Target owner</label>
                 <select
+                  id="target-owner"
                   value={targetForm.salespersonId}
                   onChange={(event) =>
                     setTargetForm({ ...targetForm, salespersonId: event.target.value })
                   }
                 >
                   <option value="">Select…</option>
-                  {staff.map((member) => (
+                  {allStaff.filter((member) => member.status === "active" && member.roles?.some(({ role }: any) => role.name === (targetForm.scope === "TEAM" ? "field_manager" : "salesperson")) && (targetForm.scope === "TEAM" || member.salesRepId)).map((member) => (
                     <option key={member.id} value={member.id}>
                       {member.name}
                     </option>
@@ -438,8 +450,11 @@ export default function FieldPlanning() {
                 </select>
               </div>
               <div className="field">
-                <label>Target</label>
+                <label htmlFor="target-value">Target value</label>
                 <input
+                  id="target-value"
+                  type="number"
+                  min="0"
                   value={targetForm.targetValue}
                   onChange={(event) =>
                     setTargetForm({ ...targetForm, targetValue: event.target.value })
@@ -459,6 +474,7 @@ export default function FieldPlanning() {
                 <thead>
                   <tr>
                     <th>Salesperson</th>
+                    <th>Scope</th>
                     <th>Metric</th>
                     <th>Period</th>
                     <th>Target</th>
@@ -468,6 +484,7 @@ export default function FieldPlanning() {
                   {targets.map((target: any) => (
                     <tr key={target.id}>
                       <td>{target.salesperson?.name ?? target.salespersonId}</td>
+                      <td>{target.scope === "TEAM" ? "Team" : "Personal"}</td>
                       <td>{target.metric.replace("_", " ")}</td>
                       <td>
                         {new Date(target.periodStart).toLocaleDateString("en-IN")} –{" "}

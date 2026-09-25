@@ -211,15 +211,15 @@ These totals classify the 46 issue IDs in `GAGAN_PRODUCT_GOAL.md` exactly once. 
 
 TOTAL ISSUES: 46
 VERIFIED IMPLEMENTED: 0
-IMPLEMENTED BUT NOT VERIFIED: 21
-PARTIAL: 13
+IMPLEMENTED BUT NOT VERIFIED: 22
+PARTIAL: 12
 MISSING: 5
 BROKEN: 2
 BLOCKED: 1
 DEFERRED: 3
 WITHDRAWN: 1
 
-The required migration count does not reconcile: 49 migration directories are present where the audit brief expected 46. All required migration identities are present, the excluded staging-inventory migration is absent, and no migration/database change was made for PAY-05. PAY-04 remains blocked on the collection OTP business rule; OTP-01 remains broken for an environment selecting unimplemented MSG91.
+The required migration count does not reconcile: 50 migration directories are present where the audit brief expected 46. All required migration identities are present, and the excluded staging-inventory migration is absent. PAY-05 required no migration; PAY-06 adds one locally tested online invoice-scoped payment constraint migration. PAY-04 remains blocked on the collection OTP business rule; OTP-01 remains broken for an environment selecting unimplemented MSG91.
 
 ## Top 20 Real Gaps
 
@@ -228,7 +228,7 @@ Ordered by P0 business correctness, P1 core operations, then P2 UX/admin. Implem
 1. **P0 — GGN-OTP-01 (BROKEN):** Runtime registers only the mock SMS provider; no production MSG91 adapter or separate WhatsApp OTP flow is present. A runtime selecting `msg91` fails closed.
 2. **P0 — GGN-PAY-04 (BLOCKED):** Collection methods requiring customer OTP and the point at which OTP gates the transaction remain unspecified.
 3. **P0 — GGN-PAY-05 (IMPLEMENTED BUT NOT VERIFIED):** Backend, Retailer, Salesperson, and Admin now expose reconciled company-wise balance/event splits; hosted and exact-source physical acceptance remain open.
-4. **P0 — GGN-PAY-06 (PARTIAL):** Accounting supports invoice/entity allocations, but Retailer Pay does not let the retailer choose or understand the invoice/entity relationship for a new payment.
+4. **P0 — GGN-PAY-06 (IMPLEMENTED BUT NOT VERIFIED):** Retailer Pay selects and explains invoice/entity allocation, and payment/ledger readbacks identify invoice/order; hosted and exact-source native/physical acceptance remain open.
 5. **P0 — GGN-PAY-08 (PARTIAL):** Salesperson Outlet shows company-separated outstanding and recent ledger, but Outstanding is not clickable and does not open a dedicated detail view.
 6. **P0 — GGN-ORD-02 (IMPLEMENTED BUT NOT VERIFIED):** Pending-proposal demand capture exists, but the complete approved-conversion UI→API→canonical order readback and race behavior remain unaccepted.
 7. **P0 — GGN-PAY-01 (IMPLEMENTED BUT NOT VERIFIED):** Proof attachment has a source and local API path, but real private storage and native capture/readback are unverified.
@@ -256,3 +256,13 @@ The initial `PARTIAL` classification records the forensic checkpoint before Sale
 - Backend derives the projection from invoice commercial snapshots and persisted `PaymentAllocation` amounts. Local PostgreSQL summary coverage verifies Jain 40 + Padam 30 + unattributed 25 = outstanding 95 and overdue 70, including a partial payment allocation and a legacy invoice. A cached-only retailer fixture verifies 62,412 outstanding and 40,500 overdue remain wholly unattributed. A post-suite read-only check confirmed the exact database `gagan_goal_test_20260924_7b6ea1fc` at `127.0.0.1/32` and zero remaining `Entity summary retailer` fixtures. The DB-backed summary test calls the service directly; it is not authenticated endpoint acceptance.
 - Verification on 2026-09-25: Backend 147 files / 1,023 tests, typecheck and build; Retailer 28 files / 123 tests, typecheck, and Android Metro export; Salesperson 42 files / 218 tests and typecheck; Admin 27 files / 75 tests, typecheck, production build, and lint. Focused PAY-05 PostgreSQL/backend tests passed 3 files / 11 tests. Admin tests emitted Node's existing `localStorage` ExperimentalWarning and had zero failures. No migration was added; local migration history remains at 49.
 - `git diff --check` and complete source/test/doc review passed. An independent read-only code review returned no actionable findings and did not run tests. Implementation checkpoint `1a0d8c15289fb03183fc7294f086ea36332e9add` was committed and pushed to `origin/codex/gagan-client-feedback-v2-reconciled`; remote readback matched. No hosted database/service, production system, SAP, live SMS/payment provider, APK, or physical device was touched. Hosted authenticated readback, native UI acceptance, physical-device behavior, and final APK/source identity remain NOT RUN. Keep status `IMPLEMENTED BUT NOT VERIFIED` until those authorized gates are evidenced.
+
+## Execution Update — GGN-PAY-06 (2026-09-25)
+
+The initial `PARTIAL` issue row above remains as the forensic starting observation. Current status is `IMPLEMENTED BUT NOT VERIFIED`; the current summary counts and Top 20 item reflect this additive implementation and local verification, not hosted or physical acceptance.
+
+- The supported accounting grain is invoice/entity, not SKU. Retailer Pay lists open invoices with invoice/order/date and reconciled Jain/Padam outstanding; review-required or unattributed invoices are not selectable for online allocation. A retailer may enter a partial/full split for one eligible invoice. The API enforces paise precision, exact entity-total reconciliation, retailer ownership, invoice status and remaining company balances under an invoice lock. Existing legacy FIFO online payment is refused whenever an open entity-attributed invoice needs explicit allocation. Settlement rechecks invoice/entity balances before ledger mutation.
+- Payment records and Ledger readback now expose invoice/order associations and Jain/Padam amounts. A local authenticated PostgreSQL/API integration verifies dues options, missing-session rejection, cross-retailer invoice denial, mismatched split and company over-allocation rejection without payment creation, manual scoped-payment actor constraint, signed mock-provider settlement, and payment list/detail plus ledger readback.
+- Verification: full backend suite 147 files / 1,024 tests; backend typecheck/build; Retailer suite 29 files / 124 tests and typecheck; Android Metro export bundled 991 modules; `git diff --check`; existing disposable database 49→50 and separate fresh database 0→50, with both migration statuses up to date. An earlier full-suite attempt had one transient unrelated Admin staff-route 401; the exact test and full test file passed in isolation, and the subsequent full sequential backend run passed all 1,024 tests. No fix was made to that unrelated route.
+- Additive migration `20260925120000_online_entity_scoped_payments` preserves the staff confirmer requirement for manual scoped payments while permitting authenticated online retailer allocations; no existing rows were rewritten. The source/test checkpoint is `dd4dbce` (`feat: let retailers allocate invoice payments`), committed and pushed to `origin/codex/gagan-client-feedback-v2-reconciled`.
+- The attached Moto E13 was inspected read-only; no app launch, install, or device mutation occurred. No hosted database/service, production system, real payment provider, SAP, or APK was touched. Hosted authenticated native UI, real-provider flow, physical-device acceptance, and final exact-source APK identity remain NOT RUN. Keep status `IMPLEMENTED BUT NOT VERIFIED` until required gates are evidenced.

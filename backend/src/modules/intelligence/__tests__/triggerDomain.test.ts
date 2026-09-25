@@ -52,6 +52,26 @@ describe("order cycle triggers", () => {
       ])
     );
     expect(due!.recommendedAction).toBe("Follow up today");
+    expect(due!.facts).toEqual({
+      code: "ORDER_DUE",
+      usualOrderCycleDays: 12,
+      daysSinceLastOrder: 16,
+      recentOrderCount: 4,
+      typicalOrderValue: 22400,
+    });
+  });
+
+  it("keeps the typed order-cycle facts when the typical basket is unavailable", () => {
+    const baseline = { ...steadyShop().baseline, medianOrderValue: null };
+    const due = triggersFor(steadyShop({ baseline })).find((trigger) => trigger.type === "ORDER_DUE")!;
+
+    expect(due.facts).toEqual({
+      code: "ORDER_DUE",
+      usualOrderCycleDays: 12,
+      daysSinceLastOrder: 16,
+      recentOrderCount: 4,
+      typicalOrderValue: null,
+    });
   });
 
   it("hedges rather than predicting", () => {
@@ -92,7 +112,15 @@ describe("order cycle triggers", () => {
 
   it("raises a big account to a missed high-value outlet instead of a plain order due", () => {
     const triggers = triggersFor(steadyShop({ valueShare: 0.3 }));
-    expect(triggers.some((t) => t.type === "HIGH_VALUE_RETAILER_MISSED")).toBe(true);
+    const highValue = triggers.find((t) => t.type === "HIGH_VALUE_RETAILER_MISSED");
+    expect(highValue).toBeDefined();
+    expect(highValue!.facts).toEqual({
+      code: "HIGH_VALUE_RETAILER_MISSED",
+      usualOrderCycleDays: 12,
+      daysSinceLastOrder: 16,
+      recentOrderCount: 4,
+      typicalOrderValue: 22400,
+    });
     // The same fact is never reported twice.
     expect(triggers.some((t) => t.type === "ORDER_DUE")).toBe(false);
   });
@@ -123,6 +151,13 @@ describe("basket triggers", () => {
     expect(trigger.measurements).toContainEqual({
       label: "Potential opportunity",
       value: "₹11,200 below normal",
+    });
+    expect(trigger.facts).toEqual({
+      code: "ORDER_VALUE_BELOW_NORMAL",
+      typicalOrderValue: 22400,
+      lastOrderValue: 11200,
+      shortfall: 11200,
+      recentOrderCount: 3,
     });
   });
 
@@ -155,6 +190,13 @@ describe("basket triggers", () => {
     expect(trigger.why).toBe(
       "Usually takes 8 lines an order, based on 3 recent orders. The last one had 2."
     );
+    expect(trigger.facts).toEqual({
+      code: "LINE_ITEMS_BELOW_NORMAL",
+      usualLineItems: 8,
+      lastOrderLineItems: 2,
+      missingLineItems: 6,
+      recentOrderCount: 3,
+    });
   });
 
   it("stays quiet about range for a shop that only ever buys a line or two", () => {
@@ -188,6 +230,12 @@ describe("category opportunity", () => {
     )!;
     expect(trigger.headline).toContain("Rice");
     expect(trigger.recommendedAction).toBe("Offer Rice on the next visit");
+    expect(trigger.facts).toEqual({
+      code: "CATEGORY_REORDER_OPPORTUNITY",
+      regularCategories: ["Daal", "Rice"],
+      missingCategories: ["Rice"],
+      recentOrderCount: 4,
+    });
   });
 
   it("says nothing when the last order covered everything they usually buy", () => {
@@ -203,6 +251,7 @@ describe("collection trigger", () => {
     const collection = triggers.find((t) => t.type === "COLLECTION_DUE")!;
     expect(collection.headline).toBe("Sharma Stores has ₹42,000 overdue");
     expect(collection.why).toContain("Finance shows");
+    expect(collection.facts).toEqual({ code: "COLLECTION_DUE", overdueAmount: 42000 });
     const orderDue = triggers.find((t) => t.type === "ORDER_DUE")!;
     expect(collection.priority).toBeGreaterThan(orderDue.priority);
   });
@@ -220,7 +269,13 @@ describe("visit trigger", () => {
       visits: [{ visitedAt: at("2026-01-10") }],
       now: NOW,
     });
-    expect(triggersFor(steadyShop({ baseline })).some((t) => t.type === "VISIT_OVERDUE")).toBe(true);
+    const trigger = triggersFor(steadyShop({ baseline })).find((t) => t.type === "VISIT_OVERDUE");
+    expect(trigger).toBeDefined();
+    expect(trigger!.facts).toEqual({
+      code: "VISIT_OVERDUE",
+      daysSinceLastVisit: 69,
+      usualOrderCycleDays: 12,
+    });
   });
 
   it("does not fire for a shop visited recently", () => {

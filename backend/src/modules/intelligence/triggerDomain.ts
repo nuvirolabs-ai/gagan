@@ -23,8 +23,44 @@ export interface Measurement {
   value: string;
 }
 
+export type TriggerFacts =
+  | {
+      code: "ORDER_DUE" | "HIGH_VALUE_RETAILER_MISSED";
+      usualOrderCycleDays: number;
+      daysSinceLastOrder: number;
+      recentOrderCount: number;
+      typicalOrderValue: number | null;
+    }
+  | {
+      code: "ORDER_VALUE_BELOW_NORMAL";
+      typicalOrderValue: number;
+      lastOrderValue: number;
+      shortfall: number;
+      recentOrderCount: number;
+    }
+  | {
+      code: "LINE_ITEMS_BELOW_NORMAL";
+      usualLineItems: number;
+      lastOrderLineItems: number;
+      missingLineItems: number;
+      recentOrderCount: number;
+    }
+  | {
+      code: "CATEGORY_REORDER_OPPORTUNITY";
+      regularCategories: string[];
+      missingCategories: string[];
+      recentOrderCount: number;
+    }
+  | {
+      code: "VISIT_OVERDUE";
+      daysSinceLastVisit: number;
+      usualOrderCycleDays: number;
+    }
+  | { code: "COLLECTION_DUE"; overdueAmount: number };
+
 export interface SalesTrigger {
   type: TriggerType;
+  facts: TriggerFacts;
   retailerId: string;
   retailerName: string;
   salespersonId: string;
@@ -123,6 +159,13 @@ export function triggersFor(context: TriggerContext): SalesTrigger[] {
     triggers.push({
       ...base(context),
       type: highValue ? "HIGH_VALUE_RETAILER_MISSED" : "ORDER_DUE",
+      facts: {
+        code: highValue ? "HIGH_VALUE_RETAILER_MISSED" : "ORDER_DUE",
+        usualOrderCycleDays: Math.round(interval),
+        daysSinceLastOrder: since,
+        recentOrderCount: baseline.orderCount,
+        typicalOrderValue: baseline.medianOrderValue ?? null,
+      },
       headline: highValue
         ? `${context.retailerName} is a big account and is past its usual cycle`
         : `${context.retailerName} is past its usual order cycle`,
@@ -148,6 +191,13 @@ export function triggersFor(context: TriggerContext): SalesTrigger[] {
     triggers.push({
       ...base(context),
       type: "ORDER_VALUE_BELOW_NORMAL",
+      facts: {
+        code: "ORDER_VALUE_BELOW_NORMAL",
+        typicalOrderValue: baseline.medianOrderValue,
+        lastOrderValue: baseline.lastOrderValue,
+        shortfall,
+        recentOrderCount: baseline.orderCount,
+      },
       headline: `${context.retailerName} ordered below its usual basket`,
       why: `Typical order is ${money(baseline.medianOrderValue)} based on ${baseline.orderCount} recent orders. The last one was ${money(baseline.lastOrderValue)}.`,
       measurements: [
@@ -171,6 +221,13 @@ export function triggersFor(context: TriggerContext): SalesTrigger[] {
     triggers.push({
       ...base(context),
       type: "LINE_ITEMS_BELOW_NORMAL",
+      facts: {
+        code: "LINE_ITEMS_BELOW_NORMAL",
+        usualLineItems: Math.round(baseline.medianLineItems),
+        lastOrderLineItems: baseline.lastOrderLineItems,
+        missingLineItems: missing,
+        recentOrderCount: baseline.orderCount,
+      },
       headline: `${context.retailerName} bought a narrower range than usual`,
       why: `Usually takes ${Math.round(baseline.medianLineItems)} lines an order, based on ${baseline.orderCount} recent orders. The last one had ${baseline.lastOrderLineItems}.`,
       measurements: [
@@ -190,6 +247,12 @@ export function triggersFor(context: TriggerContext): SalesTrigger[] {
     triggers.push({
       ...base(context),
       type: "CATEGORY_REORDER_OPPORTUNITY",
+      facts: {
+        code: "CATEGORY_REORDER_OPPORTUNITY",
+        regularCategories: [...baseline.regularCategories],
+        missingCategories: [...missingCategories],
+        recentOrderCount: baseline.orderCount,
+      },
       headline: `${context.retailerName} usually buys ${missingCategories.join(", ")}`,
       why: `${missingCategories.join(", ")} appears in most of their recent orders but not the last one.`,
       measurements: [
@@ -211,6 +274,11 @@ export function triggersFor(context: TriggerContext): SalesTrigger[] {
     triggers.push({
       ...base(context),
       type: "VISIT_OVERDUE",
+      facts: {
+        code: "VISIT_OVERDUE",
+        daysSinceLastVisit: baseline.daysSinceLastVisit,
+        usualOrderCycleDays: Math.round(baseline.medianIntervalDays),
+      },
       headline: `${context.retailerName} has not been visited in a while`,
       why: `Usually orders every ${days(Math.round(baseline.medianIntervalDays))}, and the last visit was ${days(baseline.daysSinceLastVisit)} ago.`,
       measurements: [
@@ -226,6 +294,7 @@ export function triggersFor(context: TriggerContext): SalesTrigger[] {
     triggers.push({
       ...base(context),
       type: "COLLECTION_DUE",
+      facts: { code: "COLLECTION_DUE", overdueAmount: context.overdueAmount },
       headline: `${context.retailerName} has ${money(context.overdueAmount)} overdue`,
       why: `Finance shows ${money(context.overdueAmount)} past its due date on this account.`,
       measurements: [{ label: "Overdue", value: money(context.overdueAmount) }],

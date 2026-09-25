@@ -56,7 +56,7 @@ export function TeamMember({ member, presentation, t }: {
 
       <View style={styles.memberTarget}>
         <View style={styles.between}>
-          <Text style={styles.memberMeta}>
+          <Text style={[styles.memberMeta, styles.memberSalesAmount]}>
             {t("team.actual")}: {inr(summary.actual)}
             {summary.target != null ? ` / ${inr(summary.target)}` : ""}
           </Text>
@@ -244,6 +244,7 @@ const styles = StyleSheet.create({
   memberName: { color: colors.ink, fontSize: 16, lineHeight: 21, fontWeight: "600" },
   memberMeta: { color: colors.textSecondary, fontSize: 12, lineHeight: 18 },
   memberTarget: { gap: spacing.sm, marginTop: spacing.md },
+  memberSalesAmount: { flex: 1, minWidth: 0 },
   between: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
   memberFooter: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.sm, marginTop: spacing.md },
   reason: { color: colors.warning, fontSize: 12, lineHeight: 18, marginTop: spacing.md },

@@ -61,7 +61,7 @@ export function TeamMember({ member, presentation, t }: {
             {summary.target != null ? ` / ${inr(summary.target)}` : ""}
           </Text>
           {summary.target != null && summary.completionPct != null ? (
-            <Text style={styles.memberMeta}>{summary.completionPct}%</Text>
+            <Text style={[styles.memberMeta, styles.memberCompletion]}>{summary.completionPct}%</Text>
           ) : null}
         </View>
         {summary.target != null && summary.completionPct != null ? (
@@ -245,6 +245,7 @@ const styles = StyleSheet.create({
   memberMeta: { color: colors.textSecondary, fontSize: 12, lineHeight: 18 },
   memberTarget: { gap: spacing.sm, marginTop: spacing.md },
   memberSalesAmount: { flex: 1, minWidth: 0 },
+  memberCompletion: { marginRight: spacing.sm },
   between: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
   memberFooter: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.sm, marginTop: spacing.md },
   reason: { color: colors.warning, fontSize: 12, lineHeight: 18, marginTop: spacing.md },

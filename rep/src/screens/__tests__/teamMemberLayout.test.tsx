@@ -58,13 +58,17 @@ describe("Team Performance member heading", () => {
     const card = TeamMember({ member, presentation, t }) as ReactElement<any>;
     const target = Children.toArray(card.props.children)[1] as ReactElement<any>;
     const row = Children.toArray(target.props.children)[0] as ReactElement<any>;
-    const amount = Children.toArray(row.props.children)[0] as ReactElement<any>;
+    const [amount, completion] = Children.toArray(row.props.children) as ReactElement<any>[];
     const style = Array.isArray(amount.props.style)
       ? Object.assign({}, ...amount.props.style)
       : amount.props.style;
+    const completionStyle = Array.isArray(completion.props.style)
+      ? Object.assign({}, ...completion.props.style)
+      : completion.props.style;
 
     expect(style).toMatchObject({ flex: 1, minWidth: 0 });
     expect(amount.props.numberOfLines).toBeUndefined();
     expect(JSON.stringify(amount.props.children)).toContain("₹4,00,000");
+    expect(completionStyle).toMatchObject({ marginRight: 8 });
   });
 });

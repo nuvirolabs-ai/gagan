@@ -19,6 +19,23 @@
 - Preserve existing metrics, supported targets, period overlap, revision semantics, permissions, EN/HI structured reasons, accepted TEAM-01 responsive behavior, and historical rows. Collection remains separately authorized.
 - Planning-time read-only staging evidence: R's workspace `tea-dajvdg0ae00c73bi74c0`, `gagan-staging-db` `dpg-dajvi2h5efls73ags3f0-a`; Deepak owns no September target, Ravi's legacy `order_value` row `cbcc647a-50fe-4cbb-84c2-891744786c09` is `₹4,00,000`. Reverify before any hosted action; this is not a completed historical classification.
 
+### Local execution safety amendment
+
+The approved local implementation found that Render's current start command is
+`npx prisma migrate deploy && npm start`. Consequently the final contract SQL
+is deliberately held at `backend/prisma/held_migrations/20260925160000_sales_target_scope_constraints/migration.sql`,
+not in the active Prisma migration directory described by Tasks 1, 8 and 10.
+The active expansion is migration 53; the held contract was rehearsed manually
+on disposable PostgreSQL and does not add a ledger row yet. A separately
+approved cutover must finish approved mapping/backfill, run the held contract,
+then promote and record its migration under a controlled source/ledger step
+before deploying the final application. Do not start the final application
+against unclassified nullable rows simply because expansion succeeded. This
+amendment is stricter than the task sequence below and overrides only the
+contract-file location and activation timing; all no-hosted-write boundaries
+remain unchanged. The row-level proposal and identity evidence are recorded in
+`docs/GAGAN_SELLING_LEADER_CUTOVER_DECISION_PACK.md`.
+
 ## Review Focus
 
 1. Two SalesRep rows share Deepak's normalized phone: Admin setup must abort without linking or creating a third row (Task 5).

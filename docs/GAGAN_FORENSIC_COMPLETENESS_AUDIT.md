@@ -286,6 +286,7 @@ The earlier status and missing-idempotency finding below are retained as histori
 - The mock provider derives the same provider reference and client payload from the persisted payment ID across retries. No real provider adapter, schema, or migration was added.
 - Regression-first focused backend tests passed 3 files / 22 tests, including concurrent duplicate requests, payload conflict, and replay after settlement with one allocation. Mobile API/storage tests passed 2 files / 4 tests. Full local verification passed: backend 150 files / 1,028 tests, backend typecheck/build, mobile 30 files / 127 tests, mobile typecheck, and Android Metro export (992 modules). The existing disposable local database was used only for test fixtures; no migration status changed.
 - No hosted service/database, live provider, SAP, APK install, or physical payment flow was used. Hosted authenticated acceptance, real-provider retry semantics, native screen interaction, physical acceptance, and exact-source APK identity remain NOT RUN.
+- Source checkpoint `d339905a79ea135e4daf7c57b0c3143b69450f06` (`feat: make retailer payment intents idempotent`) is committed on the authorized branch. Push and hosted preview/deployment behavior are checked separately before any remote update.
 
 ## PAY-06 Classification Refresh — 2026-09-25
 

@@ -56,6 +56,18 @@ describe("team performance presentation", () => {
     expect(view.leaderboardMetricLabel).not.toBe("Generated English label");
   });
 
+  it("labels a target-achievement ranking with its actual metric", () => {
+    const view = selectTeamPerformancePresentation({
+      leaderboard: { metric: "target_achievement_pct", metricLabel: "Generated English label" },
+      members: [{ rank: 1, attendance: "present" }],
+    }, t("en"));
+
+    expect(view.leaderboardMetricLabel).toBe(t("en")("team.metric.targetAchievement"));
+    expect(view.members[0].rankLabel).toBe(
+      t("en")("team.rankByMetric", { rank: 1, metric: t("en")("team.metric.targetAchievement") })
+    );
+  });
+
   it("explains every unavailable projection state from selling-day facts", () => {
     const view = selectTeamPerformancePresentation({
       team: {

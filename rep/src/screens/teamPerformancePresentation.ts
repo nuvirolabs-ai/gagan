@@ -109,10 +109,7 @@ function projectionUnavailable(projection: ProjectionFacts | null | undefined, t
 function metricLabel(metric: string | null | undefined, t: TeamTranslate) {
   const keyByMetric: Record<string, TranslationKey> = {
     order_value: "team.metric.orderValue",
-    visits: "team.metric.visits",
-    order_count: "team.metric.orders",
-    collection_value: "team.metric.collections",
-    new_customers: "team.metric.newRetailers",
+    target_achievement_pct: "team.metric.targetAchievement",
   };
   return t(keyByMetric[metric ?? ""] ?? "team.metric.unknown");
 }

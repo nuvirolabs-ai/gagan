@@ -68,6 +68,29 @@ describe("team performance presentation", () => {
     );
   });
 
+  it("uses sales actuals and never presents a non-sales target as a sales target", () => {
+    const view = selectTeamPerformancePresentation({
+      members: [{
+        attendance: "present",
+        actuals: { order_value: 18400, visits: 8 },
+        headlineTarget: { metric: "visits", actual: 8, target: 20, completionPct: 40 },
+      }],
+    }, t("en"));
+
+    expect(view.members[0].summary).toEqual({ actual: 18400, target: null, completionPct: null });
+  });
+
+  it("does not claim the period has no selling days when an empty team cannot be projected", () => {
+    const view = selectTeamPerformancePresentation({
+      team: {
+        salespeople: 0,
+        projection: { projected: null, sellingDays: { total: 0, elapsed: 0, remaining: 0 } },
+      },
+    }, t("en"));
+
+    expect(view.team.projectionUnavailable).toBe(t("en")("team.projection.noTeamSales"));
+  });
+
   it("explains every unavailable projection state from selling-day facts", () => {
     const view = selectTeamPerformancePresentation({
       team: {
@@ -230,7 +253,7 @@ describe("team performance presentation", () => {
     const view = selectTeamPerformancePresentation({
       team: { actual: 97200, target: 100000, completionPct: 97 },
       members: [
-        { attendance: "present", actuals: { order_value: 18400 }, headlineTarget: { actual: 18400, target: 50000, completionPct: 37 } },
+        { attendance: "present", actuals: { order_value: 18400 }, headlineTarget: { metric: "order_value", actual: 18400, target: 50000, completionPct: 37 } },
         { attendance: "present", actuals: { order_value: 7600 }, headlineTarget: null },
       ],
     }, t("en"));

@@ -71,6 +71,7 @@ describe("salesperson translations", () => {
       "team.rankByMetric",
       "team.noMemberTarget",
       "team.projection.unavailable",
+      "team.projection.noTeamSales",
       "team.projection.noSellingDays",
       "team.projection.notStarted",
       "team.projection.tooEarly",

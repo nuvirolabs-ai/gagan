@@ -202,10 +202,13 @@ export function selectTeamPerformancePresentation(
   const team = data?.team ?? {};
   const metric = metricLabel(data?.leaderboard?.metric, t);
   const members = (data?.members ?? []).map((member: any) => {
+    const salesTarget = member.headlineTarget?.metric === "order_value"
+      ? member.headlineTarget
+      : null;
     const summary = teamSalesSummary({
-      actual: member.headlineTarget?.actual ?? member.actuals?.order_value ?? 0,
-      target: member.headlineTarget?.target,
-      completionPct: member.headlineTarget?.completionPct,
+      actual: member.actuals?.order_value ?? salesTarget?.actual ?? 0,
+      target: salesTarget?.target,
+      completionPct: salesTarget?.completionPct,
     });
     const attendance = attendancePresentation(member.attendance, t);
     return {
@@ -253,7 +256,9 @@ export function selectTeamPerformancePresentation(
         target: team.target,
         completionPct: team.completionPct,
       }),
-      projectionUnavailable: projectionUnavailable(team.projection, t),
+      projectionUnavailable: team.salespeople === 0
+        ? t("team.projection.noTeamSales")
+        : projectionUnavailable(team.projection, t),
     },
     leaderboardMetricLabel: metric,
     members,

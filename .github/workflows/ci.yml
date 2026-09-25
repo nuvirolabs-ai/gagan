@@ -32,6 +32,8 @@ jobs:
       PAYMENT_PROVIDER: mock
       SAP_MODE: disabled
       DISABLE_JOBS: "true"
+      STORAGE_PROVIDER: local
+      OBJECT_STORAGE_ROOT: /tmp/gagan-ci-evidence
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7

@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import request from "supertest";
+import { createApp } from "../../../app";
 import { prisma } from "../../../lib/prisma";
+import { lazyIdentitySessionService } from "../../identity/sessionRuntime";
 import { financialSummaryFor } from "../financialSummary";
 
 const run = randomUUID();
@@ -125,5 +128,34 @@ describe("shared financial summary", () => {
         summary!.entityBalances.outstanding.padamInternational +
         summary!.entityBalances.outstanding.unattributed
     ).toBe(summary!.outstanding);
+
+    const session = await lazyIdentitySessionService.createSession({
+      realm: "retailer",
+      subjectId: ids.entityRetailer,
+      deviceName: "retailer-home-finance-test",
+    });
+    const app = createApp();
+    try {
+      await request(app).get("/home").expect(401);
+      const home = await request(app)
+        .get("/home")
+        .set("Authorization", `Bearer ${session.accessToken}`)
+        .expect(200);
+
+      expect(home.body.credit).toMatchObject({
+        outstanding: 95,
+        overdue: 95,
+        creditLimit: 100_000,
+        used: 95,
+        available: 99_905,
+      });
+      expect(home.body.financialSummary.entityBalances).toMatchObject({
+        outstanding: { jainTraders: 40, padamInternational: 30, unattributed: 25 },
+        overdue: { jainTraders: 40, padamInternational: 30, unattributed: 25 },
+        attributionStatus: "contains_unattributed",
+      });
+    } finally {
+      await prisma.deviceSession.deleteMany({ where: { subjectId: ids.entityRetailer } });
+    }
   });
 });

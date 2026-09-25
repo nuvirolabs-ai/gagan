@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
@@ -117,96 +118,137 @@ router.post("/payments/intent", requireAuth, createRateLimiter({ name: "payment-
     const scoped = Boolean(req.body?.invoiceScopeId);
     return res.status(400).json({ error: scoped ? "invalid_invoice_entity_allocation" : "Enter a valid amount" });
   }
+  const clientKey = req.get("Idempotency-Key")?.trim();
+  if (!clientKey || clientKey.length > 120) {
+    return res.status(400).json({ error: "idempotency_key_required" });
+  }
 
   const retailer = await prisma.retailer.findUnique({ where: { id: req.retailerId } });
   if (!retailer) return res.status(404).json({ error: "Retailer not found" });
 
-  const outstanding = Number(retailer.currentBalance);
-  if (outstanding <= 0) {
-    return res.status(400).json({ error: "There is nothing outstanding to pay" });
-  }
-  if (parsed.data.amount > outstanding) {
-    return res.status(400).json({
-      error: "Amount is more than you owe",
-      outstanding,
-    });
-  }
-
+  const requestKey = `online:${retailer.id}:${clientKey}`;
+  const requestFingerprint = createHash("sha256").update(JSON.stringify({
+    retailerId: retailer.id,
+    amountCents: Math.round(parsed.data.amount * 100),
+    invoiceScopeId: parsed.data.invoiceScopeId ?? null,
+    jainCents: parsed.data.jainAmount === undefined ? null : Math.round(parsed.data.jainAmount * 100),
+    padamCents: parsed.data.padamAmount === undefined ? null : Math.round(parsed.data.padamAmount * 100),
+  })).digest("hex");
   const provider = getPaymentProvider();
-  let payment: { id: string; amount: Prisma.Decimal };
-  if (parsed.data.invoiceScopeId) {
-    const result = await prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT "id" FROM "Invoice" WHERE "id"=${parsed.data.invoiceScopeId} AND "retailerId"=${retailer.id} FOR UPDATE`;
-      const invoice = await tx.invoice.findFirst({
-        where: {
-          id: parsed.data.invoiceScopeId,
-          retailerId: retailer.id,
-          status: { in: ["open", "partially_paid"] },
-          outstandingAmount: { gt: 0 },
-        },
-        select: { id: true, outstandingAmount: true },
-      });
-      if (!invoice) return { error: { status: 404, code: "invoice_not_found" } as const };
+  type IntentPayment = Pick<Prisma.PaymentGetPayload<{}>, "id" | "amount" | "status" | "providerRef" | "requestFingerprint">;
+  let payment: IntentPayment | null = await prisma.payment.findUnique({ where: { requestKey } });
+  if (payment && payment.requestFingerprint !== requestFingerprint) {
+    return res.status(409).json({ error: "payment_idempotency_conflict" });
+  }
 
-      let balances;
-      try {
-        balances = await invoiceBalances(tx, invoice.id);
-      } catch (error) {
-        if (error instanceof CommercialError) {
-          return { error: { status: error.status, code: error.code } as const };
+  if (!payment) {
+    const outstanding = Number(retailer.currentBalance);
+    if (outstanding <= 0) {
+      return res.status(400).json({ error: "There is nothing outstanding to pay" });
+    }
+    if (parsed.data.amount > outstanding) {
+      return res.status(400).json({
+        error: "Amount is more than you owe",
+        outstanding,
+      });
+    }
+
+    try {
+      if (parsed.data.invoiceScopeId) {
+        const result = await prisma.$transaction(async (tx) => {
+          await tx.$queryRaw`SELECT "id" FROM "Invoice" WHERE "id"=${parsed.data.invoiceScopeId} AND "retailerId"=${retailer.id} FOR UPDATE`;
+          const existing = await tx.payment.findUnique({ where: { requestKey } });
+          if (existing) {
+            if (existing.requestFingerprint !== requestFingerprint) {
+              return { error: { status: 409, code: "payment_idempotency_conflict" } as const };
+            }
+            return { payment: existing } as const;
+          }
+
+          const invoice = await tx.invoice.findFirst({
+            where: {
+              id: parsed.data.invoiceScopeId,
+              retailerId: retailer.id,
+              status: { in: ["open", "partially_paid"] },
+              outstandingAmount: { gt: 0 },
+            },
+            select: { id: true, outstandingAmount: true },
+          });
+          if (!invoice) return { error: { status: 404, code: "invoice_not_found" } as const };
+
+          let balances;
+          try {
+            balances = await invoiceBalances(tx, invoice.id);
+          } catch (error) {
+            if (error instanceof CommercialError) {
+              return { error: { status: error.status, code: error.code } as const };
+            }
+            throw error;
+          }
+
+          const amount = new Prisma.Decimal(parsed.data.amount);
+          const jainAmount = new Prisma.Decimal(parsed.data.jainAmount!);
+          const padamAmount = new Prisma.Decimal(parsed.data.padamAmount!);
+          if (
+            balances.invoice.retailerId !== retailer.id ||
+            amount.gt(invoice.outstandingAmount) ||
+            jainAmount.gt(balances.jain) ||
+            padamAmount.gt(balances.padam)
+          ) {
+            return { error: { status: 409, code: "invoice_entity_allocation_invalid" } as const };
+          }
+
+          const scopedPayment = await tx.payment.create({
+            data: {
+              retailerId: retailer.id,
+              amount,
+              status: "pending",
+              channel: "online",
+              provider: provider.name,
+              invoiceScopeId: invoice.id,
+              confirmedJainAmount: jainAmount,
+              confirmedPadamAmount: padamAmount,
+              requestKey,
+              requestFingerprint,
+            },
+          });
+          return { payment: scopedPayment } as const;
+        });
+        if ("error" in result && result.error) {
+          return res.status(result.error.status).json({ error: result.error.code });
         }
-        throw error;
+        payment = result.payment;
+      } else {
+        // The legacy FIFO path remains available only when it cannot consume an
+        // entity-attributed invoice without an explicit invoice/company split.
+        if (await prisma.invoice.count({
+          where: { retailerId: retailer.id, outstandingAmount: { gt: 0 }, commercialSnapshot: { not: Prisma.DbNull } },
+        })) {
+          return res.status(409).json({
+            error: "Please ask your collecting employee to record payment against the specific invoice with Jain and Padam allocations.",
+          });
+        }
+        payment = await prisma.payment.create({
+          data: {
+            retailerId: retailer.id,
+            amount: parsed.data.amount,
+            status: "pending",
+            channel: "online",
+            provider: provider.name,
+            requestKey,
+            requestFingerprint,
+          },
+        });
       }
-
-      const amount = new Prisma.Decimal(parsed.data.amount);
-      const jainAmount = new Prisma.Decimal(parsed.data.jainAmount!);
-      const padamAmount = new Prisma.Decimal(parsed.data.padamAmount!);
-      if (
-        balances.invoice.retailerId !== retailer.id ||
-        amount.gt(invoice.outstandingAmount) ||
-        jainAmount.gt(balances.jain) ||
-        padamAmount.gt(balances.padam)
-      ) {
-        return { error: { status: 409, code: "invoice_entity_allocation_invalid" } as const };
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
+      const concurrentPayment = await prisma.payment.findUnique({ where: { requestKey } });
+      if (!concurrentPayment) throw error;
+      if (concurrentPayment.requestFingerprint !== requestFingerprint) {
+        return res.status(409).json({ error: "payment_idempotency_conflict" });
       }
-
-      const scopedPayment = await tx.payment.create({
-        data: {
-          retailerId: retailer.id,
-          amount,
-          status: "pending",
-          channel: "online",
-          provider: provider.name,
-          invoiceScopeId: invoice.id,
-          confirmedJainAmount: jainAmount,
-          confirmedPadamAmount: padamAmount,
-        },
-      });
-      return { payment: scopedPayment } as const;
-    });
-    if ("error" in result && result.error) {
-      return res.status(result.error.status).json({ error: result.error.code });
+      payment = concurrentPayment;
     }
-    payment = result.payment;
-  } else {
-    // The legacy FIFO path remains available only when it cannot consume an
-    // entity-attributed invoice without an explicit invoice/company split.
-    if (await prisma.invoice.count({
-      where: { retailerId: retailer.id, outstandingAmount: { gt: 0 }, commercialSnapshot: { not: Prisma.DbNull } },
-    })) {
-      return res.status(409).json({
-        error: "Please ask your collecting employee to record payment against the specific invoice with Jain and Padam allocations.",
-      });
-    }
-    payment = await prisma.payment.create({
-      data: {
-        retailerId: retailer.id,
-        amount: parsed.data.amount,
-        status: "pending",
-        channel: "online",
-        provider: provider.name,
-      },
-    });
   }
 
   try {
@@ -217,6 +259,10 @@ router.post("/payments/intent", requireAuth, createRateLimiter({ name: "payment-
       reference: payment.id,
     });
 
+    await prisma.payment.updateMany({
+      where: { id: payment.id, status: "failed", providerRef: null },
+      data: { status: "pending", failureReason: null },
+    });
     const updated = await prisma.payment.update({
       where: { id: payment.id },
       data: { providerRef: intent.providerRef },
@@ -229,8 +275,8 @@ router.post("/payments/intent", requireAuth, createRateLimiter({ name: "payment-
       clientPayload: intent.clientPayload,
     });
   } catch (err) {
-    await prisma.payment.update({
-      where: { id: payment.id },
+    await prisma.payment.updateMany({
+      where: { id: payment.id, status: "pending", providerRef: null },
       data: { status: "failed", failureReason: "Could not reach the payment provider" },
     });
     throw err;

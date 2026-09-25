@@ -40,11 +40,22 @@ vi.mock("../paymentService", () => ({ settleSucceededPayment: mocks.settleNew })
 import paymentRoutes from "../../../routes/payments";
 
 describe("payment callback API cutover", () => {
+  it("requires a client idempotency key before creating an online payment intent",async()=>{
+    mocks.findRetailer.mockClear();
+    mocks.createIntent.mockClear();
+    const app=express();app.use(express.json(),paymentRoutes);
+    const response=await request(app).post("/payments/intent").send({amount:100});
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({error:"idempotency_key_required"});
+    expect(mocks.findRetailer).not.toHaveBeenCalled();
+    expect(mocks.createIntent).not.toHaveBeenCalled();
+  });
+
   it("blocks unallocated commercial payment before contacting a provider",async()=>{
     mocks.findRetailer.mockResolvedValue({id:"retailer-1",currentBalance:1000});
     mocks.invoiceCount.mockResolvedValue(1);
     const app=express();app.use(express.json(),paymentRoutes);
-    const response=await request(app).post("/payments/intent").send({amount:100});
+    const response=await request(app).post("/payments/intent").set("Idempotency-Key","attempt-1").send({amount:100});
     expect(response.status).toBe(409);expect(response.body.error).toContain("specific invoice");
     expect(mocks.createIntent).not.toHaveBeenCalled();
   });

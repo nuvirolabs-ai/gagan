@@ -31,11 +31,12 @@ export type VerifiedEvent =
 export interface PaymentProvider {
   readonly name: string;
 
+  /** Adapters must honor `reference` as an idempotency key and return the same intent on retries. */
   createIntent(params: {
     amount: number;
     currency: "INR";
     retailerId: string;
-    /** Our own reference, echoed back by the provider where supported. */
+    /** Stable payment id used by providers as their idempotency reference. */
     reference: string;
   }): Promise<PaymentIntent>;
 

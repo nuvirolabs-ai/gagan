@@ -1,4 +1,5 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   View,
   Text,
@@ -22,6 +23,10 @@ import type { PaymentInvoiceOption } from "../types";
 import { toPaymentProof, type PaymentProofImage } from "./paymentEvidence";
 import EntityAttribution from "../components/finance/EntityAttribution";
 import { entityAttributionPresentation } from "../lib/homePresentation";
+import { useAuth } from "../context/AuthContext";
+import { createPaymentAttemptStorage } from "../context/paymentAttemptStorage";
+
+const paymentAttemptStorage = createPaymentAttemptStorage(AsyncStorage);
 
 const BUCKETS: { key: string; label: string; danger?: boolean }[] = [
   { key: "current", label: "Not yet due" },
@@ -45,6 +50,8 @@ function cents(amount: number): number {
 
 export default function PayScreen({ navigation }: any) {
   const { t } = useLanguage();
+  const { retailer } = useAuth();
+  const payingRef = useRef(false);
   const [dues, setDues] = useState<any | null>(null);
   const [payments, setPayments] = useState<any[]>([]);
   const [paymentHistoryUnavailable, setPaymentHistoryUnavailable] = useState(false);
@@ -171,14 +178,29 @@ export default function PayScreen({ navigation }: any) {
   };
 
   const pay = async () => {
-    if (!valid) return;
+    if (!valid || payingRef.current || !retailer?.id) return;
+    payingRef.current = true;
     setPaying(true);
     try {
-      const intent = await api.createPaymentIntent(paymentValue, selectedInvoice ? {
+      const attemptKey = await paymentAttemptStorage.getOrCreate(retailer.id, {
+        amountCents: cents(paymentValue),
+        invoiceScopeId: selectedInvoice?.id ?? null,
+        jainCents: selectedInvoice ? cents(jainValue ?? 0) : null,
+        padamCents: selectedInvoice ? cents(padamValue ?? 0) : null,
+      });
+      let intent;
+      try {
+        intent = await api.createPaymentIntent(paymentValue, attemptKey, selectedInvoice ? {
         invoiceScopeId: selectedInvoice.id,
         jainAmount: jainValue ?? 0,
         padamAmount: padamValue ?? 0,
-      } : undefined);
+        } : undefined);
+      } catch (error) {
+        if (error instanceof ApiError && [400, 404, 409].includes(error.status)) {
+          await paymentAttemptStorage.clear(retailer.id);
+        }
+        throw error;
+      }
 
       // A real provider hands off to a UPI app or hosted page here and the
       // result arrives by webhook. The mock provider gives us a signed token so
@@ -188,9 +210,13 @@ export default function PayScreen({ navigation }: any) {
 
       const settled = await api.getPayment(intent.paymentId);
       if (settled.status !== "succeeded") {
+        if (settled.status === "failed" || settled.status === "cancelled") {
+          await paymentAttemptStorage.clear(retailer.id);
+        }
         throw new ApiError(400, { error: settled.failureReason || "Payment did not go through" });
       }
 
+      await paymentAttemptStorage.clear(retailer.id);
       setJainAmount("");
       setPadamAmount("");
       await load();
@@ -201,6 +227,7 @@ export default function PayScreen({ navigation }: any) {
     } catch (e) {
       Alert.alert("Payment failed", e instanceof ApiError ? e.message : "Please try again.");
     } finally {
+      payingRef.current = false;
       setPaying(false);
     }
   };

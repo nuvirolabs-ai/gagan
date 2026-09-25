@@ -37,8 +37,13 @@ export function createRetailerApi(request: ApiRequest, store: SessionStore) {
     getDues: () => request("/payments/dues"),
     createPaymentIntent: (
       amount: number,
+      idempotencyKey: string,
       allocation?: { invoiceScopeId: string; jainAmount: number; padamAmount: number }
-    ) => post("/payments/intent", { amount, ...allocation }),
+    ) => request("/payments/intent", {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: JSON.stringify({ amount, ...allocation }),
+    }, true),
     confirmMockPayment: (providerRef: string, signature: string, outcome = "succeeded") =>
       post("/payments/callback", { providerRef, signature, outcome }, false),
     getPayment: (id: string) => request(`/payments/${id}`),

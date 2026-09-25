@@ -195,7 +195,7 @@ describe("Wave 1B authoritative commercial lifecycle",()=>{
   await prisma.retailer.create({data:{id:otherRetailerId,name:"Other payment retailer",phone:otherRetailerId,shopAddress:"Local",tierId:tier,creditLimit:1000,currentBalance:500}});
   try {
    const otherSession=await lazyIdentitySessionService.createSession({realm:"retailer",subjectId:otherRetailerId,deviceName:"payment-allocation-isolation-test"});
-   await request(app).post("/payments/intent").set("Authorization",`Bearer ${otherSession.accessToken}`).send({
+   await request(app).post("/payments/intent").set("Authorization",`Bearer ${otherSession.accessToken}`).set("Idempotency-Key",randomUUID()).send({
     amount:100,
     invoiceScopeId:invoice.id,
     jainAmount:60,
@@ -205,13 +205,13 @@ describe("Wave 1B authoritative commercial lifecycle",()=>{
    await prisma.deviceSession.deleteMany({where:{subjectId:otherRetailerId}});
    await prisma.retailer.deleteMany({where:{id:otherRetailerId}});
   }
-  await request(app).post("/payments/intent").set("Authorization",`Bearer ${session.accessToken}`).send({
+  await request(app).post("/payments/intent").set("Authorization",`Bearer ${session.accessToken}`).set("Idempotency-Key",randomUUID()).send({
    amount:100,
    invoiceScopeId:invoice.id,
    jainAmount:60,
    padamAmount:39,
   }).expect(400);
-  await request(app).post("/payments/intent").set("Authorization",`Bearer ${session.accessToken}`).send({
+  await request(app).post("/payments/intent").set("Authorization",`Bearer ${session.accessToken}`).set("Idempotency-Key",randomUUID()).send({
    amount:Number(invoice.outstandingAmount),
    invoiceScopeId:invoice.id,
    jainAmount:Number(invoice.outstandingAmount),
@@ -219,18 +219,38 @@ describe("Wave 1B authoritative commercial lifecycle",()=>{
   }).expect(409);
   expect(await prisma.payment.count({where:{retailerId:retailer}})).toBe(paymentCount);
 
-  const intent=await request(app).post("/payments/intent").set("Authorization",`Bearer ${session.accessToken}`).send({
-   amount:100,
-   invoiceScopeId:invoice.id,
-   jainAmount:60,
-   padamAmount:40,
-  }).expect(201);
+  const idempotencyKey=randomUUID();
+  const createIntent=()=>request(app).post("/payments/intent")
+   .set("Authorization",`Bearer ${session.accessToken}`)
+   .set("Idempotency-Key",idempotencyKey)
+   .send({amount:100,invoiceScopeId:invoice.id,jainAmount:60,padamAmount:40});
+  const [intent,replayedIntent]=await Promise.all([createIntent(),createIntent()]);
+  expect(intent.status).toBe(201);
+  expect(replayedIntent.status).toBe(201);
+  expect(replayedIntent.body.paymentId).toBe(intent.body.paymentId);
+  expect(replayedIntent.body.clientPayload).toEqual(intent.body.clientPayload);
+  expect(await prisma.payment.count({where:{retailerId:retailer}})).toBe(paymentCount+1);
+  const conflict=await request(app).post("/payments/intent")
+   .set("Authorization",`Bearer ${session.accessToken}`)
+   .set("Idempotency-Key",idempotencyKey)
+   .send({amount:101,invoiceScopeId:invoice.id,jainAmount:61,padamAmount:40})
+   .expect(409);
+  expect(conflict.body.error).toBe("payment_idempotency_conflict");
+  expect(await prisma.payment.count({where:{retailerId:retailer}})).toBe(paymentCount+1);
   const payload=intent.body.clientPayload;
   await request(app).post("/payments/callback").send({
    providerRef:payload.providerRef,
    outcome:"succeeded",
    signature:payload.confirmToken,
   }).expect(200);
+  await createIntent().expect(201).then(response=>expect(response.body.paymentId).toBe(intent.body.paymentId));
+  await request(app).post("/payments/callback").send({
+   providerRef:payload.providerRef,
+   outcome:"succeeded",
+   signature:payload.confirmToken,
+  }).expect(200);
+  expect(await prisma.payment.count({where:{retailerId:retailer}})).toBe(paymentCount+1);
+  expect(await prisma.paymentAllocation.count({where:{paymentId:intent.body.paymentId}})).toBe(1);
 
   const history=await request(app).get("/payments").set("Authorization",`Bearer ${session.accessToken}`).expect(200);
   expect(history.body.payments[0]).toMatchObject({

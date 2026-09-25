@@ -4,7 +4,7 @@
 
 **Goal:** Complete the existing permission-gated Sales Leader team-performance flow in the Rep app, preserving manager targets, visible actuals, reporting scope, personal performance, and EN/HI meaning.
 
-**Architecture:** Extend the existing sales-leader read model and existing `/rep/sales-leader` contract. Fetch manager target rows together with permitted reportee rows, add structured facts alongside existing generated trigger copy, and render those facts with the existing Rep EN/HI translation system. Keep the manager outside team member/actual/rank rollups and preserve the separate personal-performance routes.
+**Architecture:** Extend the existing sales-leader read model and existing `/rep/sales-leader` contract. Fetch manager target rows together with permitted reportee rows, add structured facts alongside existing generated trigger copy, and render those facts with the existing Rep EN/HI translation system. Preserve the resolver's exact team IDs and the separate personal-performance routes.
 
 **Tech Stack:** TypeScript, Express, Prisma, PostgreSQL, Vitest, React Native/Expo, existing Rep `translate`/`useLanguage` utilities.
 
@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Keep the existing `/rep/sales-leader` route, staff-session authentication, `PERFORMANCE_VIEW_TEAM` gate, hierarchy scope, and Admin route behavior.
-- Keep the manager's assigned target separate from reportee target rollup; do not add the manager as a synthetic team member or to team actual/rank totals.
+- Keep the manager's assigned target separate from reportee target rollup. Preserve the exact IDs returned by the hierarchy resolver, including the caller; do not add or count the manager twice.
 - Show actual sales without a positive configured target; only show target progress for positive targets.
 - Keep the leader's existing personal work/performance routes and permissions intact.
 - Do not add a schema/migration, duplicate target/sales model, manager app, or parallel team endpoint.
@@ -25,7 +25,7 @@
 ## Review Focus
 
 - **Manager with zero active reports:** target must survive the service's empty-team path and be visible in the Rep summary. Pin in Tasks 2 and 3 with unit and PostgreSQL route assertions.
-- **Manager also present in a reportee list or duplicated in caller scope:** target query IDs must be unique, and manager data must not inflate team members/actuals/rank. Pin in Tasks 2 and 3.
+- **Caller appears in the resolver's scope and has a linked Salesperson account:** include that row once as an in-scope member, while manager target query IDs remain unique. Pin in Tasks 2 and 3.
 - **Null, zero, negative, or missing target with nonzero sales:** preserve actual and hide only target/progress. Pin in Task 4, including the existing user-owned helper test.
 - **Opportunity variant with dynamic facts:** currency, counts, elapsed days, or category names must not be dropped or interpreted from English. Pin every trigger code in Task 1 and EN/HI copy in Task 4.
 - **Unknown attendance or unavailable projection boundary:** do not label unknown as absent or show a blank/unexplained projection. Pin unknown attendance plus zero/early selling-day cases in Task 4.
@@ -105,7 +105,7 @@ expect(result.team).toMatchObject({ salespeople: 0, target: 800000, actual: 0 })
 
 - [ ] **Step 2: Add failing authenticated route assertions with disposable fixtures**
 
-In `performanceIntegration.test.ts`, give the leader fixture its existing `field_manager` and `salesperson` role assignments (do not alter role definitions), plus a manager-owned Rep book/order and current-period order-value target. Add a second field manager with a configured target and no reports. Assert the existing `/rep/performance/targets` route returns the leader's own canonical personal actual/target; `/rep/sales-leader` returns the manager's assigned target but team actual remains reportee-only; the zero-report manager receives `targets.assigned` and `team.target` with zero members/actual. Add a request narrowed to an out-of-tree salesperson and assert the existing denial status. Keep the ordinary salesperson 403 and existing permitted-tree assertion.
+In `performanceIntegration.test.ts`, give one leader fixture its existing `field_manager` and `salesperson` role assignments (do not alter role definitions), plus a manager-owned Rep book/order and current-period order-value target. Assert `/rep/performance/targets` returns the leader's own canonical personal actual/target and `/rep/sales-leader` includes that leader row once because the hierarchy resolver includes the caller. Add a field-manager-only leader with one salesperson report and an assigned target to expose the manager-ID query omission, plus a second field manager with no reports and a configured target to exercise the empty-team branch. Add a request narrowed to an out-of-tree salesperson and assert the existing denial status. Keep the ordinary salesperson 403 and existing permitted-tree assertion.
 
 Extend existing fixture teardown only for created sessions, targets, orders/items, retailers, sales reps, and managers; retain the loopback/test-database and local-storage preconditions.
 
@@ -115,7 +115,7 @@ Run from `backend/`: `npm test -- --run src/modules/readmodels/__tests__/salesLe
 
 Then run against the disposable local environment: `DOTENV_CONFIG_PATH=.env.test.local NODE_OPTIONS='-r dotenv/config' npm test -- --run src/modules/readmodels/__tests__/performanceIntegration.test.ts`
 
-Expected: query-union, manager-target, and zero-report assertions fail on the current read model; existing authorization/tree and personal-performance assertions pass.
+Expected: query-union and manager-target assertions fail on the current read model; the zero-report target fails through the empty-team path. Existing authorization and personal-performance behavior continues to pass, with the caller appearing only once when their linked Salesperson record is in resolver scope.
 
 ### Task 3: Repair Sales-Leader Targets and Structured Read Model
 

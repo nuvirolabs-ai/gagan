@@ -21,7 +21,7 @@ The change is limited to the defects recorded for GGN-TEAM-01 in `docs/GAGAN_FOR
 
 Keep the existing `/rep/sales-leader` route, staff-session authentication, `PERFORMANCE_VIEW_TEAM` server permission, hierarchy-derived scope, and existing salesperson narrowing rules. The UI gate remains useful for navigation but is not an authorization boundary. Do not weaken or replace the backend permission or reporting-tree checks. Do not change the separately mounted `/admin/sales-leader` route.
 
-The team read model continues to contain only permitted reporting-tree members. Do not add the manager as a synthetic team member or include the manager's personal actuals in team totals or team rankings. Preserve the leader's own personal work/performance destinations under their existing permissions.
+The team read model continues to use the exact permitted IDs returned by the existing hierarchy resolver. That resolver includes the caller; when the caller has a linked Salesperson account, preserve that row as an ordinary in-scope member and keep its canonical actual in the same totals/ranking treatment as other returned rows. Do not add the manager separately or duplicate their row. Preserve the leader's own personal work/performance destinations under their existing permissions.
 
 ### Targets and Actuals
 
@@ -59,7 +59,7 @@ Regression coverage must establish:
 
 1. An ordinary salesperson receives the existing authorization denial from `/rep/sales-leader`.
 2. A leader sees only members in the permitted reporting tree, including when a request attempts to narrow outside it.
-3. A leader's existing personal sales/performance destination remains available and continues to use its existing permission and canonical personal data; the team view does not absorb or hide it.
+3. A leader's existing personal sales/performance destination remains available and continues to use its existing permission and canonical personal data. If the existing resolver returns a linked leader Salesperson row in team scope, that row appears once and contributes as an ordinary in-scope member.
 4. A configured manager target is returned from the real target query and remains present when the manager has zero active reports.
 5. Team and member actual sales remain visible when targets are absent or non-positive.
 6. Positive-target completion percentages reconcile to canonical actual/target values; unconfigured targets do not show a fabricated percentage.

@@ -292,6 +292,77 @@ describe("field tasks", () => {
     expect(adapter.put).not.toHaveBeenCalled();
   });
 
+  it("returns grouped retailer history only to its assigned salesperson", async () => {
+    const prisma = fakePrisma();
+    prisma.staffUser.findUnique.mockResolvedValue({ salesRepId: "rep-1" });
+    prisma.retailer.findFirst.mockResolvedValue({ id: "retailer-1" });
+    prisma.fieldTaskEvidence.findMany.mockResolvedValue([{
+      id: "evidence-1",
+      taskId: "task-1",
+      retailerId: "retailer-1",
+      salespersonId: "staff-1",
+      objectKey: "task_activity_photo/private-object",
+      checksum: "secret-hash",
+      contentType: "image/jpeg",
+      sizeBytes: 10,
+      createdAt: new Date("2026-09-25T10:00:00Z"),
+      latitude: null,
+      longitude: null,
+      accuracyMeters: null,
+      task: { id: "task-1", title: "Install shelf display", status: "done", completedAt: new Date("2026-09-25T10:01:00Z") },
+      salesperson: { id: "staff-1", name: "Field Rep" },
+    }]);
+    const { storage } = evidenceStorage();
+
+    const history = await new TaskService(prisma, storage).marketingHistoryForSalesperson({
+      retailerId: "retailer-1",
+      salespersonId: "staff-1",
+    });
+
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({
+      task: { id: "task-1", title: "Install shelf display", status: "done" },
+      salesperson: { id: "staff-1", name: "Field Rep" },
+      evidence: [{ id: "evidence-1", signedUrl: "https://signed.example/task-photo" }],
+    });
+    expect(history[0].evidence[0]).not.toHaveProperty("objectKey");
+    expect(history[0].evidence[0]).not.toHaveProperty("checksum");
+    expect(history[0].evidence[0]).not.toHaveProperty("task");
+    expect(history[0].evidence[0]).not.toHaveProperty("salesperson");
+    expect(prisma.fieldTaskEvidence.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { retailerId: "retailer-1" },
+      take: 100,
+    }));
+  });
+
+  it("rejects retailer history outside the assigned salesperson's account", async () => {
+    const prisma = fakePrisma();
+    prisma.staffUser.findUnique.mockResolvedValue({ salesRepId: "rep-1" });
+    prisma.retailer.findFirst.mockResolvedValue(null);
+
+    await expect(new TaskService(prisma).marketingHistoryForSalesperson({
+      retailerId: "retailer-2",
+      salespersonId: "staff-1",
+    })).rejects.toMatchObject({ code: "retailer_not_assigned", status: 404 });
+    expect(prisma.fieldTaskEvidence.findMany).not.toHaveBeenCalled();
+  });
+
+  it("keeps Admin retailer history inside the manager's staff scope", async () => {
+    const prisma = fakePrisma();
+    prisma.retailer.findUnique.mockResolvedValue({ id: "retailer-1" });
+    prisma.fieldTaskEvidence.findMany.mockResolvedValue([]);
+
+    await new TaskService(prisma).marketingHistoryForAdmin({
+      retailerId: "retailer-1",
+      scopeStaffIds: ["staff-1", "staff-2"],
+    });
+
+    expect(prisma.fieldTaskEvidence.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { retailerId: "retailer-1", salespersonId: { in: ["staff-1", "staff-2"] } },
+      take: 100,
+    }));
+  });
+
   it("hides another salesperson's task behind a not-found", async () => {
     const prisma = fakePrisma();
     prisma.fieldTask.findUnique.mockResolvedValue({

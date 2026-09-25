@@ -1,14 +1,21 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, inr } from "../api";
+import { useAuth } from "../useAuth";
 
 export default function Retailers() {
+  const { permissions } = useAuth();
+  const canViewFieldHistory = permissions.includes("route.manage");
   const [retailers, setRetailers] = useState<any[]>([]);
   const [tiers, setTiers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [expandedHistoryRetailerId, setExpandedHistoryRetailerId] = useState<string | null>(null);
+  const [history, setHistory] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [expandedExecutionId, setExpandedExecutionId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", phone: "", shopAddress: "", deliveryCity: "", tierId: "", creditLimit: "" });
 
   const load = async () => {
@@ -28,6 +35,32 @@ export default function Retailers() {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    if (!canViewFieldHistory) setExpandedHistoryRetailerId(null);
+  }, [canViewFieldHistory]);
+
+  useEffect(() => {
+    if (!expandedHistoryRetailerId) {
+      setHistory([]);
+      setExpandedExecutionId(null);
+      return;
+    }
+    let active = true;
+    setHistory([]);
+    setHistoryLoading(true);
+    api.fieldRetailerMarketingHistory(expandedHistoryRetailerId)
+      .then((result) => {
+        if (active) setHistory(result.executions ?? []);
+      })
+      .catch((err) => {
+        if (active) setError(err instanceof Error ? err.message : "Could not load retailer activity history");
+      })
+      .finally(() => {
+        if (active) setHistoryLoading(false);
+      });
+    return () => { active = false; };
+  }, [expandedHistoryRetailerId]);
 
   const changeTier = async (id: string, tierId: string) => {
     try {
@@ -205,6 +238,7 @@ export default function Retailers() {
             </thead>
             <tbody>
               {retailers.map((r) => (
+                <Fragment key={r.id}>
                 <tr key={r.id}>
                   <td>
                     <div style={{ fontWeight: 600 }}>{r.name}</div>
@@ -259,12 +293,70 @@ export default function Retailers() {
                       <button className="sm secondary" onClick={() => changeDeliveryCity(r)}>
                         City
                       </button>
+                      {canViewFieldHistory ? (
+                        <button
+                          className="sm secondary"
+                          aria-expanded={expandedHistoryRetailerId === r.id}
+                          onClick={() => setExpandedHistoryRetailerId((current) => current === r.id ? null : r.id)}
+                        >
+                          {expandedHistoryRetailerId === r.id ? "Hide history" : "History"}
+                        </button>
+                      ) : null}
                       <Link to={`/ledger/${r.id}`}>
                         <button className="sm secondary">Ledger</button>
                       </Link>
                     </div>
                   </td>
                 </tr>
+                {expandedHistoryRetailerId === r.id ? (
+                  <tr key={`${r.id}-history`}>
+                    <td colSpan={7} style={{ padding: 16, background: "var(--surface-muted, #f7f8f8)" }}>
+                      <div style={{ fontWeight: 650, marginBottom: 10 }}>In-store execution history</div>
+                      {historyLoading ? <div className="muted small">Loading activity history…</div> : null}
+                      {!historyLoading && history.length === 0 ? <div className="muted small">No task executions with photos recorded.</div> : null}
+                      {!historyLoading ? history.map((execution) => {
+                        const photosExpanded = expandedExecutionId === execution.task.id;
+                        const recordedAt = execution.task.completedAt ?? execution.evidence[0]?.createdAt;
+                        return (
+                          <div key={execution.task.id} style={{ borderTop: "1px solid var(--border, #dfe3e3)", padding: "10px 0" }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                              <div>
+                                <div style={{ fontWeight: 600 }}>{execution.task.title}</div>
+                                <div className="muted small">
+                                  {execution.salesperson?.name ?? "Salesperson"}
+                                  {recordedAt ? ` · ${new Date(recordedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}` : ""}
+                                  {` · ${execution.task.status.replace(/_/g, " ")}`}
+                                </div>
+                              </div>
+                              <button
+                                className="sm secondary"
+                                aria-expanded={photosExpanded}
+                                onClick={() => setExpandedExecutionId(photosExpanded ? null : execution.task.id)}
+                              >
+                                {photosExpanded ? "Hide photos" : `View photos (${execution.evidence.length})`}
+                              </button>
+                            </div>
+                            {photosExpanded ? (
+                              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+                                {execution.evidence.map((item: any) => item.signedUrl ? (
+                                  <a key={item.id} href={item.signedUrl} target="_blank" rel="noreferrer">
+                                    <img
+                                      src={item.signedUrl}
+                                      alt={`${execution.task.title} evidence`}
+                                      loading="lazy"
+                                      style={{ display: "block", width: 144, height: 108, objectFit: "contain", borderRadius: 4, background: "var(--surface, white)" }}
+                                    />
+                                  </a>
+                                ) : null)}
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      }) : null}
+                    </td>
+                  </tr>
+                ) : null}
+                </Fragment>
               ))}
             </tbody>
           </table>

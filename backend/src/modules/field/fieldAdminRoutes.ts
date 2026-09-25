@@ -225,6 +225,21 @@ export function createFieldAdminRouter(options: {
   /* --------------------------------- tasks -------------------------------- */
 
   router.get(
+    "/field/retailers/:retailerId/marketing-history",
+    requirePermission(Permissions.ROUTE_MANAGE),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      try {
+        res.json({ executions: await services.tasks.marketingHistoryForAdmin({
+          retailerId: req.params.retailerId,
+          scopeStaffIds: await scopeOf(req),
+        }) });
+      } catch (error) {
+        sendError(error, res, next);
+      }
+    })
+  );
+
+  router.get(
     "/field/tasks",
     requirePermission(Permissions.ROUTE_MANAGE),
     asyncRoute(async (req, res, next) => {

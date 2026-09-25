@@ -41,4 +41,15 @@ describe("admin API session client", () => {
     );
     expect(localStorage.getItem("gagan_admin_token")).toBeNull();
   });
+
+  it("loads field marketing history through the authenticated Admin API", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(response(200, { executions: [] }));
+
+    await expect(api.fieldRetailerMarketingHistory("retailer-7")).resolves.toEqual({ executions: [] });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/admin/field/retailers/retailer-7/marketing-history"),
+      expect.objectContaining({ credentials: "include" })
+    );
+  });
 });

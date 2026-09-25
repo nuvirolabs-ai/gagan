@@ -25,6 +25,7 @@ const services = {
   },
   tasks: {
     forSalesperson: vi.fn().mockResolvedValue([]),
+    marketingHistoryForSalesperson: vi.fn().mockResolvedValue([]),
     updateStatus: vi.fn().mockResolvedValue({ id: "task-1" }),
     addEvidence: vi.fn().mockResolvedValue({ id: "evidence-1", signedUrl: "https://signed.example/photo" }),
     evidenceForSalesperson: vi.fn().mockResolvedValue([]),
@@ -135,6 +136,17 @@ describe("field routes always act on the caller's own identity", () => {
     expect(services.tasks.evidenceForSalesperson).toHaveBeenCalledWith({ taskId: "task-7", salespersonId: "staff-7" });
   });
 
+  it("reads retailer marketing history as the session's salesperson", async () => {
+    const response = await request(app(FIELD_PERMISSIONS, "staff-7"))
+      .get("/field/retailers/retailer-7/marketing-history");
+
+    expect(response.status).toBe(200);
+    expect(services.tasks.marketingHistoryForSalesperson).toHaveBeenCalledWith({
+      retailerId: "retailer-7",
+      salespersonId: "staff-7",
+    });
+  });
+
   it("reads the route for the caller only", async () => {
     await request(app()).get("/field/route?salespersonId=staff-999");
     expect(services.routes.routeForDate).toHaveBeenCalledWith("staff-1", expect.any(Date));
@@ -152,6 +164,7 @@ describe("field route permissions", () => {
     ["activity log", "activity.log", "post", "/field/activities"],
     ["tasks", "task.complete", "get", "/field/tasks"],
     ["task evidence", "task.complete", "post", "/field/tasks/task-1/evidence"],
+    ["retailer marketing history", "task.complete", "get", "/field/retailers/retailer-1/marketing-history"],
     ["tracking state", "attendance.manage_self", "get", "/field/tracking/state"],
     ["ping ingest", "attendance.manage_self", "post", "/field/tracking/pings"],
     ["expenses", "expense.submit", "get", "/field/expenses"],

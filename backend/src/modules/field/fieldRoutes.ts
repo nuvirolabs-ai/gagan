@@ -339,6 +339,21 @@ export function createFieldRouter(options: {
   /* --------------------------------- tasks -------------------------------- */
 
   router.get(
+    "/field/retailers/:retailerId/marketing-history",
+    requirePermission(Permissions.TASK_COMPLETE),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      try {
+        res.json({ executions: await services.tasks.marketingHistoryForSalesperson({
+          retailerId: req.params.retailerId,
+          salespersonId: req.staffAuth!.staffId,
+        }) });
+      } catch (error) {
+        sendFieldError(error, res, next);
+      }
+    })
+  );
+
+  router.get(
     "/field/tasks",
     requirePermission(Permissions.TASK_COMPLETE),
     asyncRoute(async (req: StaffAuthedRequest, res, next) => {

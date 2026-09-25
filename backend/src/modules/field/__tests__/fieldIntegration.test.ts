@@ -554,6 +554,34 @@ describe("task activity photo evidence", () => {
         expect(withLocation).not.toHaveProperty("objectKey");
       });
 
+    const repHistory = await request(app)
+      .get(`/rep/field/retailers/${ids.retailerA}/marketing-history`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .expect(200);
+    expect(repHistory.body.executions).toHaveLength(1);
+    expect(repHistory.body.executions[0]).toMatchObject({
+      task: { id: task.id, title: task.title },
+      salesperson: { id: ids.staffA, name: "Field Staff A" },
+      evidence: expect.arrayContaining([
+        expect.objectContaining({ id: upload.body.evidence.id, signedUrl: expect.stringMatching(/^local-storage:\/\//) }),
+        expect.objectContaining({ id: withoutLocation.body.evidence.id, latitude: null }),
+      ]),
+    });
+    expect(repHistory.body.executions[0].evidence[0]).not.toHaveProperty("objectKey");
+    expect(repHistory.body.executions[0].evidence[0]).not.toHaveProperty("checksum");
+
+    const adminHistory = await request(app)
+      .get(`/admin/field/retailers/${ids.retailerA}/marketing-history`)
+      .set("Authorization", `Bearer ${managerToken}`)
+      .expect(200);
+    expect(adminHistory.body.executions).toHaveLength(1);
+    expect(adminHistory.body.executions[0].evidence).toHaveLength(2);
+
+    await request(app)
+      .get(`/rep/field/retailers/${ids.retailerA}/marketing-history`)
+      .set("Authorization", `Bearer ${tokenB}`)
+      .expect(404);
+
     await request(app)
       .post(`/rep/field/tasks/${task.id}/evidence`)
       .set("Authorization", `Bearer ${tokenB}`)

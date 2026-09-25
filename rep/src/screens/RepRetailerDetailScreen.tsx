@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Image,
   View,
   Text,
   StyleSheet,
   Alert,
   Linking,
   Pressable,
+  ScrollView,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -58,6 +60,13 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   const [activeVisitElsewhere, setActiveVisitElsewhere] = useState<any | null>(null);
   const [recentVisits, setRecentVisits] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
+  const [marketingHistory, setMarketingHistory] = useState<any[]>([]);
+  const [marketingHistoryExpanded, setMarketingHistoryExpanded] = useState(false);
+  const [marketingHistoryLoaded, setMarketingHistoryLoaded] = useState(false);
+  const [marketingHistoryLoading, setMarketingHistoryLoading] = useState(false);
+  const [marketingHistoryFailed, setMarketingHistoryFailed] = useState(false);
+  const [expandedExecutionId, setExpandedExecutionId] = useState<string | null>(null);
+  const marketingHistoryRequest = useRef(0);
   const [baseline, setBaseline] = useState<any | null>(null);
   const [opportunities, setOpportunities] = useState<any[]>([]);
   const [todayField, setTodayField] = useState<any | null>(null);
@@ -95,6 +104,39 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
     setTodayField(todayData);
     setSchemes(schemeData.schemes ?? []);
   }, [retailerId, capabilities.canLogActivity]);
+
+  useEffect(() => {
+    marketingHistoryRequest.current += 1;
+    setMarketingHistory([]);
+    setMarketingHistoryExpanded(false);
+    setMarketingHistoryLoaded(false);
+    setMarketingHistoryLoading(false);
+    setMarketingHistoryFailed(false);
+    setExpandedExecutionId(null);
+  }, [retailerId]);
+
+  const toggleMarketingHistory = async () => {
+    if (marketingHistoryExpanded) {
+      setMarketingHistoryExpanded(false);
+      return;
+    }
+    setMarketingHistoryExpanded(true);
+    if (marketingHistoryLoaded || marketingHistoryLoading) return;
+    const requestId = ++marketingHistoryRequest.current;
+    setMarketingHistoryLoading(true);
+    setMarketingHistoryFailed(false);
+    try {
+      const result = await repApi.marketingHistory(retailerId);
+      if (marketingHistoryRequest.current === requestId) {
+        setMarketingHistory(result.executions ?? []);
+        setMarketingHistoryLoaded(true);
+      }
+    } catch {
+      if (marketingHistoryRequest.current === requestId) setMarketingHistoryFailed(true);
+    } finally {
+      if (marketingHistoryRequest.current === requestId) setMarketingHistoryLoading(false);
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -539,6 +581,78 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
           </View>
         ) : null}
 
+        {capabilities.canCompleteTasks ? (
+          <View>
+            <View style={styles.historyHeader}>
+              <Text style={styles.lineTitle}>{t("customer.marketingHistory")}</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ expanded: marketingHistoryExpanded }}
+                onPress={() => void toggleMarketingHistory()}
+                style={styles.historyToggle}
+              >
+                <Text style={styles.historyToggleText}>
+                  {marketingHistoryExpanded
+                    ? t("customer.closeMarketingHistory")
+                    : t("customer.openMarketingHistory")}
+                </Text>
+                <MaterialCommunityIcons
+                  name={marketingHistoryExpanded ? "chevron-up" : "chevron-down"}
+                  size={18}
+                  color={colors.primary}
+                />
+              </Pressable>
+            </View>
+            {marketingHistoryExpanded ? (
+              marketingHistoryLoading ? (
+                <Text style={styles.muted}>{t("common.loading")}</Text>
+              ) : marketingHistoryFailed ? (
+                <Text style={styles.muted}>{t("customer.marketingHistoryLoadFailed")}</Text>
+              ) : marketingHistory.length === 0 ? (
+                <Text style={styles.muted}>{t("customer.marketingHistoryEmpty")}</Text>
+              ) : (
+                marketingHistory.map((execution: any, index: number) => {
+                  const executionId = execution.task.id;
+                  const photosExpanded = expandedExecutionId === executionId;
+                  const recordedAt = execution.task.completedAt ?? execution.evidence[0]?.createdAt;
+                  return (
+                    <View key={executionId}>
+                      <TimelineEvent
+                        icon="image-multiple-outline"
+                        title={execution.task.title}
+                        context={[execution.salesperson?.name, execution.task.status.replace(/_/g, " ")].filter(Boolean).join(" · ")}
+                        time={recordedAt
+                          ? new Date(recordedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+                          : undefined}
+                        last={index === marketingHistory.length - 1}
+                      />
+                      <View style={styles.historyEvidenceAction}>
+                        <TextButton
+                          label={t(photosExpanded ? "customer.hideEvidence" : "customer.viewEvidence", { count: execution.evidence.length })}
+                          onPress={() => setExpandedExecutionId(photosExpanded ? null : executionId)}
+                        />
+                      </View>
+                      {photosExpanded ? (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.historyPhotos}>
+                          {execution.evidence.map((item: any) => item.signedUrl ? (
+                            <Image
+                              key={item.id}
+                              source={{ uri: item.signedUrl }}
+                              style={styles.historyPhoto}
+                              resizeMode="contain"
+                              accessibilityLabel={`${execution.task.title} evidence`}
+                            />
+                          ) : null)}
+                        </ScrollView>
+                      ) : null}
+                    </View>
+                  );
+                })
+              )
+            ) : null}
+          </View>
+        ) : null}
+
         {recentVisits.length > 0 ? (
           <View>
             <SectionHeader title="Recent visits" />
@@ -664,6 +778,12 @@ const styles = StyleSheet.create({
   visitTime: { fontSize: 15, color: colors.ink },
   actions: { flexDirection: "row", gap: spacing.sm },
   muted: { fontSize: 13, color: colors.textSecondary, lineHeight: 18 },
+  historyHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, flexWrap: "wrap" },
+  historyToggle: { flexDirection: "row", alignItems: "center", gap: 2, minHeight: 40 },
+  historyToggleText: { fontSize: 13, color: colors.primary, fontWeight: "600" },
+  historyEvidenceAction: { marginLeft: 46, marginTop: -spacing.sm },
+  historyPhotos: { gap: spacing.sm, paddingLeft: 46, paddingVertical: spacing.sm },
+  historyPhoto: { width: 112, height: 88, borderRadius: 4, backgroundColor: colors.track },
   internalStatus: { fontSize: 11.5, color: colors.blueInk, fontWeight: "600", marginTop: 3 },
   line: {
     flexDirection: "row",

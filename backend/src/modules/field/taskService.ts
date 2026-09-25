@@ -93,10 +93,64 @@ export class TaskService {
     return Promise.all(rows.map((row: any) => this.presentEvidence(row)));
   }
 
-  private async presentEvidence({ objectKey, checksum: _checksum, ...evidence }: any) {
-    const signedUrl = await this.storage().signedReadUrl(objectKey, 300).catch(() => null);
+  async marketingHistoryForSalesperson(input: { retailerId: string; salespersonId: string }) {
+    const staff = await this.prisma.staffUser.findUnique({
+      where: { id: input.salespersonId },
+      select: { salesRepId: true },
+    });
+    if (!staff?.salesRepId) throw new FieldServiceError("retailer_not_assigned", 404);
+    const retailer = await this.prisma.retailer.findFirst({
+      where: { id: input.retailerId, salesRepId: staff.salesRepId },
+      select: { id: true },
+    });
+    if (!retailer) throw new FieldServiceError("retailer_not_assigned", 404);
+    return this.marketingHistory({ retailerId: retailer.id });
+  }
+
+  async marketingHistoryForAdmin(input: { retailerId: string; scopeStaffIds?: string[] | null }) {
+    const retailer = await this.prisma.retailer.findUnique({
+      where: { id: input.retailerId },
+      select: { id: true },
+    });
+    if (!retailer) throw new FieldServiceError("retailer_not_found", 404);
+    return this.marketingHistory({ retailerId: retailer.id, scopeStaffIds: input.scopeStaffIds });
+  }
+
+  private async marketingHistory(input: { retailerId: string; scopeStaffIds?: string[] | null }) {
+    const rows = await this.prisma.fieldTaskEvidence.findMany({
+      where: {
+        retailerId: input.retailerId,
+        ...(input.scopeStaffIds ? { salespersonId: { in: input.scopeStaffIds } } : {}),
+      },
+      include: {
+        task: { select: { id: true, title: true, status: true, completedAt: true } },
+        salesperson: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    });
+    const executions = new Map<string, any>();
+    for (const row of rows) {
+      let execution = executions.get(row.taskId);
+      if (!execution) {
+        execution = { task: row.task, salesperson: row.salesperson, evidence: [] };
+        executions.set(row.taskId, execution);
+      }
+      execution.evidence.push(await this.presentEvidence(row));
+    }
+    return [...executions.values()];
+  }
+
+  private async presentEvidence(evidence: any) {
+    const signedUrl = await this.storage().signedReadUrl(evidence.objectKey, 300).catch(() => null);
     return {
-      ...evidence,
+      id: evidence.id,
+      taskId: evidence.taskId,
+      retailerId: evidence.retailerId,
+      salespersonId: evidence.salespersonId,
+      contentType: evidence.contentType,
+      sizeBytes: evidence.sizeBytes,
+      createdAt: evidence.createdAt,
       latitude: evidence.latitude == null ? null : Number(evidence.latitude),
       longitude: evidence.longitude == null ? null : Number(evidence.longitude),
       accuracyMeters: evidence.accuracyMeters == null ? null : Number(evidence.accuracyMeters),

@@ -18,6 +18,7 @@ const services = {
   },
   tasks: {
     list: vi.fn().mockResolvedValue([]),
+    marketingHistoryForAdmin: vi.fn().mockResolvedValue([]),
     assign: vi.fn().mockResolvedValue({ id: "task-1" }),
     cancel: vi.fn().mockResolvedValue({ id: "task-1" }),
   },
@@ -28,6 +29,10 @@ const services = {
     history: vi.fn().mockResolvedValue({ session: null, pings: [] }),
   },
   dashboard: { metricsFor: vi.fn().mockResolvedValue({}) },
+} as any;
+
+const scopes = {
+  resolveFor: vi.fn().mockResolvedValue({ staffIds: ["staff-1", "staff-2"] }),
 } as any;
 
 const MANAGER_PERMISSIONS = [
@@ -48,6 +53,7 @@ function app(permissions: string[] = MANAGER_PERMISSIONS) {
         next();
       },
       services,
+      scopes,
     })
   );
   return application;
@@ -68,6 +74,7 @@ describe("back-office field permissions", () => {
     ["route save", "route.manage", "post", "/field/routes"],
     ["route publish", "route.manage", "post", "/field/routes/plan-1/publish"],
     ["task assignment", "route.manage", "post", "/field/tasks"],
+    ["retailer marketing history", "route.manage", "get", "/field/retailers/retailer-1/marketing-history"],
     ["expense queue", "expense.review", "get", "/field/expenses"],
     ["expense decision", "expense.review", "post", "/field/expenses/expense-1/decision"],
     ["issue queue", "issue.review", "get", "/field/issues"],
@@ -97,6 +104,20 @@ describe("back-office field permissions", () => {
 });
 
 describe("back-office field behaviour", () => {
+  it("reads retailer marketing history only for the caller's reporting scope", async () => {
+    const response = await request(app()).get("/field/retailers/retailer-1/marketing-history");
+
+    expect(response.status).toBe(200);
+    expect(scopes.resolveFor).toHaveBeenCalledWith(
+      expect.objectContaining({ staffId: "manager-1" }),
+      undefined
+    );
+    expect(services.tasks.marketingHistoryForAdmin).toHaveBeenCalledWith({
+      retailerId: "retailer-1",
+      scopeStaffIds: ["staff-1", "staff-2"],
+    });
+  });
+
   it("stamps the decision with the reviewer's own identity", async () => {
     const response = await request(app())
       .post("/field/leave/leave-1/decision")

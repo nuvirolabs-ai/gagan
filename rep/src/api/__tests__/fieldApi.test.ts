@@ -8,6 +8,12 @@ function api() {
 }
 
 describe("field day API", () => {
+  it("loads retailer execution history without accepting a salesperson id", async () => {
+    const { api: client, request } = api();
+    await client.marketingHistory("retailer-7");
+    expect(request).toHaveBeenCalledWith("/rep/field/retailers/retailer-7/marketing-history");
+  });
+
   it("uploads and reads evidence only through the caller's assigned task", async () => {
     const { api: client, request } = api();
     await client.uploadTaskEvidence("task-1", {

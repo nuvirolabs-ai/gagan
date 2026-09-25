@@ -203,6 +203,8 @@ export const api = {
   ) => post(`/admin/dispatch/${id}/pod`, { podType, items }),
 
   retailers: () => request("/admin/retailers"),
+  fieldRetailerMarketingHistory: (retailerId: string) =>
+    request(`/admin/field/retailers/${retailerId}/marketing-history`),
   retailer: (id: string) => request(`/admin/retailers/${id}`),
   createRetailer: (data: unknown) => post("/admin/retailers", data),
   setTier: (id: string, tierId: string) => post(`/admin/retailers/${id}/tier`, { tierId }),

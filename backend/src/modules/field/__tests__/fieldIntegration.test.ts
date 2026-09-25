@@ -19,12 +19,14 @@ const ids = {
   staffA: randomUUID(),
   staffB: randomUUID(),
   manager: randomUUID(),
+  managerAdmin: randomUUID(),
   product: randomUUID(),
   variant: randomUUID(),
 };
 
 let tokenA = "";
 let tokenB = "";
+let managerToken = "";
 const app = createApp();
 const coordinates = { latitude: 18.52, longitude: 73.85, accuracyMeters: 12 };
 
@@ -100,6 +102,14 @@ beforeAll(async () => {
   });
   const salespersonRole = await prisma.role.findUniqueOrThrow({ where: { name: "salesperson" } });
   const managerRole = await prisma.role.findUniqueOrThrow({ where: { name: "field_manager" } });
+  await prisma.adminUser.create({
+    data: {
+      id: ids.managerAdmin,
+      email: `field-m-${run}@test.invalid`,
+      name: "Field Manager",
+      passwordHash: "test-only",
+    },
+  });
   await prisma.staffUser.create({
     data: {
       id: ids.staffA,
@@ -126,21 +136,31 @@ beforeAll(async () => {
       name: "Field Manager",
       phone: `87${digits}`,
       email: `field-m-${run}@test.invalid`,
+      adminUserId: ids.managerAdmin,
       roles: { create: { roleId: managerRole.id } },
     },
   });
+  await prisma.staffUser.updateMany({
+    where: { id: { in: [ids.staffA, ids.staffB] } },
+    data: { managerId: ids.manager },
+  });
 
-  const [sessionA, sessionB] = await Promise.all([
+  const [sessionA, sessionB, managerSession] = await Promise.all([
     lazyIdentitySessionService.createSession({ realm: "staff", subjectId: ids.staffA, deviceName: "test" }),
     lazyIdentitySessionService.createSession({ realm: "staff", subjectId: ids.staffB, deviceName: "test" }),
+    lazyIdentitySessionService.createSession({ realm: "admin", subjectId: ids.manager, deviceName: "test" }),
   ]);
   tokenA = sessionA.accessToken;
   tokenB = sessionB.accessToken;
+  managerToken = managerSession.accessToken;
 });
 
 afterAll(async () => {
   const staffIds = [ids.staffA, ids.staffB, ids.manager];
-  const orders = await prisma.order.findMany({ where: { retailerId: ids.retailerA }, select: { id: true } });
+  const orders = await prisma.order.findMany({
+    where: { retailerId: { in: [ids.retailerA, ids.retailerB] } },
+    select: { id: true },
+  });
   const orderIds = orders.map(({ id }) => id);
   await prisma.deviceSession.deleteMany({ where: { subjectId: { in: staffIds } } });
   await prisma.sapOutbox.deleteMany({ where: { referenceId: { in: orderIds } } });
@@ -172,7 +192,9 @@ afterAll(async () => {
   await prisma.leaveRequest.deleteMany({ where: { salespersonId: { in: staffIds } } });
   await prisma.workdaySession.deleteMany({ where: { salespersonId: { in: staffIds } } });
   await prisma.salesTarget.deleteMany({ where: { salespersonId: { in: staffIds } } });
+  await prisma.staffUser.updateMany({ where: { id: { in: staffIds } }, data: { managerId: null } });
   await prisma.staffUser.deleteMany({ where: { id: { in: staffIds } } });
+  await prisma.adminUser.delete({ where: { id: ids.managerAdmin } });
   await prisma.retailerLocation.deleteMany({
     where: { retailerId: { in: [ids.retailerA, ids.retailerB] } },
   });
@@ -549,6 +571,61 @@ describe("today reads real work, not placeholders", () => {
     expect(kinds).toContain("visit");
     expect(kinds).toContain("activity");
     expect(kinds).toContain("service_issue");
+  });
+});
+
+describe("daily team sales summary uses canonical orders", () => {
+  it("reconciles date-bounded order totals across multiple assigned salespeople", async () => {
+    const from = "2026-09-20T00:00:00.000Z";
+    const to = "2026-09-20T23:59:59.999Z";
+    await prisma.order.createMany({
+      data: [
+        {
+          retailerId: ids.retailerA,
+          placedBy: "rep",
+          placedByRepId: ids.repA,
+          orderTotal: "1250.50",
+          createdAt: new Date("2026-09-20T09:00:00.000Z"),
+        },
+        {
+          retailerId: ids.retailerB,
+          placedBy: "rep",
+          placedByRepId: ids.repB,
+          orderTotal: "2750.25",
+          createdAt: new Date("2026-09-20T11:00:00.000Z"),
+        },
+        {
+          retailerId: ids.retailerB,
+          placedBy: "rep",
+          placedByRepId: ids.repB,
+          orderTotal: "1499.75",
+          createdAt: new Date("2026-09-20T15:00:00.000Z"),
+        },
+        {
+          retailerId: ids.retailerA,
+          placedBy: "rep",
+          placedByRepId: ids.repA,
+          orderTotal: "9000.00",
+          createdAt: new Date("2026-09-21T00:00:00.000Z"),
+        },
+      ],
+    });
+
+    const response = await request(app)
+      .get("/admin/field/team")
+      .query({ from, to })
+      .set("Authorization", `Bearer ${managerToken}`)
+      .expect(200);
+
+    const metricsByStaff = new Map(
+      response.body.members.map((member: any) => [member.salespersonId, member.metrics])
+    );
+    expect([...metricsByStaff.keys()].sort()).toEqual([ids.staffA, ids.staffB].sort());
+    expect(metricsByStaff.get(ids.staffA)).toMatchObject({ orders: 1, orderValue: 1250.5 });
+    expect(metricsByStaff.get(ids.staffB)).toMatchObject({ orders: 2, orderValue: 4250 });
+    expect(
+      [...metricsByStaff.values()].reduce((sum: number, metrics: any) => sum + metrics.orderValue, 0)
+    ).toBe(5500.5);
   });
 });
 

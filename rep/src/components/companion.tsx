@@ -192,9 +192,11 @@ export function MetricStrip({
       {items.map((item, index) => (
         <View
           key={item.label}
+          accessible
+          accessibilityLabel={`${item.label}: ${item.value}`}
           style={[
             styles.metricItem,
-            wrapped ? [styles.metricItemWrap, { width: `${100 / columns}%` as `${number}%` }] : null,
+            wrapped ? [styles.metricItemWrap, { flexBasis: `${100 / columns}%` as `${number}%` }] : null,
             !wrapped && index > 0 ? styles.metricItemDivided : null,
           ]}
         >

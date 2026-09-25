@@ -34,7 +34,7 @@ function riskMeta(level: string, t: (key: string) => string) {
   return { label: t("team.onTrack"), tone: "green" as const };
 }
 
-function TeamMember({ member, presentation, t }: {
+export function TeamMember({ member, presentation, t }: {
   member: any;
   presentation: ReturnType<typeof selectTeamPerformancePresentation>["members"][number];
   t: TeamTranslate;
@@ -48,9 +48,8 @@ function TeamMember({ member, presentation, t }: {
       <View style={styles.memberHeading}>
         <View style={styles.memberIdentity}>
           <Text style={styles.memberName} numberOfLines={2}>{member.name}</Text>
-          <Text style={styles.memberMeta} numberOfLines={1}>
-            {[member.territory, presentation.rankLabel].filter(Boolean).join(" | ") || " "}
-          </Text>
+          {member.territory ? <Text style={styles.memberMeta} numberOfLines={2}>{member.territory}</Text> : null}
+          {presentation.rankLabel ? <Text style={styles.memberMeta}>{presentation.rankLabel}</Text> : null}
         </View>
         <StatusChip label={risk.label} tone={risk.tone} />
       </View>
@@ -187,15 +186,7 @@ export default function TeamPerformanceScreen() {
         </Surface>
 
         <Surface>
-          <MetricStrip
-            bare
-            items={[
-              { label: t("team.presentToday"), value: `${team?.present ?? 0} / ${team?.salespeople ?? 0}` },
-              { label: t("team.visits"), value: String(team?.visits ?? 0) },
-              { label: t("team.orders"), value: String(team?.orders ?? 0) },
-              { label: t("team.collections"), value: inr(Number(team?.collections ?? 0)) },
-            ]}
-          />
+          <MetricStrip bare items={presentation.team.kpis} />
         </Surface>
 
         {members.length === 0 ? (

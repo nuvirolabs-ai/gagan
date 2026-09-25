@@ -25,6 +25,7 @@ export interface TeamPerformancePresentation {
   team: {
     summary: TeamSalesSummary;
     projectionUnavailable: string | null;
+    kpis: Array<{ label: string; value: string }>;
   };
   leaderboardMetricLabel: string;
   members: TeamMemberPresentation[];
@@ -259,6 +260,12 @@ export function selectTeamPerformancePresentation(
       projectionUnavailable: team.salespeople === 0
         ? t("team.projection.noTeamSales")
         : projectionUnavailable(team.projection, t),
+      kpis: [
+        { label: t("team.presentToday"), value: `${team.present ?? 0} / ${team.salespeople ?? 0}` },
+        { label: t("team.visits"), value: String(team.visits ?? 0) },
+        { label: t("team.orders"), value: String(team.orders ?? 0) },
+        { label: t("team.collections"), value: inr(Number(team.collections ?? 0)) },
+      ],
     },
     leaderboardMetricLabel: metric,
     members,

@@ -24,6 +24,19 @@ describe("team sales summary", () => {
 });
 
 describe("team performance presentation", () => {
+  it.each(["en", "hi"] as const)("keeps hosted team KPIs and accessible labels in %s", (language) => {
+    const view = selectTeamPerformancePresentation({
+      team: { salespeople: 1, present: 1, visits: 12, orders: 3, collections: 42500 },
+    }, t(language));
+
+    expect(view.team.kpis).toEqual([
+      { label: t(language)("team.presentToday"), value: "1 / 1" },
+      { label: t(language)("team.visits"), value: "12" },
+      { label: t(language)("team.orders"), value: "3" },
+      { label: t(language)("team.collections"), value: "₹42,500" },
+    ]);
+  });
+
   it("localizes all attendance states and keeps unknown marks distinct from absence", () => {
     const marks = ["present", "leave", "absent", "holiday", "not_due", "future_mark"];
     for (const language of ["en", "hi"] as const) {

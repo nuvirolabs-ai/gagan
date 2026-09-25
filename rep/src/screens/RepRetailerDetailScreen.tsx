@@ -300,6 +300,9 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
               {retailer.tier ? (
                 <StatusChip label={`${retailer.tier} retailer`} tone={retailer.tier.toLowerCase() === "gold" ? "gold" : "neutral"} />
               ) : null}
+              {retailer.internalSegment ? (
+                <StatusChip label={`Internal segment ${retailer.internalSegment}`} tone="neutral" />
+              ) : null}
               <StatusChip
                 label={locationLabel}
                 tone={location?.status === "VERIFIED" ? "green" : location?.status === "NEEDS_REVIEW" ? "warning" : "neutral"}

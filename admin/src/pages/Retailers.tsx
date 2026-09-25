@@ -39,6 +39,17 @@ export default function Retailers() {
     }
   };
 
+  const changeInternalSegment = async (r: any, value: string) => {
+    try {
+      await api.setInternalSegment(r.id, value ? (value as "A" | "B" | "C") : null);
+      setNotice(value ? `${r.name} assigned to internal segment ${value}` : `Internal segment cleared for ${r.name}`);
+      setError(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update internal segment");
+    }
+  };
+
   const changeLimit = async (r: any) => {
     const input = window.prompt(`Credit limit for ${r.name}`, String(r.creditLimit));
     if (input == null) return;
@@ -98,7 +109,7 @@ export default function Retailers() {
         <div>
           <h1 className="page-title">Retailers</h1>
           <p className="page-sub" style={{ marginBottom: 0 }}>
-            Onboarding, tier assignment and credit limits.
+            Onboarding, commercial tiers, internal segments and credit limits.
           </p>
         </div>
         <button onClick={() => setCreating((v) => !v)}>
@@ -184,7 +195,8 @@ export default function Retailers() {
             <thead>
               <tr>
                 <th>Retailer</th>
-                <th>Tier</th>
+                <th>Commercial tier</th>
+                <th>Internal segment</th>
                 <th className="right">Credit limit</th>
                 <th className="right">Outstanding</th>
                 <th className="right">Available</th>
@@ -204,6 +216,7 @@ export default function Retailers() {
                     <select
                       value={r.tier.id}
                       onChange={(e) => changeTier(r.id, e.target.value)}
+                      aria-label={`Commercial pricing tier for ${r.name}`}
                       style={{ width: 120 }}
                     >
                       {tiers.map((t) => (
@@ -211,6 +224,19 @@ export default function Retailers() {
                           {t.name}
                         </option>
                       ))}
+                    </select>
+                  </td>
+                  <td>
+                    <select
+                      value={r.internalSegment ?? ""}
+                      onChange={(e) => void changeInternalSegment(r, e.target.value)}
+                      aria-label={`Internal segment for ${r.name}`}
+                      style={{ width: 120 }}
+                    >
+                      <option value="">Unassigned</option>
+                      <option value="A">A</option>
+                      <option value="B">B</option>
+                      <option value="C">C</option>
                     </select>
                   </td>
                   <td className="right">{inr(r.creditLimit)}</td>

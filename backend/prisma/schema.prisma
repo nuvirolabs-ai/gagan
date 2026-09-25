@@ -20,6 +20,12 @@ enum RetailerLifecycle {
   closed
 }
 
+enum RetailerInternalSegment {
+  A
+  B
+  C
+}
+
 enum KycCaseStatus {
   draft
   submitted
@@ -388,6 +394,8 @@ model Retailer {
   status                    RetailerLifecycle          @default(pending_kyc)
   tierId                    String
   tier                      Tier                       @relation(fields: [tierId], references: [id])
+  /// Internal customer grouping; separate from the commercial pricing tier.
+  internalSegment           RetailerInternalSegment?
   creditLimit               Decimal                    @default(0) @db.Decimal(12, 2)
   currentBalance            Decimal                    @default(0) @db.Decimal(12, 2)
   // Derived: recomputed from unsettled past-due invoices by recomputeOverdue().

@@ -61,6 +61,7 @@ function OutletCard({
         <View style={styles.outletIdentity}>
           <Text style={styles.outletName} numberOfLines={1}>{item.name}</Text>
           <Text style={styles.outletMeta} numberOfLines={1}>{item.shopAddress || item.phone || "Assigned account"}</Text>
+          {item.internalSegment ? <Text style={styles.outletSegment}>Internal segment {item.internalSegment}</Text> : null}
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} />
       </View>
@@ -291,6 +292,7 @@ const styles = StyleSheet.create({
   outletIdentity: { flex: 1, minWidth: 0, gap: 3 },
   outletName: { color: colors.ink, fontSize: 16, fontWeight: "700" },
   outletMeta: { color: colors.inkMuted, fontSize: 12.5 },
+  outletSegment: { color: colors.inkMuted, fontSize: 11, fontWeight: "700" },
   outletRule: { height: 1, backgroundColor: colors.border, marginVertical: spacing.md },
   outletBottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md },
   outletMoney: { flex: 1, flexDirection: "row", flexWrap: "wrap", gap: spacing.md },

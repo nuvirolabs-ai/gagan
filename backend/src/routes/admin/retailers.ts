@@ -34,6 +34,7 @@ router.get("/retailers", async (_req, res) => {
       shopAddress: r.shopAddress,
       deliveryCity: r.deliveryCity,
       tier: { id: r.tier.id, name: r.tier.name },
+      internalSegment: r.internalSegment,
       salesRep: r.salesRep ? { id: r.salesRep.id, name: r.salesRep.name } : null,
       creditLimit: financial.creditLimit,
       currentBalance: financial.outstanding,
@@ -110,6 +111,18 @@ router.post("/retailers/:id/tier", async (req, res) => {
     where: { id: req.params.id },
     data: { tierId: parsed.data.tierId },
     include: { tier: true },
+  });
+  res.json({ retailer });
+});
+
+router.post("/retailers/:id/internal-segment", async (req, res) => {
+  const parsed = z.object({ internalSegment: z.enum(["A", "B", "C"]).nullable() }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid internal segment" });
+
+  const retailer = await prisma.retailer.update({
+    where: { id: req.params.id },
+    data: { internalSegment: parsed.data.internalSegment },
+    select: { id: true, internalSegment: true, tierId: true },
   });
   res.json({ retailer });
 });

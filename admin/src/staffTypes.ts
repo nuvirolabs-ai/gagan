@@ -5,6 +5,8 @@ export interface Role {
   permissions: { permission: { name: string } }[];
 }
 
+export type StaffRole = Pick<Role, "id" | "name" | "description">;
+
 export interface StaffMember {
   id: string;
   name: string;
@@ -12,12 +14,12 @@ export interface StaffMember {
   email: string;
   employeeRef?: string | null;
   status: "active" | "suspended" | "revoked";
-  roles: { role: Role }[];
+  roles: { role: StaffRole }[];
   delegationsHeld: {
     id: string;
     startsAt: string;
     endsAt: string;
-    role: Role;
+    role: StaffRole;
     delegator: { id: string; name: string };
   }[];
 }

@@ -142,15 +142,19 @@ describe("staff administration", () => {
   });
 
   it("lets Admin grant and revoke retailer collection access for an authorized collector", async () => {
-    const fieldCollector = {
-      ...salesperson,
+    const assignedCollectorRole = {
       id: "role-collector",
       name: "field_collector",
+      description: "Manages assigned retailers.",
+    };
+    const fieldCollectorCatalog = {
+      ...assignedCollectorRole,
       permissions: [{ permission: { name: "collection.submit" } }],
     };
     vi.mocked(api.staff).mockResolvedValue({
-      staff: [{ ...staff[0], roles: [{ role: fieldCollector }] }],
+      staff: [{ ...staff[0], roles: [{ role: assignedCollectorRole }] }],
     });
+    vi.mocked(api.roles).mockResolvedValue({ roles: [fieldCollectorCatalog, coordinator] });
     vi.mocked(api.collectionAssignments).mockResolvedValue({
       assignments: [{ id: "assignment-1", active: true, retailer: { id: "retailer-north", name: "North Star Retail", phone: "9876543210" } }],
     });

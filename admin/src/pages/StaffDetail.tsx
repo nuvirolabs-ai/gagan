@@ -10,6 +10,13 @@ type CollectionAssignment = {
 
 type CollectionRetailer = { id: string; name: string; phone: string };
 
+function staffMemberHasPermission(member: StaffMember | undefined, roleCatalog: Role[], permissionName: string) {
+  return member?.roles.some(({ role }) => roleCatalog.some((catalogRole) =>
+    catalogRole.id === role.id
+    && catalogRole.permissions.some(({ permission }) => permission.name === permissionName)
+  )) ?? false;
+}
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
@@ -33,7 +40,7 @@ export default function StaffDetail() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const member = staff.find((item) => item.id === staffId);
-  const canCollect = member?.roles.some(({ role }) => role.permissions.some(({ permission }) => permission.name === "collection.submit")) ?? false;
+  const canCollect = staffMemberHasPermission(member, roles, "collection.submit");
   const delegator = staff.find((item) => item.id === delegatorStaffId);
   const delegatorRoleIds = useMemo(
     () => new Set(delegator?.roles.map(({ role }) => role.id) ?? []),
@@ -47,9 +54,7 @@ export default function StaffDetail() {
       const currentMember = staffResponse.staff.find((item: StaffMember) => item.id === staffId);
       setStaff(staffResponse.staff);
       setRoles(roleResponse.roles);
-      const mayCollect = currentMember?.roles.some(({ role }: StaffMember["roles"][number]) =>
-        role.permissions.some(({ permission }) => permission.name === "collection.submit")
-      ) ?? false;
+      const mayCollect = staffMemberHasPermission(currentMember, roleResponse.roles, "collection.submit");
       if (currentMember) {
         const assignmentResponse = await api.collectionAssignments(staffId);
         setCollectionAssignments(assignmentResponse.assignments);

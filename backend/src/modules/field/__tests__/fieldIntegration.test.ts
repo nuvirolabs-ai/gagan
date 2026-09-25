@@ -56,12 +56,21 @@ beforeAll(async () => {
         shopAddress: "B",
         tierId: ids.tier,
         salesRepId: ids.repB,
+        creditLimit: 500_000,
       },
     ],
   });
   await prisma.creditProfile.create({
     data: {
       retailerId: ids.retailerA,
+      rating: "N",
+      billingPattern: "unknown",
+      kycVerifiedAt: new Date(),
+    },
+  });
+  await prisma.creditProfile.create({
+    data: {
+      retailerId: ids.retailerB,
       rating: "N",
       billingPattern: "unknown",
       kycVerifiedAt: new Date(),
@@ -174,7 +183,7 @@ afterAll(async () => {
   await prisma.creditAssessment.deleteMany({ where: { orderId: { in: orderIds } } });
   await prisma.orderItem.deleteMany({ where: { orderId: { in: orderIds } } });
   await prisma.order.deleteMany({ where: { id: { in: orderIds } } });
-  await prisma.creditProfile.deleteMany({ where: { retailerId: ids.retailerA } });
+  await prisma.creditProfile.deleteMany({ where: { retailerId: { in: [ids.retailerA, ids.retailerB] } } });
   await prisma.priceList.deleteMany({ where: { variantId: ids.variant } });
   await prisma.inventorySnapshot.deleteMany({ where: { productId: ids.product } });
   await prisma.variant.delete({ where: { id: ids.variant } });
@@ -571,6 +580,69 @@ describe("today reads real work, not placeholders", () => {
     expect(kinds).toContain("visit");
     expect(kinds).toContain("activity");
     expect(kinds).toContain("service_issue");
+  });
+});
+
+describe("a salesperson without a planned beat can still sell", () => {
+  it("lists an assigned retailer, loads its catalogue, and places an order with no route", async () => {
+    const routeBefore = await request(app)
+      .get("/rep/field/route")
+      .set("Authorization", `Bearer ${tokenB}`)
+      .expect(200);
+    expect(routeBefore.body.route).toBeNull();
+    expect(
+      await prisma.routePlan.count({
+        where: { salespersonId: ids.staffB, planDate: startOfDay(new Date()) },
+      })
+    ).toBe(0);
+
+    const retailerList = await request(app)
+      .get("/rep/retailers")
+      .set("Authorization", `Bearer ${tokenB}`)
+      .expect(200);
+    expect(retailerList.body.retailers).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: ids.retailerB, name: "Field Store B" })])
+    );
+
+    const catalog = await request(app)
+      .get(`/rep/retailers/${ids.retailerB}/catalog`)
+      .set("Authorization", `Bearer ${tokenB}`)
+      .expect(200);
+    expect(catalog.body.catalog).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: ids.product,
+          variants: expect.arrayContaining([expect.objectContaining({ id: ids.variant })]),
+        }),
+      ])
+    );
+
+    const order = await request(app)
+      .post("/rep/orders")
+      .set("Authorization", `Bearer ${tokenB}`)
+      .set("Idempotency-Key", `no-beat-order-${run}`)
+      .send({ retailerId: ids.retailerB, items: [{ variantId: ids.variant, qty: 1 }] })
+      .expect(201);
+    const orderReadback = await request(app)
+      .get(`/rep/orders/${order.body.order.id}`)
+      .set("Authorization", `Bearer ${tokenB}`)
+      .expect(200);
+    expect(orderReadback.body.order).toMatchObject({
+      id: order.body.order.id,
+      retailer: { id: ids.retailerB, name: "Field Store B" },
+      source: "SALESPERSON_APP",
+    });
+
+    const routeAfter = await request(app)
+      .get("/rep/field/route")
+      .set("Authorization", `Bearer ${tokenB}`)
+      .expect(200);
+    expect(routeAfter.body.route).toBeNull();
+    expect(
+      await prisma.routePlan.count({
+        where: { salespersonId: ids.staffB, planDate: startOfDay(new Date()) },
+      })
+    ).toBe(0);
   });
 });
 

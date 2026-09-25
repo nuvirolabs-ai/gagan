@@ -12,12 +12,16 @@ const ids = {
   tier: randomUUID(),
   repA: randomUUID(),
   repB: randomUUID(),
+  repManager: randomUUID(),
   retailerA1: randomUUID(),
   retailerA2: randomUUID(),
   retailerB1: randomUUID(),
+  retailerManager: randomUUID(),
   staffA: randomUUID(),
   staffB: randomUUID(),
   manager: randomUUID(),
+  managerWithReports: randomUUID(),
+  managerNoReports: randomUUID(),
   product: randomUUID(),
   variant: randomUUID(),
 };
@@ -25,6 +29,8 @@ const ids = {
 let tokenA = "";
 let tokenB = "";
 let managerToken = "";
+let managerWithReportsToken = "";
+let managerNoReportsToken = "";
 const app = createApp();
 const now = new Date();
 const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -55,6 +61,7 @@ beforeAll(async () => {
     data: [
       { id: ids.repA, name: "Perf Rep A", phone: `71${digits}`, territory: `Perf-${run.slice(0, 6)}` },
       { id: ids.repB, name: "Perf Rep B", phone: `72${digits}`, territory: `Perf-${run.slice(0, 6)}` },
+      { id: ids.repManager, name: "Perf Rep Manager", phone: `79${digits}`, territory: `Perf-M-${run.slice(0, 6)}` },
     ],
   });
   await prisma.retailer.createMany({
@@ -62,19 +69,45 @@ beforeAll(async () => {
       { id: ids.retailerA1, name: "Sharma Stores", phone: `73${digits}`, shopAddress: "12 Market Road, Pune", status: "active", tierId: ids.tier, salesRepId: ids.repA, overdueAmount: 42000 },
       { id: ids.retailerA2, name: "Verma Kirana", phone: `74${digits}`, shopAddress: "8 FC Road, Pune", status: "active", tierId: ids.tier, salesRepId: ids.repA },
       { id: ids.retailerB1, name: "Other Book Store", phone: `75${digits}`, shopAddress: "3 Baner Road, Pune", status: "active", tierId: ids.tier, salesRepId: ids.repB },
+      { id: ids.retailerManager, name: "Manager Personal Store", phone: `70${digits}`, shopAddress: "5 Manager Road, Pune", status: "active", tierId: ids.tier, salesRepId: ids.repManager },
     ],
   });
 
   const salespersonRole = await prisma.role.findUniqueOrThrow({ where: { name: "salesperson" } });
   const managerRole = await prisma.role.findUniqueOrThrow({ where: { name: "field_manager" } });
   await prisma.staffUser.create({
-    data: { id: ids.manager, name: "Perf Manager", phone: `78${digits}`, email: `perf-m-${run}@test.invalid`, roles: { create: { roleId: managerRole.id } } },
+    data: {
+      id: ids.manager,
+      name: "Perf Manager",
+      phone: `78${digits}`,
+      email: `perf-m-${run}@test.invalid`,
+      salesRepId: ids.repManager,
+      roles: { create: [{ roleId: managerRole.id }, { roleId: salespersonRole.id }] },
+    },
+  });
+  await prisma.staffUser.create({
+    data: {
+      id: ids.managerNoReports,
+      name: "Perf Manager No Reports",
+      phone: `80${digits}`,
+      email: `perf-m-empty-${run}@test.invalid`,
+      roles: { create: { roleId: managerRole.id } },
+    },
+  });
+  await prisma.staffUser.create({
+    data: {
+      id: ids.managerWithReports,
+      name: "Perf Manager With Reports",
+      phone: `81${digits}`,
+      email: `perf-m-reports-${run}@test.invalid`,
+      roles: { create: { roleId: managerRole.id } },
+    },
   });
   await prisma.staffUser.create({
     data: { id: ids.staffA, name: "Perf Staff A", phone: `76${digits}`, email: `perf-a-${run}@test.invalid`, salesRepId: ids.repA, managerId: ids.manager, roles: { create: { roleId: salespersonRole.id } } },
   });
   await prisma.staffUser.create({
-    data: { id: ids.staffB, name: "Perf Staff B", phone: `77${digits}`, email: `perf-b-${run}@test.invalid`, salesRepId: ids.repB, roles: { create: { roleId: salespersonRole.id } } },
+    data: { id: ids.staffB, name: "Perf Staff B", phone: `77${digits}`, email: `perf-b-${run}@test.invalid`, salesRepId: ids.repB, managerId: ids.managerWithReports, roles: { create: { roleId: salespersonRole.id } } },
   });
   await prisma.product.create({
     data: {
@@ -82,6 +115,26 @@ beforeAll(async () => {
       name: `Perf Product ${run.slice(0, 6)}`,
       category: "Daal",
       variants: { create: { id: ids.variant, unitSize: "1 kg", unit: "kg", unitsPerCase: 30 } },
+    },
+  });
+
+  await prisma.salesTarget.createMany({
+    data: [
+      { salespersonId: ids.manager, metric: "order_value", periodStart: monthStart, periodEnd: monthEnd, targetValue: 100000 },
+      { salespersonId: ids.managerWithReports, metric: "order_value", periodStart: monthStart, periodEnd: monthEnd, targetValue: 80000 },
+      { salespersonId: ids.managerNoReports, metric: "order_value", periodStart: monthStart, periodEnd: monthEnd, targetValue: 50000 },
+    ],
+  });
+
+  await prisma.order.create({
+    data: {
+      retailerId: ids.retailerManager,
+      placedBy: "rep",
+      placedByRepId: ids.repManager,
+      orderTotal: 30000,
+      status: "delivered",
+      createdAt: thisMonth(1),
+      items: { create: { variantId: ids.variant, qtyOrdered: 1, unitPrice: 30000 } },
     },
   });
 
@@ -117,19 +170,24 @@ beforeAll(async () => {
     });
   }
 
-  const [sessionA, sessionB, managerSession] = await Promise.all([
+  const [sessionA, sessionB, managerSession, managerWithReportsSession, managerNoReportsSession] = await Promise.all([
     lazyIdentitySessionService.createSession({ realm: "staff", subjectId: ids.staffA, deviceName: "test" }),
     lazyIdentitySessionService.createSession({ realm: "staff", subjectId: ids.staffB, deviceName: "test" }),
     lazyIdentitySessionService.createSession({ realm: "staff", subjectId: ids.manager, deviceName: "test" }),
+    lazyIdentitySessionService.createSession({ realm: "staff", subjectId: ids.managerWithReports, deviceName: "test" }),
+    lazyIdentitySessionService.createSession({ realm: "staff", subjectId: ids.managerNoReports, deviceName: "test" }),
   ]);
   tokenA = sessionA.accessToken;
   tokenB = sessionB.accessToken;
   managerToken = managerSession.accessToken;
+  managerWithReportsToken = managerWithReportsSession.accessToken;
+  managerNoReportsToken = managerNoReportsSession.accessToken;
 });
 
 afterAll(async () => {
-  const staffIds = [ids.staffA, ids.staffB, ids.manager];
-  const retailerIds = [ids.retailerA1, ids.retailerA2, ids.retailerB1];
+  const staffIds = [ids.staffA, ids.staffB, ids.manager, ids.managerWithReports, ids.managerNoReports];
+  const retailerIds = [ids.retailerA1, ids.retailerA2, ids.retailerB1, ids.retailerManager];
+  const repIds = [ids.repA, ids.repB, ids.repManager];
   const evidenceAssets = await prisma.evidenceAsset.findMany({
     where: { createdByStaffId: { in: staffIds }, purpose: "retailer_proposal_aadhaar" },
     select: { id: true, objectKey: true },
@@ -146,14 +204,18 @@ afterAll(async () => {
   await prisma.staffUser.deleteMany({ where: { id: { in: staffIds } } });
   await prisma.retailerLocation.deleteMany({ where: { retailerId: { in: retailerIds } } });
   // A proposal approved in these tests creates a retailer; clear those too.
-  await prisma.retailer.deleteMany({ where: { OR: [{ id: { in: retailerIds } }, { salesRepId: { in: [ids.repA, ids.repB] } }] } });
-  await prisma.salesRep.deleteMany({ where: { id: { in: [ids.repA, ids.repB] } } });
+  await prisma.retailer.deleteMany({ where: { OR: [{ id: { in: retailerIds } }, { salesRepId: { in: repIds } }] } });
+  await prisma.salesRep.deleteMany({ where: { id: { in: repIds } } });
   await prisma.variant.deleteMany({ where: { productId: ids.product } });
   await prisma.product.deleteMany({ where: { id: ids.product } });
   await prisma.tier.delete({ where: { id: ids.tier } });
   expect(await prisma.evidenceAsset.count({
     where: { createdByStaffId: { in: staffIds }, purpose: "retailer_proposal_aadhaar" },
   })).toBe(0);
+  expect(await prisma.staffUser.count({ where: { id: { in: staffIds } } })).toBe(0);
+  expect(await prisma.salesTarget.count({ where: { salespersonId: { in: staffIds } } })).toBe(0);
+  expect(await prisma.order.count({ where: { retailerId: { in: retailerIds } } })).toBe(0);
+  expect(await prisma.salesRep.count({ where: { id: { in: repIds } } })).toBe(0);
   await prisma.$disconnect();
 });
 
@@ -341,8 +403,68 @@ describe("a salesperson sees only their own book", () => {
       .get("/rep/sales-leader")
       .set("Authorization", `Bearer ${managerToken}`);
     expect(staffView.status).toBe(200);
-    expect(staffView.body.members.map((member: any) => member.salespersonId)).toEqual([ids.staffA]);
-    expect(staffView.body.team.salespeople).toBe(1);
+    expect(staffView.body.members.map((member: any) => member.salespersonId)).toEqual([
+      ids.manager,
+      ids.staffA,
+    ]);
+    expect(staffView.body.team.salespeople).toBe(2);
+  });
+
+  it("keeps a leader's personal sales separate from their reporting team's performance", async () => {
+    const personal = await request(app)
+      .get(`/rep/performance/targets?now=${now.toISOString()}`)
+      .set("Authorization", `Bearer ${managerToken}`)
+      .expect(200);
+    expect(personal.body.targets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ metric: "order_value", target: 100000, actual: 30000 }),
+      ])
+    );
+
+    const team = await request(app)
+      .get("/rep/sales-leader")
+      .set("Authorization", `Bearer ${managerToken}`)
+      .expect(200);
+    expect(team.body.targets.assigned).toBe(100000);
+    expect(team.body.team).toMatchObject({
+      salespeople: 2,
+      actual: 97200,
+      target: 100000,
+      completionPct: 97,
+    });
+    expect(team.body.members.map((member: any) => member.salespersonId)).toEqual([
+      ids.manager,
+      ids.staffA,
+    ]);
+  });
+
+  it("reads an assigned target for a manager who has reporting-tree members", async () => {
+    const response = await request(app)
+      .get("/rep/sales-leader")
+      .set("Authorization", `Bearer ${managerWithReportsToken}`)
+      .expect(200);
+
+    expect(response.body.targets).toMatchObject({ assigned: 80000, rollup: 0, uncascaded: 80000 });
+    expect(response.body.team).toMatchObject({ salespeople: 1, target: 80000 });
+    expect(response.body.members.map((member: any) => member.salespersonId)).toEqual([ids.staffB]);
+  });
+
+  it("returns the manager's assigned target when they have no active reports", async () => {
+    const response = await request(app)
+      .get("/rep/sales-leader")
+      .set("Authorization", `Bearer ${managerNoReportsToken}`)
+      .expect(200);
+
+    expect(response.body.members).toEqual([]);
+    expect(response.body.targets).toMatchObject({ assigned: 50000, rollup: 0, uncascaded: 50000 });
+    expect(response.body.team).toMatchObject({ salespeople: 0, target: 50000, actual: 0 });
+  });
+
+  it("does not let a team leader narrow the view to an out-of-tree salesperson", async () => {
+    const response = await request(app)
+      .get(`/rep/sales-leader?salespersonId=${ids.staffB}`)
+      .set("Authorization", `Bearer ${managerToken}`);
+    expect([403, 404]).toContain(response.status);
   });
 
   it("denies individual sellers access to team views", async () => {

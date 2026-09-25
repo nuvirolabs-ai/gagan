@@ -3,6 +3,7 @@ import { prisma as defaultPrisma } from "../../lib/prisma";
 import { TargetService, currentMonth, type MetricActuals, type Period } from "../performance/targetService";
 import { RankingService } from "../performance/rankingService";
 import { OpportunityService } from "../intelligence/opportunityService";
+import type { TriggerFacts, TriggerType } from "../intelligence/triggerDomain";
 import { AttendanceService } from "../field/attendanceService";
 import { RouteService } from "../field/routeService";
 import {
@@ -16,6 +17,17 @@ import { buildProgress, startOfDay, type TargetMetric } from "../performance/tar
 
 type Db = PrismaClient | any;
 
+export type LeaderRiskFact =
+  | { code: "PROJECTED_ACHIEVEMENT"; values: { projectedAchievementPct: number } }
+  | { code: "ROUTE_PROGRESS"; values: { completionPct: number; visited: number; total: number } }
+  | { code: "ATTENDANCE_ABSENT"; values: { mark: "absent" } };
+
+type LeaderActionDetails = {
+  actionCode: "COACH_AT_RISK" | TriggerType;
+  actionValues: { salespersonName: string; retailerName?: string };
+  reason: LeaderRiskFact | TriggerFacts;
+};
+
 export interface LeaderMember {
   salespersonId: string;
   name: string;
@@ -26,6 +38,7 @@ export interface LeaderMember {
   headlineTarget: { metric: TargetMetric; target: number; actual: number; completionPct: number } | null;
   projection: Projection;
   risk: RiskAssessment;
+  riskFacts: LeaderRiskFact[];
   rank: number | null;
   route: { completionPct: number; visited: number; total: number } | null;
 }
@@ -79,8 +92,21 @@ export class SalesLeaderService {
       orderBy: { name: "asc" },
     });
 
+    const targetStaffIds = [...new Set([
+      ...staff.map((member: any) => member.id as string),
+      ...(input.managerStaffId ? [input.managerStaffId] : []),
+    ])];
+    const targetRowsPromise = this.prisma.salesTarget.findMany({
+      where: {
+        salespersonId: { in: targetStaffIds },
+        periodStart: { lte: startOfDay(period.to) },
+        periodEnd: { gte: startOfDay(period.from) },
+      },
+    });
+
     if (staff.length === 0) {
-      return this.emptyTeam(period);
+      const targetRows = await targetRowsPromise;
+      return this.emptyTeam(period, this.managerTarget(targetRows, input.managerStaffId));
     }
 
     const people: Array<{
@@ -99,13 +125,7 @@ export class SalesLeaderService {
     // this loops per salesperson.
     const [actualsByStaff, targets, teamAttendance, calendar, standings] = await Promise.all([
       this.targets.bulkActuals({ salespeople: people, period }),
-      this.prisma.salesTarget.findMany({
-        where: {
-          salespersonId: { in: people.map((person) => person.staffId) },
-          periodStart: { lte: startOfDay(period.to) },
-          periodEnd: { gte: startOfDay(period.from) },
-        },
-      }),
+      targetRowsPromise,
       this.attendance.teamAttendance(now, scopeStaffIds),
       this.prisma.workingCalendar.findMany({
         where: { date: { gte: startOfDay(period.from), lte: startOfDay(period.to) }, isWorkingDay: false },
@@ -181,13 +201,37 @@ export class SalesLeaderService {
       const route = routeProgressByStaff.get(person.staffId) ?? null;
 
       const reasons: string[] = [];
+      const riskFacts: LeaderRiskFact[] = [];
       if (route && route.total > 0 && route.completionPct < 60) {
         reasons.push(
           `Today's beat is ${route.completionPct}% complete (${route.visited} of ${route.total} stops).`
         );
+        riskFacts.push({
+          code: "ROUTE_PROGRESS",
+          values: {
+            completionPct: route.completionPct,
+            visited: route.visited,
+            total: route.total,
+          },
+        });
       }
       const mark = attendanceByStaff.get(person.staffId) ?? "absent";
-      if (mark === "absent") reasons.push("Not marked present today.");
+      if (mark === "absent") {
+        reasons.push("Not marked present today.");
+        riskFacts.push({ code: "ATTENDANCE_ABSENT", values: { mark } });
+      }
+
+      const risk = assessRisk({
+        target: headline?.target ?? 0,
+        projected: projection.projected,
+        reasons,
+      });
+      if (risk.level !== "on_track" && risk.projectedAchievementPct != null) {
+        riskFacts.unshift({
+          code: "PROJECTED_ACHIEVEMENT",
+          values: { projectedAchievementPct: risk.projectedAchievementPct },
+        });
+      }
 
       return {
         salespersonId: person.staffId,
@@ -198,11 +242,8 @@ export class SalesLeaderService {
         targets: progress,
         headlineTarget: headline,
         projection,
-        risk: assessRisk({
-          target: headline?.target ?? 0,
-          projected: projection.projected,
-          reasons,
-        }),
+        risk,
+        riskFacts,
         rank: rankByStaff.get(person.staffId) ?? null,
         route,
       };
@@ -223,14 +264,7 @@ export class SalesLeaderService {
       .filter((target) => target.metric === "order_value")
       .reduce((sum, target) => sum + target.target, 0);
 
-    const assignedTarget = input.managerStaffId
-      ? (targets as any[])
-          .filter(
-            (target) =>
-              target.salespersonId === input.managerStaffId && target.metric === "order_value"
-          )
-          .reduce((sum, target) => sum + Number(target.targetValue), 0) || null
-      : null;
+    const assignedTarget = this.managerTarget(targets, input.managerStaffId);
 
     const teamTarget = assignedTarget ?? rollupTarget;
     const teamActual = members.reduce((sum, member) => sum + (member.actuals.order_value ?? 0), 0);
@@ -305,6 +339,7 @@ export class SalesLeaderService {
       action: string;
       why: string;
       priority: number;
+      details: LeaderActionDetails;
     }> = [];
 
     for (const member of atRisk) {
@@ -317,6 +352,11 @@ export class SalesLeaderService {
           member.risk.reasons[0] ??
           `${member.name} is behind the pace this period.`,
         priority: 90 - (member.risk.projectedAchievementPct ?? 0) / 10,
+        details: {
+          actionCode: "COACH_AT_RISK",
+          actionValues: { salespersonName: member.name },
+          reason: member.riskFacts[0],
+        },
       });
     }
 
@@ -336,6 +376,11 @@ export class SalesLeaderService {
           action: `Review ${member.name}: ${trigger.retailerName}`,
           why: trigger.why,
           priority: Math.min(88, trigger.priority),
+          details: {
+            actionCode: trigger.type,
+            actionValues: { salespersonName: member.name, retailerName: trigger.retailerName },
+            reason: trigger.facts,
+          },
         });
       }
     }
@@ -343,22 +388,38 @@ export class SalesLeaderService {
     return actions.sort((a, b) => b.priority - a.priority).slice(0, 6);
   }
 
-  private emptyTeam(period: Period) {
+  private managerTarget(targets: any[], managerStaffId?: string | null) {
+    if (!managerStaffId) return null;
+    return (
+      targets
+        .filter(
+          (target) => target.salespersonId === managerStaffId && target.metric === "order_value"
+        )
+        .reduce((sum, target) => sum + Number(target.targetValue), 0) || null
+    );
+  }
+
+  private emptyTeam(period: Period, assignedTarget: number | null) {
     const sellingDays = { total: 0, elapsed: 0, remaining: 0 };
+    const teamTarget = assignedTarget ?? 0;
     return {
       period: {
         from: period.from.toISOString().slice(0, 10),
         to: period.to.toISOString().slice(0, 10),
       },
       sellingDays,
-      targets: { rollup: 0, assigned: null, uncascaded: null },
+      targets: {
+        rollup: 0,
+        assigned: assignedTarget,
+        uncascaded: assignedTarget == null ? null : Math.max(0, assignedTarget),
+      },
       team: {
         salespeople: 0,
-        target: 0,
+        target: teamTarget,
         actual: 0,
         completionPct: 0,
         projection: project({ actual: 0, sellingDays }),
-        risk: assessRisk({ target: 0, projected: null }),
+        risk: assessRisk({ target: teamTarget, projected: null }),
         present: 0,
         visits: 0,
         productiveOutlets: 0,

@@ -150,6 +150,10 @@ describe("who needs attention", () => {
     expect(bela.risk.level).toBe("at_risk");
     expect(bela.risk.projectedAchievementPct).toBe(31);
     expect(bela.risk.reasons[0]).toContain("projected at current run rate");
+    expect(bela.riskFacts).toEqual([
+      { code: "PROJECTED_ACHIEVEMENT", values: { projectedAchievementPct: 31 } },
+      { code: "ATTENDANCE_ABSENT", values: { mark: "absent" } },
+    ]);
   });
 
   it("explains a low beat completion as its own reason", async () => {
@@ -163,6 +167,10 @@ describe("who needs attention", () => {
     const anil = result.members.find((member) => member.name === "Anil")!;
     expect(anil.risk.reasons).toContain("Today's beat is 40% complete (2 of 5 stops).");
     expect(anil.route).toEqual({ completionPct: 40, visited: 2, total: 5 });
+    expect(anil.riskFacts).toContainEqual({
+      code: "ROUTE_PROGRESS",
+      values: { completionPct: 40, visited: 2, total: 5 },
+    });
   });
 
   it("names absence as a reason", async () => {
@@ -186,17 +194,29 @@ describe("recommended actions", () => {
     const coach = result.recommendedActions.find((action) => action.type === "COACH_AT_RISK")!;
     expect(coach.action).toBe("Call Bela");
     expect(coach.why).toContain("projected at current run rate");
+    expect(coach.details).toEqual({
+      actionCode: "COACH_AT_RISK",
+      actionValues: { salespersonName: "Bela" },
+      reason: { code: "PROJECTED_ACHIEVEMENT", values: { projectedAchievementPct: 31 } },
+    });
   });
 
   it("reuses the field engine so a suggestion names the store", async () => {
     const service = build({
-      actuals: { s2: { order_value: 60000 } },
+      actuals: { s1: { order_value: 400000 }, s2: { order_value: 60000 } },
       triggers: [
         {
           type: "HIGH_VALUE_RETAILER_MISSED",
           retailerName: "Sharma Stores",
           why: "Usually orders every 12 days, based on 5 recent orders. It has been 19 days.",
           priority: 80,
+          facts: {
+            code: "HIGH_VALUE_RETAILER_MISSED",
+            usualOrderCycleDays: 12,
+            daysSinceLastOrder: 19,
+            recentOrderCount: 5,
+            typicalOrderValue: 22400,
+          },
         },
       ],
     });
@@ -206,6 +226,17 @@ describe("recommended actions", () => {
     )!;
     expect(review.action).toContain("Sharma Stores");
     expect(review.why).toContain("Usually orders every 12 days");
+    expect(review.details).toEqual({
+      actionCode: "HIGH_VALUE_RETAILER_MISSED",
+      actionValues: { salespersonName: "Bela", retailerName: "Sharma Stores" },
+      reason: {
+        code: "HIGH_VALUE_RETAILER_MISSED",
+        usualOrderCycleDays: 12,
+        daysSinceLastOrder: 19,
+        recentOrderCount: 5,
+        typicalOrderValue: 22400,
+      },
+    });
   });
 
   it("gives every recommendation a reason", async () => {
@@ -301,6 +332,59 @@ describe("team targets", () => {
     expect(result.targets.uncascaded).toBe(200000);
     // Progress is measured against the commitment, not against the rollup.
     expect(result.team.target).toBe(800000);
+    expect(prisma.salesTarget.findMany.mock.calls[0][0].where.salespersonId.in).toEqual([
+      "s1",
+      "s2",
+      "m1",
+    ]);
+  });
+
+  it("keeps the manager's assigned target when there are no active reports", async () => {
+    const prisma = fakePrisma([]);
+    prisma.salesTarget.findMany = vi.fn().mockResolvedValue([
+      {
+        salespersonId: "m1",
+        metric: "order_value",
+        targetValue: "800000",
+        periodStart: day("2026-03-01"),
+        periodEnd: day("2026-03-31"),
+      },
+    ]);
+    const c = collaborators();
+    const result = await new SalesLeaderService(
+      prisma,
+      c.targets,
+      c.ranking,
+      c.opportunities,
+      c.attendance,
+      c.routes
+    ).load({ scopeStaffIds: [], managerStaffId: "m1", now: NOW });
+
+    expect(prisma.salesTarget.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.salesTarget.findMany.mock.calls[0][0].where.salespersonId.in).toEqual(["m1"]);
+    expect(result.targets).toMatchObject({ assigned: 800000, rollup: 0, uncascaded: 800000 });
+    expect(result.team).toMatchObject({ salespeople: 0, target: 800000, actual: 0 });
+  });
+
+  it("does not duplicate the manager in the target query when already in the scoped rows", async () => {
+    const prisma = fakePrisma([
+      { id: "s1", name: "Anil", salesRepId: "r1", salesRep: { territory: "Pune North" } },
+      { id: "m1", name: "Manager", salesRepId: "rm", salesRep: { territory: "Pune North" } },
+    ]);
+    const c = collaborators();
+    await new SalesLeaderService(
+      prisma,
+      c.targets,
+      c.ranking,
+      c.opportunities,
+      c.attendance,
+      c.routes
+    ).load({ scopeStaffIds: ["s1", "m1"], managerStaffId: "m1", now: NOW });
+
+    expect(prisma.salesTarget.findMany.mock.calls[0][0].where.salespersonId.in).toEqual([
+      "s1",
+      "m1",
+    ]);
   });
 
   it("falls back to the rollup when the manager has no target of their own", async () => {

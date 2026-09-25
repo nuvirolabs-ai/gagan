@@ -42,7 +42,7 @@
 - Produces: `SalesTrigger.facts`, a discriminated union keyed by the trigger type, containing numeric and string-array source values rather than formatted English measurements.
 - Keeps: `headline`, `why`, `measurements`, and `recommendedAction` unchanged for existing consumers.
 
-- [ ] **Step 1: Add failing facts assertions for every trigger code**
+- [x] **Step 1: Add failing facts assertions for every trigger code**
 
 Use deterministic trigger contexts already established in `triggerDomain.test.ts`. Assert the discriminator and source values for `ORDER_DUE`, `HIGH_VALUE_RETAILER_MISSED`, `ORDER_VALUE_BELOW_NORMAL`, `LINE_ITEMS_BELOW_NORMAL`, `CATEGORY_REORDER_OPPORTUNITY`, `VISIT_OVERDUE`, and `COLLECTION_DUE`. Include one optional-value case (no median order value) and assert numbers/category arrays remain numbers/arrays.
 
@@ -58,23 +58,23 @@ expect(trigger.facts).toMatchObject({
 });
 ```
 
-- [ ] **Step 2: Run the focused test and confirm the new contract fails**
+- [x] **Step 2: Run the focused test and confirm the new contract fails**
 
 Run from `backend/`: `npm test -- --run src/modules/intelligence/__tests__/triggerDomain.test.ts`
 
 Expected: the new `facts` assertions fail because triggers currently expose only formatted English measurements.
 
-- [ ] **Step 3: Add the discriminated fact union and populate it at trigger creation**
+- [x] **Step 3: Add the discriminated fact union and populate it at trigger creation**
 
 Add one `TriggerFacts` union to the domain module. Populate each variant from the already-available `RetailerBaseline`/`TriggerContext` values at the same point the current trigger is produced. Do not parse or reconstruct facts from `why`, `measurements`, or `recommendedAction`; do not change the trigger conditions or priorities.
 
-- [ ] **Step 4: Run trigger-domain tests**
+- [x] **Step 4: Run trigger-domain tests**
 
 Run from `backend/`: `npm test -- --run src/modules/intelligence/__tests__/triggerDomain.test.ts`
 
 Expected: all existing trigger behavior and new typed-fact assertions pass.
 
-- [ ] **Step 5: Commit the trigger contract change**
+- [x] **Step 5: Commit the trigger contract change**
 
 ```bash
 git add backend/src/modules/intelligence/triggerDomain.ts backend/src/modules/intelligence/__tests__/triggerDomain.test.ts
@@ -91,7 +91,7 @@ git commit -m "feat: expose structured sales trigger facts"
 - Consumes: existing sales-leader service, staff-session routes, and the typed `SalesTrigger.facts` contract from Task 1.
 - Produces: failing local unit/API assertions for unique manager target selection, zero-report target visibility, team-versus-personal performance, seller denial, and in-tree-only access.
 
-- [ ] **Step 1: Add failing unit assertions for manager target query and empty-team output**
+- [x] **Step 1: Add failing unit assertions for manager target query and empty-team output**
 
 In `salesLeaderService.test.ts`, assert the target query includes reportees and `managerStaffId` exactly once. Add an empty-team manager target fixture and assert `targets.assigned`, `team.target`, zero members, and zero team actual. Add a duplicate-ID case where `managerStaffId` is already in the scoped IDs.
 
@@ -103,13 +103,13 @@ expect(result.targets.assigned).toBe(800000);
 expect(result.team).toMatchObject({ salespeople: 0, target: 800000, actual: 0 });
 ```
 
-- [ ] **Step 2: Add failing authenticated route assertions with disposable fixtures**
+- [x] **Step 2: Add failing authenticated route assertions with disposable fixtures**
 
 In `performanceIntegration.test.ts`, give one leader fixture its existing `field_manager` and `salesperson` role assignments (do not alter role definitions), plus a manager-owned Rep book/order and current-period order-value target. Assert `/rep/performance/targets` returns the leader's own canonical personal actual/target and `/rep/sales-leader` includes that leader row once because the hierarchy resolver includes the caller. Add a field-manager-only leader with one salesperson report and an assigned target to expose the manager-ID query omission, plus a second field manager with no reports and a configured target to exercise the empty-team branch. Add a request narrowed to an out-of-tree salesperson and assert the existing denial status. Keep the ordinary salesperson 403 and existing permitted-tree assertion.
 
 Extend existing fixture teardown only for created sessions, targets, orders/items, retailers, sales reps, and managers; retain the loopback/test-database and local-storage preconditions.
 
-- [ ] **Step 3: Run both regressions and confirm the manager-target failures**
+- [x] **Step 3: Run both regressions and confirm the manager-target failures**
 
 Run from `backend/`: `npm test -- --run src/modules/readmodels/__tests__/salesLeaderService.test.ts`
 
@@ -129,25 +129,25 @@ Expected: query-union and manager-target assertions fail on the current read mod
 - Produces: unique target query IDs from reportees plus `managerStaffId`; `targets.assigned` and empty-team summary retain the manager's current-period order-value target; risk/recommendation entries carry stable codes and typed values for the Rep renderer.
 - Does not change: `LeaderMember` reportee scope, canonical actual calculation, ranking membership, risk thresholds, action ordering, or team opportunity selection.
 
-- [ ] **Step 1: Add failing unit assertions for structured risk and action facts**
+- [x] **Step 1: Add failing unit assertions for structured risk and action facts**
 
 Extend `salesLeaderService.test.ts` with one at-risk member carrying projected achievement and route facts plus one opportunity trigger carrying typed facts. Assert emitted risk reason codes/values and recommendation action/reason codes, person/store values, and trigger facts.
 
-- [ ] **Step 2: Run the read-model unit suite to confirm the structured contract fails**
+- [x] **Step 2: Run the read-model unit suite to confirm the structured contract fails**
 
 Run from `backend/`: `npm test -- --run src/modules/readmodels/__tests__/salesLeaderService.test.ts`
 
 Expected: the newly asserted structured fields are absent.
 
-- [ ] **Step 3: Query targets for the scoped union and preserve empty-team manager assignment**
+- [x] **Step 3: Query targets for the scoped union and preserve empty-team manager assignment**
 
 Build a deduplicated ID list from the already-scoped `people` plus the explicitly supplied `managerStaffId`. Apply the existing period-overlap predicate unchanged. Compute the manager's assigned order-value total from those rows before constructing an empty-team response. Keep reportee rollup and manager assignment separate; use the manager target for the existing summary target semantics when present.
 
-- [ ] **Step 4: Add structured risk/recommendation fields and preserve existing response fields**
+- [x] **Step 4: Add structured risk/recommendation fields and preserve existing response fields**
 
 Represent projected-achievement, route-completion, and absent-attendance reasons with code/value objects. Add an action/reason code and typed trigger facts to generated opportunity recommendations, preserving existing text fields for compatibility. Do not change generated facts, conditions, priority, or ranking behavior.
 
-- [ ] **Step 5: Run service and authenticated integration regressions**
+- [x] **Step 5: Run service and authenticated integration regressions**
 
 Run from `backend/`: `npm test -- --run src/modules/readmodels/__tests__/salesLeaderService.test.ts`
 
@@ -155,7 +155,7 @@ Then run the disposable local PostgreSQL test: `DOTENV_CONFIG_PATH=.env.test.loc
 
 Expected: unique scoped target reads, no-report target readback, ordinary salesperson denial, in-tree-only leader scope, leader personal-performance continuity, and typed risk/opportunity facts all pass. Verify every new fixture is removed.
 
-- [ ] **Step 6: Commit read-model and authenticated regression changes**
+- [x] **Step 6: Commit read-model and authenticated regression changes**
 
 ```bash
 git add backend/src/modules/readmodels/salesLeaderService.ts backend/src/modules/readmodels/__tests__/salesLeaderService.test.ts backend/src/modules/readmodels/__tests__/performanceIntegration.test.ts
@@ -176,7 +176,7 @@ git commit -m "fix: retain manager targets in team performance"
 - Produces: `teamSalesSummary({ actual, target, completionPct })`, returning `{ actual, target, completionPct }` with target/progress null unless target is positive; `selectTeamPerformancePresentation(data, t)`, a pure view-model selector for team/member summaries, attendance labels, ranking metric labels, unavailable projection reasons, risk reasons, and recommendation action/reason copy.
 - Consumes: typed risk/recommendation codes and trigger facts from Task 2, plus `TranslationKey` and the existing `(key, vars) => string` translator.
 
-- [ ] **Step 1: Add failing pure presentation and translation tests**
+- [x] **Step 1: Add failing pure presentation and translation tests**
 
 Keep the user-owned test untouched. Add a tracked selector test covering: absent/zero/negative targets with nonzero actual; exact supplied percentage with positive target; all five known attendance states plus unknown; order-value ranking label; each projection-unavailable condition (no selling days, period not started, too early); each risk code; and all trigger/action codes with both numeric and category facts in EN/HI. Assert selector output is based on structured codes/values even when raw English fields are deliberately different.
 
@@ -188,23 +188,23 @@ expect(teamSalesSummary({ actual: 18400, target: 0, completionPct: 0 })).toEqual
 });
 ```
 
-- [ ] **Step 2: Run the pure Rep tests and confirm the missing-helper failure**
+- [x] **Step 2: Run the pure Rep tests and confirm the missing-helper failure**
 
 Run from `rep/`: `npm test -- src/screens/teamPerformancePresentation.test.ts src/screens/__tests__/teamPerformancePresentation.test.ts src/i18n/__tests__/translations.test.ts`
 
 Expected: the pre-existing helper import and new presentation cases fail before implementation.
 
-- [ ] **Step 3: Implement the pure presentation selector, bind the screen, and add EN/HI keys**
+- [x] **Step 3: Implement the pure presentation selector, bind the screen, and add EN/HI keys**
 
 Implement summary normalization and the pure `selectTeamPerformancePresentation(data, t)` selector without inspecting generated English fields. Use existing `translate` interpolation variables for values, `inr`/numeric formatting conventions for money, and direct category/person/store values where appropriate. Add paired English/Hindi translation keys for known attendance states, ranking metrics, projection reasons, risk facts, opportunity reasons, and next actions. Update `TeamPerformanceScreen.tsx` to render the selector output, keep actuals visible without target, and retain its current loading/error/refresh/empty states.
 
-- [ ] **Step 4: Run the focused Rep tests**
+- [x] **Step 4: Run the focused Rep tests**
 
 Run from `rep/`: `npm test -- src/screens/teamPerformancePresentation.test.ts src/screens/__tests__/teamPerformancePresentation.test.ts src/i18n/__tests__/translations.test.ts`
 
 Expected: the untouched user-owned test and all new pure presentation/localization cases pass.
 
-- [ ] **Step 5: Commit helper and locale coverage**
+- [x] **Step 5: Commit helper and locale coverage**
 
 ```bash
 git add rep/src/screens/teamPerformancePresentation.ts rep/src/screens/__tests__/teamPerformancePresentation.test.ts rep/src/i18n/translations.ts rep/src/i18n/__tests__/translations.test.ts
@@ -219,34 +219,34 @@ git commit -m "feat: localize team performance facts"
 **Interfaces:**
 - Verifies all Tasks 1-5 without changing the target, permission, schema, or release boundaries.
 
-- [ ] **Step 1: Run the backend focused suites together**
+- [x] **Step 1: Run the backend focused suites together**
 
 Run from `backend/`: `npm test -- --run src/modules/intelligence/__tests__/triggerDomain.test.ts src/modules/readmodels/__tests__/salesLeaderService.test.ts src/modules/readmodels/__tests__/performanceIntegration.test.ts`
 
 Expected: all focused suites pass against the disposable local PostgreSQL setup.
 
-- [ ] **Step 2: Run backend typecheck and build**
+- [x] **Step 2: Run backend typecheck and build**
 
 Run from `backend/`: `npm run typecheck` and `npm run build`.
 
 Expected: both pass without schema generation or migration.
 
-- [ ] **Step 3: Run the full backend suite**
+- [x] **Step 3: Run the full backend suite**
 
 Run from `backend/` with local test configuration: `DOTENV_CONFIG_PATH=.env.test.local NODE_OPTIONS='-r dotenv/config' npm test`
 
 Expected: the complete suite passes; confirm the new integration fixture residue is zero.
 
-- [ ] **Step 4: Run the full Rep suite and typecheck**
+- [x] **Step 4: Run the full Rep suite and typecheck**
 
 Run from `rep/`: `npm test` and `npm run typecheck`.
 
 Expected: the previously untracked user-owned helper test now passes; no existing Rep test is excluded.
 
-- [ ] **Step 5: Verify scope and working-tree preservation**
+- [x] **Step 5: Verify scope and working-tree preservation**
 
 Run `git status --short`, `git diff --check`, and `git diff --stat`. Confirm there is no schema/migration change, no Admin route or role/permission change, the modified forensic audit remains as found, and `GAGAN_PRODUCT_GOAL.md` plus the original untracked presentation test remain present and unmodified.
 
-- [ ] **Step 6: Report local evidence separately from release gates**
+- [x] **Step 6: Report local evidence separately from release gates**
 
 Record passing tests/typechecks/builds and any exact blocker. Keep hosted runtime, authenticated browser, APK source identity, and physical-device acceptance marked NOT RUN unless independently performed against the authorized exact source.

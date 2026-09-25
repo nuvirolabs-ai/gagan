@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   findRetailer: vi.fn(),
   financialAgeing: vi.fn(),
   financialLedger: vi.fn(),
+  retailerPaymentInvoices: vi.fn(),
 }));
 
 vi.mock("../../../lib/prisma", () => ({
@@ -23,6 +24,7 @@ vi.mock("../../../lib/adminAuth", () => ({
 vi.mock("../financialQueries", () => ({
   financialAgeingFor: mocks.financialAgeing,
   financialLedgerFor: mocks.financialLedger,
+  retailerPaymentInvoicesFor: mocks.retailerPaymentInvoices,
 }));
 vi.mock("../../../lib/ageing", () => ({ ageAllRetailers: vi.fn() }));
 vi.mock("../../../lib/payments", () => ({ getPaymentProvider: vi.fn() }));
@@ -39,6 +41,7 @@ describe("financial read API cutover", () => {
       creditLimit: 1_000,
     });
     mocks.financialAgeing.mockResolvedValue({ totalOutstanding: 300, totalOverdue: 100 });
+    mocks.retailerPaymentInvoices.mockResolvedValue({ invoiceAllocationRequired: false, paymentInvoices: [] });
     const app = express();
     app.use(paymentRoutes);
 
@@ -46,7 +49,12 @@ describe("financial read API cutover", () => {
 
     expect(response.status).toBe(200);
     expect(mocks.financialAgeing).toHaveBeenCalledWith(expect.anything(), "retailer-1");
-    expect(response.body).toMatchObject({ outstanding: 300, ageing: { totalOutstanding: 300 } });
+    expect(response.body).toMatchObject({
+      outstanding: 300,
+      ageing: { totalOutstanding: 300 },
+      invoiceAllocationRequired: false,
+      paymentInvoices: [],
+    });
   });
 
   it("returns the same immutable ledger projection to authorised admin users", async () => {

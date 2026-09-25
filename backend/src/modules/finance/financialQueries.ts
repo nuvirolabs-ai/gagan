@@ -112,6 +112,59 @@ export async function financialInvoiceProjectionFor(
   };
 }
 
+export async function retailerPaymentInvoicesFor(db: Db, retailerId: string) {
+  const invoices = await db.invoice.findMany({
+    where: {
+      retailerId,
+      status: { in: ["open", "partially_paid"] },
+      outstandingAmount: { gt: 0 },
+    },
+    orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      invoiceNumber: true,
+      total: true,
+      outstandingAmount: true,
+      invoiceDate: true,
+      dueDate: true,
+      commercialSnapshot: true,
+      order: { select: { orderNo: true } },
+      allocations: {
+        select: {
+          amount: true,
+          jainAmount: true,
+          padamAmount: true,
+          reversals: { select: { amount: true } },
+        },
+      },
+    },
+  });
+
+  return {
+    invoiceAllocationRequired: invoices.some((invoice) => invoice.commercialSnapshot !== null),
+    paymentInvoices: invoices.map((invoice) => {
+      const entityBreakdown = attributeInvoiceOutstanding(invoice);
+      return {
+        id: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        orderNo: invoice.order?.orderNo ?? null,
+        invoiceDate: invoice.invoiceDate.toISOString(),
+        dueDate: invoice.dueDate.toISOString(),
+        total: Number(invoice.total),
+        outstanding: Number(invoice.outstandingAmount),
+        entityBalances: {
+          jainTraders: entityBreakdown.jainTraders,
+          padamInternational: entityBreakdown.padamInternational,
+          unattributed: entityBreakdown.unattributed,
+        },
+        attributionStatus: entityBreakdown.attributionStatus,
+        paymentEligible:
+          invoice.commercialSnapshot !== null && entityBreakdown.attributionStatus === "complete",
+      };
+    }),
+  };
+}
+
 function entityAmountsReconcile(amounts: EntityAmounts, total: number): boolean {
   const sum = amounts.jainTraders + amounts.padamInternational + amounts.unattributed;
   return Math.round(sum * 100) === Math.round(total * 100);
@@ -143,7 +196,20 @@ export async function financialLedgerFor(db: Db, retailerId: string) {
           invoiceScopeId: true,
           confirmedJainAmount: true,
           confirmedPadamAmount: true,
-          allocations: { select: { amount: true, jainAmount: true, padamAmount: true } },
+          allocations: {
+            select: {
+              amount: true,
+              jainAmount: true,
+              padamAmount: true,
+              invoice: {
+                select: {
+                  id: true,
+                  invoiceNumber: true,
+                  order: { select: { orderNo: true } },
+                },
+              },
+            },
+          },
         },
       },
       creditNote: {
@@ -159,7 +225,19 @@ export async function financialLedgerFor(db: Db, retailerId: string) {
               invoiceScopeId: true,
               confirmedJainAmount: true,
               confirmedPadamAmount: true,
-              allocations: { select: { jainAmount: true, padamAmount: true } },
+              allocations: {
+                select: {
+                  jainAmount: true,
+                  padamAmount: true,
+                  invoice: {
+                    select: {
+                      id: true,
+                      invoiceNumber: true,
+                      order: { select: { orderNo: true } },
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -187,6 +265,16 @@ export async function financialLedgerFor(db: Db, retailerId: string) {
     payment: entry.payment
       ? { id: entry.payment.id, status: entry.payment.status, channel: entry.payment.channel }
       : null,
+    paymentAllocations: entry.payment?.allocations.map((allocation) => ({
+      invoice: {
+        id: allocation.invoice.id,
+        invoiceNumber: allocation.invoice.invoiceNumber,
+        orderNo: allocation.invoice.order?.orderNo ?? null,
+      },
+      amount: Number(allocation.amount),
+      jainAmount: allocation.jainAmount == null ? null : Number(allocation.jainAmount),
+      padamAmount: allocation.padamAmount == null ? null : Number(allocation.padamAmount),
+    })) ?? [],
     creditNote: entry.creditNote ? { id: entry.creditNote.id, reason: entry.creditNote.reason } : null,
     paymentReversal: entry.paymentReversal
       ? { id: entry.paymentReversal.id, reason: entry.paymentReversal.reason }

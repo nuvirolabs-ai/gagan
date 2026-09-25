@@ -160,7 +160,12 @@ describe("entity attribution API projections", () => {
               unallocatedAmount: "10.00",
               invoiceScopeId: "invoice-1",
               allocations: [
-                { amount: "80.00", jainAmount: "30.00", padamAmount: "50.00" },
+                {
+                  amount: "80.00",
+                  jainAmount: "30.00",
+                  padamAmount: "50.00",
+                  invoice: { id: "invoice-1", invoiceNumber: 101, order: { orderNo: 44 } },
+                },
               ],
             },
             creditNote: null,
@@ -209,6 +214,12 @@ describe("entity attribution API projections", () => {
       unattributed: 45,
       attributionStatus: "contains_unattributed",
     });
+    expect(entries[1].paymentAllocations).toEqual([{
+      invoice: { id: "invoice-1", invoiceNumber: 101, orderNo: 44 },
+      amount: 80,
+      jainAmount: 30,
+      padamAmount: 50,
+    }]);
   });
 
   it("marks ledger records for review when duplicate attribution or correction totals disagree", async () => {
@@ -234,7 +245,12 @@ describe("entity attribution API projections", () => {
               confirmedJainAmount: "29.00",
               confirmedPadamAmount: "51.00",
               allocations: [
-                { amount: "80.00", jainAmount: "30.00", padamAmount: "50.00" },
+                {
+                  amount: "80.00",
+                  jainAmount: "30.00",
+                  padamAmount: "50.00",
+                  invoice: { id: "invoice-2", invoiceNumber: 102, order: { orderNo: 45 } },
+                },
               ],
             },
             creditNote: null,

@@ -54,6 +54,26 @@ export interface EntityBalances {
   attributionStatus: FinancialAttributionStatus;
 }
 
+export interface PaymentInvoiceOption {
+  id: string;
+  invoiceNumber: number;
+  orderNo: number | null;
+  invoiceDate: string;
+  dueDate: string;
+  total: number;
+  outstanding: number;
+  entityBalances: EntityAmounts;
+  attributionStatus: FinancialAttributionStatus;
+  paymentEligible: boolean;
+}
+
+export interface PaymentAllocationReadback {
+  invoice: { id: string; invoiceNumber: number; orderNo: number | null };
+  amount: number;
+  jainAmount: number | null;
+  padamAmount: number | null;
+}
+
 export interface Order {
   id: string;
   orderNo: number;
@@ -72,4 +92,5 @@ export interface LedgerEntry {
   balanceAfter: string | number;
   createdAt: string;
   entityBreakdown?: EntityBreakdown;
+  paymentAllocations?: PaymentAllocationReadback[];
 }

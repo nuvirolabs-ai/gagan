@@ -151,6 +151,12 @@ export default function LedgerScreen() {
                     year: "numeric",
                   })}
                 </Text>
+                {item.paymentAllocations?.map((allocation, index) => (
+                  <Text key={`${allocation.invoice.id}-${index}`} style={styles.entryAssociation} numberOfLines={2}>
+                    {t("pay.invoiceRef", { number: allocation.invoice.invoiceNumber })}
+                    {allocation.invoice.orderNo != null ? ` · ${t("pay.orderRef", { order: allocation.invoice.orderNo })}` : ""}
+                  </Text>
+                ))}
                 <EntityAttribution
                   rows={attribution.rows}
                   status={attribution.status}
@@ -221,6 +227,7 @@ const styles = StyleSheet.create({
   },
   entryType: { fontSize: 14, fontWeight: "700", color: colors.ink },
   entryDate: { fontSize: 11.5, color: colors.inkMuted, marginTop: 2 },
+  entryAssociation: { fontSize: 10.5, color: colors.inkMuted, marginTop: 3 },
   entryAmount: { fontSize: 15, fontWeight: "700" },
   entryBalance: { fontSize: 10.5, color: colors.inkMuted, marginTop: 2 },
 });

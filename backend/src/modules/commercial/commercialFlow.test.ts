@@ -1,5 +1,7 @@
 import {randomUUID} from "node:crypto";
+import request from "supertest";
 import {beforeAll,afterAll,describe,it,expect,vi} from "vitest";
+import {createApp} from "../../app";
 import {prisma} from "../../lib/prisma";
 import {createOrderForRetailer} from "../../lib/orders";
 import {createInvoiceForDelivery} from "../invoicing/invoiceService";
@@ -10,6 +12,7 @@ import {settleSucceededPayment} from "../payments/paymentService";
 import {CollectionService} from "../collections/collectionService";
 import {issueCreditNote} from "../payments/creditNoteService";
 import {MockSapConnector} from "../../lib/sap/mockConnector";
+import {lazyIdentitySessionService} from "../identity/sessionRuntime";
 
 const retailer=randomUUID(),tier=randomUUID(),staff=randomUUID(),product=randomUUID();
 const variants=[randomUUID(),randomUUID(),randomUUID()];
@@ -158,6 +161,95 @@ describe("Wave 1B authoritative commercial lifecycle",()=>{
   for(const i of before)expect((await prisma.invoice.findUniqueOrThrow({where:{id:i.id}})).outstandingAmount.eq(i.outstandingAmount)).toBe(true);
   await expect(postInvoicePayment(retailer,staff,key,{...body,jainAmount:"101",padamAmount:"199"})).rejects.toThrow("payment_idempotency_conflict");
  });
+ it("lets a retailer pay one invoice with an entity split and reads the association back",async()=>{
+  const createdOrder=await order(await quote());
+  const invoice=await deliver(createdOrder);
+  const session=await lazyIdentitySessionService.createSession({realm:"retailer",subjectId:retailer,deviceName:"payment-allocation-test"});
+  const app=createApp();
+  const dues=await request(app).get("/payments/dues").set("Authorization",`Bearer ${session.accessToken}`).expect(200);
+  const option=dues.body.paymentInvoices.find((item:any)=>item.id===invoice.id);
+  expect(option).toMatchObject({
+   invoiceNumber:invoice.invoiceNumber,
+   orderNo:createdOrder.orderNo,
+   outstanding:Number(invoice.outstandingAmount),
+   entityBalances:{jainTraders:expect.any(Number),padamInternational:expect.any(Number),unattributed:0},
+   attributionStatus:"complete",
+   paymentEligible:true,
+  });
+  await expect(prisma.payment.create({data:{
+   retailerId:retailer,
+   amount:1,
+   channel:"manual",
+   invoiceScopeId:invoice.id,
+   confirmedJainAmount:1,
+   confirmedPadamAmount:0,
+  }})).rejects.toThrow();
+  const paymentCount=await prisma.payment.count({where:{retailerId:retailer}});
+  await request(app).post("/payments/intent").send({
+   amount:100,
+   invoiceScopeId:invoice.id,
+   jainAmount:60,
+   padamAmount:40,
+  }).expect(401);
+  const otherRetailerId=randomUUID();
+  await prisma.retailer.create({data:{id:otherRetailerId,name:"Other payment retailer",phone:otherRetailerId,shopAddress:"Local",tierId:tier,creditLimit:1000,currentBalance:500}});
+  try {
+   const otherSession=await lazyIdentitySessionService.createSession({realm:"retailer",subjectId:otherRetailerId,deviceName:"payment-allocation-isolation-test"});
+   await request(app).post("/payments/intent").set("Authorization",`Bearer ${otherSession.accessToken}`).send({
+    amount:100,
+    invoiceScopeId:invoice.id,
+    jainAmount:60,
+    padamAmount:40,
+   }).expect(404);
+  } finally {
+   await prisma.deviceSession.deleteMany({where:{subjectId:otherRetailerId}});
+   await prisma.retailer.deleteMany({where:{id:otherRetailerId}});
+  }
+  await request(app).post("/payments/intent").set("Authorization",`Bearer ${session.accessToken}`).send({
+   amount:100,
+   invoiceScopeId:invoice.id,
+   jainAmount:60,
+   padamAmount:39,
+  }).expect(400);
+  await request(app).post("/payments/intent").set("Authorization",`Bearer ${session.accessToken}`).send({
+   amount:Number(invoice.outstandingAmount),
+   invoiceScopeId:invoice.id,
+   jainAmount:Number(invoice.outstandingAmount),
+   padamAmount:0,
+  }).expect(409);
+  expect(await prisma.payment.count({where:{retailerId:retailer}})).toBe(paymentCount);
+
+  const intent=await request(app).post("/payments/intent").set("Authorization",`Bearer ${session.accessToken}`).send({
+   amount:100,
+   invoiceScopeId:invoice.id,
+   jainAmount:60,
+   padamAmount:40,
+  }).expect(201);
+  const payload=intent.body.clientPayload;
+  await request(app).post("/payments/callback").send({
+   providerRef:payload.providerRef,
+   outcome:"succeeded",
+   signature:payload.confirmToken,
+  }).expect(200);
+
+  const history=await request(app).get("/payments").set("Authorization",`Bearer ${session.accessToken}`).expect(200);
+  expect(history.body.payments[0]).toMatchObject({
+   id:intent.body.paymentId,
+   allocations:[{invoice:{id:invoice.id,invoiceNumber:invoice.invoiceNumber,orderNo:createdOrder.orderNo},amount:100,jainAmount:60,padamAmount:40}],
+  });
+  const detail=await request(app).get(`/payments/${intent.body.paymentId}`).set("Authorization",`Bearer ${session.accessToken}`).expect(200);
+  expect(detail.body).toMatchObject({
+   invoice:{id:invoice.id,invoiceNumber:invoice.invoiceNumber,orderNo:createdOrder.orderNo},
+   jainAmount:60,
+   padamAmount:40,
+  });
+  const ledger=await request(app).get(`/ledger/${retailer}`).set("Authorization",`Bearer ${session.accessToken}`).expect(200);
+  expect(ledger.body.entries.find((entry:any)=>entry.payment?.id===intent.body.paymentId)).toMatchObject({
+   entityBreakdown:{jainTraders:60,padamInternational:40,unattributed:0,attributionStatus:"complete"},
+   paymentAllocations:[{invoice:{id:invoice.id,invoiceNumber:invoice.invoiceNumber,orderNo:createdOrder.orderNo},amount:100,jainAmount:60,padamAmount:40}],
+  });
+  await prisma.deviceSession.deleteMany({where:{subjectId:retailer}});
+ });
  it("rejects unequal sums, cross-entity excess and retailer FIFO for attributed invoices",async()=>{
   const base={invoiceId,amount:"100",jainAmount:"50",padamAmount:"49",method:"cash",reference:"LOCAL",confirmed:true as const};
   await expect(postInvoicePayment(retailer,staff,randomUUID(),base)).rejects.toThrow("explicit_invoice_allocation_required");
@@ -213,6 +305,7 @@ describe("Wave 1B authoritative commercial lifecycle",()=>{
  });
 });
 afterAll(async()=>{
+ await prisma.deviceSession.deleteMany({where:{subjectId:retailer}});
  const orders=await prisma.order.findMany({where:{retailerId:retailer}}),ledger=await prisma.ledgerEntry.findMany({where:{retailerId:retailer}});
  await prisma.sapOutbox.deleteMany({where:{referenceId:{in:[...orders,...ledger].map(r=>r.id)}}});
  await prisma.financialLedgerEntry.deleteMany({where:{retailerId:retailer}});

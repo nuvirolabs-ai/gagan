@@ -35,7 +35,10 @@ export function createRetailerApi(request: ApiRequest, store: SessionStore) {
     getOrder: (id: string) => request(`/orders/${id}`),
     getLedger: (retailerId: string) => request(`/ledger/${retailerId}`),
     getDues: () => request("/payments/dues"),
-    createPaymentIntent: (amount: number) => post("/payments/intent", { amount }),
+    createPaymentIntent: (
+      amount: number,
+      allocation?: { invoiceScopeId: string; jainAmount: number; padamAmount: number }
+    ) => post("/payments/intent", { amount, ...allocation }),
     confirmMockPayment: (providerRef: string, signature: string, outcome = "succeeded") =>
       post("/payments/callback", { providerRef, signature, outcome }, false),
     getPayment: (id: string) => request(`/payments/${id}`),

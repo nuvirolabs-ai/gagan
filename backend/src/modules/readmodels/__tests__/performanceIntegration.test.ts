@@ -23,6 +23,7 @@ const ids = {
 
 let tokenA = "";
 let tokenB = "";
+let managerToken = "";
 const app = createApp();
 const now = new Date();
 const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -59,15 +60,14 @@ beforeAll(async () => {
   const salespersonRole = await prisma.role.findUniqueOrThrow({ where: { name: "salesperson" } });
   const managerRole = await prisma.role.findUniqueOrThrow({ where: { name: "field_manager" } });
   await prisma.staffUser.create({
-    data: { id: ids.staffA, name: "Perf Staff A", phone: `76${digits}`, email: `perf-a-${run}@test.invalid`, salesRepId: ids.repA, roles: { create: { roleId: salespersonRole.id } } },
+    data: { id: ids.manager, name: "Perf Manager", phone: `78${digits}`, email: `perf-m-${run}@test.invalid`, roles: { create: { roleId: managerRole.id } } },
+  });
+  await prisma.staffUser.create({
+    data: { id: ids.staffA, name: "Perf Staff A", phone: `76${digits}`, email: `perf-a-${run}@test.invalid`, salesRepId: ids.repA, managerId: ids.manager, roles: { create: { roleId: salespersonRole.id } } },
   });
   await prisma.staffUser.create({
     data: { id: ids.staffB, name: "Perf Staff B", phone: `77${digits}`, email: `perf-b-${run}@test.invalid`, salesRepId: ids.repB, roles: { create: { roleId: salespersonRole.id } } },
   });
-  await prisma.staffUser.create({
-    data: { id: ids.manager, name: "Perf Manager", phone: `78${digits}`, email: `perf-m-${run}@test.invalid`, roles: { create: { roleId: managerRole.id } } },
-  });
-
   await prisma.product.create({
     data: {
       id: ids.product,
@@ -109,12 +109,14 @@ beforeAll(async () => {
     });
   }
 
-  const [sessionA, sessionB] = await Promise.all([
+  const [sessionA, sessionB, managerSession] = await Promise.all([
     lazyIdentitySessionService.createSession({ realm: "staff", subjectId: ids.staffA, deviceName: "test" }),
     lazyIdentitySessionService.createSession({ realm: "staff", subjectId: ids.staffB, deviceName: "test" }),
+    lazyIdentitySessionService.createSession({ realm: "staff", subjectId: ids.manager, deviceName: "test" }),
   ]);
   tokenA = sessionA.accessToken;
   tokenB = sessionB.accessToken;
+  managerToken = managerSession.accessToken;
 });
 
 afterAll(async () => {
@@ -317,7 +319,21 @@ describe("a salesperson sees only their own book", () => {
     expect(response.body.baseline).toMatchObject({ orderCount: 3, medianIntervalDays: 12 });
   });
 
-  it("cannot reach the sales leader's team view", async () => {
+  it("lets a team leader read only their reporting tree", async () => {
+    const staffView = await request(app)
+      .get("/rep/sales-leader")
+      .set("Authorization", `Bearer ${managerToken}`);
+    expect(staffView.status).toBe(200);
+    expect(staffView.body.members.map((member: any) => member.salespersonId)).toEqual([ids.staffA]);
+    expect(staffView.body.team.salespeople).toBe(1);
+  });
+
+  it("denies individual sellers access to team views", async () => {
+    const salespersonView = await request(app)
+      .get("/rep/sales-leader")
+      .set("Authorization", `Bearer ${tokenA}`);
+    expect(salespersonView.status).toBe(403);
+
     const response = await request(app)
       .get("/admin/sales-leader")
       .set("Authorization", `Bearer ${tokenA}`);

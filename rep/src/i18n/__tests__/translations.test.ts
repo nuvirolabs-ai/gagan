@@ -48,4 +48,13 @@ describe("salesperson translations", () => {
     ] as const;
     for (const key of keys) expect(translate("hi", key)).not.toBe(translate("en", key));
   });
+
+  it("labels the team-performance destination and summary in both languages", () => {
+    expect(translate("en", "team.title")).toBe("Team performance");
+    expect(translate("hi", "team.title")).toBe("टीम प्रदर्शन");
+    expect(translate("en", "team.target")).toBe("Team target");
+    expect(translate("hi", "team.target")).toBe("टीम लक्ष्य");
+    expect(translate("en", "team.projectionNote")).toBe("Projected values use current run rate.");
+    expect(translate("hi", "team.projectionNote")).toBe("अनुमान मौजूदा गति के आधार पर है।");
+  });
 });

@@ -123,4 +123,14 @@ describe("staff auth API", () => {
 
     expect(request).toHaveBeenCalledWith("/rep/retailers/retailer-1/ledger?beforeSequence=123");
   });
+
+  it("provides a staff-session client for hierarchy-scoped team performance", async () => {
+    const request = vi.fn().mockResolvedValue({ team: { salespeople: 1 } });
+    const store = { load: vi.fn(), save: vi.fn(), clear: vi.fn() };
+    const api = createStaffApi(request, store);
+
+    expect(typeof api.salesLeader).toBe("function");
+    await api.salesLeader();
+    expect(request).toHaveBeenCalledWith("/rep/sales-leader");
+  });
 });

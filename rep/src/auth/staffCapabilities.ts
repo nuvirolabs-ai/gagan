@@ -8,6 +8,7 @@ export const StaffPermissions = {
   LEGAL_DECIDE: "legal.decide",
   ATTENDANCE_MANAGE_SELF: "attendance.manage_self",
   ROUTE_EXECUTE: "route.execute",
+  PERFORMANCE_VIEW_TEAM: "performance.view_team",
   ACTIVITY_LOG: "activity.log",
   TASK_COMPLETE: "task.complete",
   EXPENSE_SUBMIT: "expense.submit",
@@ -33,6 +34,7 @@ export function staffCapabilities(permissions: string[]) {
     // this one capability, so a staff member without it never sees a half-built
     // workspace.
     canRunFieldDay: granted.has(StaffPermissions.ROUTE_EXECUTE),
+    canViewTeamPerformance: granted.has(StaffPermissions.PERFORMANCE_VIEW_TEAM),
     canManageAttendance: granted.has(StaffPermissions.ATTENDANCE_MANAGE_SELF),
     canLogActivity: granted.has(StaffPermissions.ACTIVITY_LOG),
     canCompleteTasks: granted.has(StaffPermissions.TASK_COMPLETE),

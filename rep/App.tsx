@@ -31,6 +31,7 @@ import MyDayScreen from "./src/screens/MyDayScreen";
 import VisitScreen from "./src/screens/VisitScreen";
 import CustomerMapScreen from "./src/screens/CustomerMapScreen";
 import MyActivityScreen from "./src/screens/MyActivityScreen";
+import TeamPerformanceScreen from "./src/screens/TeamPerformanceScreen";
 import ExpensesScreen from "./src/screens/ExpensesScreen";
 import IssuesScreen from "./src/screens/IssuesScreen";
 import IssueDetailScreen from "./src/screens/IssueDetailScreen";
@@ -211,6 +212,13 @@ function RootNavigator() {
                 options={{ title: t("opportunities.title"), headerBackTitle: t("tabs.today") }}
               />
             </>
+          )}
+          {capabilities.canViewTeamPerformance && (
+            <Stack.Screen
+              name="TeamPerformance"
+              component={TeamPerformanceScreen}
+              options={{ title: t("team.title"), headerBackTitle: t("tabs.more") }}
+            />
           )}
           {capabilities.canProposeRetailers && (
             <Stack.Screen

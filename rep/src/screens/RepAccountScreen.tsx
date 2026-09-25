@@ -73,6 +73,12 @@ export default function RepAccountScreen({ navigation }: any) {
       subtitle: t("more.performanceSubtitle"),
       screen: "Activity",
     },
+    capabilities.canViewTeamPerformance && {
+      icon: "people-outline",
+      label: t("team.title"),
+      subtitle: t("team.subtitle"),
+      screen: "TeamPerformance",
+    },
     capabilities.canProposeRetailers && {
       icon: "add-circle-outline",
       label: t("addRetailer.title"),

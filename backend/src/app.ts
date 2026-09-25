@@ -183,6 +183,12 @@ export function createApp(options: CreateAppOptions = {}) {
   );
   app.use(
     "/rep",
+    createSalesLeaderRouter({
+      authenticate: createRequireSession("staff", lazyIdentitySessionService),
+    })
+  );
+  app.use(
+    "/rep",
     createRetailerProposalRouter({
       authenticate: createRequireSession("staff", lazyIdentitySessionService),
     })

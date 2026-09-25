@@ -7,6 +7,7 @@ const NONE = {
   canApprove: false,
   canReviewRatings: false,
   canRunFieldDay: false,
+  canViewTeamPerformance: false,
   canManageAttendance: false,
   canLogActivity: false,
   canCompleteTasks: false,
@@ -73,5 +74,14 @@ describe("role-aware staff shell", () => {
   it("keeps Market Surveys navigation permission-aware", () => {
     expect(staffCapabilities([]).canRespondToSurveys).toBe(false);
     expect(staffCapabilities(["survey.respond"]).canRespondToSurveys).toBe(true);
+  });
+
+  it("exposes team performance only with its server permission and preserves personal capabilities", () => {
+    expect(staffCapabilities(["performance.view_team"]).canViewTeamPerformance).toBe(true);
+    expect(staffCapabilities(["route.execute", "performance.view_team"])).toMatchObject({
+      canRunFieldDay: true,
+      canViewTeamPerformance: true,
+    });
+    expect(staffCapabilities(["route.execute"]).canViewTeamPerformance).toBe(false);
   });
 });

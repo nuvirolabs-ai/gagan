@@ -51,7 +51,7 @@ The source files, tests and original gap statements are retained in the matching
 |---|---|---|---|---|---|---|---|
 | GGN-VIS-01 | IMPLEMENTED BUT NOT VERIFIED | See audit row; local API and app-logic tests listed above. | Authenticated API→PostgreSQL→readback and retry passed. | NOT RUN | NOT RUN | None | Exact-source native check-in, GPS, relaunch and hosted acceptance. |
 | GGN-VIS-02 | IMPLEMENTED BUT NOT VERIFIED | See audit row; route integration and Rep flow tests passed. | Check-in/out plus order-in-active-visit API persistence/readback passed. | NOT RUN | NOT RUN | None | Physical order→checkout→next-retailer and relaunch acceptance remain open. |
-| GGN-VIS-03 | IMPLEMENTED BUT NOT VERIFIED | See audit row; existing outcome tests are part of backend baseline. | Backend DB tests in baseline passed; configurable date/future-task readback not individually accepted. | NOT RUN | NOT RUN | None | Verify chosen follow-up persists and appears in future work. |
+| GGN-VIS-03 | IMPLEMENTED BUT NOT VERIFIED | Checkout preserves multiple compatible outcomes; the Rep activity composer links a selected follow-up date to the active visit. | Authenticated local PostgreSQL test persists two outcomes and a custom future date, links a follow-up activity to the visit, and reads the exact date back from the Rep activity feed. | NOT RUN | NOT RUN | None | Native date-picker interaction, hosted behavior, and physical acceptance remain open. |
 | GGN-ORD-01 | IMPLEMENTED BUT NOT VERIFIED | Punched and created milestones now appear in the protected Rep/Admin timeline; Retailer gets only a safe derived state. | Captured, approval-held, approved, idempotent retry, and unauthorized/expired enqueue flows passed on local PostgreSQL. | NOT RUN | NOT RUN | `be9b0f9` | Hosted SAP/runtime and exact-source physical app acceptance remain open; legacy event rows were not reclassified. |
 | GGN-ORD-02 | IMPLEMENTED BUT NOT VERIFIED | Unpriced proposal-demand catalog and basket are available in Rep; pending status and manager cue are visible. | Authenticated local PostgreSQL flow proves pending rejection, Admin approval, canonical conversion, Retailer-safe readback, retry, and concurrent duplicate conversion returning one order/outbox/audit event. | NOT RUN | NOT RUN | `425348e` | Native Rep UI, authorized hosted/SAP and physical acceptance remain open; no live downstream creation was attempted. |
 | GGN-ORD-03 | IMPLEMENTED BUT NOT VERIFIED | Existing order/audit fields feed a safe shared read model; Retailer, Rep, Admin, and pending-intent views show source, creator, retailer, and time. | Authenticated Retailer, Rep, and Admin readback tests cover source/name/retailer/time; proposal-intent service and UI label tests cover pending demand. | NOT RUN | NOT RUN | `43ac917`, `51d2297` | No schema change; hosted and exact-source physical acceptance remain open. |
@@ -333,3 +333,119 @@ The initial `IMPLEMENTED BUT NOT VERIFIED` classification and missing-flow state
 - Rep retailer detail now has a collapsed, on-demand task/evidence timeline. Each task's photos remain hidden until that execution is expanded. Admin Retailers offers the same history only to `route.manage` users; its backend read is filtered by the caller's resolved reporting scope. Rep history is restricted to the signed-in salesperson's assigned retailer account. The shared projection is capped at 100 evidence records and excludes object keys/checksums.
 - Authenticated local PostgreSQL integration verifies Rep and Admin readback from the same task evidence, signed URLs, and a different salesperson receiving 404. Full backend passed 152 files / 1,049 tests and typecheck/build; Admin passed 28 files / 79 tests and typecheck/build; Rep passed 44 files / 232 tests excluding the untouched user-owned test that imports missing `teamPerformancePresentation`. Rep typecheck passes with that file excluded and Expo web export bundles 759 modules. The local database remains at 52/52 migrations with zero `FieldTaskEvidence` rows after cleanup.
 - No schema/migration change was needed. GGN-MKT-02 is `IMPLEMENTED BUT NOT VERIFIED`: authenticated browser/native rendering, hosted signed-storage behavior, APK, and physical acceptance remain NOT RUN. No hosted service, production, SAP, live provider or device was touched. Source/test checkpoint: `7412641` (`feat: add retailer marketing execution history`).
+
+## Forensic Gap Map and Hosted Migration Baseline (2026-09-25)
+
+### Authorized Source Snapshot
+
+- Root and `pwd`: `/Users/tanutejas/Documents/GAGAN/CURRENT/SOURCE/.worktrees/gagan-client-feedback-v2-reconciled`.
+- Branch: `codex/gagan-client-feedback-v2-reconciled`.
+- Local HEAD: `9668001852a6a5134884fedd0e1600e454905408`; live `origin/codex/gagan-client-feedback-v2-reconciled` readback is the same SHA.
+- Status before this append: modified `docs/GAGAN_FORENSIC_COMPLETENESS_AUDIT.md`; untracked user files `GAGAN_PRODUCT_GOAL.md` and `rep/src/screens/teamPerformancePresentation.test.ts`. These were preserved. This baseline changes no implementation, test, schema, or migration file and does not edit the forensic audit or either untracked file.
+- `git log --oneline -20` at inspection:
+
+```text
+9668001 docs: refresh GAGAN audit status totals
+b630f56 docs: record retailer marketing history evidence
+7412641 feat: add retailer marketing execution history
+7d36d01 docs: record task evidence checkpoint
+1d8bc0d feat: add private photo evidence to field tasks
+f97fa46 docs: record service issue verification checkpoint
+ba2f77a test: verify cross-app service issue status
+fef03e9 docs: record no-beat verification checkpoint
+595423b test: verify salesperson orders without a beat
+38b389d docs: record SAL-02 verification checkpoint
+a9e22cd test: verify daily field team sales totals
+3b68d2b fix: resolve staff collection permissions from role catalog
+45fb226 docs: record collection storage verification
+d178b0f test: verify local payment evidence storage
+ee80a77 test: verify concurrent proposal conversion
+fe105f2 feat: add role-aware team performance to rep app
+6312cf9 docs: record ADM-07 segmentation checkpoint
+2df794f feat: add internal retailer segmentation
+07278d1 docs: record PAY-02 collection checkpoint
+9972a56 feat: complete salesperson collection capture details
+```
+
+### Gap Map Reconciliation
+
+- The existing issue table has 46 unique rows. A row-wise status count matches the supplied current baseline: 0 `VERIFIED IMPLEMENTED`, 27 `IMPLEMENTED BUT NOT VERIFIED`, 9 `PARTIAL`, 3 `MISSING`, 2 `BROKEN`, 1 `BLOCKED`, 3 `DEFERRED BY REQUIREMENT`, and 1 `WITHDRAWN BY REQUIREMENT`.
+- An earlier rollup paragraph in `docs/GAGAN_FORENSIC_COMPLETENESS_AUDIT.md` still says 25 implemented-but-not-verified, 10 partial, and 4 missing. That rollup is stale relative to the current 46 issue rows and the later updates; the row-wise counts above are authoritative for this checkpoint. The audit was not rerun or edited here.
+- The gap map is trustworthy enough to begin a verify-only batch. This is not authorization for broad feature work. Verify existing behavior first; make a narrowly scoped repair only after a reproducible gap and its required behavior are established. Preserve all deferred and withdrawn boundaries.
+
+### Source and Hosted Migration Ledger
+
+- Authorized Render identity was confirmed read-only: `R's workspace` (`tea-dajvdg0ae00c73bi74c0`) -> `gagan-api` (`srv-dak1ppu1egvs7397s9c0`, `https://gagan-srat.onrender.com`) -> primary Postgres `gagan-staging-db` (`dpg-dajvi2h5efls73ags3f0-a`), database `gagan_staging_9ftt`, schema `public`. Service and database are in the same Render environment. The service is configured to branch `codex/gagan-product-improvements-v1`, has auto-deploy off, and is not the current source branch; no runtime equivalence or deployment is inferred.
+- A read-only query of `public._prisma_migrations` returned 46 rows, all successfully applied; latest successful identity is `20260924060000_feedback_v2_service_request`. Failed/incomplete rows: 0. Rolled-back rows: 0. The 46 hosted names are all present in source and all 46 SHA-256 checksums match the corresponding current `migration.sql` files. There are no hosted checksum or identity mismatches.
+- Source has 52 migration directories. Hosted has source migrations 1-46; exactly migrations 47-52 below are absent. This is category B (aligned prefix with six legitimate pending source migrations), not a source/hosted identity divergence. No migration was applied, marked, reset, renamed, deleted, or edited.
+
+| # | Migration | Introducing commit / issue | Purpose and overlap | Hosted | Safe/current assessment |
+|---|---|---|---|---|---|
+| 47 | `20260925090000_order_punch_lifecycle` | `be9b0f941fe0cd7a0769629b7a52f6d258d740db` / GGN-ORD-01 | Adds `SALES_ORDER_PUNCHED` to `CommercialStatusCode`; distinct lifecycle event, does not replace `Order.status`. | Absent | Additive enum extension; existing readers must tolerate the new label. No later SQL edit found in reachable branch history. |
+| 48 | `20260925100000_pending_retailer_order_intents` | `b31a9554f02a7f630d84f35dd2f01dbfb28acf98` / GGN-ORD-02 | Adds pending proposal-order intent and item tables with idempotency and canonical conversion links; does not replace canonical `Order`. | Absent | Additive tables, indexes and FKs. No later SQL edit found in reachable branch history. |
+| 49 | `20260925110000_warehouse_order_processing` | `375d8d7e28d7a06819de768febafe3c0151300f8` / GGN-ORD-05 | Idempotently adds `order.warehouse_process`, `warehouse_operator`, and role-permission links; does not alter order state. | Absent | Additive/idempotent RBAC seed statements (`ON CONFLICT DO NOTHING`). No later SQL edit found in reachable branch history. |
+| 50 | `20260925120000_online_entity_scoped_payments` | `dd4dbce6230771d3819cbad4d5624bee27c2f53a` / GGN-PAY-06 | Drops and recreates the existing `Payment_confirmed_split` CHECK constraint from `20260914000200_commercial_flow`, relaxing the confirmer requirement only for online payments. | Absent | Compatibility-sensitive constraint replacement, not purely additive. It widens the allowed online case and revalidates existing rows when recreated; it performs no row rewrite. Review against deployed application behavior before any application. |
+| 51 | `20260925130000_internal_retailer_segmentation` | `2df794f45acb80c15712616bdf319368bf731d82` / GGN-ADM-07 | Adds `RetailerInternalSegment` A/B/C and nullable `Retailer.internalSegment`; separate from commercial `Tier`. | Absent | Additive enum and nullable column. No later SQL edit found in reachable branch history. |
+| 52 | `20260925140000_field_task_photo_evidence` | `1d8bc0d0ea8a7a972160d084aac2ff793c59590b` / GGN-MKT-01 | Adds `FieldTaskEvidence`, linked to task, retailer and staff; does not replace `ServiceIssue` or existing collection/payment evidence. | Absent | Additive evidence table, indexes, FKs and location-pair constraint. No later SQL edit found in reachable branch history. |
+
+- All six introducing commits are ancestors of this authorized HEAD on the same branch/worktree. Migration creation history is sequential after the 46-directory baseline. No later migration SQL modification is present in reachable branch history; the actual hosted checksums for migrations 1-46 match source. This is the available evidence against history rewrite; it does not claim anything about unreachable external Git history.
+- Migration answer: source count 52; hosted count 46; extra migrations 47-52; prefix and checksums aligned; safe to continue with source/read-only verification only. No schema deploy or migration application is authorized by this review.
+
+### OTP Provider Finding
+
+- `SmsProvider` and its factory interface exist. Current source runtime registers only `MockSmsProvider`; it is a no-op and does not send or expose an OTP. There is no MSG91 adapter in the identity provider directory. A runtime selecting `SMS_PROVIDER=msg91` fails closed as unsupported; the fake MSG91 adapter used in one test is test-injected only.
+- Local mock OTP behavior has existing test evidence. Staging mock behavior is UNVERIFIED because the deployed provider selection/runtime was not exercised; local `SMS_PROVIDER=mock` is not evidence about staging. No real SMS or WhatsApp was sent. No MSG91 credentials/config were supplied to this session; actual hosted/production secret-store presence is UNVERIFIED, not asserted absent. GGN-OTP-01 remains `BROKEN` for a runtime selecting MSG91 and verification-only unless a proven scope-authorized regression requires repair.
+
+### First Batch: VERIFY ONLY
+
+All ten are `IMPLEMENTED BUT NOT VERIFIED` in the current issue rows. Execute acceptance in this dependency/risk order before rewriting adjacent code. No code changes are part of this batch unless verification reproduces a specific defect and an approved behavior is clear.
+
+| Order | Issue / audit status | Priority reason | Components to verify |
+|---|---|---|---|
+| 1 | GGN-VIS-01 / `IMPLEMENTED BUT NOT VERIFIED` | Establish the canonical check-in, location validation and persisted active-visit base. | Rep `RepRetailerDetailScreen` and check-in errors; backend location routes/service; `SalesVisit`; Admin Visits; GPS permission, refresh and relaunch. |
+| 2 | GGN-VIS-02 / `IMPLEMENTED BUT NOT VERIFIED` | Depends on the visit lifecycle; ordering must not silently close a visit and route progress must follow explicit checkout. | Rep retailer detail, Visit and `orderVisitAction`; backend location and field route services; `SalesVisit`/`RoutePlanStop`; order -> checkout -> next retailer and relaunch. |
+| 3 | GGN-ORD-01 / `IMPLEMENTED BUT NOT VERIFIED` | Foundational boundary for punched demand versus official downstream creation and idempotent dispatch. | Retailer/Rep order detail and review; backend orders, commercial-status events and SAP outbox; Admin Orders/Approvals; legacy-order handling. |
+| 4 | GGN-ORD-02 / `IMPLEMENTED BUT NOT VERIFIED` | Depends on the canonical order lifecycle; unapproved-retailer demand must remain approval-gated and unpriced until conversion. | Rep Add Retailer/catalog/review; proposal routes/service and canonical order engine; Admin Retailer Approvals/Orders; duplicate conversion and safe readback. |
+| 5 | GGN-ORD-03 / `IMPLEMENTED BUT NOT VERIFIED` | Verifies source/creator/time attribution over the canonical lifecycle without leaking internal events to Retailer. | Retailer/Rep order detail; backend attribution/read APIs; Admin Orders/Approvals; attribution readback across surfaces. |
+| 6 | GGN-ORD-05 / `IMPLEMENTED BUT NOT VERIFIED` | Warehouse actions must honor eligible-order boundaries and least-privilege authorization. | Admin Warehouse Orders/App routing; backend warehouse routes and compare-and-set transitions; `order.warehouse_process`; authorized role/readback. |
+| 7 | GGN-PAY-05 / `IMPLEMENTED BUT NOT VERIFIED` | Reconciled entity balances are the accounting base for entity-scoped payment and collection acceptance. | Backend financial projection; Retailer Home/Ledger, Rep retailer ledger, Admin Ledger; mixed, legacy, unattributed and reconciliation-review readback. |
+| 8 | GGN-PAY-06 / `IMPLEMENTED BUT NOT VERIFIED` | Depends on invoice/entity attribution; protects online payment-intent idempotency and settlement from duplicate or invalid allocations. | Retailer Pay/Ledger; payment intent/allocation/settlement services; migration 50 constraint compatibility; exact invoice ownership, retries and ledger readback. |
+| 9 | GGN-PAY-03 / `IMPLEMENTED BUT NOT VERIFIED` | Authorization and retailer assignment are prerequisites to accepting salesperson collection submissions. | Admin Staff Detail/role catalog and assignment controls; staff-management and collection authorization APIs; direct unauthorized submit/revoke checks. |
+| 10 | GGN-PAY-02 / `IMPLEMENTED BUT NOT VERIFIED` | Collection capture and Accounts confirmation affect the payment ledger; verify after PAY-03 authorization and PAY-05 reconciliation. | Rep collection capture; backend collection submission/confirmation; Admin Collections; method/reference/notes, evidence, allocation and final ledger readback. |
+
+- GGN-PAY-01 private evidence verification follows this initial ten-item batch and must remain separate from payment settlement; uploading proof must not confirm a payment or create a ledger entry.
+- The review itself stopped before batch execution. A follow-on local verify-only pass is recorded below. Current hosted service is configured to a different branch and its database has not applied migrations 47-52; hosted acceptance of these later features cannot be inferred from local tests. No deploy is included.
+
+### Remaining Blockers and Next Action
+
+- GGN-PAY-04: owner must specify which collection methods require customer OTP and whether it gates capture/submission or Accounts confirmation.
+- GGN-SAL-01: owner must define canonical sales quantity/volume unit and treatment of legacy lines.
+- GGN-ROUTE-01: owner must choose manual beat-template application versus recurring weekday generation semantics.
+- GGN-OTP-01: current MSG91 adapter is absent; staging provider behavior and hosted secret configuration are unverified. No real messaging or credential invention.
+- Missing features remain GGN-ROUTE-02 (self-beat), GGN-FDB-01 (retailer-to-salesperson feedback), and GGN-GEO-01 (salesperson home/base distance). These are not pulled ahead of the first verify-only batch.
+- Next executable action after this review was the ten-item verify-only batch at issue 1; the local test portion has now run and is recorded below. Remaining hosted/device acceptance needs a compatible source/runtime and an explicitly approved test account/retailer with safe cleanup. Apply no migration or deployment without separate authorization.
+- The existing persistent Codex Goal remains PAUSED. This document answers readiness but does not resume the saved Goal or begin backlog implementation.
+
+### Stop-Point Decision
+
+- `MIGRATION LINEAGE SAFE`: YES for read-only/source verification continuation; NO migration apply/deploy in this review.
+- `AUDIT GAP MAP TRUSTWORTHY ENOUGH TO IMPLEMENT`: YES for a verify-first, narrowly scoped batch. The 46 issue rows and row-wise counts reconcile; use the stale-rollup warning above.
+- `READY TO RESUME IMPLEMENTATION GOAL`: YES for the verification-only batch, not broad product implementation. No backlog item was implemented in this review.
+
+## Execution Update - Initial Verify-Only Batch Local Checks (2026-09-25)
+
+- The backend test profile was revalidated before execution: only `gagan_goal_test_20260924_7b6ea1fc` at `127.0.0.1:5432`, with mock SMS/payment, SAP disabled, local storage and background jobs disabled. No reset or seed was run.
+- GGN-VIS-01/VIS-02 backend visit integration, concurrency, route and service suites passed: 4 files / 40 tests. Rep active-visit recovery and visit-flow suites passed: 2 files / 7 tests.
+- The local order/payment backend batch passed: 10 files / 48 tests covering order lifecycle/outbox, proposal conversion, order attribution, warehouse authorization/transition, financial summary, commercial payment flow, payment service, collection assignment authorization and collection workflow.
+- Admin focused Order Attribution, Warehouse Orders, Collections, Staff and Ledger suites passed: 5 files / 14 tests. Rep collection/evidence, commercial API, client attribution and selling-flow suites passed: 5 files / 41 tests. Retailer order attribution, payment evidence and allocation suites passed: 3 files / 5 tests.
+- Combined selected local verification: 29 files / 155 tests passed. These are source and disposable local DB/API/component test results only; they do not qualify as hosted, rendered-native or physical acceptance. No source code changed.
+- Read-only Render deploy inspection found the live `gagan-api` deploy `dep-daqdqnh42hec739b4n7g`, source SHA `93c2db795c7ae5b2998b6567acc51443f3df539b` (`fix: preserve issue scope and route progress under contention`). It is not current HEAD `9668001852a6a5134884fedd0e1600e454905408`; the service config points to `codex/gagan-product-improvements-v1`. Between that deployed SHA and current HEAD, `rep/src/location/checkInErrors.ts` is added and `rep/src/screens/RepRetailerDetailScreen.tsx` differs; the inspected backend location route/service files do not differ. No deploy or hosted business-data write occurred.
+- Read-only Moto E13 inspection found `com.gagan.sales.review` 1.0.20/code 20. The installed APK certificate SHA-256 is `fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c`, matching the documented review signing identity. The app was not launched or installed; no GPS permission or check-in interaction was performed.
+- GGN-VIS-01 and the other nine queue items remain `IMPLEMENTED BUT NOT VERIFIED`. Required hosted/app gates remain open; there is no authorized disposable staging retailer/session and safe cleanup plan recorded for a check-in write, and the installed app is not this source SHA. Do not use a real retailer visit as a test fixture. Next acceptance needs an owner-approved synthetic account/retailer plus an exact-source review build or another explicitly authorized test runtime. No implementation, APK build, device write, migration, or deployment was performed.
+
+## Execution Update — GGN-VIS-03 Local Follow-Up Readback (2026-09-25)
+
+- Extended the existing authenticated field integration with a controlled local check-in, a `follow_up_required` activity linked to that visit, exact PostgreSQL and `/rep/field/activity-feed` readback for a custom date five days ahead, and checkout with compatible `payment_collected` plus `task_completed` outcomes. The visit retains the primary outcome and both selected outcomes. Existing fixture teardown owns and removes the test activity and visit rows.
+- Focused integration passed 1 selected test. Full backend passed 152 files / 1,049 tests; backend typecheck and build passed. Tests used only `gagan_goal_test_20260924_7b6ea1fc` on `127.0.0.1` with mock SMS/payment, SAP disabled, and jobs disabled. No reset or seed ran.
+- No runtime, API, schema, or migration change was needed. This establishes local API/database persistence and activity-feed readback only. Native date-picker interaction, hosted behavior, GPS/device flow, and physical acceptance remain NOT RUN; GGN-VIS-03 remains `IMPLEMENTED BUT NOT VERIFIED`.
+- Test checkpoint: `1f7ff34a20e8b851decd000cf4b7572b1bdb2152` (`test: verify visit follow-up readback`) on the authorized branch. The pre-existing modified forensic audit and untracked user files were excluded.

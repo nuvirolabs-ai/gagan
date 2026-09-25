@@ -1,17 +1,42 @@
 import { describe, expect, it } from "vitest";
-import { selectTeamPerformancePresentation, teamSalesSummary } from "../teamPerformancePresentation";
+import { selectTeamPerformancePresentation, teamSalesSummary, teamTargetConfigured } from "../teamPerformancePresentation";
 import { translate, type TranslationKey } from "../../i18n/translations";
 
 const t = (language: "en" | "hi") =>
   (key: TranslationKey, vars?: Record<string, string | number>) => translate(language, key, vars);
 
 describe("team sales summary", () => {
-  it.each([null, 0, -1, undefined])("keeps actual sales visible without a positive target (%s)", (target) => {
+  it("gives Team Today and Team Performance one zero-versus-absent target rule", () => {
+    expect(teamTargetConfigured({ targets: { assigned: 0, rollup: 0 } })).toBe(true);
+    expect(teamTargetConfigured({ targets: { assigned: null, rollup: 0, rollupConfigured: true } })).toBe(true);
+    expect(teamTargetConfigured({ targets: { assigned: null, rollup: 0, rollupConfigured: false } })).toBe(false);
+    expect(teamTargetConfigured({ team: { target: 400000 } })).toBe(true);
+  });
+  it.each([null, -1, undefined])("keeps actual sales visible without a configured target (%s)", (target) => {
     expect(teamSalesSummary({ actual: 18400, target, completionPct: 0 })).toEqual({
       actual: 18400,
       target: null,
       completionPct: null,
     });
+  });
+
+  it("shows a configured zero target without inventing a completion percentage", () => {
+    expect(teamSalesSummary({ actual: 18400, target: 0, completionPct: 0 })).toEqual({
+      actual: 18400, target: 0, completionPct: null,
+    });
+  });
+
+  it("keeps assigned zero separate from no Team target", () => {
+    const zero = selectTeamPerformancePresentation({
+      targets: { assigned: 0, rollup: 0, rollupConfigured: false },
+      team: { actual: 18400, target: 0, completionPct: 0 },
+    }, t("en"));
+    const absent = selectTeamPerformancePresentation({
+      targets: { assigned: null, rollup: 0, rollupConfigured: false },
+      team: { actual: 18400, target: 0, completionPct: 0 },
+    }, t("en"));
+    expect(zero.team.summary).toEqual({ actual: 18400, target: 0, completionPct: null });
+    expect(absent.team.summary).toEqual({ actual: 18400, target: null, completionPct: null });
   });
 
   it("preserves the canonical completion percentage for a positive target", () => {

@@ -44,6 +44,7 @@ import { colors, inr, radius, spacing } from "../theme";
 import { SCREEN_CONTENT_BOTTOM_GAP } from "../layout/viewportPolicy";
 import { useLanguage } from "../i18n/LanguageContext";
 import { homeAttendanceAction } from "./attendanceHomeAction";
+import TeamTodaySection from "./TeamTodaySection";
 
 const OPPORTUNITY_ICONS: Record<string, string> = {
   ORDER_DUE: "time-outline",
@@ -307,6 +308,7 @@ export default function TodayScreen({ navigation }: any) {
   const route = today.route;
   const metrics = today.todayMetrics ?? {};
   const target = today.targets?.find((item: any) => item.metric === "order_value") ?? today.headlineTarget;
+  const positiveTarget = target != null && safeCount(target.target) > 0;
   const nextStop = route?.nextStop;
   const pendingStops = safeCount(route?.progress?.pending);
   const pendingRetailers = today.pendingCollections?.retailers ?? [];
@@ -317,7 +319,7 @@ export default function TodayScreen({ navigation }: any) {
   const completion = Math.max(0, Math.min(100, safeCount(target?.completionPct)));
   const targetActual = target?.unit === "currency" ? inr(safeCount(target.actual)) : String(safeCount(target?.actual));
   const targetTotal = target?.unit === "currency" ? inr(safeCount(target.target)) : String(safeCount(target?.target));
-  const targetProgressDetail = target
+  const targetProgressDetail = positiveTarget
     ? safeCount(target.remaining) > 0
       ? target.unit === "currency"
         ? `${inr(safeCount(target.remaining))} to go`
@@ -345,10 +347,10 @@ export default function TodayScreen({ navigation }: any) {
             </View>
             <View style={styles.salesContext}>
               <Text style={styles.contextLabel}>{target ? "MONTH TARGET" : "TARGET"}</Text>
-              <Text style={[styles.contextValue, !target && styles.contextValueQuiet]}>{target ? `${completion}%` : "—"}</Text>
+              <Text style={[styles.contextValue, !positiveTarget && styles.contextValueQuiet]}>{positiveTarget ? `${completion}%` : "—"}</Text>
             </View>
           </View>
-          {target ? (
+          {positiveTarget ? (
             <>
               <View style={styles.targetGrid}>
                 <TargetBlock label={target.label || "Monthly sales"} value={`${targetActual} / ${targetTotal}`} detail={targetProgressDetail} pct={completion} />
@@ -357,6 +359,8 @@ export default function TodayScreen({ navigation }: any) {
               </View>
               <MilestoneRail completion={completion} />
             </>
+          ) : target ? (
+            <View style={styles.targetUnavailable}><Ionicons name="flag-outline" size={18} color={colors.inkMuted} /><Text style={styles.caption}>{`No positive target configured for this period. Actual: ${targetActual} / ${targetTotal}.`}</Text></View>
           ) : (
             <View style={styles.targetUnavailable}><Ionicons name="flag-outline" size={18} color={colors.inkMuted} /><Text style={styles.caption}>No target has been configured for this period.</Text></View>
           )}
@@ -481,6 +485,9 @@ export default function TodayScreen({ navigation }: any) {
         ) : null}
 
         {dayOpen ? <Surface style={styles.daySurface}><View style={styles.between}><View style={{ flex: 1 }}><Text style={styles.eyebrow}>SALES DAY</Text><Text style={styles.dayTitle}>On duty since {formatClock(attendance.startedAt)}</Text><Text style={styles.caption}>{banner.body}</Text></View><TextButton label="End day" onPress={() => setEodOpen(true)} /></View></Surface> : null}
+        {staff?.workspaceMode === "sales_leader" ? (
+          <TeamTodaySection onOpen={() => navigation.navigate("Team")} />
+        ) : null}
       </ScrollView>
 
       {eodOpen && dayOpen ? (

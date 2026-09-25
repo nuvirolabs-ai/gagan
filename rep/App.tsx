@@ -38,7 +38,9 @@ import IssueDetailScreen from "./src/screens/IssueDetailScreen";
 import OrderDetailScreen from "./src/screens/OrderDetailScreen";
 import OpportunitiesScreen from "./src/screens/OpportunitiesScreen";
 import AddRetailerScreen from "./src/screens/AddRetailerScreen";
-import { staffCapabilities } from "./src/auth/staffCapabilities";
+import { resolveWorkspaceMode, staffCapabilities, workspaceTabs } from "./src/auth/staffCapabilities";
+import SetupRequiredScreen from "./src/screens/SetupRequiredScreen";
+import TeamMemberDetailScreen from "./src/screens/TeamMemberDetailScreen";
 import LanguageSelectionScreen from "./src/screens/LanguageSelectionScreen";
 import SalesKitScreen from "./src/screens/SalesKitScreen";
 import MarketSurveysScreen from "./src/screens/MarketSurveysScreen";
@@ -74,17 +76,20 @@ const TAB_ICONS: Record<string, string> = {
   Retailers: "storefront-outline",
   Work: "briefcase-outline",
   Activity: "bar-chart-outline",
+  Team: "people-outline",
+  Setup: "alert-circle-outline",
   Approvals: "shield-checkmark-outline",
   More: "ellipsis-horizontal-outline",
 };
 
 function RepTabs() {
-  const { staff } = useRep();
+  const { staff, rep } = useRep();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
   const tabBarMetrics = salesTabBarMetrics(insets.bottom);
-  const capabilities = staffCapabilities(staff?.permissions ?? []);
-  const tabLabel = (name: string) => ({ Today: "Home", Retailers: "Outlets", Activity: "Reports", Work: "Work", Approvals: "Approvals", More: "More" }[name] ?? t(`tabs.${name.toLowerCase()}`));
+  const mode = resolveWorkspaceMode(staff?.workspaceMode, staff?.permissions ?? [], Boolean(rep));
+  const tabs = workspaceTabs(mode, staff?.permissions ?? []);
+  const tabLabel = (name: string) => ({ Today: "Home", Retailers: "Outlets", Activity: "Reports", Team: "Team", Setup: "Setup", Work: "Work", Approvals: "Approvals", More: "More" }[name] ?? t(`tabs.${name.toLowerCase()}`));
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -121,16 +126,19 @@ function RepTabs() {
         ),
       })}
     >
-      {/* Today is the salesperson's home: attendance, route, tasks, money due. */}
-      {capabilities.canRunFieldDay && <Tab.Screen name="Today" component={TodayScreen} />}
-      {capabilities.canOrderForRetailers ? (
-        <Tab.Screen name="Retailers" component={RepRetailersScreen} />
-      ) : capabilities.canRunFieldDay ? null : (
-        <Tab.Screen name="Work" component={StaffHomeScreen} />
-      )}
-      {capabilities.canRunFieldDay && <Tab.Screen name="Activity" component={MyActivityScreen} />}
-      {capabilities.canApprove && <Tab.Screen name="Approvals" component={ApprovalsScreen} />}
-      <Tab.Screen name="More" component={RepAccountScreen} />
+      {tabs.map((tab) => {
+        const screen = {
+          Today: TodayScreen,
+          Retailers: RepRetailersScreen,
+          Activity: MyActivityScreen,
+          Team: TeamPerformanceScreen,
+          Setup: SetupRequiredScreen,
+          Work: StaffHomeScreen,
+          Approvals: ApprovalsScreen,
+          More: RepAccountScreen,
+        }[tab];
+        return <Tab.Screen key={tab} name={tab} component={screen} />;
+      })}
     </Tab.Navigator>
   );
 }
@@ -214,11 +222,18 @@ function RootNavigator() {
             </>
           )}
           {capabilities.canViewTeamPerformance && (
-            <Stack.Screen
-              name="TeamPerformance"
-              component={TeamPerformanceScreen}
-              options={{ title: t("team.title"), headerBackTitle: t("tabs.more") }}
-            />
+            <>
+              <Stack.Screen
+                name="TeamPerformance"
+                component={TeamPerformanceScreen}
+                options={{ title: t("team.title"), headerBackTitle: t("tabs.more") }}
+              />
+              <Stack.Screen
+                name="TeamMemberDetail"
+                component={TeamMemberDetailScreen}
+                options={{ title: t("team.members"), headerBackTitle: t("team.title") }}
+              />
+            </>
           )}
           {capabilities.canProposeRetailers && (
             <Stack.Screen

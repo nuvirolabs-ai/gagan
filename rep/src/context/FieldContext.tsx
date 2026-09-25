@@ -97,7 +97,7 @@ function clientReference(prefix: string) {
 }
 
 export function FieldProvider({ children }: { children: React.ReactNode }) {
-  const { staff } = useRep();
+  const { staff, refreshIdentity } = useRep();
   const capabilities = staffCapabilities(staff?.permissions ?? []);
   const enabled = capabilities.canRunFieldDay;
 
@@ -176,6 +176,7 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
           });
         }
         setError(result.source === "cache" ? offlineMessage(new Error("offline"), result.capturedAt) : null);
+        if (result.source === "network") void refreshIdentity().catch(() => undefined);
       } catch (err) {
         // A failed refresh must not wipe the last good day the salesperson saw,
         // and a dropped connection should read like one rather than like a
@@ -185,7 +186,7 @@ export function FieldProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       }
     });
-  }, [enabled, operationalCache, queue]);
+  }, [enabled, operationalCache, queue, refreshIdentity]);
 
   useEffect(() => {
     if (!enabled) {

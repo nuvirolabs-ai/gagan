@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { staffCapabilities } from "../staffCapabilities";
+import { staffCapabilities, workspaceTabs } from "../staffCapabilities";
 
 const NONE = {
   canOrderForRetailers: false,
@@ -83,5 +83,14 @@ describe("role-aware staff shell", () => {
       canViewTeamPerformance: true,
     });
     expect(staffCapabilities(["route.execute"]).canViewTeamPerformance).toBe(false);
+  });
+
+  it("keeps selling leaders personal-first and manager-only distinct", () => {
+    const personal = ["order.create_for_retailer", "route.execute"];
+    expect(workspaceTabs("sales", personal)).toEqual(["Today", "Retailers", "Activity", "More"]);
+    expect(workspaceTabs("sales_leader", [...personal, "performance.view_team"])).toEqual(["Today", "Retailers", "Activity", "Team", "More"]);
+    expect(workspaceTabs("manager_only", ["performance.view_team"])).toEqual(["Team", "More"]);
+    expect(workspaceTabs("setup_required", [...personal, "performance.view_team"])).toEqual(["Setup", "More"]);
+    expect(workspaceTabs("sales_leader", personal)).not.toContain("Team");
   });
 });

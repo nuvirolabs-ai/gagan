@@ -37,12 +37,18 @@ export function teamSalesSummary(input: {
   target?: number | null;
   completionPct?: number | null;
 }): TeamSalesSummary {
-  const target = typeof input.target === "number" && input.target > 0 ? input.target : null;
+  const target = typeof input.target === "number" && input.target >= 0 ? input.target : null;
   return {
     actual: input.actual,
     target,
-    completionPct: target == null ? null : input.completionPct ?? null,
+    completionPct: target == null || target <= 0 ? null : input.completionPct ?? null,
   };
+}
+
+export function teamTargetConfigured(data: any): boolean {
+  return typeof data?.targets?.assigned === "number" ||
+    data?.targets?.rollupConfigured === true || Number(data?.targets?.rollup ?? 0) > 0 ||
+    (data?.targets == null && Number(data?.team?.target) > 0);
 }
 
 type ProjectionFacts = {
@@ -201,6 +207,7 @@ export function selectTeamPerformancePresentation(
   t: TeamTranslate
 ): TeamPerformancePresentation {
   const team = data?.team ?? {};
+  const configuredTarget = teamTargetConfigured(data);
   const metric = metricLabel(data?.leaderboard?.metric, t);
   const members = (data?.members ?? []).map((member: any) => {
     const salesTarget = member.headlineTarget?.metric === "order_value"
@@ -254,7 +261,7 @@ export function selectTeamPerformancePresentation(
     team: {
       summary: teamSalesSummary({
         actual: team.actual ?? 0,
-        target: team.target,
+        target: configuredTarget ? team.target : null,
         completionPct: team.completionPct,
       }),
       projectionUnavailable: team.salespeople === 0

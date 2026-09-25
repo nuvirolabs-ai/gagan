@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { AppState } from "react-native";
 import {
   repApi,
   staffSessionStore,
@@ -10,6 +11,7 @@ import { isAuthenticationFailure } from "../auth/sessionFetch";
 import { isRecoverableOtpError } from "../auth/otpErrors";
 import { staffIdentityCache } from "../auth/identityCache";
 import { useLanguage } from "../i18n/LanguageContext";
+import type { WorkspaceMode } from "../auth/staffCapabilities";
 
 interface Rep {
   id: string;
@@ -23,6 +25,9 @@ export interface StaffIdentity {
   phone: string;
   email: string;
   permissions: string[];
+  roles?: string[];
+  workspaceMode?: WorkspaceMode;
+  setupCode?: string | null;
 }
 
 interface RepContextValue {
@@ -32,6 +37,7 @@ interface RepContextValue {
   login: (phone: string, otp: string) => Promise<void>;
   requestOtp: (phone: string) => Promise<string>;
   logout: () => Promise<void>;
+  refreshIdentity: () => Promise<void>;
 
   /** Retailer the rep is currently ordering for. */
   activeRetailerId: string | null;
@@ -55,6 +61,27 @@ export function RepProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [activeRetailerId, setActiveRetailerId] = useState<string | null>(null);
   const [lines, setLines] = useState<CartLine[]>([]);
+
+  const refreshIdentity = useCallback(async () => {
+    if (!staff?.id || !await staffSessionStore.load()) return;
+    const result = await repApi.me();
+    if (result.staff.id !== staff.id || !await staffSessionStore.load()) return;
+    setRepAccount(result.staff.id);
+    setStaff(result.staff);
+    if (rep?.id !== result.rep?.id) {
+      setActiveRetailerId(null);
+      setLines([]);
+    }
+    setRep(result.rep);
+    await staffIdentityCache.save({ staff: result.staff, rep: result.rep ?? null });
+  }, [staff?.id, rep?.id]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") void refreshIdentity().catch(() => undefined);
+    });
+    return () => subscription.remove();
+  }, [refreshIdentity]);
 
   useEffect(() => {
     setRepUnauthorizedHandler(() => {
@@ -190,6 +217,7 @@ export function RepProvider({ children }: { children: React.ReactNode }) {
         login,
         requestOtp,
         logout,
+        refreshIdentity,
         activeRetailerId,
         setActiveRetailer,
         lines,

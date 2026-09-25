@@ -132,5 +132,7 @@ describe("staff auth API", () => {
     expect(typeof api.salesLeader).toBe("function");
     await api.salesLeader();
     expect(request).toHaveBeenCalledWith("/rep/sales-leader");
+    await api.salesLeader("report-1");
+    expect(request).toHaveBeenCalledWith("/rep/sales-leader?salespersonId=report-1");
   });
 });

@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -91,7 +92,7 @@ export function TeamMember({ member, presentation, t }: {
   );
 }
 
-export default function TeamPerformanceScreen() {
+export default function TeamPerformanceScreen({ navigation }: any) {
   const { t } = useLanguage();
   const [data, setData] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -195,12 +196,14 @@ export default function TeamPerformanceScreen() {
           <View style={styles.section}>
             <SectionHeader title={t("team.members")} />
             {members.map((member, index) => (
-              <TeamMember
+              <Pressable
                 key={member.salespersonId}
-                member={member}
-                presentation={presentation.members[index]}
-                t={t}
-              />
+                accessibilityRole="button"
+                accessibilityLabel={member.name}
+                onPress={() => navigation.navigate("TeamMemberDetail", { staffId: member.salespersonId })}
+              >
+                <TeamMember member={member} presentation={presentation.members[index]} t={t} />
+              </Pressable>
             ))}
           </View>
         )}

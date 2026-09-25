@@ -62,6 +62,13 @@ describe("screen integration contracts", () => {
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
     expect(home.split(anchors[0])).toHaveLength(2);
   });
+  it("keeps an explicitly zero personal target distinct from a missing target or a completed one", () => {
+    const home = source("TodayScreen.tsx");
+    expect(home).toContain("const positiveTarget = target != null && safeCount(target.target) > 0");
+    expect(home).toContain("No positive target configured for this period. Actual:");
+    expect(home).toContain("No target has been configured for this period.");
+    expect(home).toContain("{positiveTarget ? (");
+  });
   it("removes profile credit presentation but preserves the credit approval guard", () => {
     const profile = source("RepRetailerDetailScreen.tsx");
     expect(profile).not.toContain('t("profile.availableCredit")');

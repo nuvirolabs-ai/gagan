@@ -202,7 +202,7 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
       request(`/rep/field/activity-feed${rangeQuery(from, to)}`),
     /* ------------------------ performance and intelligence ----------------------- */
 
-    salesLeader: () => request("/rep/sales-leader"),
+    salesLeader: (staffId?: string) => request(`/rep/sales-leader${staffId ? `?salespersonId=${encodeURIComponent(staffId)}` : ""}`),
     targets: () => request("/rep/performance/targets"),
     ranking: () => request("/rep/performance/ranking"),
     achievements: () => request("/rep/performance/achievements"),

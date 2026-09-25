@@ -73,7 +73,7 @@ export default function RepAccountScreen({ navigation }: any) {
       subtitle: t("more.performanceSubtitle"),
       screen: "Activity",
     },
-    capabilities.canViewTeamPerformance && {
+    capabilities.canViewTeamPerformance && staff?.workspaceMode !== "sales_leader" && staff?.workspaceMode !== "manager_only" && {
       icon: "people-outline",
       label: t("team.title"),
       subtitle: t("team.subtitle"),

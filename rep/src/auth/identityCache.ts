@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { WorkspaceMode } from "./staffCapabilities";
 
 /**
  * The last identity the server confirmed, kept on the device so the app can
@@ -15,6 +16,9 @@ export interface CachedIdentity {
     phone: string;
     email: string;
     permissions: string[];
+    roles?: string[];
+    workspaceMode?: WorkspaceMode;
+    setupCode?: string | null;
   };
   rep: { id: string; name: string; phone: string } | null;
   cachedAt: number;

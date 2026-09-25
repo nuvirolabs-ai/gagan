@@ -288,11 +288,20 @@ The earlier status and missing-idempotency finding below are retained as histori
 - No hosted service/database, live provider, SAP, APK install, or physical payment flow was used. Hosted authenticated acceptance, real-provider retry semantics, native screen interaction, physical acceptance, and exact-source APK identity remain NOT RUN.
 - Source checkpoint `d339905a79ea135e4daf7c57b0c3143b69450f06` (`feat: make retailer payment intents idempotent`) is committed on the authorized branch. Push and hosted preview/deployment behavior are checked separately before any remote update.
 
-## PAY-06 Classification Refresh — 2026-09-25
+## PAY-06 / PAY-02 Classification Refresh — 2026-09-25
 
 - The 46-ID register remains complete. Current counts are 0 `VERIFIED IMPLEMENTED`, 24 `IMPLEMENTED BUT NOT VERIFIED`, 10 `PARTIAL`, 5 `MISSING`, 2 `BROKEN`, 1 `BLOCKED`, 3 `DEFERRED BY REQUIREMENT`, and 1 `WITHDRAWN BY REQUIREMENT`.
 - PAY-06 is now `IMPLEMENTED BUT NOT VERIFIED`: local authenticated API/database retry behavior, persisted mobile key behavior, client header contract, stable mock intent, and settlement replay are covered by tests. The previous Top 20 position is retained as a P0 acceptance gap, not a remaining source absence.
+- PAY-02 is now `IMPLEMENTED BUT NOT VERIFIED`: the Rep form captures optional remarks and method-contextual references; authenticated local PostgreSQL flows confirm CASH, CHEQUE and NEFT through Admin and ledger readback. Real private storage and native/hosted/physical acceptance remain open.
 - Hosted authenticated flow, real-provider idempotency semantics, native interaction, physical device behavior, and release-source identity remain NOT RUN. The next source-work item must follow the existing dependency/priority order; PAY-04 remains blocked and OTP-01 remains verification-only.
+
+## Execution Update — GGN-PAY-02 Collection Form (2026-09-25)
+
+- Current status is `IMPLEMENTED BUT NOT VERIFIED`. The Rep collection form exposes optional remarks, sends them through the existing `notes` API field, limits them to the server's 500-character maximum, clears them after success and on retailer switch, and shows localized method-contextual prompts for CASH receipt/reference, CHEQUE number/bank reference, NEFT UTR/bank reference, and UPI transaction reference. Existing reference validation and business rules are unchanged. No schema/migration change or new mandatory field was added.
+- Authenticated disposable-PostgreSQL integration now captures and confirms CASH, CHEQUE and NEFT, reading back collector/retailer/method/reference/notes/status, Admin confirmation, exact Jain/Padam allocations and ledger settlement. CHEQUE includes proof upload and signed readback. Post-suite identity check found zero `Collection Flow Retailer` and zero related submissions.
+- Rep focused translation/API tests passed 2 files / 14 tests; the full Rep suite passed 44 files / 227 tests, typecheck passed, and Android Metro export bundled 1,150 modules. The expanded backend integration passed 1 test; full backend suite passed 150 files / 1,028 tests, backend typecheck and build passed.
+- No hosted service/database, real private storage, Admin browser session, APK or device was used. Hosted authenticated Admin, native form interaction, physical acceptance and exact-source release identity remain NOT RUN. The user-provided `GAGAN_PRODUCT_GOAL.md` remains untracked and untouched.
+- Source checkpoint `9972a56ff58cf2aa5762d4691d5bfced8e84fe5b` (`feat: complete salesperson collection capture details`) is committed on the authorized branch. Push and hosted preview/deployment behavior are checked separately before any remote update.
 
 ## Execution Update — GGN-VIS-01 / GGN-VIS-02 (2026-09-25)
 

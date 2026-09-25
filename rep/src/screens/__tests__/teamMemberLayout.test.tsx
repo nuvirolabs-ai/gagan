@@ -66,9 +66,9 @@ describe("Team Performance member heading", () => {
       ? Object.assign({}, ...completion.props.style)
       : completion.props.style;
 
-    expect(style).toMatchObject({ flex: 1, minWidth: 0 });
+    expect(style).toMatchObject({ flex: 3, minWidth: 0 });
     expect(amount.props.numberOfLines).toBeUndefined();
     expect(JSON.stringify(amount.props.children)).toContain("₹4,00,000");
-    expect(completionStyle).toMatchObject({ marginRight: 8 });
+    expect(completionStyle).toMatchObject({ flex: 1, minWidth: 0, marginRight: 8, textAlign: "right" });
   });
 });

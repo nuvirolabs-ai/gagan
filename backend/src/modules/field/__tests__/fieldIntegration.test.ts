@@ -951,7 +951,7 @@ describe("daily team sales summary uses canonical orders", () => {
 });
 
 describe("leave is decided by someone else", () => {
-  it("keeps a salesperson out of their own approval", async () => {
+  it("lets the reporting manager approve or reject and read back leave decisions", async () => {
     const created = await request(app)
       .post("/rep/field/leave")
       .set("Authorization", `Bearer ${tokenA}`)
@@ -985,5 +985,84 @@ describe("leave is decided by someone else", () => {
       where: { id: created.body.request.id },
     });
     expect(stillPending.status).toBe("pending");
+
+    const pendingQueue = await request(app)
+      .get("/admin/field/leave")
+      .query({ status: "pending", salespersonId: ids.staffA })
+      .set("Authorization", `Bearer ${managerToken}`)
+      .expect(200);
+    expect(pendingQueue.body.requests).toContainEqual(
+      expect.objectContaining({
+        id: created.body.request.id,
+        salespersonId: ids.staffA,
+        status: "pending",
+      })
+    );
+
+    const approved = await request(app)
+      .post(`/admin/field/leave/${created.body.request.id}/decision`)
+      .set("Authorization", `Bearer ${managerToken}`)
+      .send({ decision: "approved", note: "Coverage assigned" })
+      .expect(200);
+    expect(approved.body.request).toMatchObject({
+      id: created.body.request.id,
+      status: "approved",
+      decidedByStaffId: ids.manager,
+      decisionNote: "Coverage assigned",
+      decidedAt: expect.any(String),
+    });
+    const savedApproval = await prisma.leaveRequest.findUniqueOrThrow({
+      where: { id: created.body.request.id },
+    });
+    expect(savedApproval).toMatchObject({
+      status: "approved",
+      decidedByStaffId: ids.manager,
+      decisionNote: "Coverage assigned",
+      decidedAt: expect.any(Date),
+    });
+
+    const secondRequest = await request(app)
+      .post("/rep/field/leave")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({
+        fromDate: new Date(Date.now() + 8 * 86_400_000).toISOString(),
+        toDate: new Date(Date.now() + 9 * 86_400_000).toISOString(),
+        type: "casual",
+        reason: "Personal appointment",
+      })
+      .expect(201);
+    const rejected = await request(app)
+      .post(`/admin/field/leave/${secondRequest.body.request.id}/decision`)
+      .set("Authorization", `Bearer ${managerToken}`)
+      .send({ decision: "rejected", note: "Peak-period coverage required" })
+      .expect(200);
+    expect(rejected.body.request).toMatchObject({
+      id: secondRequest.body.request.id,
+      status: "rejected",
+      decidedByStaffId: ids.manager,
+      decisionNote: "Peak-period coverage required",
+      decidedAt: expect.any(String),
+    });
+    const savedRejection = await prisma.leaveRequest.findUniqueOrThrow({
+      where: { id: secondRequest.body.request.id },
+    });
+    expect(savedRejection).toMatchObject({
+      status: "rejected",
+      decidedByStaffId: ids.manager,
+      decisionNote: "Peak-period coverage required",
+      decidedAt: expect.any(Date),
+    });
+
+    const decisionHistory = await request(app)
+      .get("/admin/field/leave")
+      .query({ salespersonId: ids.staffA })
+      .set("Authorization", `Bearer ${managerToken}`)
+      .expect(200);
+    expect(decisionHistory.body.requests).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: created.body.request.id, status: "approved" }),
+        expect.objectContaining({ id: secondRequest.body.request.id, status: "rejected" }),
+      ])
+    );
   });
 });

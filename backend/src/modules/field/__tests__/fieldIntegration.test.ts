@@ -623,6 +623,48 @@ describe("a planned stop and the visit that happened stay one record", () => {
     // The visit inherits the purpose the stop was planned for.
     expect(checkIn.body.visit.purpose).toBe("collection");
 
+    const scheduledFollowUpAt = new Date(Date.now() + 5 * 86_400_000);
+    const followUp = await request(app)
+      .post("/rep/field/activities")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({
+        retailerId: ids.retailerA,
+        visitId: checkIn.body.visit.id,
+        type: "follow_up_required",
+        notes: "Recheck the display next week",
+        followUpAt: scheduledFollowUpAt.toISOString(),
+        clientReference: `visit-follow-up-${run}`,
+      });
+    expect(followUp.status).toBe(201);
+    const savedFollowUp = await prisma.customerActivity.findUniqueOrThrow({
+      where: {
+        salespersonId_clientReference: {
+          salespersonId: ids.staffA,
+          clientReference: `visit-follow-up-${run}`,
+        },
+      },
+    });
+    expect(savedFollowUp).toMatchObject({
+      retailerId: ids.retailerA,
+      salespersonId: ids.staffA,
+      visitId: checkIn.body.visit.id,
+      type: "follow_up_required",
+      followUpAt: scheduledFollowUpAt,
+    });
+    const activityFeed = await request(app)
+      .get(`/rep/field/activity-feed?from=${encodeURIComponent(new Date(Date.now() - 60_000).toISOString())}&to=${encodeURIComponent(new Date(Date.now() + 60_000).toISOString())}`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .expect(200);
+    expect(activityFeed.body.entries).toContainEqual(
+      expect.objectContaining({
+        id: `activity-${followUp.body.activity.id}`,
+        kind: "activity",
+        title: "follow_up_required",
+        retailer: { id: ids.retailerA, name: "Field Store A" },
+        followUpAt: scheduledFollowUpAt.toISOString(),
+      })
+    );
+
     const retry = await request(app)
       .post(`/rep/retailers/${ids.retailerA}/check-in`)
       .set("Authorization", `Bearer ${tokenA}`)
@@ -687,9 +729,23 @@ describe("a planned stop and the visit that happened stay one record", () => {
     const checkOut = await request(app)
       .post(`/rep/visits/${checkIn.body.visit.id}/check-out`)
       .set("Authorization", `Bearer ${tokenA}`)
-      .send({ ...coordinates, outcome: "payment_collected", notes: "Collected part payment" });
+      .send({
+        ...coordinates,
+        outcome: "payment_collected",
+        outcomes: ["payment_collected", "task_completed"],
+        followUpAt: scheduledFollowUpAt.toISOString(),
+        notes: "Collected part payment",
+      });
     expect(checkOut.status).toBe(200);
     expect(checkOut.body.visit.outcome).toBe("payment_collected");
+    expect(checkOut.body.visit.outcomes).toEqual(["payment_collected", "task_completed"]);
+    expect(checkOut.body.visit.followUpAt).toBe(scheduledFollowUpAt.toISOString());
+    const savedVisit = await prisma.salesVisit.findUniqueOrThrow({ where: { id: checkIn.body.visit.id } });
+    expect(savedVisit).toMatchObject({
+      outcome: "payment_collected",
+      outcomes: ["payment_collected", "task_completed"],
+      followUpAt: scheduledFollowUpAt,
+    });
     const closedReadback = await request(app)
       .get("/rep/visits")
       .set("Authorization", `Bearer ${tokenA}`);

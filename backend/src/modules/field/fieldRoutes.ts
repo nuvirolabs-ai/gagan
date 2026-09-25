@@ -380,6 +380,58 @@ export function createFieldRouter(options: {
     })
   );
 
+  router.get(
+    "/field/tasks/:id/evidence",
+    requirePermission(Permissions.TASK_COMPLETE),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      try {
+        res.json({ evidence: await services.tasks.evidenceForSalesperson({
+          taskId: req.params.id,
+          salespersonId: req.staffAuth!.staffId,
+        }) });
+      } catch (error) {
+        sendFieldError(error, res, next);
+      }
+    })
+  );
+
+  router.post(
+    "/field/tasks/:id/evidence",
+    requirePermission(Permissions.TASK_COMPLETE),
+    createRateLimiter({
+      name: "field-task-evidence",
+      limit: 12,
+      windowMs: 60_000,
+      key: (req) => (req as StaffAuthedRequest).staffAuth?.staffId ?? "unknown",
+    }),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      const parsed = z.object({
+        contentType: z.string().trim().min(3).max(60),
+        bodyBase64: z.string().min(4).max(6_000_000),
+        checksum: z.string().regex(/^[a-f0-9]{64}$/i).optional(),
+        latitude: z.number().finite().min(-90).max(90).optional(),
+        longitude: z.number().finite().min(-180).max(180).optional(),
+        accuracyMeters: z.number().finite().positive().optional(),
+      }).refine((body) => {
+        const coordinates = [body.latitude, body.longitude, body.accuracyMeters];
+        return coordinates.every((value) => value === undefined) || coordinates.every((value) => value !== undefined);
+      }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+      const { latitude, longitude, accuracyMeters, ...photoInput } = parsed.data;
+      try {
+        const evidence = await services.tasks.addEvidence({
+          taskId: req.params.id,
+          salespersonId: req.staffAuth!.staffId,
+          ...photoInput,
+          ...(latitude !== undefined ? { location: { latitude, longitude: longitude!, accuracyMeters: accuracyMeters! } } : {}),
+        });
+        res.status(201).json({ evidence });
+      } catch (error) {
+        sendFieldError(error, res, next);
+      }
+    })
+  );
+
   /* -------------------------------- tracking ------------------------------- */
 
   router.get(

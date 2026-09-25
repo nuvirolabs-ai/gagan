@@ -19,6 +19,7 @@ export type EvidencePurpose =
   // EvidenceAsset record.
   | "attendance_photo"
   | "expense_receipt"
+  | "task_activity_photo"
   | "retailer_proposal_aadhaar";
 
 export interface PutObjectInput {

@@ -1,18 +1,108 @@
 import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../../lib/prisma";
+import { getObjectStorage } from "../../platform/storage/storageRuntime";
+import { ObjectStorageError, type ObjectStorage } from "../../platform/storage/objectStorage";
 import { FieldServiceError } from "./attendanceService";
 import { isWithinScope } from "./fieldDomain";
 
 type Db = PrismaClient | any;
 
 const OPEN_STATUSES = ["open", "in_progress"] as const;
+const TASK_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+export interface TaskEvidenceInput {
+  contentType: string;
+  bodyBase64: string;
+  checksum?: string;
+  location?: { latitude: number; longitude: number; accuracyMeters: number };
+}
 
 /**
  * Operational tasks a salesperson is asked to do. Tasks are assigned by a
  * manager or admin; the field app can only move its own tasks forward.
  */
 export class TaskService {
-  constructor(private readonly prisma: Db = defaultPrisma) {}
+  constructor(
+    private readonly prisma: Db = defaultPrisma,
+    private readonly storage: () => ObjectStorage = getObjectStorage
+  ) {}
+
+  async addEvidence(input: {
+    taskId: string;
+    salespersonId: string;
+  } & TaskEvidenceInput) {
+    if (!TASK_PHOTO_TYPES.has(input.contentType)) {
+      throw new FieldServiceError("unsupported_content_type", 422);
+    }
+    const task = await this.prisma.fieldTask.findUnique({ where: { id: input.taskId } });
+    if (!task || task.assignedToStaffId !== input.salespersonId) {
+      throw new FieldServiceError("task_not_found", 404);
+    }
+    if (!task.retailerId) throw new FieldServiceError("task_retailer_required", 422);
+    if (task.status === "cancelled") throw new FieldServiceError("task_already_closed", 409);
+    if (input.location && (
+      input.location.latitude < -90 || input.location.latitude > 90 ||
+      input.location.longitude < -180 || input.location.longitude > 180 ||
+      input.location.accuracyMeters <= 0
+    )) {
+      throw new FieldServiceError("invalid_location", 400);
+    }
+
+    const body = decodeTaskPhoto(input.bodyBase64);
+    let stored;
+    try {
+      stored = await this.storage().put({
+        purpose: "task_activity_photo",
+        contentType: input.contentType,
+        body,
+        checksum: input.checksum,
+      });
+    } catch (error) {
+      if (error instanceof ObjectStorageError) throw new FieldServiceError(error.code, 422);
+      throw new FieldServiceError("task_evidence_storage_failed", 503);
+    }
+
+    try {
+      const evidence = await this.prisma.fieldTaskEvidence.create({
+        data: {
+          taskId: task.id,
+          retailerId: task.retailerId,
+          salespersonId: input.salespersonId,
+          ...stored,
+          latitude: input.location?.latitude,
+          longitude: input.location?.longitude,
+          accuracyMeters: input.location?.accuracyMeters,
+        },
+      });
+      return this.presentEvidence(evidence);
+    } catch (error) {
+      await this.storage().delete(stored.objectKey).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async evidenceForSalesperson(input: { taskId: string; salespersonId: string }) {
+    const task = await this.prisma.fieldTask.findUnique({ where: { id: input.taskId } });
+    if (!task || task.assignedToStaffId !== input.salespersonId) {
+      throw new FieldServiceError("task_not_found", 404);
+    }
+    const rows = await this.prisma.fieldTaskEvidence.findMany({
+      where: { taskId: task.id, salespersonId: input.salespersonId },
+      orderBy: { createdAt: "asc" },
+    });
+    return Promise.all(rows.map((row: any) => this.presentEvidence(row)));
+  }
+
+  private async presentEvidence({ objectKey, checksum: _checksum, ...evidence }: any) {
+    const signedUrl = await this.storage().signedReadUrl(objectKey, 300).catch(() => null);
+    return {
+      ...evidence,
+      latitude: evidence.latitude == null ? null : Number(evidence.latitude),
+      longitude: evidence.longitude == null ? null : Number(evidence.longitude),
+      accuracyMeters: evidence.accuracyMeters == null ? null : Number(evidence.accuracyMeters),
+      signedUrl,
+    };
+  }
 
   async forSalesperson(input: { salespersonId: string; includeClosed?: boolean; limit?: number }) {
     return this.prisma.fieldTask.findMany({
@@ -133,6 +223,15 @@ export class TaskService {
       take: 200,
     });
   }
+}
+
+function decodeTaskPhoto(value: string) {
+  if (typeof value !== "string" || !/^[A-Za-z0-9+/]*={0,2}$/.test(value) || value.length % 4 === 1) {
+    throw new FieldServiceError("invalid_evidence_body", 400);
+  }
+  const body = Buffer.from(value, "base64");
+  if (body.length === 0) throw new FieldServiceError("invalid_evidence_body", 400);
+  return body;
 }
 
 export const defaultTaskService = new TaskService();

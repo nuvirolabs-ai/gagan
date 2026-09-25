@@ -8,6 +8,30 @@ function api() {
 }
 
 describe("field day API", () => {
+  it("uploads and reads evidence only through the caller's assigned task", async () => {
+    const { api: client, request } = api();
+    await client.uploadTaskEvidence("task-1", {
+      contentType: "image/jpeg",
+      bodyBase64: "cGhvdG8=",
+      latitude: 18.52,
+      longitude: 73.85,
+      accuracyMeters: 12,
+    });
+    await client.taskEvidence("task-1");
+    expect(request.mock.calls[0]).toEqual([
+      "/rep/field/tasks/task-1/evidence",
+      { method: "POST", body: JSON.stringify({
+        contentType: "image/jpeg",
+        bodyBase64: "cGhvdG8=",
+        latitude: 18.52,
+        longitude: 73.85,
+        accuracyMeters: 12,
+      }) },
+      true,
+    ]);
+    expect(request.mock.calls[1][0]).toBe("/rep/field/tasks/task-1/evidence");
+  });
+
   it("never names a salesperson — the session decides whose day it is", async () => {
     const { api: client, request } = api();
     await client.today();

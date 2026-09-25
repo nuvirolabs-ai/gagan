@@ -77,6 +77,9 @@ export function createApp(options: CreateAppOptions = {}) {
   // Attendance photos and expense receipts are bounded base64 payloads, the
   // same shape as KYC evidence.
   app.use("/rep/field/attendance", express.json({ limit: "8mb" }));
+  // Task activity photos are bounded base64 payloads and must bypass the
+  // deliberately small default parser.
+  app.use("/rep/field/tasks", express.json({ limit: "8mb" }));
   app.use("/rep/field/expenses", express.json({ limit: "15mb" }));
   // Collection receipt evidence is a bounded base64 payload. It must be
   // parsed before the small default parser, otherwise an otherwise valid

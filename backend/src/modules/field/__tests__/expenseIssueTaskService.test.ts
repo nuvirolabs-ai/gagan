@@ -183,6 +183,115 @@ describe("service issues", () => {
 });
 
 describe("field tasks", () => {
+  const image = { contentType: "image/jpeg", bodyBase64: Buffer.from("task-photo").toString("base64") };
+
+  function evidenceStorage() {
+    const adapter = {
+      put: vi.fn().mockResolvedValue({
+        objectKey: "task_activity_photo/2026/09/private-object",
+        checksum: "sha256",
+        contentType: "image/jpeg",
+        sizeBytes: 10,
+      }),
+      read: vi.fn(),
+      signedReadUrl: vi.fn().mockResolvedValue("https://signed.example/task-photo"),
+      delete: vi.fn(),
+    };
+    return { adapter, storage: () => adapter as any };
+  }
+
+  it("stores task evidence against the assigned retailer and salesperson with optional coordinates", async () => {
+    const prisma = fakePrisma();
+    prisma.fieldTask.findUnique.mockResolvedValue({
+      id: "task-1",
+      assignedToStaffId: "staff-1",
+      retailerId: "retailer-1",
+      status: "open",
+    });
+    prisma.fieldTaskEvidence.create.mockResolvedValue({
+      id: "evidence-1",
+      taskId: "task-1",
+      retailerId: "retailer-1",
+      salespersonId: "staff-1",
+      objectKey: "task_activity_photo/2026/09/private-object",
+      checksum: "sha256",
+      contentType: "image/jpeg",
+      sizeBytes: 10,
+      createdAt: new Date("2026-09-25T10:00:00Z"),
+      latitude: 18.52,
+      longitude: 73.85,
+      accuracyMeters: 12,
+    });
+    const { adapter, storage } = evidenceStorage();
+
+    const evidence = await new TaskService(prisma, storage).addEvidence({
+      taskId: "task-1",
+      salespersonId: "staff-1",
+      ...image,
+      location: { latitude: 18.52, longitude: 73.85, accuracyMeters: 12 },
+    });
+
+    expect(prisma.fieldTaskEvidence.create.mock.calls[0][0].data).toMatchObject({
+      taskId: "task-1",
+      retailerId: "retailer-1",
+      salespersonId: "staff-1",
+      latitude: 18.52,
+      longitude: 73.85,
+      accuracyMeters: 12,
+      objectKey: "task_activity_photo/2026/09/private-object",
+    });
+    expect(adapter.put).toHaveBeenCalledWith(expect.objectContaining({
+      purpose: "task_activity_photo",
+      contentType: "image/jpeg",
+      body: Buffer.from("task-photo"),
+    }));
+    expect(evidence).toMatchObject({ id: "evidence-1", signedUrl: "https://signed.example/task-photo" });
+    expect(evidence).not.toHaveProperty("objectKey");
+  });
+
+  it("does not allow another salesperson to attach task evidence", async () => {
+    const prisma = fakePrisma();
+    prisma.fieldTask.findUnique.mockResolvedValue({
+      id: "task-1",
+      assignedToStaffId: "staff-2",
+      retailerId: "retailer-1",
+      status: "open",
+    });
+    const { adapter, storage } = evidenceStorage();
+
+    await expect(new TaskService(prisma, storage).addEvidence({
+      taskId: "task-1",
+      salespersonId: "staff-1",
+      ...image,
+    })).rejects.toMatchObject({ code: "task_not_found", status: 404 });
+    expect(prisma.fieldTaskEvidence.create).not.toHaveBeenCalled();
+    expect(adapter.put).not.toHaveBeenCalled();
+  });
+
+  it("requires a retailer-linked task and image content", async () => {
+    const prisma = fakePrisma();
+    prisma.fieldTask.findUnique.mockResolvedValue({
+      id: "task-1",
+      assignedToStaffId: "staff-1",
+      retailerId: null,
+      status: "open",
+    });
+    const { adapter, storage } = evidenceStorage();
+
+    await expect(new TaskService(prisma, storage).addEvidence({
+      taskId: "task-1",
+      salespersonId: "staff-1",
+      ...image,
+    })).rejects.toMatchObject({ code: "task_retailer_required", status: 422 });
+    await expect(new TaskService(prisma, storage).addEvidence({
+      taskId: "task-1",
+      salespersonId: "staff-1",
+      contentType: "application/pdf",
+      bodyBase64: image.bodyBase64,
+    })).rejects.toMatchObject({ code: "unsupported_content_type", status: 422 });
+    expect(adapter.put).not.toHaveBeenCalled();
+  });
+
   it("hides another salesperson's task behind a not-found", async () => {
     const prisma = fakePrisma();
     prisma.fieldTask.findUnique.mockResolvedValue({

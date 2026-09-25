@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../../../app";
 import { prisma } from "../../../lib/prisma";
 import { lazyIdentitySessionService } from "../../../modules/identity/sessionRuntime";
+import { getObjectStorage } from "../../../platform/storage/storageRuntime";
 import { startOfDay } from "../fieldDomain";
 
 const run = randomUUID();
@@ -169,6 +170,12 @@ beforeAll(async () => {
 
 afterAll(async () => {
   const staffIds = [ids.staffA, ids.staffB, ids.manager];
+  const taskEvidence = await prisma.fieldTaskEvidence.findMany({
+    where: { salespersonId: { in: staffIds } },
+    select: { objectKey: true },
+  });
+  await Promise.all(taskEvidence.map(({ objectKey }) => getObjectStorage().delete(objectKey)));
+  await prisma.fieldTaskEvidence.deleteMany({ where: { salespersonId: { in: staffIds } } });
   const serviceIssueIds = (
     await prisma.serviceIssue.findMany({
       where: { raisedByStaffId: { in: staffIds } },
@@ -475,6 +482,87 @@ describe("customer activity and issues reach the customer timeline", () => {
       expect.arrayContaining([expect.objectContaining({ id: issueId, status: "resolved" })])
     );
     expect(storedIssue).toMatchObject({ status: "resolved", resolutionNote: "Shelf display checked and corrected" });
+  });
+});
+
+describe("task activity photo evidence", () => {
+  it("stores private evidence against the assigned task, retailer and salesperson", async () => {
+    const task = await prisma.fieldTask.create({
+      data: {
+        assignedToStaffId: ids.staffA,
+        createdByStaffId: ids.manager,
+        retailerId: ids.retailerA,
+        title: `Shelf display ${run}`,
+      },
+    });
+    const photoBytes = Buffer.from(`private photo ${run}`);
+    const upload = await request(app)
+      .post(`/rep/field/tasks/${task.id}/evidence`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({
+        contentType: "image/jpeg",
+        bodyBase64: photoBytes.toString("base64"),
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
+        accuracyMeters: coordinates.accuracyMeters,
+      })
+      .expect(201);
+
+    expect(upload.body.evidence).toMatchObject({
+      taskId: task.id,
+      retailerId: ids.retailerA,
+      salespersonId: ids.staffA,
+      contentType: "image/jpeg",
+      latitude: coordinates.latitude,
+      longitude: coordinates.longitude,
+      accuracyMeters: coordinates.accuracyMeters,
+      signedUrl: expect.stringMatching(/^local-storage:\/\//),
+    });
+    expect(upload.body.evidence).not.toHaveProperty("objectKey");
+    expect(upload.body.evidence.createdAt).toBeTruthy();
+    const storedEvidence = await prisma.fieldTaskEvidence.findUniqueOrThrow({ where: { id: upload.body.evidence.id } });
+    expect(await getObjectStorage().read(storedEvidence.objectKey)).toEqual(photoBytes);
+
+    const withoutLocation = await request(app)
+      .post(`/rep/field/tasks/${task.id}/evidence`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({
+        contentType: "image/jpeg",
+        bodyBase64: Buffer.alloc(128 * 1024, 7).toString("base64"),
+      })
+      .expect(201);
+    expect(withoutLocation.body.evidence.sizeBytes).toBe(128 * 1024);
+    expect(await prisma.fieldTask.findUniqueOrThrow({ where: { id: task.id } })).toMatchObject({ status: "open" });
+
+    await request(app)
+      .get(`/rep/field/tasks/${task.id}/evidence`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.evidence).toHaveLength(2);
+        const withLocation = body.evidence.find((item: any) => item.id === upload.body.evidence.id);
+        const noLocation = body.evidence.find((item: any) => item.id === withoutLocation.body.evidence.id);
+        expect(withLocation).toMatchObject({
+          id: upload.body.evidence.id,
+          taskId: task.id,
+          retailerId: ids.retailerA,
+          salespersonId: ids.staffA,
+          latitude: coordinates.latitude,
+          longitude: coordinates.longitude,
+        });
+        expect(noLocation).toMatchObject({ latitude: null, longitude: null, accuracyMeters: null });
+        expect(withLocation).not.toHaveProperty("objectKey");
+      });
+
+    await request(app)
+      .post(`/rep/field/tasks/${task.id}/evidence`)
+      .set("Authorization", `Bearer ${tokenB}`)
+      .send({ contentType: "image/jpeg", bodyBase64: Buffer.from("other rep").toString("base64") })
+      .expect(404);
+    await request(app)
+      .get(`/rep/field/tasks/${task.id}/evidence`)
+      .set("Authorization", `Bearer ${tokenB}`)
+      .expect(404);
   });
 });
 

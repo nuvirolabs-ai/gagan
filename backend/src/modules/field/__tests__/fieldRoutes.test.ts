@@ -26,6 +26,8 @@ const services = {
   tasks: {
     forSalesperson: vi.fn().mockResolvedValue([]),
     updateStatus: vi.fn().mockResolvedValue({ id: "task-1" }),
+    addEvidence: vi.fn().mockResolvedValue({ id: "evidence-1", signedUrl: "https://signed.example/photo" }),
+    evidenceForSalesperson: vi.fn().mockResolvedValue([]),
   },
   tracking: {
     state: vi.fn().mockResolvedValue({ tracking: false, reason: "off_duty" }),
@@ -107,6 +109,32 @@ describe("field routes always act on the caller's own identity", () => {
     );
   });
 
+  it("uploads task evidence as the session's salesperson and reads assigned evidence", async () => {
+    const uploaded = await request(app(FIELD_PERMISSIONS, "staff-7"))
+      .post("/field/tasks/task-7/evidence")
+      .send({
+        contentType: "image/jpeg",
+        bodyBase64: Buffer.from("photo").toString("base64"),
+        latitude: 18.52,
+        longitude: 73.85,
+        accuracyMeters: 12,
+        salespersonId: "staff-999",
+        retailerId: "retailer-999",
+      });
+
+    expect(uploaded.status).toBe(201);
+    expect(services.tasks.addEvidence).toHaveBeenCalledWith({
+      taskId: "task-7",
+      salespersonId: "staff-7",
+      contentType: "image/jpeg",
+      bodyBase64: Buffer.from("photo").toString("base64"),
+      location: { latitude: 18.52, longitude: 73.85, accuracyMeters: 12 },
+    });
+
+    await request(app(FIELD_PERMISSIONS, "staff-7")).get("/field/tasks/task-7/evidence").expect(200);
+    expect(services.tasks.evidenceForSalesperson).toHaveBeenCalledWith({ taskId: "task-7", salespersonId: "staff-7" });
+  });
+
   it("reads the route for the caller only", async () => {
     await request(app()).get("/field/route?salespersonId=staff-999");
     expect(services.routes.routeForDate).toHaveBeenCalledWith("staff-1", expect.any(Date));
@@ -123,6 +151,7 @@ describe("field route permissions", () => {
     ["route", "route.execute", "get", "/field/route"],
     ["activity log", "activity.log", "post", "/field/activities"],
     ["tasks", "task.complete", "get", "/field/tasks"],
+    ["task evidence", "task.complete", "post", "/field/tasks/task-1/evidence"],
     ["tracking state", "attendance.manage_self", "get", "/field/tracking/state"],
     ["ping ingest", "attendance.manage_self", "post", "/field/tracking/pings"],
     ["expenses", "expense.submit", "get", "/field/expenses"],
@@ -147,6 +176,14 @@ describe("field route permissions", () => {
 });
 
 describe("field route validation", () => {
+  it("rejects partial task evidence coordinates", async () => {
+    const response = await request(app())
+      .post("/field/tasks/task-1/evidence")
+      .send({ contentType: "image/jpeg", bodyBase64: Buffer.from("photo").toString("base64"), latitude: 18.52 });
+    expect(response.status).toBe(400);
+    expect(services.tasks.addEvidence).not.toHaveBeenCalled();
+  });
+
   it("rejects a clock-in without a usable coordinate", async () => {
     const response = await request(app()).post("/field/attendance/start").send({ latitude: 18.5 });
     expect(response.status).toBe(400);

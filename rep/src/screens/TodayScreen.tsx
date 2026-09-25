@@ -14,6 +14,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 
+import TaskEvidenceSheet from "../components/TaskEvidenceSheet";
 import {
   AppScreen,
   AttentionRow,
@@ -221,6 +222,7 @@ export default function TodayScreen({ navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [eodOpen, setEodOpen] = useState(false);
   const [managerNote, setManagerNote] = useState("");
+  const [evidenceTask, setEvidenceTask] = useState<any | null>(null);
 
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
 
@@ -457,7 +459,7 @@ export default function TodayScreen({ navigation }: any) {
         </View>
 
         {remainingTasks.length > 0 ? (
-          <View><SectionHeader title="Tasks" action={<Text style={styles.caption}>{remainingTasks.length} remaining</Text>} /><Surface>{(today.tasks ?? []).slice(0, 4).map((task: any) => <TaskRow key={task.id} title={task.title} subtitle={task.retailer?.name} done={task.status === "done"} overdue={task.overdue} onComplete={async () => { try { await repApi.setTaskStatus(task.id, "done"); haptic("success"); await refresh(); } catch { Alert.alert("Could not update the task", "Try again when you have a connection."); } }} />)}</Surface></View>
+          <View><SectionHeader title="Tasks" action={<Text style={styles.caption}>{remainingTasks.length} remaining</Text>} /><Surface>{(today.tasks ?? []).slice(0, 4).map((task: any) => <TaskRow key={task.id} title={task.title} subtitle={task.retailer?.name} done={task.status === "done"} overdue={task.overdue} onComplete={async () => { try { await repApi.setTaskStatus(task.id, "done"); haptic("success"); await refresh(); } catch { Alert.alert("Could not update the task", "Try again when you have a connection."); } }} trailing={task.retailer?.id ? <Pressable accessibilityRole="button" accessibilityLabel={`Task photos: ${task.title}`} hitSlop={8} onPress={() => setEvidenceTask(task)} style={styles.taskEvidenceButton}><Ionicons name="camera-outline" size={19} color={colors.blueInk} /></Pressable> : null} />)}</Surface></View>
         ) : null}
 
         {(today.followUps ?? []).length > 0 ? (
@@ -498,6 +500,13 @@ export default function TodayScreen({ navigation }: any) {
         </Modal>
       ) : null}
 
+      <TaskEvidenceSheet
+        visible={Boolean(evidenceTask)}
+        task={evidenceTask}
+        onClose={() => setEvidenceTask(null)}
+        onChanged={() => void refresh()}
+      />
+
       {celebrations[0] ? <AchievementSheet achievement={celebrations[0]} name={staff?.name?.split(" ")[0] ?? "there"} current={target?.unit === "currency" ? inr(safeCount(target.actual)) : target ? String(safeCount(target.actual)) : undefined} target={target?.unit === "currency" ? inr(safeCount(target.target)) : target ? String(safeCount(target.target)) : undefined} onDismiss={() => dismissCelebration(celebrations[0].id)} /> : null}
     </AppScreen>
   );
@@ -509,6 +518,7 @@ const styles = StyleSheet.create({
   // content gap so the last action does not touch the visible bar.
   content: { paddingHorizontal: spacing.xl, gap: spacing.section, paddingBottom: SCREEN_CONTENT_BOTTOM_GAP },
   bellButton: { width: 44, height: 52, alignItems: "center", justifyContent: "center", position: "relative" },
+  taskEvidenceButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: radius.sm, backgroundColor: colors.blueSoft },
   notificationDot: { position: "absolute", top: 12, right: 9, width: 7, height: 7, borderRadius: 99, backgroundColor: colors.danger, borderWidth: 1.5, borderColor: colors.canvas },
 
   hero: { backgroundColor: colors.navy, borderRadius: radius.hero, padding: spacing.xl, gap: spacing.sm },

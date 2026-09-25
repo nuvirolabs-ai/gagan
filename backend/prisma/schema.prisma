@@ -430,6 +430,7 @@ model Retailer {
   customerActivities        CustomerActivity[]
   proposal                  RetailerProposal?
   fieldTasks                FieldTask[]
+  fieldTaskEvidence         FieldTaskEvidence[]
   serviceIssues             ServiceIssue[]
   commercialStatusEvents    CommercialStatusEvent[]
   surveyAssignments         SurveyAssignment[]         @relation("SurveyAssignedRetailer")
@@ -583,6 +584,7 @@ model StaffUser {
   customerActivities           CustomerActivity[]            @relation("SalespersonActivities")
   fieldTasksAssigned           FieldTask[]                   @relation("FieldTasksAssigned")
   fieldTasksCreated            FieldTask[]                   @relation("FieldTasksCreated")
+  fieldTaskEvidence            FieldTaskEvidence[]
   locationPings                LocationPing[]                @relation("SalespersonPings")
   fieldExpenses                FieldExpense[]                @relation("SalespersonExpenses")
   expenseDecisions             FieldExpense[]                @relation("ExpenseDecisions")
@@ -2234,27 +2236,50 @@ model CustomerActivity {
 }
 
 model FieldTask {
-  id                String            @id @default(uuid())
+  id                String              @id @default(uuid())
   assignedToStaffId String
-  assignedTo        StaffUser         @relation("FieldTasksAssigned", fields: [assignedToStaffId], references: [id], onDelete: Restrict)
+  assignedTo        StaffUser           @relation("FieldTasksAssigned", fields: [assignedToStaffId], references: [id], onDelete: Restrict)
   createdByStaffId  String?
-  createdBy         StaffUser?        @relation("FieldTasksCreated", fields: [createdByStaffId], references: [id], onDelete: Restrict)
+  createdBy         StaffUser?          @relation("FieldTasksCreated", fields: [createdByStaffId], references: [id], onDelete: Restrict)
   retailerId        String?
-  retailer          Retailer?         @relation(fields: [retailerId], references: [id], onDelete: SetNull)
+  retailer          Retailer?           @relation(fields: [retailerId], references: [id], onDelete: SetNull)
   routePlanId       String?
-  routePlan         RoutePlan?        @relation(fields: [routePlanId], references: [id], onDelete: SetNull)
+  routePlan         RoutePlan?          @relation(fields: [routePlanId], references: [id], onDelete: SetNull)
   title             String
   description       String?
-  priority          FieldTaskPriority @default(normal)
-  status            FieldTaskStatus   @default(open)
+  priority          FieldTaskPriority   @default(normal)
+  status            FieldTaskStatus     @default(open)
   dueAt             DateTime?
   completedAt       DateTime?
   completionNote    String?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  evidence          FieldTaskEvidence[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
   @@index([assignedToStaffId, status, dueAt])
   @@index([retailerId, status])
+}
+
+model FieldTaskEvidence {
+  id             String    @id @default(uuid())
+  taskId         String
+  task           FieldTask @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  retailerId     String
+  retailer       Retailer  @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  salespersonId  String
+  salesperson    StaffUser @relation(fields: [salespersonId], references: [id], onDelete: Restrict)
+  objectKey      String    @unique
+  checksum       String
+  contentType    String
+  sizeBytes      Int
+  latitude       Decimal?  @db.Decimal(10, 7)
+  longitude      Decimal?  @db.Decimal(10, 7)
+  accuracyMeters Decimal?  @db.Decimal(8, 2)
+  createdAt      DateTime  @default(now())
+
+  @@index([taskId, createdAt])
+  @@index([retailerId, createdAt])
+  @@index([salespersonId, createdAt])
 }
 
 /// One recorded position during an open workday. Rows are only accepted while

@@ -513,12 +513,14 @@ export function TaskRow({
   done,
   overdue,
   onComplete,
+  trailing,
 }: {
   title: string;
   subtitle?: string;
   done?: boolean;
   overdue?: boolean;
   onComplete?: () => void;
+  trailing?: React.ReactNode;
 }) {
   return (
     <View style={styles.taskRow}>
@@ -547,6 +549,7 @@ export function TaskRow({
           </Text>
         ) : null}
       </View>
+      {trailing}
     </View>
   );
 }

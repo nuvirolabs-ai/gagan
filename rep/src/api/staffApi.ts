@@ -161,6 +161,14 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
     tasks: () => request("/rep/field/tasks"),
     setTaskStatus: (id: string, status: "in_progress" | "done", note?: string) =>
       post(`/rep/field/tasks/${id}/status`, { status, note }),
+    taskEvidence: (id: string) => request(`/rep/field/tasks/${id}/evidence`),
+    uploadTaskEvidence: (id: string, input: {
+      contentType: string;
+      bodyBase64: string;
+      latitude?: number;
+      longitude?: number;
+      accuracyMeters?: number;
+    }) => post(`/rep/field/tasks/${id}/evidence`, input),
 
     trackingState: (permissionGranted: boolean) =>
       request(`/rep/field/tracking/state?permissionGranted=${permissionGranted ? "true" : "false"}`),

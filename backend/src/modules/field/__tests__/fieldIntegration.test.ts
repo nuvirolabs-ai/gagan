@@ -27,6 +27,7 @@ const ids = {
 let tokenA = "";
 let tokenB = "";
 let managerToken = "";
+let retailerTokenA = "";
 const app = createApp();
 const coordinates = { latitude: 18.52, longitude: 73.85, accuracyMeters: 12 };
 
@@ -154,24 +155,32 @@ beforeAll(async () => {
     data: { managerId: ids.manager },
   });
 
-  const [sessionA, sessionB, managerSession] = await Promise.all([
+  const [sessionA, sessionB, managerSession, retailerSessionA] = await Promise.all([
     lazyIdentitySessionService.createSession({ realm: "staff", subjectId: ids.staffA, deviceName: "test" }),
     lazyIdentitySessionService.createSession({ realm: "staff", subjectId: ids.staffB, deviceName: "test" }),
     lazyIdentitySessionService.createSession({ realm: "admin", subjectId: ids.manager, deviceName: "test" }),
+    lazyIdentitySessionService.createSession({ realm: "retailer", subjectId: ids.retailerA, deviceName: "test" }),
   ]);
   tokenA = sessionA.accessToken;
   tokenB = sessionB.accessToken;
   managerToken = managerSession.accessToken;
+  retailerTokenA = retailerSessionA.accessToken;
 });
 
 afterAll(async () => {
   const staffIds = [ids.staffA, ids.staffB, ids.manager];
+  const serviceIssueIds = (
+    await prisma.serviceIssue.findMany({
+      where: { raisedByStaffId: { in: staffIds } },
+      select: { id: true },
+    })
+  ).map(({ id }) => id);
   const orders = await prisma.order.findMany({
     where: { retailerId: { in: [ids.retailerA, ids.retailerB] } },
     select: { id: true },
   });
   const orderIds = orders.map(({ id }) => id);
-  await prisma.deviceSession.deleteMany({ where: { subjectId: { in: staffIds } } });
+  await prisma.deviceSession.deleteMany({ where: { subjectId: { in: [...staffIds, ids.retailerA] } } });
   await prisma.sapOutbox.deleteMany({ where: { referenceId: { in: orderIds } } });
   await prisma.commercialStatusEvent.deleteMany({ where: { orderId: { in: orderIds } } });
   await prisma.dispatchAuthorization.deleteMany({ where: { orderId: { in: orderIds } } });
@@ -189,6 +198,9 @@ afterAll(async () => {
   await prisma.variant.delete({ where: { id: ids.variant } });
   await prisma.product.delete({ where: { id: ids.product } });
   await prisma.locationPing.deleteMany({ where: { salespersonId: { in: staffIds } } });
+  await prisma.auditEvent.deleteMany({
+    where: { subjectType: "service_issue", subjectId: { in: serviceIssueIds } },
+  });
   await prisma.customerActivity.deleteMany({ where: { salespersonId: { in: staffIds } } });
   await prisma.serviceIssue.deleteMany({ where: { raisedByStaffId: { in: staffIds } } });
   await prisma.fieldExpense.deleteMany({ where: { salespersonId: { in: staffIds } } });
@@ -398,6 +410,71 @@ describe("customer activity and issues reach the customer timeline", () => {
     });
     expect(activities).toHaveLength(1);
     expect(activities[0].serviceIssueId).toBe(response.body.issue.id);
+  });
+
+  it("keeps a resolved service request synchronized in Rep and Retailer read APIs", async () => {
+    const created = await request(app)
+      .post("/rep/field/issues")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({
+        retailerId: ids.retailerA,
+        type: "service_request",
+        description: "Please check the damaged shelf display",
+      })
+      .expect(201);
+    const issueId = created.body.issue.id;
+    expect(created.body.issue.status).toBe("open");
+
+    const retailerOpen = await request(app)
+      .get("/service-requests")
+      .set("Authorization", `Bearer ${retailerTokenA}`)
+      .expect(200);
+    const repOpen = await request(app)
+      .get(`/rep/field/issues?retailerId=${ids.retailerA}`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .expect(200);
+    expect(retailerOpen.body.requests).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: issueId, status: "open" })])
+    );
+    expect(repOpen.body.issues).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: issueId, status: "open" })])
+    );
+
+    await request(app)
+      .post(`/admin/field/issues/${issueId}/status`)
+      .set("Authorization", `Bearer ${managerToken}`)
+      .send({ status: "in_progress" })
+      .expect(200);
+
+    const [retailerInProgress, repInProgress] = await Promise.all([
+      request(app).get("/service-requests").set("Authorization", `Bearer ${retailerTokenA}`).expect(200),
+      request(app).get(`/rep/field/issues?retailerId=${ids.retailerA}`).set("Authorization", `Bearer ${tokenA}`).expect(200),
+    ]);
+    expect(retailerInProgress.body.requests).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: issueId, status: "in_progress" })])
+    );
+    expect(repInProgress.body.issues).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: issueId, status: "in_progress" })])
+    );
+
+    await request(app)
+      .post(`/admin/field/issues/${issueId}/status`)
+      .set("Authorization", `Bearer ${managerToken}`)
+      .send({ status: "resolved", resolutionNote: "Shelf display checked and corrected" })
+      .expect(200);
+
+    const [retailerResolved, repResolved, storedIssue] = await Promise.all([
+      request(app).get("/service-requests").set("Authorization", `Bearer ${retailerTokenA}`).expect(200),
+      request(app).get(`/rep/field/issues?retailerId=${ids.retailerA}`).set("Authorization", `Bearer ${tokenA}`).expect(200),
+      prisma.serviceIssue.findUniqueOrThrow({ where: { id: issueId } }),
+    ]);
+    expect(retailerResolved.body.requests).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: issueId, status: "resolved" })])
+    );
+    expect(repResolved.body.issues).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: issueId, status: "resolved" })])
+    );
+    expect(storedIssue).toMatchObject({ status: "resolved", resolutionNote: "Shelf display checked and corrected" });
   });
 });
 

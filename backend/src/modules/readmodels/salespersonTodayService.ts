@@ -81,6 +81,7 @@ export class SalespersonTodayService {
 
     return {
       ...day,
+      targetScopeVersion: 2 as const,
       period: {
         from: period.from.toISOString().slice(0, 10),
         to: period.to.toISOString().slice(0, 10),

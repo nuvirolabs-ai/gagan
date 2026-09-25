@@ -306,8 +306,9 @@ async function main() {
   for (const target of TARGETS) {
     const before = await prisma.salesTarget.findUnique({
       where: {
-        salespersonId_metric_periodStart_periodEnd: {
+        salespersonId_scope_metric_periodStart_periodEnd: {
           salespersonId: salesperson.id,
+          scope: "PERSONAL",
           metric: target.metric,
           periodStart,
           periodEnd,
@@ -317,8 +318,9 @@ async function main() {
     });
     await prisma.salesTarget.upsert({
       where: {
-        salespersonId_metric_periodStart_periodEnd: {
+        salespersonId_scope_metric_periodStart_periodEnd: {
           salespersonId: salesperson.id,
+          scope: "PERSONAL",
           metric: target.metric,
           periodStart,
           periodEnd,
@@ -327,6 +329,7 @@ async function main() {
       update: { targetValue: target.value },
       create: {
         salespersonId: salesperson.id,
+        scope: "PERSONAL",
         metric: target.metric,
         periodStart,
         periodEnd,

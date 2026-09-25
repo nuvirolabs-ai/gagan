@@ -30,6 +30,7 @@ export interface OperationalReadSnapshot<T extends Record<string, unknown> = Rec
 export interface OperationalReadCacheStore {
   read(kind: OperationalReadKind): Promise<OperationalReadSnapshot | null>;
   save(kind: OperationalReadKind, payload: unknown): Promise<boolean>;
+  clear?(kind: OperationalReadKind): Promise<void>;
 }
 
 export type OperationalReadResult<T> =
@@ -168,6 +169,7 @@ function parseEnvelope(raw: string | null, accountId: string, apiOrigin: string)
 export function isOperationalTodayPayload(value: unknown): value is Record<string, unknown> {
   if (!isSafePayload(value)) return false;
   const candidate = value as Record<string, unknown>;
+  if (candidate.targetScopeVersion !== 2) return false;
   const arrayFields = ["targets", "tasks", "followUps", "notifications", "serviceIssues"];
   if (arrayFields.some((field) => candidate[field] !== undefined && !Array.isArray(candidate[field]))) return false;
   if (candidate.pendingCollections !== undefined
@@ -334,6 +336,10 @@ export async function loadOperationalRead<T>(options: {
     if (!options.isFallbackError(error)) throw error;
     const cached = await options.cache.read(options.kind);
     if (!cached) throw error;
+    if (!options.validate(cached.payload)) {
+      await options.cache.clear?.(options.kind);
+      throw error;
+    }
     return { value: cached.payload as T, source: "cache", capturedAt: cached.capturedAt };
   }
 }

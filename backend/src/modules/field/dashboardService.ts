@@ -125,13 +125,15 @@ export class FieldDashboardService {
   }
 
   private async targetsFor(input: { salespersonId: string; from: Date; to: Date }) {
-    return this.prisma.salesTarget.findMany({
+    const targets = await this.prisma.salesTarget.findMany({
       where: {
         salespersonId: input.salespersonId,
+        scope: "PERSONAL",
         periodStart: { lte: startOfDay(input.to) },
         periodEnd: { gte: startOfDay(input.from) },
       },
     });
+    return targets.filter((target: any) => target.scope === "PERSONAL");
   }
 
   /** Everything the Today screen needs, in one round trip. */

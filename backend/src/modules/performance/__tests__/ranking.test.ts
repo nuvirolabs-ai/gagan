@@ -142,6 +142,33 @@ describe("ranking service", () => {
     } as any;
   }
 
+  it("excludes the requesting leader and ranks reports against PERSONAL targets only", async () => {
+    const prisma = fakePrisma({
+      staff: [
+        { id: "m1", name: "Manager", salesRepId: "rm", salesRep: { territory: "North" } },
+        { id: "s1", name: "Leader Report", salesRepId: "r1", salesRep: { territory: "North" } },
+        { id: "s2", name: "Report", salesRepId: "r2", salesRep: { territory: "North" } },
+      ],
+      targets: [
+        { salespersonId: "m1", scope: "PERSONAL", metric: "order_value", targetValue: "100" },
+        { salespersonId: "s1", scope: "PERSONAL", metric: "order_value", targetValue: "2000" },
+        { salespersonId: "s1", scope: "TEAM", metric: "order_value", targetValue: "100" },
+        { salespersonId: "s2", scope: "PERSONAL", metric: "order_value", targetValue: "1000" },
+      ].map((target) => ({ ...target, periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") })),
+    });
+    const service = new RankingService(prisma, fakeTargets({
+      m1: { order_value: 9999 }, s1: { order_value: 1000 }, s2: { order_value: 1000 },
+    }));
+    const result = await service.rank({
+      scope: "team", staffIds: ["m1", "s1", "s2"], excludeStaffId: "m1", now: day("2026-03-15"),
+    });
+    expect(result.participants).toBe(2);
+    expect(result.metric).toBe("target_achievement_pct");
+    expect(result.entries.map((entry) => [entry.salespersonId, entry.value])).toEqual([
+      ["s2", 100], ["s1", 50],
+    ]);
+  });
+
   it("ranks on order value when nobody carries a target", async () => {
     const service = new RankingService(
       fakePrisma(),
@@ -155,9 +182,9 @@ describe("ranking service", () => {
 
   it("ranks on the share of each salesperson's own target once most carry one", async () => {
     const targets = [
-      { salespersonId: "s1", metric: "order_value", targetValue: "100000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
-      { salespersonId: "s2", metric: "order_value", targetValue: "500000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
-      { salespersonId: "s3", metric: "order_value", targetValue: "100000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
+      { salespersonId: "s1", scope: "PERSONAL", metric: "order_value", targetValue: "100000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
+      { salespersonId: "s2", scope: "PERSONAL", metric: "order_value", targetValue: "500000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
+      { salespersonId: "s3", scope: "PERSONAL", metric: "order_value", targetValue: "100000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
     ];
     const service = new RankingService(
       fakePrisma({ targets }),
@@ -175,10 +202,10 @@ describe("ranking service", () => {
 
   it("averages a salesperson across every target they carry", async () => {
     const targets = [
-      { salespersonId: "s1", metric: "order_value", targetValue: "100000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
-      { salespersonId: "s1", metric: "visits", targetValue: "50", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
-      { salespersonId: "s2", metric: "order_value", targetValue: "100000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
-      { salespersonId: "s3", metric: "order_value", targetValue: "100000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
+      { salespersonId: "s1", scope: "PERSONAL", metric: "order_value", targetValue: "100000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
+      { salespersonId: "s1", scope: "PERSONAL", metric: "visits", targetValue: "50", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
+      { salespersonId: "s2", scope: "PERSONAL", metric: "order_value", targetValue: "100000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
+      { salespersonId: "s3", scope: "PERSONAL", metric: "order_value", targetValue: "100000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
     ];
     const service = new RankingService(
       fakePrisma({ targets }),

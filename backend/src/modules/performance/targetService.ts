@@ -243,14 +243,16 @@ export class TargetService {
 
   /** Targets stored for a salesperson whose period overlaps the one asked for. */
   async storedTargets(input: { salespersonId: string; period: Period }) {
-    return this.prisma.salesTarget.findMany({
+    const targets = await this.prisma.salesTarget.findMany({
       where: {
         salespersonId: input.salespersonId,
+        scope: "PERSONAL",
         periodStart: { lte: startOfDay(input.period.to) },
         periodEnd: { gte: startOfDay(input.period.from) },
       },
       orderBy: { metric: "asc" },
     });
+    return targets.filter((target: any) => target.scope === "PERSONAL");
   }
 
   /**

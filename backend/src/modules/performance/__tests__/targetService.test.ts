@@ -121,6 +121,7 @@ describe("target progress", () => {
       salesTarget: {
         findMany: vi.fn().mockResolvedValue([
           {
+            scope: "PERSONAL",
             metric: "order_value",
             targetValue: "120000",
             periodStart: day("2026-03-01"),
@@ -159,7 +160,7 @@ describe("target progress", () => {
     const prisma = fakePrisma({
       salesTarget: {
         findMany: vi.fn().mockResolvedValue([
-          { metric: "some_future_metric", targetValue: "10", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
+          { scope: "PERSONAL", metric: "some_future_metric", targetValue: "10", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
         ]),
       },
     });
@@ -175,7 +176,7 @@ describe("target progress", () => {
     const prisma = fakePrisma({
       salesTarget: {
         findMany: vi.fn().mockResolvedValue([
-          { metric: "visits", targetValue: "31", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
+          { scope: "PERSONAL", metric: "visits", targetValue: "31", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
         ]),
       },
     });
@@ -187,6 +188,18 @@ describe("target progress", () => {
     });
     // Two days in, two visits done: on pace rather than behind.
     expect(progress.status).toBe("on_track");
+  });
+
+  it("does not borrow a TEAM target for personal progress or achievement input", async () => {
+    const prisma = fakePrisma({ salesTarget: { findMany: vi.fn().mockResolvedValue([
+      { scope: "TEAM", metric: "order_value", targetValue: "100", periodStart: PERIOD.from, periodEnd: PERIOD.to },
+      { scope: "PERSONAL", metric: "visits", targetValue: "10", periodStart: PERIOD.from, periodEnd: PERIOD.to },
+    ]) } });
+    const progress = await new TargetService(prisma).progressFor({
+      salespersonId: "staff-1", period: PERIOD, actuals: { ...emptyActuals(), order_value: 100, visits: 5 },
+    });
+    expect(progress.map((item) => item.metric)).toEqual(["visits"]);
+    expect(prisma.salesTarget.findMany.mock.calls[0][0].where.scope).toBe("PERSONAL");
   });
 });
 

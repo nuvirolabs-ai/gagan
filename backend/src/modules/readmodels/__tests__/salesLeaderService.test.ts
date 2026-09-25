@@ -68,8 +68,8 @@ function fakePrisma(staff?: any[]) {
     },
     salesTarget: {
       findMany: vi.fn().mockResolvedValue([
-        { salespersonId: "s1", metric: "order_value", targetValue: "300000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
-        { salespersonId: "s2", metric: "order_value", targetValue: "300000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
+        { salespersonId: "s1", scope: "PERSONAL", metric: "order_value", targetValue: "300000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
+        { salespersonId: "s2", scope: "PERSONAL", metric: "order_value", targetValue: "300000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
       ]),
     },
     workingCalendar: { findMany: vi.fn().mockResolvedValue([]) },
@@ -313,13 +313,50 @@ describe("scope", () => {
 });
 
 describe("team targets", () => {
+  it("excludes only the requesting leader and counts a subordinate selling leader once", async () => {
+    const prisma = fakePrisma([
+      { id: "m1", name: "Deepak", salesRepId: "rm", salesRep: { territory: "North" } },
+      { id: "s1", name: "Leader Report", salesRepId: "r1", salesRep: { territory: "North" } },
+      { id: "s2", name: "Nested Report", salesRepId: "r2", salesRep: { territory: "North" } },
+    ]);
+    prisma.salesTarget.findMany.mockResolvedValue([
+      { salespersonId: "m1", scope: "PERSONAL", metric: "order_value", targetValue: "100" },
+      { salespersonId: "m1", scope: "TEAM", metric: "order_value", targetValue: "4000" },
+      { salespersonId: "s1", scope: "PERSONAL", metric: "order_value", targetValue: "200" },
+      { salespersonId: "s1", scope: "TEAM", metric: "order_value", targetValue: "9999" },
+      { salespersonId: "s2", scope: "PERSONAL", metric: "order_value", targetValue: "300" },
+    ].map((target) => ({ ...target, periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") })));
+    const c = collaborators({ actuals: {
+      m1: { order_value: 1000 }, s1: { order_value: 2000 }, s2: { order_value: 3000 },
+    } });
+    const result = await new SalesLeaderService(prisma, c.targets, c.ranking, c.opportunities, c.attendance, c.routes).load({
+      scopeStaffIds: ["m1", "s1", "s2"], managerStaffId: "m1", now: NOW,
+    });
+    expect(result.members.map((member) => member.salespersonId)).toEqual(["s1", "s2"]);
+    expect(result.team).toMatchObject({ salespeople: 2, actual: 5000, target: 4000 });
+    expect(result.targets).toMatchObject({ assigned: 4000, rollup: 500 });
+    expect(c.targets.bulkActuals.mock.calls[0][0].salespeople.map((person: any) => person.staffId)).toEqual(["s1", "s2"]);
+    expect(c.attendance.teamAttendance.mock.calls[0][1]).toEqual(["s1", "s2"]);
+  });
+
+  it("distinguishes a configured zero TEAM target from no assigned target", async () => {
+    const prisma = fakePrisma([]);
+    prisma.salesTarget.findMany.mockResolvedValue([{ salespersonId: "m1", scope: "TEAM", metric: "order_value", targetValue: "0" }]);
+    const c = collaborators();
+    const result = await new SalesLeaderService(prisma, c.targets, c.ranking, c.opportunities, c.attendance, c.routes).load({
+      scopeStaffIds: [], managerStaffId: "m1", now: NOW,
+    });
+    expect(result.targets.assigned).toBe(0);
+    expect(result.team.target).toBe(0);
+  });
+
   it("separates the sum of child targets from a target set on the manager", async () => {
     const prisma = fakePrisma();
     prisma.salesTarget.findMany = vi.fn().mockResolvedValue([
-      { salespersonId: "s1", metric: "order_value", targetValue: "300000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
-      { salespersonId: "s2", metric: "order_value", targetValue: "300000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
+      { salespersonId: "s1", scope: "PERSONAL", metric: "order_value", targetValue: "300000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
+      { salespersonId: "s2", scope: "PERSONAL", metric: "order_value", targetValue: "300000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
       // The manager was asked for more than has been cascaded downward.
-      { salespersonId: "m1", metric: "order_value", targetValue: "800000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
+      { salespersonId: "m1", scope: "TEAM", metric: "order_value", targetValue: "800000", periodStart: day("2026-03-01"), periodEnd: day("2026-03-31") },
     ]);
     const c = collaborators();
     const result = await new SalesLeaderService(prisma, c.targets, c.ranking, c.opportunities, c.attendance, c.routes).load({
@@ -344,6 +381,7 @@ describe("team targets", () => {
     prisma.salesTarget.findMany = vi.fn().mockResolvedValue([
       {
         salespersonId: "m1",
+        scope: "TEAM",
         metric: "order_value",
         targetValue: "800000",
         periodStart: day("2026-03-01"),

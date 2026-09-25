@@ -120,9 +120,10 @@ beforeAll(async () => {
 
   await prisma.salesTarget.createMany({
     data: [
-      { salespersonId: ids.manager, metric: "order_value", periodStart: monthStart, periodEnd: monthEnd, targetValue: 100000 },
-      { salespersonId: ids.managerWithReports, metric: "order_value", periodStart: monthStart, periodEnd: monthEnd, targetValue: 80000 },
-      { salespersonId: ids.managerNoReports, metric: "order_value", periodStart: monthStart, periodEnd: monthEnd, targetValue: 50000 },
+      { salespersonId: ids.manager, scope: "PERSONAL", metric: "order_value", periodStart: monthStart, periodEnd: monthEnd, targetValue: 100000 },
+      { salespersonId: ids.manager, scope: "TEAM", metric: "order_value", periodStart: monthStart, periodEnd: monthEnd, targetValue: 100000 },
+      { salespersonId: ids.managerWithReports, scope: "TEAM", metric: "order_value", periodStart: monthStart, periodEnd: monthEnd, targetValue: 80000 },
+      { salespersonId: ids.managerNoReports, scope: "TEAM", metric: "order_value", periodStart: monthStart, periodEnd: monthEnd, targetValue: 50000 },
     ],
   });
 
@@ -224,6 +225,7 @@ describe("targets derive from canonical records", () => {
     await prisma.salesTarget.create({
       data: {
         salespersonId: ids.staffA,
+        scope: "PERSONAL",
         metric: "order_value",
         periodStart: monthStart,
         periodEnd: monthEnd,
@@ -403,14 +405,18 @@ describe("a salesperson sees only their own book", () => {
       .get("/rep/sales-leader")
       .set("Authorization", `Bearer ${managerToken}`);
     expect(staffView.status).toBe(200);
-    expect(staffView.body.members.map((member: any) => member.salespersonId)).toEqual([
-      ids.manager,
-      ids.staffA,
-    ]);
-    expect(staffView.body.team.salespeople).toBe(2);
+    expect(staffView.body.members.map((member: any) => member.salespersonId)).toEqual([ids.staffA]);
+    expect(staffView.body.team.salespeople).toBe(1);
   });
 
   it("keeps a leader's personal sales separate from their reporting team's performance", async () => {
+    const today = await request(app)
+      .get("/rep/field/today")
+      .set("Authorization", `Bearer ${managerToken}`)
+      .expect(200);
+    expect(today.body.targetScopeVersion).toBe(2);
+    expect(today.body.targets.filter((target: any) => target.metric === "order_value")).toHaveLength(1);
+    expect(today.body.headlineTarget).toMatchObject({ target: 100000, actual: 30000 });
     const personal = await request(app)
       .get(`/rep/performance/targets?now=${now.toISOString()}`)
       .set("Authorization", `Bearer ${managerToken}`)
@@ -420,6 +426,7 @@ describe("a salesperson sees only their own book", () => {
         expect.objectContaining({ metric: "order_value", target: 100000, actual: 30000 }),
       ])
     );
+    expect(personal.body.targets.filter((target: any) => target.metric === "order_value")).toHaveLength(1);
 
     const team = await request(app)
       .get("/rep/sales-leader")
@@ -427,15 +434,13 @@ describe("a salesperson sees only their own book", () => {
       .expect(200);
     expect(team.body.targets.assigned).toBe(100000);
     expect(team.body.team).toMatchObject({
-      salespeople: 2,
-      actual: 97200,
+      salespeople: 1,
+      actual: 67200,
       target: 100000,
-      completionPct: 97,
+      completionPct: 67,
     });
-    expect(team.body.members.map((member: any) => member.salespersonId)).toEqual([
-      ids.manager,
-      ids.staffA,
-    ]);
+    expect(team.body.members.map((member: any) => member.salespersonId)).toEqual([ids.staffA]);
+    expect(team.body.leaderboard.entries.map((entry: any) => entry.salespersonId)).not.toContain(ids.manager);
   });
 
   it("reads an assigned target for a manager who has reporting-tree members", async () => {
@@ -465,6 +470,13 @@ describe("a salesperson sees only their own book", () => {
       .get(`/rep/sales-leader?salespersonId=${ids.staffB}`)
       .set("Authorization", `Bearer ${managerToken}`);
     expect([403, 404]).toContain(response.status);
+  });
+
+  it("rejects a team-member read narrowed to the requesting leader", async () => {
+    const response = await request(app)
+      .get(`/rep/sales-leader?salespersonId=${ids.manager}`)
+      .set("Authorization", `Bearer ${managerToken}`);
+    expect(response.status).toBe(403);
   });
 
   it("denies individual sellers access to team views", async () => {

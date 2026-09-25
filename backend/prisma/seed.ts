@@ -527,14 +527,14 @@ async function main() {
     data: [
       // Every metric here has a canonical source: orders, order lines, visits,
       // productive visits and confirmed collections.
-      { salespersonId: salesStaff.id, metric: "order_value", periodStart, periodEnd, targetValue: 400000, createdByStaffId: platformAdmin.id },
-      { salespersonId: salesStaff.id, metric: "visits", periodStart, periodEnd, targetValue: 80, createdByStaffId: platformAdmin.id },
-      { salespersonId: salesStaff.id, metric: "order_count", periodStart, periodEnd, targetValue: 24, createdByStaffId: platformAdmin.id },
-      { salespersonId: salesStaff.id, metric: "line_items", periodStart, periodEnd, targetValue: 40, createdByStaffId: platformAdmin.id },
-      { salespersonId: salesStaff.id, metric: "productive_outlets", periodStart, periodEnd, targetValue: 12, createdByStaffId: platformAdmin.id },
-      { salespersonId: salesStaff.id, metric: "collection_value", periodStart, periodEnd, targetValue: 150000, createdByStaffId: platformAdmin.id },
-      { salespersonId: secondSalesStaff.id, metric: "order_value", periodStart, periodEnd, targetValue: 400000, createdByStaffId: platformAdmin.id },
-      { salespersonId: secondSalesStaff.id, metric: "visits", periodStart, periodEnd, targetValue: 80, createdByStaffId: platformAdmin.id },
+      { salespersonId: salesStaff.id, scope: "PERSONAL", metric: "order_value", periodStart, periodEnd, targetValue: 400000, createdByStaffId: platformAdmin.id },
+      { salespersonId: salesStaff.id, scope: "PERSONAL", metric: "visits", periodStart, periodEnd, targetValue: 80, createdByStaffId: platformAdmin.id },
+      { salespersonId: salesStaff.id, scope: "PERSONAL", metric: "order_count", periodStart, periodEnd, targetValue: 24, createdByStaffId: platformAdmin.id },
+      { salespersonId: salesStaff.id, scope: "PERSONAL", metric: "line_items", periodStart, periodEnd, targetValue: 40, createdByStaffId: platformAdmin.id },
+      { salespersonId: salesStaff.id, scope: "PERSONAL", metric: "productive_outlets", periodStart, periodEnd, targetValue: 12, createdByStaffId: platformAdmin.id },
+      { salespersonId: salesStaff.id, scope: "PERSONAL", metric: "collection_value", periodStart, periodEnd, targetValue: 150000, createdByStaffId: platformAdmin.id },
+      { salespersonId: secondSalesStaff.id, scope: "PERSONAL", metric: "order_value", periodStart, periodEnd, targetValue: 400000, createdByStaffId: platformAdmin.id },
+      { salespersonId: secondSalesStaff.id, scope: "PERSONAL", metric: "visits", periodStart, periodEnd, targetValue: 80, createdByStaffId: platformAdmin.id },
     ],
   });
 

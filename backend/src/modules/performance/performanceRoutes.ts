@@ -170,6 +170,9 @@ export function createSalesLeaderRouter(options: {
     requirePermission(Permissions.PERFORMANCE_VIEW_TEAM),
     asyncRoute(async (req: StaffAuthedRequest, res) => {
       try {
+        if (req.query.salespersonId === req.staffAuth!.staffId) {
+          return res.status(403).json({ error: "self_team_member_forbidden" });
+        }
         // The team is derived from the caller's own reporting tree. A
         // salespersonId on the query string narrows within it and can never
         // reach outside it.
@@ -219,11 +222,15 @@ export function createSalesLeaderRouter(options: {
 
         if (parsed.data.view === "person") {
           if (!parsed.data.salespersonId) return res.status(400).json({ error: "invalid_input" });
+          if (parsed.data.salespersonId === req.staffAuth!.staffId) {
+            return res.status(403).json({ error: "self_team_member_forbidden" });
+          }
           const narrowed = await scopes.resolveFor(req.staffAuth!, parsed.data.salespersonId);
-          staffIds = narrowed.staffIds ?? [parsed.data.salespersonId];
+          staffIds = (narrowed.staffIds ?? [parsed.data.salespersonId])
+            .filter((staffId) => staffId !== req.staffAuth!.staffId);
         } else if (parsed.data.view === "direct") {
           const reports = await hierarchy.getDirectReports(req.staffAuth!.staffId);
-          staffIds = reports.filter((report) => report.status === "active").map((report) => report.id);
+          staffIds = reports.filter((report) => report.status === "active" && report.id !== req.staffAuth!.staffId).map((report) => report.id);
         } else {
           // An org-wide reader has no tree of their own, so "my team" for them
           // is every active salesperson rather than an empty list.
@@ -237,6 +244,7 @@ export function createSalesLeaderRouter(options: {
             ).map((row) => row.id);
         }
 
+        staffIds = staffIds.filter((staffId) => staffId !== req.staffAuth!.staffId);
         res.json({
           view: parsed.data.view,
           salespeople: staffIds.length,
@@ -274,6 +282,7 @@ export function createSalesLeaderRouter(options: {
           scope: requested,
           territory: parsed.data.territory ?? null,
           staffIds: scope.staffIds,
+          excludeStaffId: req.staffAuth!.staffId,
           now: parseDate(req.query.now),
         })
       );

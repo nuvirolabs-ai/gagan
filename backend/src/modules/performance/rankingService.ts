@@ -20,6 +20,8 @@ export interface RankingRequest {
   territory?: string | null;
   /** Required for a team scope: the reporting tree, resolved by the server. */
   staffIds?: string[] | null;
+  /** Excludes the requesting leader from a manager-scoped leaderboard. */
+  excludeStaffId?: string | null;
   period?: Period;
   now?: Date;
 }
@@ -56,6 +58,7 @@ export class RankingService {
       where: {
         status: "active",
         salesRepId: { not: null },
+        ...(request.excludeStaffId ? { id: { not: request.excludeStaffId } } : {}),
         ...(request.scope === "team" && request.staffIds
           ? { id: { in: request.staffIds } }
           : {}),
@@ -71,7 +74,7 @@ export class RankingService {
       },
       orderBy: { name: "asc" },
     });
-    return staff.map((member: any) => ({
+    return staff.filter((member: any) => member.id !== request.excludeStaffId).map((member: any) => ({
       staffId: member.id,
       name: member.name,
       salesRepId: member.salesRepId as string | null,
@@ -90,6 +93,7 @@ export class RankingService {
       this.prisma.salesTarget.findMany({
         where: {
           salespersonId: { in: input.people.map((person) => person.staffId) },
+          scope: "PERSONAL",
           periodStart: { lte: startOfDay(input.period.to) },
           periodEnd: { gte: startOfDay(input.period.from) },
         },
@@ -98,6 +102,7 @@ export class RankingService {
 
     const targetsByStaff = new Map<string, any[]>();
     for (const target of targets as any[]) {
+      if (target.scope !== "PERSONAL") continue;
       targetsByStaff.set(target.salespersonId, [
         ...(targetsByStaff.get(target.salespersonId) ?? []),
         target,

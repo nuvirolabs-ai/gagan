@@ -794,6 +794,7 @@ describe("today reads real work, not placeholders", () => {
     await prisma.salesTarget.create({
       data: {
         salespersonId: ids.staffA,
+        scope: "PERSONAL",
         metric: "visits",
         periodStart: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)),
         periodEnd: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)),

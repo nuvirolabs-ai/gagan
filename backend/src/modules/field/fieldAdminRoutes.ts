@@ -8,6 +8,8 @@ import { defaultFieldServices, sendFieldError, type FieldServices } from "./fiel
 import { FieldServiceError } from "./attendanceService";
 import { startOfDay } from "./fieldDomain";
 import { ScopeError, ScopeResolver, scopeResolver as defaultScopeResolver } from "../org/scope";
+import type { PrismaClient } from "@prisma/client";
+import { resolveTargetWriteScope, TargetScopeError } from "../performance/targetScope";
 
 const isoDate = z
   .string()
@@ -29,9 +31,11 @@ export function createFieldAdminRouter(options: {
   authenticate: RequestHandler;
   services?: Partial<FieldServices>;
   scopes?: ScopeResolver;
+  db?: PrismaClient;
 }) {
   const services = { ...defaultFieldServices, ...options.services };
   const scopes = options.scopes ?? defaultScopeResolver;
+  const db = options.db ?? prisma;
   const router = Router();
   router.use(options.authenticate);
 
@@ -50,6 +54,8 @@ export function createFieldAdminRouter(options: {
 
   const sendError = (error: unknown, res: any, next: any) => {
     if (error instanceof ScopeError) return res.status(error.status).json({ error: error.code });
+    if (error instanceof TargetScopeError) return res.status(error.status).json({ error: error.code });
+    if (String(error).includes("target_writes_paused")) return res.status(503).json({ error: "target_writes_paused" });
     return sendFieldError(error, res, next);
   };
 
@@ -481,8 +487,16 @@ export function createFieldAdminRouter(options: {
     asyncRoute(async (req, res, next) => {
       try {
         const scopeStaffIds = await scopeOf(req as StaffAuthedRequest, req.query.salespersonId);
-        const targets = await prisma.salesTarget.findMany({
-          where: scopeStaffIds ? { salespersonId: { in: scopeStaffIds } } : {},
+        const requestedScope = req.query.scope;
+        if (requestedScope !== undefined && requestedScope !== "PERSONAL"
+          && requestedScope !== "TEAM" && requestedScope !== "all") {
+          return res.status(400).json({ error: "target_scope_invalid" });
+        }
+        const targets = await db.salesTarget.findMany({
+          where: {
+            ...(scopeStaffIds ? { salespersonId: { in: scopeStaffIds } } : {}),
+            ...(requestedScope === "all" ? {} : { scope: requestedScope ?? "PERSONAL" }),
+          },
           include: { salesperson: { select: { id: true, name: true } } },
           orderBy: [{ periodStart: "desc" }, { metric: "asc" }],
           take: 200,
@@ -507,18 +521,36 @@ export function createFieldAdminRouter(options: {
           periodStart: isoDate,
           periodEnd: isoDate,
           targetValue: z.number().finite().positive(),
+          scope: z.enum(["PERSONAL", "TEAM"]).optional(),
         })
         .safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
       try {
         await scopeOf(req, parsed.data.salespersonId);
+        const owner = await db.staffUser.findUnique({
+          where: { id: parsed.data.salespersonId },
+          select: {
+            status: true,
+            phone: true,
+            salesRep: { select: { phone: true } },
+            roles: { select: { role: { select: { name: true } } } },
+          },
+        });
+        if (!owner) throw new FieldServiceError("target_owner_not_found", 404);
+        const scope = resolveTargetWriteScope(parsed.data.scope, {
+          status: owner.status,
+          phone: owner.phone,
+          salesRepPhone: owner.salesRep?.phone ?? null,
+          roles: owner.roles.map(({ role }) => role.name),
+        });
         const periodStart = startOfDay(parsed.data.periodStart);
         const periodEnd = startOfDay(parsed.data.periodEnd);
         if (periodEnd < periodStart) throw new FieldServiceError("target_period_invalid", 400);
-        const target = await prisma.salesTarget.upsert({
+        const target = await db.salesTarget.upsert({
           where: {
-            salespersonId_metric_periodStart_periodEnd: {
+            salespersonId_scope_metric_periodStart_periodEnd: {
               salespersonId: parsed.data.salespersonId,
+              scope,
               metric: parsed.data.metric,
               periodStart,
               periodEnd,
@@ -526,6 +558,7 @@ export function createFieldAdminRouter(options: {
           },
           create: {
             salespersonId: parsed.data.salespersonId,
+            scope,
             metric: parsed.data.metric,
             periodStart,
             periodEnd,

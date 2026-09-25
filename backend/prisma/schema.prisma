@@ -2376,7 +2376,7 @@ model SalesTarget {
   salespersonId    String
   salesperson      StaffUser         @relation("SalespersonTargets", fields: [salespersonId], references: [id], onDelete: Restrict)
   metric           SalesTargetMetric
-  scope            SalesTargetScope?
+  scope            SalesTargetScope
   periodStart      DateTime          @db.Date
   periodEnd        DateTime          @db.Date
   targetValue      Decimal           @db.Decimal(14, 2)
@@ -2384,7 +2384,7 @@ model SalesTarget {
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
-  @@unique([salespersonId, metric, periodStart, periodEnd])
+  @@unique([salespersonId, scope, metric, periodStart, periodEnd])
   @@index([periodStart, periodEnd])
 }
 

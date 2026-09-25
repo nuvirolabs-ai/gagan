@@ -36,6 +36,7 @@ function route() {
 
 function today(orderValue = 100) {
   return {
+    targetScopeVersion: 2,
     attendance: { status: "open" },
     route: route(),
     todayMetrics: { orderValue },
@@ -48,6 +49,20 @@ function today(orderValue = 100) {
 }
 
 describe("bounded operational Today/Route read cache", () => {
+  it("rejects a pre-scope Today celebration while preserving the route snapshot", async () => {
+    const storage = memoryStorage();
+    const cache = createOperationalReadCache({ accountId: "staff-a", apiOrigin: "https://staging.example", storage });
+    const legacy = { ...today(), targetScopeVersion: undefined, achievements: { new: [{ id: "old-100-percent" }] } };
+    await cache.save("today", legacy);
+    await cache.save("route", route());
+    const failure = new TypeError("Network request failed");
+    await expect(loadOperationalRead({
+      kind: "today", cache, load: async () => { throw failure; },
+      validate: isOperationalTodayPayload, isFallbackError: isOperationalReadFallbackError,
+    })).rejects.toBe(failure);
+    expect(await cache.read("today")).toBeNull();
+    expect((await cache.read("route"))?.payload.id).toBe("route-1");
+  });
   it("populates from online Today and falls back only for a transient transport failure", async () => {
     const storage = memoryStorage();
     const cache = createOperationalReadCache({ accountId: "staff-a", apiOrigin: "https://staging.example/", storage, now: () => 1000 });

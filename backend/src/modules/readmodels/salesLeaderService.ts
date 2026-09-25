@@ -82,18 +82,27 @@ export class SalesLeaderService {
     const period = input.period ?? currentMonth(now);
     const scopeStaffIds = input.scopeStaffIds ?? null;
 
-    const staff = await this.prisma.staffUser.findMany({
+    const scopedStaff = await this.prisma.staffUser.findMany({
       where: {
         status: "active",
         salesRepId: { not: null },
-        ...(scopeStaffIds ? { id: { in: scopeStaffIds } } : {}),
+        ...(scopeStaffIds || input.managerStaffId ? {
+          id: {
+            ...(scopeStaffIds ? { in: scopeStaffIds } : {}),
+            ...(input.managerStaffId ? { not: input.managerStaffId } : {}),
+          },
+        } : {}),
       },
       select: { id: true, name: true, salesRepId: true, salesRep: { select: { territory: true } } },
       orderBy: { name: "asc" },
     });
+    const staff = [...new Map((scopedStaff as any[])
+      .filter((member) => member.id !== input.managerStaffId)
+      .map((member) => [member.id, member])).values()] as any[];
+    const reportStaffIds = staff.map((member) => member.id as string);
 
     const targetStaffIds = [...new Set([
-      ...staff.map((member: any) => member.id as string),
+      ...reportStaffIds,
       ...(input.managerStaffId ? [input.managerStaffId] : []),
     ])];
     const targetRowsPromise = this.prisma.salesTarget.findMany({
@@ -126,14 +135,15 @@ export class SalesLeaderService {
     const [actualsByStaff, targets, teamAttendance, calendar, standings] = await Promise.all([
       this.targets.bulkActuals({ salespeople: people, period }),
       targetRowsPromise,
-      this.attendance.teamAttendance(now, scopeStaffIds),
+      this.attendance.teamAttendance(now, reportStaffIds),
       this.prisma.workingCalendar.findMany({
         where: { date: { gte: startOfDay(period.from), lte: startOfDay(period.to) }, isWorkingDay: false },
         select: { date: true },
       }),
       this.ranking.rank({
         scope: scopeStaffIds ? "team" : "company",
-        staffIds: scopeStaffIds,
+        staffIds: reportStaffIds,
+        excludeStaffId: input.managerStaffId ?? null,
         period,
         now,
       }),
@@ -151,6 +161,7 @@ export class SalesLeaderService {
 
     const targetsByStaff = new Map<string, any[]>();
     for (const target of targets as any[]) {
+      if (target.scope !== "PERSONAL" || !reportStaffIds.includes(target.salespersonId)) continue;
       targetsByStaff.set(target.salespersonId, [
         ...(targetsByStaff.get(target.salespersonId) ?? []),
         target,
@@ -159,9 +170,9 @@ export class SalesLeaderService {
     const attendanceByStaff = new Map(
       (teamAttendance as any[]).map((row) => [row.salespersonId, row.mark])
     );
-    const rankByStaff = new Map(
-      standings.entries.map((entry) => [entry.salespersonId, entry.rank])
-    );
+    const reportIdSet = new Set(reportStaffIds);
+    const rankedEntries = standings.entries.filter((entry) => reportIdSet.has(entry.salespersonId));
+    const rankByStaff = new Map(rankedEntries.map((entry) => [entry.salespersonId, entry.rank]));
 
     // One query for the whole team's beat progress. This used to be one read per
     // salesperson, which is fine for a first-line manager and 300 queries for a
@@ -312,7 +323,7 @@ export class SalesLeaderService {
         metric: standings.metric,
         metricLabel: standings.metricLabel,
         metricReason: standings.metricReason,
-        entries: standings.entries,
+        entries: rankedEntries,
       },
       /** Ranked by need, each carrying the measurement that produced it. */
       recommendedActions: await this.recommendedActions({ members, now }),
@@ -390,13 +401,13 @@ export class SalesLeaderService {
 
   private managerTarget(targets: any[], managerStaffId?: string | null) {
     if (!managerStaffId) return null;
-    return (
-      targets
-        .filter(
-          (target) => target.salespersonId === managerStaffId && target.metric === "order_value"
-        )
-        .reduce((sum, target) => sum + Number(target.targetValue), 0) || null
+    const assigned = targets.filter(
+      (target) => target.salespersonId === managerStaffId
+        && target.scope === "TEAM" && target.metric === "order_value"
     );
+    return assigned.length === 0
+      ? null
+      : assigned.reduce((sum, target) => sum + Number(target.targetValue), 0);
   }
 
   private emptyTeam(period: Period, assignedTarget: number | null) {

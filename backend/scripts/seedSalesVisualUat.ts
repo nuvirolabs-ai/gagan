@@ -525,8 +525,9 @@ async function main() {
 
   const target = await prisma.salesTarget.upsert({
     where: {
-      salespersonId_metric_periodStart_periodEnd: {
+      salespersonId_scope_metric_periodStart_periodEnd: {
         salespersonId: staff.id,
+        scope: "PERSONAL",
         metric: "order_value",
         periodStart: monthStart,
         periodEnd: monthEnd,
@@ -535,6 +536,7 @@ async function main() {
     update: { targetValue: FIXTURE.targetValue },
     create: {
       salespersonId: staff.id,
+      scope: "PERSONAL",
       metric: "order_value",
       periodStart: monthStart,
       periodEnd: monthEnd,

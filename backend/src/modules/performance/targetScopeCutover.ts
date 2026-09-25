@@ -5,24 +5,14 @@ import {
   validateTargetScopeMapping,
 } from "./targetScopeMigration";
 
-type Reader = Pick<PrismaClient, "salesTarget">;
+type Reader = Pick<PrismaClient, "$queryRaw">;
 
 export async function getHistoricalTargetRows(client: Reader): Promise<HistoricalTargetRow[]> {
-  return client.salesTarget.findMany({
-    orderBy: { id: "asc" },
-    select: {
-      id: true,
-      salespersonId: true,
-      metric: true,
-      periodStart: true,
-      periodEnd: true,
-      targetValue: true,
-      createdByStaffId: true,
-      createdAt: true,
-      updatedAt: true,
-      scope: true,
-    },
-  });
+  return client.$queryRaw<HistoricalTargetRow[]>`
+    SELECT "id", "salespersonId", "metric"::text AS "metric", "periodStart", "periodEnd",
+      "targetValue", "createdByStaffId", "createdAt", "updatedAt", "scope"::text AS "scope"
+    FROM "SalesTarget" ORDER BY "id"
+  `;
 }
 
 export async function setTargetWritesPaused(client: PrismaClient, paused: boolean): Promise<void> {

@@ -161,7 +161,7 @@ afterAll(async () => {
 });
 
 describe("authenticated field collection lifecycle", () => {
-  it("captures, reviews, confirms and reads back a cheque against an invoice entity split", async () => {
+  it("captures and confirms CASH, CHEQUE, and NEFT against explicit invoice entity splits", async () => {
     const submitted = await request(app)
       .post("/rep/collections")
       .set("Authorization", `Bearer ${collectorToken}`)
@@ -228,5 +228,73 @@ describe("authenticated field collection lifecycle", () => {
     expect((await prisma.retailer.findUniqueOrThrow({ where: { id: ids.retailer } })).currentBalance.toFixed(2)).toBe("20.00");
     expect(await prisma.ledgerEntry.count({ where: { paymentId: payment.id, type: "payment" } })).toBe(1);
     expect((await prisma.ledgerEntry.findUniqueOrThrow({ where: { id: ids.legacyLedgerEntry } })).settledAmount.toFixed(2)).toBe("100.00");
+
+    for (const collection of [
+      { method: "cash" as const, reference: "CASH-2026-001", jainAmount: "10.00", padamAmount: "0.00" },
+      { method: "neft" as const, reference: "UTR-2026-001", jainAmount: "0.00", padamAmount: "10.00" },
+    ]) {
+      const capture = await request(app)
+        .post("/rep/collections")
+        .set("Authorization", `Bearer ${collectorToken}`)
+        .send({
+          retailerId: ids.retailer,
+          invoiceScopeId: ids.invoice,
+          amount: 10,
+          method: collection.method,
+          reference: collection.reference,
+          notes: `Verified ${collection.method.toUpperCase()} collection`,
+          jainAmount: collection.jainAmount,
+          padamAmount: collection.padamAmount,
+          idempotencyKey: `collection-flow-${randomUUID()}`,
+        })
+        .expect(201);
+      expect(capture.body.submission).toMatchObject({
+        collectorStaffId: ids.collector,
+        retailerId: ids.retailer,
+        method: collection.method,
+        reference: collection.reference,
+        notes: `Verified ${collection.method.toUpperCase()} collection`,
+        status: "pending",
+      });
+
+      const elevatedSession = await lazyIdentitySessionService.elevateSession(
+        (await prisma.deviceSession.findFirstOrThrow({ where: { subjectId: ids.accounts, realm: "admin" } })).id,
+        "admin",
+        ids.accounts,
+      );
+      const confirmation = await request(app)
+        .post(`/admin/collections/${capture.body.submission.id}/confirm`)
+        .set("Authorization", `Bearer ${elevatedSession.accessToken}`)
+        .expect(200);
+
+      const confirmedPayment = await prisma.payment.findUniqueOrThrow({
+        where: { id: confirmation.body.paymentId },
+        include: { allocations: true, settlementLedgerEntry: true },
+      });
+      expect(confirmedPayment).toMatchObject({
+        status: "succeeded",
+        confirmedMethod: collection.method,
+        confirmedReference: collection.reference,
+        confirmedByStaffId: ids.accounts,
+      });
+      expect(confirmedPayment.allocations).toHaveLength(1);
+      expect(confirmedPayment.allocations[0].jainAmount?.toFixed(2)).toBe(collection.jainAmount);
+      expect(confirmedPayment.allocations[0].padamAmount?.toFixed(2)).toBe(collection.padamAmount);
+      expect(confirmedPayment.settlementLedgerEntry).toMatchObject({ direction: "credit", kind: "payment" });
+
+      const adminReadback = await request(app)
+        .get(`/admin/collections/${capture.body.submission.id}`)
+        .set("Authorization", `Bearer ${accountsToken}`)
+        .expect(200);
+      expect(adminReadback.body.submission).toMatchObject({
+        status: "confirmed",
+        method: collection.method,
+        reference: collection.reference,
+        notes: `Verified ${collection.method.toUpperCase()} collection`,
+      });
+    }
+
+    expect((await prisma.invoice.findUniqueOrThrow({ where: { id: ids.invoice } })).status).toBe("paid");
+    expect((await prisma.retailer.findUniqueOrThrow({ where: { id: ids.retailer } })).currentBalance.toFixed(2)).toBe("0.00");
   });
 });

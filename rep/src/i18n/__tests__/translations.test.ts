@@ -15,6 +15,16 @@ describe("salesperson translations", () => {
     expect(translate("hi", "collections.submit")).toBe("Accounts को भेजें");
   });
 
+  it("shows method-specific collection references and optional remarks in both languages", () => {
+    expect(translate("en", "work.collectionReferenceCash")).toBe("Cash receipt or reference");
+    expect(translate("en", "work.collectionReferenceCheque")).toBe("Cheque number / bank reference");
+    expect(translate("en", "work.collectionReferenceNeft")).toBe("UTR or bank reference");
+    expect(translate("en", "work.collectionReferenceUpi")).toBe("UPI transaction reference");
+    expect(translate("en", "work.collectionNotes")).toBe("Remarks (optional)");
+    expect(translate("hi", "work.collectionReferenceNeft")).toBe("UTR या बैंक संदर्भ");
+    expect(translate("hi", "work.collectionNotes")).toBe("टिप्पणी (वैकल्पिक)");
+  });
+
   it("keeps the closed-day greeting as a salutation without a name", () => {
     expect(translate("en", "today.niceWork")).toBe("Nice work");
     expect(translate("hi", "today.niceWork")).toBe("अच्छा काम");

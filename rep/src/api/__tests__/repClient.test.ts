@@ -48,6 +48,8 @@ describe("staff auth API", () => {
       retailerId: "retailer-1",
       amount: 250,
       method: "cash",
+      reference: "RCPT-123",
+      notes: "Retailer requested a call next week",
       idempotencyKey: "receipt-1234",
     });
 
@@ -59,6 +61,8 @@ describe("staff auth API", () => {
           retailerId: "retailer-1",
           amount: 250,
           method: "cash",
+          reference: "RCPT-123",
+          notes: "Retailer requested a call next week",
           idempotencyKey: "receipt-1234",
         }),
       }),

@@ -35,17 +35,24 @@ export default function StaffHomeScreen() {
   const [allocationConfirmed,setAllocationConfirmed]=useState(false);
   const [invoicesReady,setInvoicesReady]=useState(false);
   const collectionKey=useRef<string|null>(null);const submitting=useRef(false);
-  useEffect(()=>{let active=true;setInvoices([]);setInvoiceId("");setJain("");setPadam("");setAllocationConfirmed(false);setInvoicesReady(false);
+  useEffect(()=>{let active=true;setInvoices([]);setInvoiceId("");setJain("");setPadam("");setNotes("");setAllocationConfirmed(false);setInvoicesReady(false);
     if(selectedRetailerId)repApi.collectionInvoices(selectedRetailerId).then(r=>{if(active){setInvoices(r.invoices);setInvoicesReady(true);}}).catch(()=>{if(active)Alert.alert("Could not load invoice balances","Re-select the retailer to retry.");});
     return ()=>{active=false;};
   },[selectedRetailerId]);
   const [method, setMethod] = useState<(typeof methods)[number]>("cash");
   const [reference, setReference] = useState("");
+  const [notes, setNotes] = useState("");
   const [receipt, setReceipt] = useState<{ name: string; uri: string; contentType: string; bodyBase64: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [stepUpChallenge, setStepUpChallenge] = useState<string | null>(null);
   const [stepUpOtp, setStepUpOtp] = useState("");
+  const referencePlaceholder = {
+    cash: t("work.collectionReferenceCash"),
+    cheque: t("work.collectionReferenceCheque"),
+    neft: t("work.collectionReferenceNeft"),
+    upi: t("work.collectionReferenceUpi"),
+  }[method];
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -81,9 +88,9 @@ export default function StaffHomeScreen() {
     submitting.current=true;setSaving(true);
     try {
       collectionKey.current ??= `mobile-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      await repApi.submitCollection({ retailerId: selectedRetailerId, amount: parsedAmount, method, reference: reference.trim() || undefined, evidence: receipt ? { contentType: receipt.contentType, bodyBase64: receipt.bodyBase64 } : undefined, idempotencyKey: collectionKey.current,...(invoiceId?{invoiceScopeId:invoiceId,jainAmount:jain,padamAmount:padam}:{}) });
+      await repApi.submitCollection({ retailerId: selectedRetailerId, amount: parsedAmount, method, reference: reference.trim() || undefined, notes: notes.trim() || undefined, evidence: receipt ? { contentType: receipt.contentType, bodyBase64: receipt.bodyBase64 } : undefined, idempotencyKey: collectionKey.current,...(invoiceId?{invoiceScopeId:invoiceId,jainAmount:jain,padamAmount:padam}:{}) });
       collectionKey.current=null;setAllocationConfirmed(false);
-      setAmount(""); setReference(""); setReceipt(null);
+      setAmount(""); setReference(""); setNotes(""); setReceipt(null);
       Alert.alert("Submitted", "Accounts will verify this collection before it affects the ledger.");
       await load();
     } catch (error) {
@@ -163,7 +170,10 @@ export default function StaffHomeScreen() {
           <TextInput value={amount} onChangeText={value=>{setAmount(value);setAllocationConfirmed(false);}} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={colors.inkFaint} style={styles.input} />
           <Text style={styles.label}>Method</Text>
           <View style={styles.methodRow}>{methods.map((value) => <TouchableOpacity key={value} onPress={() => setMethod(value)} style={[styles.method, method === value && styles.methodActive]}><Text style={[styles.methodText, method === value && styles.methodTextActive]}>{value.toUpperCase()}</Text></TouchableOpacity>)}</View>
-          <TextInput value={reference} onChangeText={setReference} placeholder="Receipt / cheque / bank reference" placeholderTextColor={colors.inkFaint} style={styles.input} />
+          <Text style={styles.label}>{t("work.collectionReference")}</Text>
+          <TextInput editable={!saving} value={reference} onChangeText={setReference} placeholder={referencePlaceholder} placeholderTextColor={colors.inkFaint} style={styles.input} />
+          <Text style={styles.label}>{t("work.collectionNotes")}</Text>
+          <TextInput editable={!saving} value={notes} onChangeText={setNotes} maxLength={500} multiline textAlignVertical="top" placeholder={t("common.optional")} placeholderTextColor={colors.inkFaint} style={[styles.input, styles.notesInput]} />
           <Text style={styles.label}>Payment proof (optional)</Text>
           <View style={styles.receiptActions}>
             <TouchableOpacity disabled={saving} accessibilityRole="button" onPress={() => void pickReceiptImage("camera")} style={styles.receiptAction}>
@@ -213,6 +223,7 @@ const styles = StyleSheet.create({
   chipText: { color: colors.inkMuted, fontSize: 12, fontWeight: "600" },
   chipTextActive: { color: colors.green },
   input: { backgroundColor: colors.surfaceAlt, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.md, color: colors.ink, fontSize: 14, borderWidth: 1, borderColor: colors.border },
+  notesInput: { minHeight: 88 },
   methodRow: { flexDirection: "row", gap: spacing.sm },
   method: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, alignItems: "center", paddingVertical: spacing.sm },
   methodActive: { borderColor: colors.green, backgroundColor: colors.greenSoft },

@@ -14,6 +14,8 @@ function setup(permissions = ["staff.manage"]) {
     removeRole: vi.fn().mockResolvedValue(undefined),
     createDelegation: vi.fn().mockResolvedValue({ id: "delegation-1" }),
     revokeDelegation: vi.fn().mockResolvedValue(undefined),
+    setupSellingLeader: vi.fn().mockResolvedValue({ staff: { id: "staff-1", salesRepId: "rep-1" }, roles: ["salesperson", "field_manager"] }),
+    setupManagerOnly: vi.fn().mockResolvedValue({ staff: { id: "staff-1" }, workspaceMode: "manager_only" }),
   };
   const authenticate: RequestHandler = (req, _res, next) => {
     (req as any).staffAuth = {
@@ -130,5 +132,21 @@ describe("admin staff API", () => {
 
     expect(response.status).toBe(409);
     expect(response.body).toEqual({ error: "delegator_role_required" });
+  });
+
+  it("requires org.manage for hierarchy changes in a selling leader setup", async () => {
+    const { app, service } = setup(["staff.manage"]);
+    const reportId = "11111111-1111-4111-8111-111111111111";
+    const denied = await request(app).post("/staff/staff-1/selling-leader-setup").send({ reportIds: [reportId] });
+    expect(denied.status).toBe(403);
+    expect(service.setupSellingLeader).not.toHaveBeenCalled();
+
+    const allowed = setup(["staff.manage", "org.manage"]);
+    const result = await request(allowed.app).post("/staff/staff-1/selling-leader-setup").send({ reportIds: [reportId] });
+    expect(result.status).toBe(200);
+    expect(allowed.service.setupSellingLeader).toHaveBeenCalledWith(
+      expect.objectContaining({ staffId: "staff-1", reportIds: [reportId] }),
+      "admin-staff-1"
+    );
   });
 });

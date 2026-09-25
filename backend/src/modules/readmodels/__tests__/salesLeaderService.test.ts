@@ -347,6 +347,7 @@ describe("team targets", () => {
       scopeStaffIds: [], managerStaffId: "m1", now: NOW,
     });
     expect(result.targets.assigned).toBe(0);
+    expect(result.targets.rollupConfigured).toBe(false);
     expect(result.team.target).toBe(0);
   });
 

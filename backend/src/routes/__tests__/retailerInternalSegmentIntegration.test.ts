@@ -51,7 +51,7 @@ beforeAll(async () => {
       data: {
         id: ids.staff,
         name: "Segment salesperson",
-        phone: phone("93"),
+        phone: rep.phone,
         email: `rep-${run}@test.invalid`,
         salesRepId: rep.id,
         roles: { create: { roleId: salespersonRole.id } },

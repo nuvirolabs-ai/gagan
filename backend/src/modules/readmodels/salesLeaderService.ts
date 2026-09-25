@@ -186,7 +186,7 @@ export class SalesLeaderService {
       const actuals = actualsByStaff.get(person.staffId) ?? ({} as MetricActuals);
       const stored = targetsByStaff.get(person.staffId) ?? [];
       const progress = stored
-        .filter((target: any) => Number(target.targetValue) > 0)
+        .filter((target: any) => Number(target.targetValue) >= 0)
         .map((target: any) => {
           const built = buildProgress({
             metric: target.metric as TargetMetric,
@@ -276,6 +276,9 @@ export class SalesLeaderService {
       .reduce((sum, target) => sum + target.target, 0);
 
     const assignedTarget = this.managerTarget(targets, input.managerStaffId);
+    const rollupConfigured = members.some((member) =>
+      (targetsByStaff.get(member.salespersonId) ?? []).some((target) => target.metric === "order_value")
+    );
 
     const teamTarget = assignedTarget ?? rollupTarget;
     const teamActual = members.reduce((sum, member) => sum + (member.actuals.order_value ?? 0), 0);
@@ -290,6 +293,7 @@ export class SalesLeaderService {
       targets: {
         /** Sum of the individual targets set on this team. */
         rollup: rollupTarget,
+        rollupConfigured,
         /** A target set on the manager themselves, or null if none exists. */
         assigned: assignedTarget,
         /**
@@ -421,6 +425,7 @@ export class SalesLeaderService {
       sellingDays,
       targets: {
         rollup: 0,
+        rollupConfigured: false,
         assigned: assignedTarget,
         uncascaded: assignedTarget == null ? null : Math.max(0, assignedTarget),
       },

@@ -22,6 +22,7 @@ import {
 import { internalStatusForOrder } from "../modules/commercialStatus/statusService";
 import { CommercialStatusCode } from "@prisma/client";
 import { attributeOrders } from "../modules/orders/orderAttribution";
+import { staffWorkspaceState } from "../modules/identity/staffAppAccess";
 
 const router = Router();
 const maxLedgerSequence = 9_223_372_036_854_775_807n;
@@ -48,6 +49,7 @@ async function findStaffAccount(phoneInput: string) {
       phone: true,
       email: true,
       salesRep: { select: { id: true, name: true, phone: true } },
+      roles: { select: { role: { select: { name: true } } } },
     },
   });
 }
@@ -66,6 +68,13 @@ router.use(
         userAgent: req.header("user-agent") ?? undefined,
       });
       const claims = lazyIdentitySessionService.verifyAccessToken(session.accessToken, "staff");
+      const roles = staff.roles.map(({ role }) => role.name);
+      const workspace = staffWorkspaceState({
+        status: "active", roles, permissions: claims.permissions,
+        staffPhone: staff.phone,
+        salesRepId: staff.salesRep?.id ?? null,
+        salesRepPhone: staff.salesRep?.phone ?? null,
+      });
       return {
         accessToken: session.accessToken,
         refreshToken: session.refreshToken,
@@ -76,6 +85,9 @@ router.use(
           phone: staff.phone,
           email: staff.email,
           permissions: claims.permissions,
+          roles,
+          workspaceMode: workspace.workspaceMode,
+          setupCode: workspace.setupCode,
         },
         rep: staff.salesRep,
       };
@@ -110,12 +122,20 @@ router.get("/me", requireStaffSession, async (req: IdentityAuthedRequest, res) =
       phone: true,
       email: true,
       salesRep: { select: { id: true, name: true, phone: true } },
+      roles: { select: { role: { select: { name: true } } } },
     },
   });
   if (!staff) return res.status(401).json({ error: "Session no longer valid" });
-  const { salesRep, ...identity } = staff;
+  const { salesRep, roles: staffRoles, ...identity } = staff;
+  const roles = staffRoles.map(({ role }) => role.name);
+  const workspace = staffWorkspaceState({
+    status: "active", roles, permissions: req.staffAuth!.permissions,
+    staffPhone: staff.phone,
+    salesRepId: salesRep?.id ?? null,
+    salesRepPhone: salesRep?.phone ?? null,
+  });
   res.json({
-    staff: { ...identity, permissions: req.staffAuth!.permissions },
+    staff: { ...identity, permissions: req.staffAuth!.permissions, roles, workspaceMode: workspace.workspaceMode, setupCode: workspace.setupCode },
     rep: salesRep,
   });
 });

@@ -24,8 +24,8 @@ beforeAll(async () => {
   ]);
   const salespersonRole = await prisma.role.findUniqueOrThrow({ where: { name: "salesperson" } });
   await Promise.all([
-    prisma.staffUser.create({ data: { id: ids.staffA, name: "Staff A", phone: `95${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "5")}`, email: `tenant-a-${run}@test.invalid`, salesRepId: repA.id, roles: { create: { roleId: salespersonRole.id } } } }),
-    prisma.staffUser.create({ data: { id: ids.staffB, name: "Staff B", phone: `96${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "6")}`, email: `tenant-b-${run}@test.invalid`, salesRepId: repB.id, roles: { create: { roleId: salespersonRole.id } } } }),
+    prisma.staffUser.create({ data: { id: ids.staffA, name: "Staff A", phone: repA.phone, email: `tenant-a-${run}@test.invalid`, salesRepId: repA.id, roles: { create: { roleId: salespersonRole.id } } } }),
+    prisma.staffUser.create({ data: { id: ids.staffB, name: "Staff B", phone: repB.phone, email: `tenant-b-${run}@test.invalid`, salesRepId: repB.id, roles: { create: { roleId: salespersonRole.id } } } }),
   ]);
   const order = await prisma.order.create({ data: {
     id: ids.orderB,

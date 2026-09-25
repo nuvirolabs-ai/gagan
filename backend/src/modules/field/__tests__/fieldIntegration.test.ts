@@ -125,7 +125,7 @@ beforeAll(async () => {
     data: {
       id: ids.staffA,
       name: "Field Staff A",
-      phone: `85${digits}`,
+      phone: `81${digits}`,
       email: `field-a-${run}@test.invalid`,
       salesRepId: ids.repA,
       roles: { create: { roleId: salespersonRole.id } },
@@ -135,7 +135,7 @@ beforeAll(async () => {
     data: {
       id: ids.staffB,
       name: "Field Staff B",
-      phone: `86${digits}`,
+      phone: `82${digits}`,
       email: `field-b-${run}@test.invalid`,
       salesRepId: ids.repB,
       roles: { create: { roleId: salespersonRole.id } },

@@ -14,6 +14,16 @@ export interface StaffManagement {
   removeRole(staffId: string, roleId: string, actorStaffId: string): Promise<void>;
   createDelegation(input: DelegationInput, actorStaffId: string): Promise<unknown>;
   revokeDelegation(id: string, actorStaffId: string): Promise<void>;
+  setupSellingLeader(input: SellingLeaderSetupInput, actorStaffId: string): Promise<unknown>;
+  setupManagerOnly(staffId: string, actorStaffId: string): Promise<unknown>;
+}
+
+export interface SellingLeaderSetupInput {
+  staffId?: string;
+  newStaff?: StaffCreateInput;
+  managerId?: string | null;
+  reportIds?: string[];
+  territory?: string;
 }
 
 export interface StaffCreateInput {
@@ -37,6 +47,11 @@ interface AdminStaffRouterOptions {
 }
 
 const manageStaff = requirePermission(Permissions.STAFF_MANAGE);
+const sellingLeaderSetupSchema = z.object({
+  managerId: z.string().uuid().nullable().optional(),
+  reportIds: z.array(z.string().uuid()).max(500).optional(),
+  territory: z.string().trim().max(100).optional(),
+}).strict();
 
 export function createAdminStaffRouter(options: AdminStaffRouterOptions) {
   const router = Router();
@@ -72,6 +87,47 @@ export function createAdminStaffRouter(options: AdminStaffRouterOptions) {
       if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
       const staff = await options.service.createStaff(parsed.data, req.staffAuth!.staffId);
       res.status(201).json({ staff });
+    })
+  );
+
+  const setupSellingLeader: RequestHandler = asyncRoute(async (req: StaffAuthedRequest, res) => {
+    const body = sellingLeaderSetupSchema.safeParse(req.body);
+    if (!body.success) return res.status(400).json({ error: "invalid_input" });
+    if ((body.data.managerId !== undefined || body.data.reportIds !== undefined) &&
+        !req.staffAuth!.permissions.includes(Permissions.ORG_MANAGE)) {
+      return res.status(403).json({ error: "permission_required", permission: Permissions.ORG_MANAGE });
+    }
+    const result = await options.service.setupSellingLeader(
+      { staffId: req.params.id, ...body.data }, req.staffAuth!.staffId
+    );
+    res.json(result);
+  });
+  router.post("/staff/:id/selling-leader-setup", setupSellingLeader);
+  router.post(
+    "/staff/selling-leader-setup",
+    asyncRoute(async (req: StaffAuthedRequest, res) => {
+      const parsed = sellingLeaderSetupSchema.extend({
+        newStaff: z.object({
+          name: z.string().trim().min(2).max(100),
+          phone: z.string().min(10).max(20),
+          email: z.string().email(),
+          employeeRef: z.string().trim().min(1).max(50).optional(),
+        }),
+      }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+      if ((parsed.data.managerId !== undefined || parsed.data.reportIds !== undefined) &&
+          !req.staffAuth!.permissions.includes(Permissions.ORG_MANAGE)) {
+        return res.status(403).json({ error: "permission_required", permission: Permissions.ORG_MANAGE });
+      }
+      const result = await options.service.setupSellingLeader(parsed.data, req.staffAuth!.staffId);
+      res.status(201).json(result);
+    })
+  );
+  router.post(
+    "/staff/:id/manager-only-setup",
+    asyncRoute(async (req: StaffAuthedRequest, res) => {
+      const result = await options.service.setupManagerOnly(req.params.id, req.staffAuth!.staffId);
+      res.json(result);
     })
   );
 

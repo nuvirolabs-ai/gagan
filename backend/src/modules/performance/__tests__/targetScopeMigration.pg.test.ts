@@ -161,9 +161,11 @@ describe.skipIf(!localTestDb)("SalesTarget scope PostgreSQL transition", () => {
       const input = { salespersonId: ownerId, metric: "order_value", periodStart: "2026-09-01", periodEnd: "2026-09-30", targetValue: 1000 };
       const personal = await request(app).post("/field/targets").send({ ...input, scope: "PERSONAL" });
       const team = await request(app).post("/field/targets").send({ ...input, scope: "TEAM", targetValue: 2000 });
+      const zeroTeam = await request(app).post("/field/targets").send({ ...input, scope: "TEAM", targetValue: 0 });
       const legacy = await request(app).post("/field/targets").send(input);
       expect(personal.status).toBe(201);
       expect(team.status).toBe(201);
+      expect(zeroTeam.status).toBe(201);
       expect(legacy.status).toBe(409);
       expect(legacy.body.error).toBe("target_scope_required");
       const personalRead = await request(app).get(`/field/targets?salespersonId=${ownerId}`);
@@ -171,6 +173,7 @@ describe.skipIf(!localTestDb)("SalesTarget scope PostgreSQL transition", () => {
       expect(personalRead.body.targets.map((target: any) => target.scope)).toEqual(["PERSONAL"]);
       expect(allRead.body.targets.map((target: any) => target.scope).sort()).toEqual(["PERSONAL", "TEAM"]);
       expect(await client.salesTarget.count({ where: { salespersonId: ownerId } })).toBe(2);
+      expect((await client.salesTarget.findFirstOrThrow({ where: { salespersonId: ownerId, scope: "TEAM" } })).targetValue.toNumber()).toBe(0);
     } finally {
       await client.salesTarget.deleteMany({ where: { salespersonId: ownerId } });
       await client.staffUser.deleteMany({ where: { id: ownerId } });

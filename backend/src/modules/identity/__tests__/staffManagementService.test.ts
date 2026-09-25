@@ -11,6 +11,7 @@ function setup() {
   const audits: AuditInput[] = [];
   const calls: string[] = [];
   let delegatorHasRole = true;
+  let assignedRoleName = "other";
   const transaction: StaffManagementTransaction = {
     createStaff: async (input) => ({ id: "staff-2", ...input, status: "active" }),
     setStatus: async (id, status) => ({ id, status }),
@@ -18,6 +19,8 @@ function setup() {
     removeRole: async () => undefined,
     hasRole: async () => delegatorHasRole,
     isActiveStaff: async () => true,
+    getRoleName: async () => assignedRoleName,
+    getStaffSalesIdentity: async () => ({ phone: "+919876543210", salesRepId: null, salesRepPhone: null, roleNames: [] }),
     createDelegation: async (input) => ({ id: "delegation-1", ...input }),
     revokeDelegation: async () => true,
     revokeSubjectSessions: async () => {
@@ -38,6 +41,9 @@ function setup() {
     service: new StaffManagementService(store),
     withoutDelegatorRole() {
       delegatorHasRole = false;
+    },
+    assigningSalesperson() {
+      assignedRoleName = "salesperson";
     },
   };
 }
@@ -84,6 +90,14 @@ describe("StaffManagementService", () => {
       subjectId: "staff-2",
       metadata: { roleId: "role-1" },
     });
+  });
+
+  it("blocks direct salesperson assignment when the SalesRep identity is unlinked", async () => {
+    const { service, assigningSalesperson, audits } = setup();
+    assigningSalesperson();
+    await expect(service.assignRole("staff-2", "role-1", "admin-1"))
+      .rejects.toMatchObject({ code: "selling_leader_setup_required" });
+    expect(audits).toHaveLength(0);
   });
 
   it("rejects delegation of a role the delegator does not hold", async () => {

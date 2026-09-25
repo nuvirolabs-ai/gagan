@@ -329,6 +329,39 @@ describe("Today answers the whole screen in one request", () => {
 });
 
 describe("achievements fire once", () => {
+  it("does not celebrate or consume personal milestone keys for a TEAM target", async () => {
+    const managerRole = await prisma.role.findUniqueOrThrow({ where: { name: "field_manager" } });
+    await prisma.staffRole.upsert({
+      where: { staffId_roleId: { staffId: ids.staffA, roleId: managerRole.id } },
+      create: { staffId: ids.staffA, roleId: managerRole.id }, update: {},
+    });
+    await prisma.achievementEvent.deleteMany({ where: { subjectId: ids.staffA } });
+    await prisma.salesTarget.updateMany({
+      where: { salespersonId: ids.staffA, scope: "PERSONAL", metric: "order_value" },
+      data: { targetValue: 200000 },
+    });
+    const teamTarget = await prisma.salesTarget.create({ data: {
+      salespersonId: ids.staffA, scope: "TEAM", metric: "order_value",
+      periodStart: monthStart, periodEnd: monthEnd, targetValue: 67200,
+    } });
+    try {
+      const response = await request(app).get("/rep/field/today").set("Authorization", `Bearer ${tokenA}`);
+      expect(response.status).toBe(200);
+      expect(response.body.headlineTarget).toMatchObject({ target: 200000, actual: 67200 });
+      expect(response.body.achievements.new.filter((event: any) => event.type.startsWith("TARGET_"))).toEqual([]);
+      const events = await prisma.achievementEvent.findMany({ where: { subjectId: ids.staffA }, select: { type: true } });
+      expect(events.filter((event) => event.type.startsWith("TARGET_"))).toHaveLength(0);
+    } finally {
+      await prisma.salesTarget.delete({ where: { id: teamTarget.id } });
+      await prisma.salesTarget.updateMany({
+        where: { salespersonId: ids.staffA, scope: "PERSONAL", metric: "order_value" },
+        data: { targetValue: 120000 },
+      });
+      await prisma.staffRole.deleteMany({ where: { staffId: ids.staffA, roleId: managerRole.id } });
+      await prisma.achievementEvent.deleteMany({ where: { subjectId: ids.staffA } });
+    }
+  });
+
   it("earns a milestone on the load that crosses it, and not again", async () => {
     await prisma.achievementEvent.deleteMany({ where: { subjectId: ids.staffA } });
     await prisma.salesTarget.updateMany({

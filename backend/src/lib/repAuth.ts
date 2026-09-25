@@ -3,7 +3,7 @@ import { prisma } from "./prisma";
 import { Permissions } from "../modules/identity/roleCatalog";
 import { SessionError } from "../modules/identity/sessionService";
 import { lazyIdentitySessionService } from "../modules/identity/sessionRuntime";
-import { staffAppAccess } from "../modules/identity/staffAppAccess";
+import { staffWorkspaceState } from "../modules/identity/staffAppAccess";
 
 export interface RepRequest extends Request {
   repId?: string;
@@ -24,16 +24,33 @@ export async function requireRep(req: RepRequest, res: Response, next: NextFunct
     );
     const staff = await prisma.staffUser.findUnique({
       where: { id: claims.sub },
-      select: { id: true, salesRepId: true },
+      select: {
+        id: true, status: true, phone: true, salesRepId: true,
+        salesRep: { select: { phone: true } },
+        roles: { select: { role: { select: { name: true } } } },
+      },
     });
-    const access = staffAppAccess(claims.permissions, staff?.salesRepId ?? null);
+    const access = staff && staffWorkspaceState({
+      status: staff.status,
+      staffPhone: staff.phone,
+      salesRepId: staff.salesRepId,
+      salesRepPhone: staff.salesRep?.phone ?? null,
+      roles: staff.roles.map(({ role }) => role.name),
+      permissions: claims.permissions,
+    });
     if (!claims.permissions.includes(Permissions.ORDER_CREATE_FOR_RETAILER)) {
       return res.status(403).json({
         error: "permission_required",
         permission: Permissions.ORDER_CREATE_FOR_RETAILER,
       });
     }
-    if (!staff?.salesRepId || !access.canUseSalesWorkspace) {
+    if (access?.workspaceMode === "setup_required") {
+      return res.status(409).json({ error: access.setupCode });
+    }
+    // Keep the existing permission-backed rep access of non-salesperson
+    // privileged roles; the new direct-role identity rules govern salespeople.
+    const legacyPrivilegedAccess = access?.workspaceMode === "access_only" && Boolean(staff?.salesRepId);
+    if (!staff?.salesRepId || (!access?.canUseSalesWorkspace && !legacyPrivilegedAccess)) {
       return res.status(403).json({ error: "salesperson_required" });
     }
     req.staffId = staff.id;

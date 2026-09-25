@@ -520,7 +520,7 @@ export function createFieldAdminRouter(options: {
           metric: z.enum(["order_value", "visits", "collection_value", "new_customers"]),
           periodStart: isoDate,
           periodEnd: isoDate,
-          targetValue: z.number().finite().positive(),
+          targetValue: z.number().finite().nonnegative(),
           scope: z.enum(["PERSONAL", "TEAM"]).optional(),
         })
         .safeParse(req.body);

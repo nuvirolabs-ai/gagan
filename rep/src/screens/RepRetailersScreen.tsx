@@ -32,8 +32,9 @@ import { useLanguage } from "../i18n/LanguageContext";
 
 type Filter = "all" | "route" | "overdue" | "opportunities";
 
-function OutletCard({
+export function OutletCard({
   item,
+  reviewRequired,
   chip,
   dueLabel,
   dueTone,
@@ -41,6 +42,7 @@ function OutletCard({
   onPress,
 }: {
   item: any;
+  reviewRequired: boolean;
   chip?: { label: string; tone: "green" | "gold" | "danger" | "warning" | "neutral" };
   dueLabel: string;
   dueTone: "ink" | "danger";
@@ -66,13 +68,17 @@ function OutletCard({
         <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} />
       </View>
       <View style={styles.outletRule} />
-      <View style={styles.outletBottom}>
-        <View style={styles.outletMoney}>
-          <Text style={[styles.outletDue, dueTone === "danger" && styles.outletDueDanger]} numberOfLines={1}>{dueLabel}</Text>
-          <Text style={styles.outletCredit} numberOfLines={1}>{creditLabel}</Text>
+      {reviewRequired ? (
+        <Text style={styles.outletReview}>{dueLabel}</Text>
+      ) : (
+        <View style={styles.outletBottom}>
+          <View style={styles.outletMoney}>
+            <Text style={[styles.outletDue, dueTone === "danger" && styles.outletDueDanger]}>{dueLabel}</Text>
+            <Text style={styles.outletCredit}>{creditLabel}</Text>
+          </View>
+          {chip ? <StatusChip label={chip.label} tone={chip.tone} /> : <Text style={styles.outletQuiet}>Open account</Text>}
         </View>
-        {chip ? <StatusChip label={chip.label} tone={chip.tone} /> : <Text style={styles.outletQuiet}>Open account</Text>}
-      </View>
+      )}
     </TouchableOpacity>
   );
 }
@@ -233,6 +239,7 @@ export default function RepRetailersScreen({ navigation }: any) {
             return (
               <OutletCard
                 item={item}
+                reviewRequired={reviewRequired}
                 chip={chip}
                 dueLabel={reviewRequired ? t("finance.reviewTitle") : overdue ? t("retailers.overdueAmount", { amount: inr(item.overdue) }) : t("retailers.due", { amount: inr(item.outstanding) })}
                 dueTone={reviewRequired || overdue ? "danger" : "ink"}
@@ -299,9 +306,10 @@ const styles = StyleSheet.create({
   outletSegment: { color: colors.inkMuted, fontSize: 11, fontWeight: "700" },
   outletRule: { height: 1, backgroundColor: colors.border, marginVertical: spacing.md },
   outletBottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md },
-  outletMoney: { flex: 1, flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
+  outletMoney: { flex: 1, minWidth: 0, gap: 4 },
   outletDue: { color: colors.ink, fontSize: 12.5, fontWeight: "700" },
   outletDueDanger: { color: colors.danger },
   outletCredit: { color: colors.inkMuted, fontSize: 12.5 },
+  outletReview: { color: colors.danger, fontSize: 13, fontWeight: "700" },
   outletQuiet: { color: colors.inkFaint, fontSize: 11, fontWeight: "600" },
 });

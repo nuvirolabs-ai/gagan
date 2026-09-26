@@ -16,6 +16,7 @@ function fakePrisma(options: {
   retailers?: any[];
   orders?: any[];
   visits?: any[];
+  invoices?: any[];
 } = {}) {
   return {
     staffUser: {
@@ -27,6 +28,7 @@ function fakePrisma(options: {
     retailer: { findMany: vi.fn().mockResolvedValue(options.retailers ?? []) },
     order: { findMany: vi.fn().mockResolvedValue(options.orders ?? []) },
     salesVisit: { findMany: vi.fn().mockResolvedValue(options.visits ?? []) },
+    invoice: { findMany: vi.fn().mockResolvedValue(options.invoices ?? []) },
   } as any;
 }
 
@@ -120,6 +122,29 @@ describe("finding a salesperson's opportunities", () => {
     expect(result.summary.find((s) => s.type === "COLLECTION_DUE")?.headline).toBe(
       "₹40,500 collections due"
     );
+  });
+
+  it("excludes a disputed cached balance from collection opportunities", async () => {
+    const prisma = fakePrisma({
+      retailers: [{ id: "r1", name: "Mahesh Store", currentBalance: "62412", overdueAmount: "62412" }],
+      invoices: [{ retailerId: "r1", status: "paid", outstandingAmount: "0", dueDate: at("2026-03-01") }],
+    });
+    const result = await new OpportunityService(prisma).forSalesperson({ salespersonId: "staff-1", now: NOW });
+    expect(result.triggers.some((trigger) => trigger.type === "COLLECTION_DUE")).toBe(false);
+    expect(prisma.invoice.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses invoice overdue when the cached balance reconciles", async () => {
+    const prisma = fakePrisma({
+      retailers: [{ id: "r1", name: "Annapurna Foods", currentBalance: "10111", overdueAmount: "9999" }],
+      invoices: [
+        { retailerId: "r1", status: "open", outstandingAmount: "3120", dueDate: at("2026-03-01") },
+        { retailerId: "r1", status: "open", outstandingAmount: "6991", dueDate: at("2026-04-01") },
+      ],
+    });
+    const result = await new OpportunityService(prisma).forSalesperson({ salespersonId: "staff-1", now: NOW });
+    expect(result.triggers.find((trigger) => trigger.type === "COLLECTION_DUE")?.facts)
+      .toEqual({ code: "COLLECTION_DUE", overdueAmount: 3120 });
   });
 
   it("finds nothing to say about a book with no history", async () => {

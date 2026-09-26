@@ -17,7 +17,7 @@ export interface OpportunityResult {
 /**
  * Next best actions for a salesperson's own book.
  *
- * The whole book is loaded in four queries and reduced in memory rather than
+ * The whole book is loaded in a fixed number of queries and reduced in memory rather than
  * asking per retailer: a salesperson with sixty stores would otherwise cost
  * hundreds of round trips on every Today load.
  *
@@ -42,7 +42,7 @@ export class OpportunityService {
    * it is the identical computation over a wider retailer set, and a store
    * appears exactly once regardless of how many managers can see it.
    *
-   * Query count is fixed at four (staff, retailers, orders, visits) whether the
+   * Query count is fixed at five (staff, retailers, orders, visits, invoices) whether the
    * scope is one salesperson or three hundred; only the row counts grow.
    */
   async forTeam(input: {
@@ -76,13 +76,13 @@ export class OpportunityService {
 
     const retailers = await this.prisma.retailer.findMany({
       where: { salesRepId: { in: repIds }, status: "active" },
-      select: { id: true, name: true, overdueAmount: true, salesRepId: true },
+      select: { id: true, name: true, currentBalance: true, overdueAmount: true, salesRepId: true },
       orderBy: { name: "asc" },
     });
     if (retailers.length === 0) return empty;
 
     const retailerIds = retailers.map((retailer: any) => retailer.id);
-    const [orders, visits] = await Promise.all([
+    const [orders, visits, invoices] = await Promise.all([
       this.prisma.order.findMany({
         where: {
           retailerId: { in: retailerIds },
@@ -104,7 +104,22 @@ export class OpportunityService {
         select: { retailerId: true, checkedInAt: true },
         orderBy: { checkedInAt: "desc" },
       }),
+      this.prisma.invoice?.findMany({
+        where: { retailer: { salesRepId: { in: repIds }, status: "active" } },
+        select: { retailerId: true, status: true, outstandingAmount: true, dueDate: true },
+      }) ?? Promise.resolve([]),
     ]);
+
+    const invoiceState = new Map<string, { outstanding: number; overdue: number }>();
+    for (const invoice of invoices as any[]) {
+      const state = invoiceState.get(invoice.retailerId) ?? { outstanding: 0, overdue: 0 };
+      if ((invoice.status === "open" || invoice.status === "partially_paid") && Number(invoice.outstandingAmount) > 0) {
+        const amount = Number(invoice.outstandingAmount);
+        state.outstanding += amount;
+        if (invoice.dueDate < now) state.overdue += amount;
+      }
+      invoiceState.set(invoice.retailerId, state);
+    }
 
     const ordersByRetailer = new Map<string, any[]>();
     for (const order of orders as any[]) {
@@ -133,13 +148,20 @@ export class OpportunityService {
         visits: visitsByRetailer.get(retailer.id) ?? [],
         now,
       });
+      const invoiceBalance = invoiceState.get(retailer.id);
+      const cachedBalance = Number(retailer.currentBalance);
+      const overdueAmount = invoiceBalance
+        ? !Number.isFinite(cachedBalance) || Math.abs(cachedBalance - invoiceBalance.outstanding) > 0.01
+          ? 0
+          : invoiceBalance.overdue
+        : Number(retailer.overdueAmount ?? 0);
       triggers.push(
         ...triggersFor({
           retailerId: retailer.id,
           retailerName: retailer.name,
           salespersonId: staffIdByRep.get(retailer.salesRepId) ?? retailer.salesRepId,
           baseline,
-          overdueAmount: Number(retailer.overdueAmount ?? 0),
+          overdueAmount,
           valueShare: bookValue > 0 ? (valueByRetailer.get(retailer.id) ?? 0) / bookValue : 0,
           now,
         })

@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { explain } from "../errorCopy";
-
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
+import { todayLocal } from "../localDate";
 
 /**
  * Route and task planning for the field team.
@@ -25,7 +22,7 @@ export default function FieldPlanning() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const [planDate, setPlanDate] = useState(today());
+  const [planDate, setPlanDate] = useState(todayLocal());
   const [planSalesperson, setPlanSalesperson] = useState("");
   const [planName, setPlanName] = useState("");
   const [planStops, setPlanStops] = useState<string[]>([]);

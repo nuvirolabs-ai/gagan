@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, inr } from "../api";
 import { explain } from "../errorCopy";
+import { todayLocal } from "../localDate";
 
 const MARK_PILL: Record<string, string> = {
   present: "confirmed",
@@ -18,17 +19,13 @@ const MARK_LABEL: Record<string, string> = {
   not_due: "—",
 };
 
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 /**
  * Team attendance, leave decisions and last known working position for one
  * date. Every number here is the same canonical data the salesperson sees in
  * their own app.
  */
 export default function FieldTeam() {
-  const [date, setDate] = useState(today());
+  const [date, setDate] = useState(todayLocal());
   const [tab, setTab] = useState<"attendance" | "leave" | "location">("attendance");
   const [team, setTeam] = useState<any[]>([]);
   const [leave, setLeave] = useState<any[]>([]);
@@ -106,8 +103,8 @@ export default function FieldTeam() {
 
       <div className="card">
         <div className="field">
-          <label>Date</label>
-          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+          <label htmlFor="field-team-date">Date</label>
+          <input id="field-team-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
         </div>
       </div>
 

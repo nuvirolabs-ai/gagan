@@ -43,6 +43,20 @@ describe("Field Planning target scope", () => {
     })));
   });
 
+  it("defaults to the operator's local date after midnight in India", async () => {
+    vi.stubEnv("TZ", "Asia/Kolkata");
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-26T19:30:00.000Z"));
+    try {
+      render(<FieldPlanning />);
+      expect(screen.getByLabelText("Date")).toHaveValue("2026-09-27");
+      expect(api.routePlans).toHaveBeenCalledWith({ from: "2026-09-27", to: "2026-09-27" });
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("saves a reusable leader beat from ordered assigned-store multi-select", async () => {
     render(<FieldPlanning />);
     await screen.findByRole("option", { name: "Ravi" });

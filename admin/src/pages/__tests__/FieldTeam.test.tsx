@@ -39,6 +39,19 @@ vi.mock("../../api", () => ({
 }));
 
 describe("Field team", () => {
+  it("defaults to the operator's local date after midnight in India", () => {
+    vi.stubEnv("TZ", "Asia/Kolkata");
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-26T19:30:00.000Z"));
+    try {
+      render(<FieldTeam />);
+      expect(screen.getByLabelText("Date")).toHaveValue("2026-09-27");
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("shows attendance, hours and route progress from real metrics", async () => {
     render(<FieldTeam />);
     expect(await screen.findByText("Ravi Kumar")).toBeInTheDocument();

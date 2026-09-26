@@ -1,4 +1,5 @@
 import type { SessionStore } from "../auth/sessionStore";
+import { localDayKey } from "../dateOnly";
 
 export type ApiRequest = (path: string, options?: RequestInit, auth?: boolean) => Promise<any>;
 
@@ -139,12 +140,18 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
       post("/rep/field/leave", body),
     cancelLeave: (id: string) => post(`/rep/field/leave/${id}/cancel`),
 
-    route: (date?: string) => request(`/rep/field/route${date ? `?date=${date}` : ""}`),
+    route: (date = localDayKey()) => request(`/rep/field/route?date=${date}`),
     beatTemplates: () => request("/rep/field/beat-templates"),
     saveBeatTemplate: (body: { name: string; stops: Array<{ retailerId: string; purpose?: string; note?: string }> }) =>
       post("/rep/field/beat-templates", body),
-    updateBeatTemplate: (id: string, body: { name: string; stops: Array<{ retailerId: string; purpose?: string; note?: string }> }) =>
-      request(`/rep/field/beat-templates/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(body) }),
+    updateBeatTemplate: (id: string, body: { name: string; stops: Array<{ retailerId: string; purpose?: string; note?: string | null }> }) =>
+      request(`/rep/field/beat-templates/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          ...body,
+          stops: body.stops.map((stop) => ({ ...stop, note: stop.note ?? undefined })),
+        }),
+      }),
     routeHistory: (from?: string, to?: string) =>
       request(`/rep/field/route/history${rangeQuery(from, to)}`),
     skipRouteStop: (stopId: string, reason: string) =>

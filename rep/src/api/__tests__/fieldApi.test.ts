@@ -44,8 +44,26 @@ describe("field day API", () => {
     await client.route();
     await client.tasks();
     const paths = request.mock.calls.map((call) => call[0] as string);
-    expect(paths).toEqual(["/rep/field/today", "/rep/field/route", "/rep/field/tasks"]);
+    expect(paths[0]).toBe("/rep/field/today");
+    expect(paths[1]).toMatch(/^\/rep\/field\/route\?date=\d{4}-\d{2}-\d{2}$/);
+    expect(paths[2]).toBe("/rep/field/tasks");
     expect(paths.some((path) => path.includes("salespersonId"))).toBe(false);
+  });
+
+  it("requests the device's calendar day for today's route", async () => {
+    vi.stubEnv("TZ", "Asia/Kolkata");
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-26T18:34:00Z"));
+    try {
+      const { api: client, request } = api();
+      await client.route();
+      expect(request.mock.calls[0][0]).toBe("/rep/field/route?date=2026-09-27");
+      await client.route("2026-09-25");
+      expect(request.mock.calls[1][0]).toBe("/rep/field/route?date=2026-09-25");
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllEnvs();
+    }
   });
 
   it("posts a clock-in with the coordinates the device captured", async () => {

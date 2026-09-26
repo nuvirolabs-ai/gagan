@@ -15,4 +15,17 @@ describe("own beat API", () => {
       ["/rep/field/beat-templates/beat-1", "PUT"],
     ]);
   });
+
+  it("omits a stored null note when sending an edited beat", async () => {
+    const request = vi.fn().mockResolvedValue({ template: {} });
+    const api = createStaffApi(request, { load: vi.fn(), save: vi.fn(), clear: vi.fn() } as any);
+    await api.updateBeatTemplate("beat-1", {
+      name: "North reviewed",
+      stops: [{ retailerId: "store-1", purpose: "sales_call", note: null }],
+    } as any);
+    expect(JSON.parse(request.mock.calls[0][1].body)).toEqual({
+      name: "North reviewed",
+      stops: [{ retailerId: "store-1", purpose: "sales_call" }],
+    });
+  });
 });

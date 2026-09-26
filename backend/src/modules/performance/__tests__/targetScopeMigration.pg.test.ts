@@ -13,7 +13,7 @@ import { createFieldAdminRouter } from "../../field/fieldAdminRoutes";
 
 const prismaDir = resolve(__dirname, "../../../../prisma");
 const expansion = join(prismaDir, "migrations/20260925150000_sales_target_scope_expand/migration.sql");
-const contract = join(prismaDir, "held_migrations/20260925160000_sales_target_scope_constraints/migration.sql");
+const contract = join(prismaDir, "migrations/20260925160000_sales_target_scope_constraints/migration.sql");
 const base = process.env.DATABASE_URL;
 const baseUrl = base ? new URL(base) : null;
 const localTestDb = baseUrl && ["localhost", "127.0.0.1"].includes(baseUrl.hostname)
@@ -47,9 +47,9 @@ describe.skipIf(!localTestDb)("SalesTarget scope PostgreSQL transition", () => {
   beforeAll(() => {
     expect(existsSync(expansion)).toBe(true);
     expect(existsSync(contract)).toBe(true);
-    expect(readdirSync(join(prismaDir, "migrations")).filter((entry) => entry !== "migration_lock.toml")).toHaveLength(53);
+    expect(readdirSync(join(prismaDir, "migrations")).filter((entry) => entry !== "migration_lock.toml")).toHaveLength(54);
     run("createdb", ["--maintenance-db", maintenanceUrl!.toString(), name]);
-    cpSync(prismaDir, baseline, { recursive: true, filter: (source) => !source.includes("20260925150000_sales_target_scope_expand") && !source.includes("held_migrations") });
+    cpSync(prismaDir, baseline, { recursive: true, filter: (source) => !source.includes("20260925150000_sales_target_scope_expand") && !source.includes("20260925160000_sales_target_scope_constraints") && !source.includes("held_migrations") });
     run("npx", ["prisma", "migrate", "deploy", "--schema", join(baseline, "schema.prisma")], dbUrl);
     expect(sql(dbUrl, 'SELECT count(*) FROM "_prisma_migrations" WHERE finished_at IS NOT NULL')).toBe("52");
   }, 120_000);
@@ -61,7 +61,10 @@ describe.skipIf(!localTestDb)("SalesTarget scope PostgreSQL transition", () => {
   it("retains old uniqueness through nullable expansion and blocks paused writes", () => {
     sql(dbUrl, `INSERT INTO "StaffUser" (id, name, phone, email, "updatedAt") VALUES ('scope-owner', 'Scope Owner', '9090909000', 'scope@test.invalid', NOW())`);
     sql(dbUrl, `INSERT INTO "SalesTarget" (id, "salespersonId", metric, "periodStart", "periodEnd", "targetValue", "updatedAt") VALUES ('legacy-target', 'scope-owner', 'order_value', '2026-09-01', '2026-09-30', 400000, NOW())`);
-    run("npx", ["prisma", "migrate", "deploy", "--schema", join(prismaDir, "schema.prisma")], dbUrl);
+    const cliUrl = new URL(dbUrl);
+    cliUrl.searchParams.delete("schema");
+    run("psql", [cliUrl.toString(), "-X", "-v", "ON_ERROR_STOP=1", "-f", expansion]);
+    run("npx", ["prisma", "migrate", "resolve", "--applied", "20260925150000_sales_target_scope_expand", "--schema", join(prismaDir, "schema.prisma")], dbUrl);
     expect(sql(dbUrl, 'SELECT count(*) FROM "_prisma_migrations" WHERE finished_at IS NOT NULL')).toBe("53");
     expect(sql(dbUrl, `SELECT COALESCE(scope::text, 'NULL') FROM "SalesTarget" WHERE id = 'legacy-target'`)).toBe("NULL");
     expect(() => sql(dbUrl, `INSERT INTO "SalesTarget" (id, "salespersonId", metric, "periodStart", "periodEnd", "targetValue", "updatedAt") VALUES ('duplicate', 'scope-owner', 'order_value', '2026-09-01', '2026-09-30', 1, NOW())`)).toThrow();
@@ -129,6 +132,7 @@ describe.skipIf(!localTestDb)("SalesTarget scope PostgreSQL transition", () => {
     expect(() => run("psql", [cliUrl.toString(), "-X", "-v", "ON_ERROR_STOP=1", "-f", contract])).toThrow();
     sql(dbUrl, `UPDATE "SalesTarget" SET scope = 'PERSONAL' WHERE id = 'unclassified-target'`);
     run("psql", [cliUrl.toString(), "-X", "-v", "ON_ERROR_STOP=1", "-f", contract]);
+    run("npx", ["prisma", "migrate", "resolve", "--applied", "20260925160000_sales_target_scope_constraints", "--schema", join(prismaDir, "schema.prisma")], dbUrl);
     expect(sql(dbUrl, `SELECT scope::text || ':' || "targetValue"::text FROM "SalesTarget" WHERE id = 'legacy-target'`)).toBe("PERSONAL:400000.00");
     sql(dbUrl, `INSERT INTO "SalesTarget" (id, "salespersonId", scope, metric, "periodStart", "periodEnd", "targetValue", "updatedAt") VALUES ('team-target', 'scope-owner', 'TEAM', 'order_value', '2026-09-01', '2026-09-30', 500000, NOW())`);
     expect(() => sql(dbUrl, `INSERT INTO "SalesTarget" (id, "salespersonId", scope, metric, "periodStart", "periodEnd", "targetValue", "updatedAt") VALUES ('duplicate-team', 'scope-owner', 'TEAM', 'order_value', '2026-09-01', '2026-09-30', 1, NOW())`)).toThrow();
@@ -182,18 +186,14 @@ describe.skipIf(!localTestDb)("SalesTarget scope PostgreSQL transition", () => {
     }
   }, 120_000);
 
-  it("migrates a fresh disposable database without automatically applying the held contract", () => {
+  it("migrates a fresh disposable database through the scoped contract", () => {
     const freshName = `gagan_scope_test_${randomUUID().replace(/-/g, "").slice(0, 12)}`;
     const freshUrl = new URL(base!);
     freshUrl.pathname = `/${freshName}`;
-    const cliUrl = new URL(freshUrl);
-    cliUrl.searchParams.delete("schema");
     run("createdb", ["--maintenance-db", maintenanceUrl!.toString(), freshName]);
     try {
       run("npx", ["prisma", "migrate", "deploy", "--schema", join(prismaDir, "schema.prisma")], freshUrl.toString());
-      expect(sql(freshUrl.toString(), 'SELECT count(*) FROM "_prisma_migrations" WHERE finished_at IS NOT NULL')).toBe("53");
-      expect(sql(freshUrl.toString(), `SELECT is_nullable FROM information_schema.columns WHERE table_name = 'SalesTarget' AND column_name = 'scope'`)).toBe("YES");
-      run("psql", [cliUrl.toString(), "-X", "-v", "ON_ERROR_STOP=1", "-f", contract]);
+      expect(sql(freshUrl.toString(), 'SELECT count(*) FROM "_prisma_migrations" WHERE finished_at IS NOT NULL')).toBe("54");
       expect(sql(freshUrl.toString(), `SELECT is_nullable FROM information_schema.columns WHERE table_name = 'SalesTarget' AND column_name = 'scope'`)).toBe("NO");
     } finally {
       run("dropdb", ["--if-exists", "--maintenance-db", maintenanceUrl!.toString(), freshName]);

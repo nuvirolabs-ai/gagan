@@ -126,6 +126,8 @@ The authenticated Admin browser used the authorized `R (gagantoordal.com)` Chrom
 
 ## Existing observations, not owned fixtures
 
+- Authenticated Ops Admin Collections on 2026-09-27 showed the pre-existing Kirana Mart cash submission `74ab10e9-888b-4284-aec4-427327b6c038` as pending, ₹3,120, collector Rahul Sharma, reference `UAT-CASH-20260911`, with no uploaded receipt. [Read-only detail](acceptance-evidence/2026-09-27/admin-kirana-pending-collection-readonly.png). Hosted database has one pending and three confirmed CollectionSubmission rows. This record was not created by this pass; no step-up, confirm, reject, Payment, allocation or ledger write was attempted.
+
 | Object | Current observation | Evidence boundary |
 |---|---|---|
 | Mahesh Store Retailer app | On Moto Retailer v24 and Salesperson v32, the disputed current balance is shown under review rather than zero/all-clear or a collectible ₹62,412; history remains visible. Read-only DB still shows cached `currentBalance`/`overdueAmount` ₹62,412, six bridged invoices all paid, three unbridged legacy invoice entries totalling ₹62,412, and existing open `financial_balance_mismatch` issue `ef820fbb-d8eb-449b-b452-96579ee98387`. | [Retailer Home](acceptance-evidence/2026-09-26/retailer-v24-home-under-review.png), [Ledger](acceptance-evidence/2026-09-26/retailer-v24-ledger-under-review.png), [Salesperson Outlet](acceptance-evidence/2026-09-26/sales-v32-mahesh-outlet-review.png). Do not create payment, bridge invoices, or infer which balance is collectible. This is not a fixture created by this pass. |

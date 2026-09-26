@@ -36,7 +36,7 @@ describe("Import Center ownership on PostgreSQL",()=>{
   const final=await prisma.staffUser.findUniqueOrThrow({where:{employeeRef}});
   expect(final.id).toBe(first.id);expect(final.salesRepId).toBe(first.salesRepId);expect(final.managerId).toBe(manager.id);
  });
-it("row failure preserves successful progress and retry skips already-applied rows",async()=>{
+ it("row failure preserves successful progress and retry skips already-applied rows",async()=>{
   const job=await fixture("partial");
   const interrupted=prisma.$extends({query:{product:{async create({args,query}){
    if(args.data.name===job.name+"B") throw new Error("temporary row failure");
@@ -47,6 +47,37 @@ it("row failure preserves successful progress and retry skips already-applied ro
   expect((await applyImport(prisma,job.id,actor,true)).job.status).toBe("completed");
   expect(await prisma.product.count({where:{name:{startsWith:job.name}}})).toBe(2);
   expect(await prisma.auditEvent.count({where:{actorStaffId:actor,action:"import.product_applied",metadata:{path:["importJobId"],equals:job.id}}})).toBe(2);
+ });
+ it("retries the second pack of a new product without IDs after a partial apply",async()=>{
+  const name=prefix+"-multi-pack";names.push(name);
+  const csv=`product_name,category,unit_size,unit,units_per_case,unit_weight_kg\n${name},Test,500 g,g,20,0.5\n${name},Test,500 g,g,60,0.5`;
+  const preview=await previewImport(prisma,{type:"products",fileName:"multi.csv",buffer:Buffer.from(csv),mode:"create_only",actorStaffId:actor});
+  jobs.push(preview.job.id);
+  expect(preview.summary.validRows).toBe(2);
+  const interrupted=prisma.$extends({query:{variant:{async create({args,query}){
+   if(args.data.unitsPerCase===60)throw new Error("temporary second-pack failure");return query(args);
+  }}}});
+  expect((await applyImport(interrupted as typeof prisma,preview.job.id,actor,true)).job.status).toBe("completed_with_errors");
+  const first=await prisma.product.findFirstOrThrow({where:{name},include:{variants:true}});
+  expect(first.variants.map(variant=>variant.unitsPerCase)).toEqual([20]);
+  expect((await applyImport(prisma,preview.job.id,actor,true)).job.status).toBe("completed");
+  const final=await prisma.product.findFirstOrThrow({where:{name},include:{variants:true}});
+  expect(final.id).toBe(first.id);
+  expect(final.variants.map(variant=>variant.unitsPerCase).sort()).toEqual([20,60]);
+  expect(final.catalogStatus).toBe("pending_review");
+  expect(final.variants.every(variant=>variant.catalogStatus==="pending_review")).toBe(true);
+ });
+ it("edits a pending variant under an active product without changing active product metadata",async()=>{
+  const name=prefix+"-active-parent";names.push(name);
+  const product=await prisma.product.create({data:{name,category:"Original",catalogStatus:"active",variants:{create:{unitSize:"500 g",unit:"g",unitsPerCase:20,unitWeightKg:0.5,catalogStatus:"pending_review"}}},include:{variants:true}});
+  const csv=`product_name,category,unit_size,unit,units_per_case,unit_weight_kg,product_id,variant_id\n${name},Changed,500 g,g,60,0.5,${product.id},${product.variants[0].id}`;
+  const preview=await previewImport(prisma,{type:"products",fileName:"pending-pack.csv",buffer:Buffer.from(csv),mode:"update_only",actorStaffId:actor});
+  jobs.push(preview.job.id);
+  expect(preview.summary.validRows).toBe(1);
+  expect((await applyImport(prisma,preview.job.id,actor,true)).job.status).toBe("completed");
+  const saved=await prisma.product.findUniqueOrThrow({where:{id:product.id},include:{variants:true}});
+  expect(saved).toMatchObject({category:"Original",catalogStatus:"active"});
+  expect(saved.variants[0]).toMatchObject({unitsPerCase:60,catalogStatus:"pending_review"});
  });
  it("revalidates an invalidated preview and does not overwrite a new matching record",async()=>{
   const job=await fixture("invalid");

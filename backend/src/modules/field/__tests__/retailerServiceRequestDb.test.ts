@@ -62,6 +62,19 @@ describe("retailer service requests on disposable PostgreSQL", () => {
     expect(ownerQueue.some((row: { id: string }) => row.id === issue.id)).toBe(true);
     expect(otherQueue.some((row: { id: string }) => row.id === issue.id)).toBe(false);
   });
+  it("shows a retailer-origin resolved request to only the currently assigned salesperson", async () => {
+    const issue = await service.raiseRetailerRequest({
+      retailerId: retailers[0], description: "Shared issue lifecycle", clientReference: `feedback-${randomUUID()}`,
+    });
+    await service.updateStatus({
+      issueId: issue.id, actorStaffId: staff[1], status: "resolved",
+      resolutionNote: "UAT resolved", scopeStaffIds: null,
+    });
+    const own = await service.listForSalesperson(staff[0], retailers[0]);
+    const other = await service.listForSalesperson(staff[1], retailers[0]);
+    expect(own.find((row: { id: string }) => row.id === issue.id)?.status).toBe("resolved");
+    expect(other.some((row: { id: string }) => row.id === issue.id)).toBe(false);
+  });
   it("does not reveal a former team's staff-raised issue after retailer reassignment", async () => {
     const staffIssue = await service.raise({
       salespersonId: staff[0], retailerId: retailers[0], type: "service_request", description: "Former team private issue",

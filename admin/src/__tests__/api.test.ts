@@ -52,4 +52,32 @@ describe("admin API session client", () => {
       expect.objectContaining({ credentials: "include" })
     );
   });
+
+  it("uses the atomic salesperson setup endpoints", async () => {
+    setAccessToken("staff-access");
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(response(201, { staff: { id: "staff-new" } }));
+    await api.createSalesperson({ newStaff: { name: "Asha", phone: "9999999999", email: "asha@example.com" } });
+    await api.setupSalesperson("staff-existing", { managerId: "manager-id" });
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      expect.stringContaining("/admin/staff/salesperson-setup"),
+      expect.stringContaining("/admin/staff/staff-existing/salesperson-setup"),
+    ]);
+    expect(fetchMock).toHaveBeenNthCalledWith(2, expect.any(String), expect.objectContaining({
+      method: "POST", body: JSON.stringify({ managerId: "manager-id" }),
+    }));
+  });
+
+  it("downloads a filtered workbook after refreshing an expired Admin session", async () => {
+    setAccessToken("expired-access");
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(response(401, { error: "access_expired" }))
+      .mockResolvedValueOnce(response(200, { accessToken: "fresh-access" }))
+      .mockResolvedValueOnce(new Response("workbook", { status: 200 }));
+    const result = await api.exportServiceIssues({ status: "open", retailerId: "retailer-a", from: "2026-09-01", through: "2026-09-20" });
+    expect(await result.text()).toBe("workbook");
+    expect(fetchMock.mock.calls[0][0]).toContain("/admin/exports/service-issues.xlsx?status=open&retailerId=retailer-a&from=2026-09-01&through=2026-09-20");
+    expect(fetchMock.mock.calls[2][1]).toEqual(expect.objectContaining({
+      headers: expect.objectContaining({ Authorization: "Bearer fresh-access" }),
+    }));
+  });
 });

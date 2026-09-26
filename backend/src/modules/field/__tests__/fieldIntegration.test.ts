@@ -217,6 +217,9 @@ afterAll(async () => {
     where: { routePlan: { salespersonId: { in: staffIds } } },
   });
   await prisma.routePlan.deleteMany({ where: { salespersonId: { in: staffIds } } });
+  await prisma.beatTemplateStop.deleteMany({ where: { beatTemplate: { salespersonId: { in: staffIds } } } });
+  await prisma.beatTemplate.deleteMany({ where: { salespersonId: { in: staffIds } } });
+  await prisma.auditEvent.deleteMany({ where: { actorStaffId: { in: staffIds }, subjectType: { in: ["beat_template", "route_plan"] } } });
   await prisma.leaveRequest.deleteMany({ where: { salespersonId: { in: staffIds } } });
   await prisma.workdaySession.deleteMany({ where: { salespersonId: { in: staffIds } } });
   await prisma.salesTarget.deleteMany({ where: { salespersonId: { in: staffIds } } });
@@ -230,6 +233,59 @@ afterAll(async () => {
   await prisma.salesRep.deleteMany({ where: { id: { in: [ids.repA, ids.repB] } } });
   await prisma.tier.delete({ where: { id: ids.tier } });
   await prisma.$disconnect();
+});
+
+describe("manual reusable beats", () => {
+  it("saves scoped leader and self templates, applies only an empty date, and protects other reps", async () => {
+    const leader = await request(app).post("/admin/field/beat-templates")
+      .set("Authorization", `Bearer ${managerToken}`)
+      .send({ salespersonId: ids.staffA, name: "North", stops: [{ retailerId: ids.retailerA, purpose: "service" }] })
+      .expect(201);
+    const beatId = leader.body.template.id;
+    await request(app).put(`/admin/field/beat-templates/${beatId}`)
+      .set("Authorization", `Bearer ${managerToken}`)
+      .send({ salespersonId: ids.staffA, name: "North updated", stops: [{ retailerId: ids.retailerA, purpose: "service" }] })
+      .expect(200);
+    const managerList = await request(app).get(`/admin/field/beat-templates?salespersonId=${ids.staffA}`)
+      .set("Authorization", `Bearer ${managerToken}`).expect(200);
+    expect(managerList.body.templates.map((beat: any) => beat.id)).toContain(beatId);
+
+    const own = await request(app).post("/rep/field/beat-templates")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ name: "My beat", stops: [{ retailerId: ids.retailerA }] }).expect(201);
+    await request(app).put(`/rep/field/beat-templates/${own.body.template.id}`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ name: "My updated beat", stops: [{ retailerId: ids.retailerA }] }).expect(200);
+    const ownList = await request(app).get("/rep/field/beat-templates")
+      .set("Authorization", `Bearer ${tokenA}`).expect(200);
+    expect(ownList.body.templates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: own.body.template.id, name: "My updated beat" }),
+    ]));
+    expect(ownList.body.templates.some((beat: any) => beat.id === beatId)).toBe(false);
+    await request(app).put(`/rep/field/beat-templates/${beatId}`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ name: "Changed leader beat", stops: [{ retailerId: ids.retailerA }] }).expect(404);
+    await request(app).put(`/rep/field/beat-templates/${own.body.template.id}`)
+      .set("Authorization", `Bearer ${tokenB}`)
+      .send({ name: "Changed another beat", stops: [{ retailerId: ids.retailerB }] }).expect(404);
+    await request(app).post("/rep/field/beat-templates")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ name: "Wrong store", stops: [{ retailerId: ids.retailerB }] }).expect(422);
+
+    const planDate = "2026-11-14";
+    const applied = await request(app).post(`/admin/field/beat-templates/${beatId}/apply`)
+      .set("Authorization", `Bearer ${managerToken}`)
+      .send({ salespersonId: ids.staffA, planDate }).expect(201);
+    expect(applied.body.plan.status).toBe("draft");
+    await request(app).post(`/admin/field/beat-templates/${beatId}/apply`)
+      .set("Authorization", `Bearer ${managerToken}`)
+      .send({ salespersonId: ids.staffA, planDate }).expect(409);
+    const route = await request(app).get(`/rep/field/route?date=${planDate}`)
+      .set("Authorization", `Bearer ${tokenA}`).expect(200);
+    expect(route.body.route).toMatchObject({ status: "draft", name: "North updated", stops: [
+      expect.objectContaining({ purpose: "service", retailer: expect.objectContaining({ id: ids.retailerA }) }),
+    ] });
+  });
 });
 
 describe("the workday governs movement tracking", () => {

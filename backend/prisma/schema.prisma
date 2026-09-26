@@ -427,11 +427,13 @@ model Retailer {
   locationHistory           RetailerLocationHistory[]
   visits                    SalesVisit[]
   routeStops                RoutePlanStop[]
+  beatTemplateStops         BeatTemplateStop[]
   customerActivities        CustomerActivity[]
   proposal                  RetailerProposal?
   fieldTasks                FieldTask[]
   fieldTaskEvidence         FieldTaskEvidence[]
   serviceIssues             ServiceIssue[]
+  salespersonFeedback       SalespersonFeedback[]
   commercialStatusEvents    CommercialStatusEvent[]
   surveyAssignments         SurveyAssignment[]         @relation("SurveyAssignedRetailer")
   surveyResponses           SurveyResponse[]           @relation("SurveyRespondentRetailer")
@@ -546,6 +548,7 @@ model SalesRep {
   photoUrl  String?
   territory String?
   retailers Retailer[]
+  salespersonFeedback SalespersonFeedback[]
   staffUser StaffUser?
 }
 
@@ -581,6 +584,8 @@ model StaffUser {
   leaveRequests                LeaveRequest[]                @relation("SalespersonLeave")
   leaveDecisions               LeaveRequest[]                @relation("LeaveDecisions")
   routePlans                   RoutePlan[]                   @relation("SalespersonRoutePlans")
+  beatTemplates                BeatTemplate[]                @relation("SalespersonBeatTemplates")
+  beatTemplatesCreated         BeatTemplate[]                @relation("BeatTemplateCreators")
   customerActivities           CustomerActivity[]            @relation("SalespersonActivities")
   fieldTasksAssigned           FieldTask[]                   @relation("FieldTasksAssigned")
   fieldTasksCreated            FieldTask[]                   @relation("FieldTasksCreated")
@@ -1993,6 +1998,11 @@ enum RoutePlanStatus {
   cancelled
 }
 
+enum BeatTemplateOrigin {
+  leader
+  self
+}
+
 enum RouteStopStatus {
   pending
   visited
@@ -2209,6 +2219,35 @@ model RoutePlanStop {
   @@index([retailerId, createdAt])
 }
 
+model BeatTemplate {
+  id               String             @id @default(uuid())
+  salespersonId    String
+  salesperson      StaffUser          @relation("SalespersonBeatTemplates", fields: [salespersonId], references: [id], onDelete: Restrict)
+  createdByStaffId String
+  createdBy        StaffUser          @relation("BeatTemplateCreators", fields: [createdByStaffId], references: [id], onDelete: Restrict)
+  origin           BeatTemplateOrigin
+  name             String
+  stops            BeatTemplateStop[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([salespersonId, origin])
+}
+
+model BeatTemplateStop {
+  id             String       @id @default(uuid())
+  beatTemplateId String
+  beatTemplate   BeatTemplate @relation(fields: [beatTemplateId], references: [id], onDelete: Cascade)
+  retailerId     String
+  retailer       Retailer     @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  sequence       Int
+  purpose        VisitPurpose @default(sales_call)
+  note           String?
+
+  @@unique([beatTemplateId, retailerId])
+  @@unique([beatTemplateId, sequence])
+}
+
 /// A structured record of something that happened with a customer. Written
 /// from the field, usually inside a visit; projected into customer history,
 /// the salesperson dashboard and manager reporting.
@@ -2367,6 +2406,21 @@ model ServiceIssue {
   @@index([retailerId, createdAt])
   @@index([status, priority, createdAt])
   @@index([raisedByStaffId, createdAt])
+}
+
+model SalespersonFeedback {
+  id                 String    @id @default(uuid())
+  retailerId         String
+  retailer           Retailer  @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+  salesRepId         String
+  salesRep           SalesRep  @relation(fields: [salesRepId], references: [id], onDelete: Restrict)
+  description        String
+  clientReference    String
+  createdAt          DateTime  @default(now())
+
+  @@unique([retailerId, clientReference])
+  @@index([retailerId, createdAt])
+  @@index([salesRepId, createdAt])
 }
 
 /// A target set for one salesperson over one period. Target-versus-achievement

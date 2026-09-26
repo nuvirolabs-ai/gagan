@@ -7,6 +7,7 @@ const NONE = {
   canApprove: false,
   canReviewRatings: false,
   canRunFieldDay: false,
+  canManageOwnBeat: false,
   canViewTeamPerformance: false,
   canManageAttendance: false,
   canLogActivity: false,
@@ -19,6 +20,10 @@ const NONE = {
 };
 
 describe("role-aware staff shell", () => {
+  it("exposes own-beat editing only with its distinct permission", () => {
+    expect(staffCapabilities(["route.execute"]).canManageOwnBeat).toBe(false);
+    expect(staffCapabilities(["route.manage_self"]).canManageOwnBeat).toBe(true);
+  });
   it("shows only server-authorized work areas", () => {
     expect(staffCapabilities(["collection.submit"])).toEqual({ ...NONE, canCollect: true });
     expect(staffCapabilities(["order.create_for_retailer"])).toEqual({

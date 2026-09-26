@@ -51,6 +51,8 @@ import orderRoutes from "./routes/orders";
 import { requireAuth } from "./lib/auth";
 import paymentRoutes from "./routes/payments";
 import { createRetailerServiceRequestRouter } from "./routes/serviceRequests";
+import { createSalespersonFeedbackRouter, createAdminSalespersonFeedbackRouter } from "./modules/feedback/salespersonFeedbackRoutes";
+import { createServiceIssueExportRouter } from "./modules/exports/serviceIssueExportRoutes";
 import repRoutes from "./routes/rep";
 import {
   databaseReadiness,
@@ -115,6 +117,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(deliveryRoutes);
   app.use(paymentRoutes);
   app.use(createRetailerServiceRequestRouter());
+  app.use(createSalespersonFeedbackRouter());
   // Internal commercial statuses are staff/admin-only. This is deliberately
   // mounted outside the retailer-facing routes so the fields cannot leak via
   // the public customer API.
@@ -227,6 +230,8 @@ export function createApp(options: CreateAppOptions = {}) {
     createCreditRolloutRouter({ authenticate: requireAdminIdentity })
   );
   app.use("/admin", createFieldAdminRouter({ authenticate: requireAdminIdentity }));
+  app.use("/admin", createAdminSalespersonFeedbackRouter({ authenticate: requireAdminIdentity }));
+  app.use("/admin", createServiceIssueExportRouter({ authenticate: requireAdminIdentity }));
   app.use("/admin", createSalesLeaderRouter({ authenticate: requireAdminIdentity }));
   app.use("/admin", createRetailerProposalAdminRouter({ authenticate: requireAdminIdentity }));
   app.use("/admin", createOrgRouter({ authenticate: requireAdminIdentity }));

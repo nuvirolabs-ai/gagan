@@ -1,9 +1,13 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { readableRole, type StaffMember } from "../staffTypes";
+import { AuthContext } from "../auth-context";
+import { explain } from "../errorCopy";
 
 export default function Staff() {
+  const auth = useContext(AuthContext);
+  const canManageOrg = auth?.permissions.includes("org.manage") ?? false;
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -11,7 +15,7 @@ export default function Staff() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", phone: "", email: "", employeeRef: "" });
-  const [newMode, setNewMode] = useState<"staff" | "selling_leader">("staff");
+  const [newMode, setNewMode] = useState<"staff" | "salesperson" | "selling_leader">("staff");
   const [newManagerId, setNewManagerId] = useState("");
   const [newReportIds, setNewReportIds] = useState<string[]>([]);
 
@@ -46,13 +50,18 @@ export default function Staff() {
       if (newMode === "selling_leader") {
         await api.createSellingLeader({
           newStaff,
-          ...(newManagerId ? { managerId: newManagerId } : {}),
-          ...(newReportIds.length ? { reportIds: newReportIds } : {}),
+          ...(canManageOrg && newManagerId ? { managerId: newManagerId } : {}),
+          ...(canManageOrg && newReportIds.length ? { reportIds: newReportIds } : {}),
+        });
+      } else if (newMode === "salesperson") {
+        await api.createSalesperson({
+          newStaff,
+          ...(canManageOrg && newManagerId ? { managerId: newManagerId } : {}),
         });
       } else {
         await api.createStaff(newStaff);
       }
-      setNotice(newMode === "selling_leader" ? `${form.name} is set up as a selling Sales Leader.` : `${form.name} can now receive an assigned role.`);
+      setNotice(newMode === "selling_leader" ? `${form.name} is set up as a selling Sales Leader.` : newMode === "salesperson" ? `${form.name} is set up as a salesperson.` : `${form.name} can now receive an assigned role.`);
       setForm({ name: "", phone: "", email: "", employeeRef: "" });
       setNewMode("staff");
       setNewManagerId("");
@@ -60,7 +69,7 @@ export default function Staff() {
       setCreating(false);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not create staff member");
+      setError(explain(err, "Could not create staff member"));
     } finally {
       setBusy(false);
     }
@@ -88,8 +97,9 @@ export default function Staff() {
           <h2 className="section-title">New staff identity</h2>
           <div className="field">
             <label htmlFor="new-staff-mode">Setup</label>
-            <select id="new-staff-mode" value={newMode} onChange={(event) => setNewMode(event.target.value as "staff" | "selling_leader")}>
+            <select id="new-staff-mode" value={newMode} onChange={(event) => setNewMode(event.target.value as "staff" | "salesperson" | "selling_leader")}>
               <option value="staff">Staff identity</option>
+              <option value="salesperson">Salesperson</option>
               <option value="selling_leader">Selling Sales Leader</option>
             </select>
           </div>
@@ -111,7 +121,7 @@ export default function Staff() {
               <input id="staff-ref" value={form.employeeRef} onChange={(event) => setForm({ ...form, employeeRef: event.target.value })} />
             </div>
           </div>
-          {newMode === "selling_leader" ? (
+          {canManageOrg && newMode !== "staff" ? (
             <div className="form-grid">
               <div className="field">
                 <label htmlFor="new-leader-manager">Reports to</label>
@@ -120,7 +130,7 @@ export default function Staff() {
                   {staff.filter((person) => person.status === "active").map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
                 </select>
               </div>
-              <div className="field">
+              {newMode === "selling_leader" ? <div className="field">
                 <span>Direct reports</span>
                 {staff.filter((person) => person.status === "active").map((person) => (
                   <label className="check-row" key={person.id}>
@@ -128,10 +138,10 @@ export default function Staff() {
                     {person.name}
                   </label>
                 ))}
-              </div>
+              </div> : null}
             </div>
           ) : null}
-          <button type="submit" disabled={busy}>{busy ? "Creating…" : newMode === "selling_leader" ? "Create selling Sales Leader" : "Create staff member"}</button>
+          <button type="submit" disabled={busy}>{busy ? "Creating…" : newMode === "selling_leader" ? "Create selling Sales Leader" : newMode === "salesperson" ? "Create salesperson" : "Create staff member"}</button>
         </form>
       )}
 

@@ -63,6 +63,128 @@ function publicStop(stop: any): PublicRouteStop {
 export class RouteService {
   constructor(private readonly prisma: Db = defaultPrisma) {}
 
+  private async assertAssignedStops(tx: Db, salespersonId: string, stops: Array<{ retailerId: string }>) {
+    if (stops.length === 0 || stops.length > 60) throw new FieldServiceError("beat_requires_stops", 400);
+    const retailerIds = stops.map((stop) => stop.retailerId);
+    if (new Set(retailerIds).size !== retailerIds.length) throw new FieldServiceError("route_stop_duplicated", 400);
+    const staff = await tx.staffUser.findUnique({
+      where: { id: salespersonId }, select: { salesRepId: true, status: true },
+    });
+    if (!staff?.salesRepId || staff.status !== "active") throw new FieldServiceError("salesperson_not_available", 404);
+    await tx.$queryRaw`SELECT "id" FROM "Retailer" WHERE "id" = ANY(${retailerIds}::text[]) FOR SHARE`;
+    const assigned = await tx.retailer.findMany({
+      where: { id: { in: retailerIds }, salesRepId: staff.salesRepId }, select: { id: true },
+    });
+    if (assigned.length !== retailerIds.length) {
+      throw new FieldServiceError("retailer_not_assigned_to_salesperson", 422, {
+        unassigned: retailerIds.filter((id) => !assigned.some((retailer: any) => retailer.id === id)),
+      });
+    }
+  }
+
+  async listBeatTemplates(filters: { salespersonId?: string; scopeStaffIds?: string[] | null; origin?: "leader" | "self" }) {
+    if (filters.salespersonId && !isWithinScope(filters.salespersonId, filters.scopeStaffIds)) {
+      throw new FieldServiceError("outside_reporting_scope", 403);
+    }
+    return this.prisma.beatTemplate.findMany({
+      where: {
+        ...(filters.salespersonId ? { salespersonId: filters.salespersonId } :
+          filters.scopeStaffIds ? { salespersonId: { in: filters.scopeStaffIds } } : {}),
+        ...(filters.origin ? { origin: filters.origin } : {}),
+      },
+      include: { stops: { orderBy: { sequence: "asc" }, include: { retailer: { select: { id: true, name: true, shopAddress: true } } } },
+        salesperson: { select: { id: true, name: true } } },
+      orderBy: { updatedAt: "desc" },
+    });
+  }
+
+  async saveBeatTemplate(input: {
+    templateId?: string;
+    salespersonId: string;
+    actorStaffId: string;
+    origin: "leader" | "self";
+    name: string;
+    stops: Array<{ retailerId: string; purpose?: string; note?: string }>;
+    scopeStaffIds?: string[] | null;
+  }) {
+    if (!isWithinScope(input.salespersonId, input.scopeStaffIds)) throw new FieldServiceError("outside_reporting_scope", 403);
+    if (input.origin === "self" && input.actorStaffId !== input.salespersonId) throw new FieldServiceError("beat_template_not_found", 404);
+    if (!input.name.trim()) throw new FieldServiceError("beat_name_required", 400);
+    if (input.templateId) {
+      const current = await this.prisma.beatTemplate.findUnique({ where: { id: input.templateId } });
+      if (!current || current.salespersonId !== input.salespersonId || current.origin !== input.origin) {
+        throw new FieldServiceError("beat_template_not_found", 404);
+      }
+    }
+    return this.prisma.$transaction(async (tx: Db) => {
+      await tx.$queryRaw`SELECT "id" FROM "StaffUser" WHERE "id" = ${input.salespersonId} FOR UPDATE`;
+      if (input.templateId) {
+        await tx.$queryRaw`SELECT "id" FROM "BeatTemplate" WHERE "id" = ${input.templateId} FOR UPDATE`;
+        const current = await tx.beatTemplate.findUnique({ where: { id: input.templateId } });
+        if (!current || current.salespersonId !== input.salespersonId || current.origin !== input.origin) {
+          throw new FieldServiceError("beat_template_not_found", 404);
+        }
+      }
+      await this.assertAssignedStops(tx, input.salespersonId, input.stops);
+      const stopData = input.stops.map((stop, index) => ({
+        retailerId: stop.retailerId, sequence: index + 1,
+        purpose: (stop.purpose as any) ?? "sales_call", note: stop.note?.trim() || null,
+      }));
+      const template = input.templateId
+        ? await tx.beatTemplate.update({ where: { id: input.templateId }, data: { name: input.name.trim() } })
+        : await tx.beatTemplate.create({ data: {
+          salespersonId: input.salespersonId, createdByStaffId: input.actorStaffId,
+          origin: input.origin, name: input.name.trim(),
+        } });
+      if (input.templateId) await tx.beatTemplateStop.deleteMany({ where: { beatTemplateId: template.id } });
+      await tx.beatTemplateStop.createMany({ data: stopData.map((stop) => ({ ...stop, beatTemplateId: template.id })) });
+      await tx.auditEvent.create({ data: {
+        actorStaffId: input.actorStaffId, action: input.templateId ? "beat_template.updated" : "beat_template.created",
+        subjectType: "beat_template", subjectId: template.id,
+        metadata: { salespersonId: input.salespersonId, origin: input.origin, stops: stopData.length },
+      } });
+      return template;
+    });
+  }
+
+  async applyBeatTemplate(input: {
+    templateId: string; salespersonId: string; actorStaffId: string; planDate: Date;
+    scopeStaffIds?: string[] | null;
+  }) {
+    if (!isWithinScope(input.salespersonId, input.scopeStaffIds)) throw new FieldServiceError("outside_reporting_scope", 403);
+    const template = await this.prisma.beatTemplate.findUnique({
+      where: { id: input.templateId }, include: { stops: { orderBy: { sequence: "asc" } } },
+    });
+    if (!template || template.salespersonId !== input.salespersonId) throw new FieldServiceError("beat_template_not_found", 404);
+    return this.prisma.$transaction(async (tx: Db) => {
+      await tx.$queryRaw`SELECT "id" FROM "StaffUser" WHERE "id" = ${input.salespersonId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT "id" FROM "BeatTemplate" WHERE "id" = ${input.templateId} FOR SHARE`;
+      const current = await tx.beatTemplate.findUnique({
+        where: { id: input.templateId }, include: { stops: { orderBy: { sequence: "asc" } } },
+      });
+      if (!current || current.salespersonId !== input.salespersonId) throw new FieldServiceError("beat_template_not_found", 404);
+      const planDate = startOfDay(input.planDate);
+      const existing = await tx.routePlan.findUnique({
+        where: { salespersonId_planDate: { salespersonId: input.salespersonId, planDate } },
+      });
+      if (existing) throw new FieldServiceError("route_date_occupied", 409);
+      await this.assertAssignedStops(tx, input.salespersonId, current.stops);
+      const plan = await tx.routePlan.create({ data: {
+        salespersonId: input.salespersonId, planDate, name: current.name,
+        createdByStaffId: input.actorStaffId, status: "draft",
+        stops: { create: current.stops.map((stop: any, index: number) => ({
+          retailerId: stop.retailerId, sequence: index + 1, purpose: stop.purpose, note: stop.note,
+        })) },
+      } });
+      await tx.auditEvent.create({ data: {
+        actorStaffId: input.actorStaffId, action: "beat_template.applied",
+        subjectType: "route_plan", subjectId: plan.id,
+        metadata: { templateId: current.id, salespersonId: input.salespersonId },
+      } });
+      return plan;
+    });
+  }
+
   /**
    * Route progress for a whole team on one date, in one query.
    *

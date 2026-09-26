@@ -431,7 +431,7 @@ export default function TodayScreen({ navigation }: any) {
         </View>
 
         <View>
-          <SectionHeader title="Next up today" action={route ? <TextButton label={`${pendingStops} stops left`} onPress={() => navigation.navigate("Route")} /> : undefined} />
+          <SectionHeader title="Next up today" action={<TextButton label={route ? `${pendingStops} stops left` : "My route"} onPress={() => navigation.navigate("Route")} />} />
           {route ? (
             <Surface style={styles.routeSurface}>
               <View style={styles.routeProgressLine}><Text style={styles.caption}>{visited} of {planned} stops complete</Text><Text style={styles.routePct}>{safeCount(route.progress.completionPct)}%</Text></View>

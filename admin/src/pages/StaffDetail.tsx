@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import { readableRole, type Role, type StaffMember } from "../staffTypes";
 import { explain } from "../errorCopy";
+import { AuthContext } from "../auth-context";
+import ExpenseClaims from "../components/ExpenseClaims";
 
 type CollectionAssignment = {
   id: string;
@@ -24,6 +26,8 @@ function formatDate(value: string) {
 
 export default function StaffDetail() {
   const { staffId = "" } = useParams();
+  const auth = useContext(AuthContext);
+  const canManageOrg = auth?.permissions.includes("org.manage") ?? false;
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [roleId, setRoleId] = useState("");
@@ -102,7 +106,11 @@ export default function StaffDetail() {
     event.preventDefault();
     if (!roleId) return;
     const name = roles.find((role) => role.id === roleId)?.name;
-    if (name === "field_manager" || (name === "salesperson" && (!member?.salesRepId || member.roles.some(({ role }) => role.name === "field_manager")))) {
+    if (name === "salesperson" && !member?.salesRepId && !member?.roles.some(({ role }) => role.name === "field_manager")) {
+      setError("Use Set up salesperson below to link the sales identity and role together.");
+      return;
+    }
+    if (name === "field_manager" || (name === "salesperson" && member?.roles.some(({ role }) => role.name === "field_manager"))) {
       setError("Use the Selling Sales Leader or Manager only setup below for this role change.");
       return;
     }
@@ -114,8 +122,8 @@ export default function StaffDetail() {
     setError(null);
     try {
       const result = await api.setupSellingLeader(staffId, {
-        ...(leaderManagerId ? { managerId: leaderManagerId === "__root__" ? null : leaderManagerId } : {}),
-        ...(selectedReports.length ? { reportIds: selectedReports } : {}),
+        ...(canManageOrg && leaderManagerId ? { managerId: leaderManagerId === "__root__" ? null : leaderManagerId } : {}),
+        ...(canManageOrg && selectedReports.length ? { reportIds: selectedReports } : {}),
       });
       setSetupResult(result);
       setNotice("Selling Sales Leader setup completed.");
@@ -124,6 +132,22 @@ export default function StaffDetail() {
     } catch (err) {
       setNotice(null);
       setError(explain(err, "Could not complete Selling Sales Leader setup"));
+    } finally { setBusy(false); }
+  };
+
+  const setupSalesperson = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await api.setupSalesperson(staffId, {
+        ...(canManageOrg && leaderManagerId ? { managerId: leaderManagerId === "__root__" ? null : leaderManagerId } : {}),
+      });
+      setSetupResult(result);
+      setNotice("Salesperson setup completed.");
+      await load(retailerSearch);
+    } catch (err) {
+      setNotice(null);
+      setError(explain(err, "Could not complete salesperson setup"));
     } finally { setBusy(false); }
   };
 
@@ -180,6 +204,8 @@ export default function StaffDetail() {
       {error && <div className="banner error">{error}</div>}
       {notice && <div className="banner success">{notice}</div>}
 
+      {auth?.permissions.includes("expense.review") ? <ExpenseClaims salespersonId={staffId} /> : null}
+
       <section className="card">
         <div className="between">
           <div>
@@ -226,15 +252,15 @@ export default function StaffDetail() {
         ) : null}
         <p className="small muted">SalesRep link: {member.salesRepId ?? "Not linked"}</p>
         <p className="small muted">Current direct reports: {member.directReports?.map((report) => report.name).join(", ") || "None"}</p>
-        <div className="field">
+        {canManageOrg ? <div className="field">
           <label htmlFor="leader-manager">Reports to</label>
           <select id="leader-manager" value={leaderManagerId} onChange={(event) => setLeaderManagerId(event.target.value)}>
             <option value="">Keep current reporting line</option>
             <option value="__root__">Top level</option>
             {staff.filter((item) => item.id !== staffId && item.status === "active").map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
-        </div>
-        <div className="field">
+        </div> : null}
+        {canManageOrg ? <div className="field">
           <span>Direct reports to confirm</span>
           {staff.filter((item) => item.id !== staffId && item.status === "active").map((item) => (
             <label key={item.id} className="check-row">
@@ -247,8 +273,9 @@ export default function StaffDetail() {
               {item.name}{item.managerId === staffId ? " (already reports here)" : ""}
             </label>
           ))}
-        </div>
+        </div> : null}
         <div className="inline-form">
+          {!member.salesRepId && !member.roles.some(({ role }) => role.name === "field_manager") ? <button disabled={busy || member.status !== "active"} onClick={() => void setupSalesperson()}>Set up salesperson</button> : null}
           <button disabled={busy || member.status !== "active"} onClick={() => void setupSellingLeader()}>Set up selling Sales Leader</button>
           <button className="secondary" disabled={busy || member.status !== "active"} onClick={() => void run(() => api.setupManagerOnly(staffId), "Manager-only setup completed.")}>Set up manager only</button>
         </div>

@@ -15,6 +15,7 @@ function setup(permissions = ["staff.manage"]) {
     createDelegation: vi.fn().mockResolvedValue({ id: "delegation-1" }),
     revokeDelegation: vi.fn().mockResolvedValue(undefined),
     setupSellingLeader: vi.fn().mockResolvedValue({ staff: { id: "staff-1", salesRepId: "rep-1" }, roles: ["salesperson", "field_manager"] }),
+    setupSalesperson: vi.fn().mockResolvedValue({ staff: { id: "staff-1", salesRepId: "rep-1" }, roles: ["salesperson"] }),
     setupManagerOnly: vi.fn().mockResolvedValue({ staff: { id: "staff-1" }, workspaceMode: "manager_only" }),
   };
   const authenticate: RequestHandler = (req, _res, next) => {
@@ -41,6 +42,7 @@ describe("admin staff API", () => {
     ["assign role", (app: express.Express) => request(app).post("/staff/staff-1/roles").send({})],
     ["remove role", (app: express.Express) => request(app).delete("/staff/staff-1/roles/role-1")],
     ["create delegation", (app: express.Express) => request(app).post("/staff/staff-1/delegations").send({})],
+    ["setup salesperson", (app: express.Express) => request(app).post("/staff/staff-1/salesperson-setup").send({})],
     ["revoke delegation", (app: express.Express) => request(app).delete("/staff/delegations/delegation-1")],
   ])("denies %s without staff.manage", async (_name, buildRequest) => {
     const { app, service } = setup([]);
@@ -148,5 +150,26 @@ describe("admin staff API", () => {
       expect.objectContaining({ staffId: "staff-1", reportIds: [reportId] }),
       "admin-staff-1"
     );
+  });
+
+  it("requires org.manage only when ordinary salesperson setup requests a reporting change", async () => {
+    const managerId = "11111111-1111-4111-8111-111111111111";
+    const staffOnly = setup(["staff.manage"]);
+    expect((await request(staffOnly.app).post("/staff/staff-1/salesperson-setup").send({})).status).toBe(200);
+    const denied = await request(staffOnly.app).post("/staff/staff-1/salesperson-setup").send({ managerId });
+    expect(denied.status).toBe(403);
+    expect(denied.body).toEqual({ error: "permission_required", permission: "org.manage" });
+    expect((await request(staffOnly.app).post("/staff/salesperson-setup").send({ newStaff: {
+      name: "New Seller", phone: "9876543210", email: "seller@test.invalid",
+    }, managerId: null })).status).toBe(403);
+    expect(staffOnly.service.setupSalesperson).toHaveBeenCalledTimes(1);
+
+    const withHierarchy = setup(["staff.manage", "org.manage"]);
+    const result = await request(withHierarchy.app).post("/staff/staff-1/salesperson-setup").send({ managerId });
+    expect(result.status).toBe(200);
+    expect(withHierarchy.service.setupSalesperson).toHaveBeenCalledWith(
+      { staffId: "staff-1", managerId }, "admin-staff-1"
+    );
+    expect((await request(withHierarchy.app).post("/staff/staff-1/salesperson-setup").send({ reportIds: [] })).status).toBe(400);
   });
 });

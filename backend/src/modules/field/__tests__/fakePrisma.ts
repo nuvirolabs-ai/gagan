@@ -26,6 +26,8 @@ export function fakePrisma(overrides: Record<string, any> = {}) {
     workingCalendar: model(),
     routePlan: model(),
     routePlanStop: model(),
+    beatTemplate: model(),
+    beatTemplateStop: model(),
     customerActivity: model(),
     fieldTask: model(),
     fieldTaskEvidence: model(),

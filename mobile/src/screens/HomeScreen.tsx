@@ -123,7 +123,7 @@ export default function HomeScreen({ navigation }: any) {
   );
   const featured = featuredGroup(visibleGroups);
   const shelf = visibleGroups.filter((group) => group.id !== featured?.id);
-  const previewShelf = homeProductPreview(shelf);
+  const { groups: previewGroups, hasMore: hasMoreProducts } = homeProductPreview([...(featured ? [featured] : []), ...shelf]);
   // Product discovery owns the primary Home real estate. Order status is
   // intentionally rendered as a compact secondary row below the promotions.
   const header = headerCopy({ activeOrder: null, scheme });
@@ -271,17 +271,17 @@ export default function HomeScreen({ navigation }: any) {
           <Text style={styles.emptyProducts}>{t("home.noProductsInCategory")}</Text>
         ) : (
           <>
-            {featured ? (
+            {previewGroups[0] ? (
               <ProductGroupCard
-                key={featured.id}
-                group={featured}
+                key={previewGroups[0].id}
+                group={previewGroups[0]}
                 qtyFor={qtyFor}
                 onChangeQty={setSkuQty}
-                onOpen={() => openProduct(featured)}
+                onOpen={() => openProduct(previewGroups[0])}
                 appearance="featured"
               />
             ) : null}
-            {previewShelf.map((group) => (
+            {previewGroups.slice(1).map((group) => (
               <ProductGroupCard
                 key={group.id}
                 group={group}
@@ -291,6 +291,16 @@ export default function HomeScreen({ navigation }: any) {
                 appearance="row"
               />
             ))}
+            {hasMoreProducts ? (
+              <TouchableOpacity
+                style={styles.viewAllProducts}
+                onPress={() => navigation.navigate("Products")}
+                accessibilityRole="button"
+              >
+                <Text style={styles.link}>{t("home.viewProducts")} {t("tabs.products")}</Text>
+                <Ionicons name="arrow-forward" size={15} color={colors.green} />
+              </TouchableOpacity>
+            ) : null}
           </>
         )}
       </View>
@@ -487,6 +497,7 @@ const styles = StyleSheet.create({
   chipTextActive: { color: colors.onDark },
 
   productList: { paddingHorizontal: spacing.lg, marginBottom: spacing.lg },
+  viewAllProducts: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, minHeight: 44 },
   emptyProducts: { fontSize: 13, color: colors.inkMuted, paddingVertical: spacing.lg },
 
 

@@ -19,21 +19,27 @@ export default function EntityAttribution({
 }: {
   rows: EntityAttributionRow[];
   status: FinancialAttributionStatus | null;
-  variant?: "summary" | "inline";
+  variant?: "summary" | "inline" | "stacked";
 }) {
   const { t } = useLanguage();
   if (rows.length === 0 && status !== "review_required") return null;
 
-  if (variant === "inline") {
+  if (variant === "inline" || variant === "stacked") {
     return (
-      <View style={styles.inline} accessibilityLabel={t("finance.companySplit")}>
+      <View style={variant === "stacked" ? styles.stacked : styles.inline} accessibilityLabel={t("finance.companySplit")}>
         {rows.map((row) => (
-          <Text key={row.key} style={styles.inlineItem} numberOfLines={1}>
+          <Text
+            key={row.key}
+            style={variant === "stacked" ? styles.stackedItem : styles.inlineItem}
+            numberOfLines={variant === "inline" ? 1 : undefined}
+          >
             {t(LABELS[row.key])} {inr(row.outstanding)}
           </Text>
         ))}
         {status === "review_required" ? (
-          <Text style={styles.reviewInline}>{t("finance.reviewRequired")}</Text>
+          <Text style={variant === "stacked" ? styles.reviewStacked : styles.reviewInline}>
+            {t("finance.reviewRequired")}
+          </Text>
         ) : null}
       </View>
     );
@@ -76,4 +82,7 @@ const styles = StyleSheet.create({
   inline: { flexDirection: "row", flexWrap: "wrap", columnGap: spacing.sm, rowGap: 2, marginTop: 3 },
   inlineItem: { maxWidth: "100%", fontSize: 9.5, color: colors.inkMuted },
   reviewInline: { fontSize: 9.5, fontWeight: "600", color: colors.error },
+  stacked: { alignSelf: "stretch" },
+  stackedItem: { fontSize: 9.5, color: colors.inkMuted, marginTop: 3 },
+  reviewStacked: { fontSize: 9.5, fontWeight: "600", color: colors.error, marginTop: 3 },
 });

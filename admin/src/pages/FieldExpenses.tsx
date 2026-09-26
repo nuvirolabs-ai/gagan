@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { api, inr } from "../api";
 import { explain } from "../errorCopy";
 import { useAuth } from "../useAuth";
+import ExpenseClaims from "../components/ExpenseClaims";
+import { openExpenseReceipt } from "../components/expenseReceipt";
 
 const TABS = ["submitted", "approved", "rejected"] as const;
 
@@ -17,6 +19,19 @@ export default function FieldExpenses() {
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+  const [claimants, setClaimants] = useState<Array<{ id: string; name: string }>>([]);
+  const [claimantsError, setClaimantsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void api.expenseClaimants().then((result: { claimants: Array<{ id: string; name: string }> }) => {
+      if (!cancelled) setClaimants(result.claimants);
+    }).catch((err: unknown) => {
+      if (!cancelled) setClaimantsError(explain(err, "Could not load people with claims"));
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const load = async () => {
     setLoading(true);
@@ -46,6 +61,21 @@ export default function FieldExpenses() {
     }
   };
 
+  const viewReceipt = async (salespersonId: string, expenseId: string) => {
+    try {
+      await openExpenseReceipt(salespersonId, expenseId);
+    } catch (err) {
+      setError(explain(err, "Could not open receipt"));
+    }
+  };
+
+  if (selectedStaffId) {
+    return <div>
+      <button className="expense-person-button back-link" onClick={() => { setSelectedStaffId(null); void load(); }}>← Field expenses</button>
+      <ExpenseClaims key={selectedStaffId} salespersonId={selectedStaffId} />
+    </div>;
+  }
+
   return (
     <div>
       <h1 className="page-title">Field expenses</h1>
@@ -53,6 +83,15 @@ export default function FieldExpenses() {
         Claims submitted from the Sales app. A salesperson can never approve their own claim.
       </p>
       {error && <div className="banner error">{error}</div>}
+      {claimantsError && <div className="banner error">{claimantsError}</div>}
+
+      {claimants.length > 0 ? <div className="field" style={{ maxWidth: 320 }}>
+        <label htmlFor="expense-person">Person</label>
+        <select id="expense-person" value="" onChange={(event) => setSelectedStaffId(event.target.value)}>
+          <option value="">Choose a person</option>
+          {claimants.map((claimant) => <option key={claimant.id} value={claimant.id}>{claimant.name}</option>)}
+        </select>
+      </div> : null}
 
       <div className="tabs">
         {TABS.map((tab) => (
@@ -100,18 +139,14 @@ export default function FieldExpenses() {
             <tbody>
               {expenses.map((expense: any) => (
                 <tr key={expense.id}>
-                  <td>{expense.salesperson?.name ?? expense.salespersonId}</td>
+                  <td><button className="expense-person-button" onClick={() => setSelectedStaffId(expense.salespersonId)}>{expense.salesperson?.name ?? expense.salespersonId}</button></td>
                   <td>{new Date(expense.expenseDate).toLocaleDateString("en-IN")}</td>
                   <td>{expense.category}</td>
                   <td>{inr(expense.amount)}</td>
                   <td className="small">{expense.description}</td>
                   <td>
-                    {expense.receiptUrl ? (
-                      <a href={expense.receiptUrl} target="_blank" rel="noreferrer">
-                        View
-                      </a>
-                    ) : expense.hasReceipt ? (
-                      <span className="small muted">Stored</span>
+                    {expense.hasReceipt ? (
+                      <button className="expense-person-button" aria-label="View receipt" onClick={() => void viewReceipt(expense.salespersonId, expense.id)}>View</button>
                     ) : (
                       <span className="small muted">None</span>
                     )}

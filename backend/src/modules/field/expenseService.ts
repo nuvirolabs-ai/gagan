@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../../lib/prisma";
 import { getObjectStorage } from "../../platform/storage/storageRuntime";
 import { ObjectStorageError, type ObjectStorage } from "../../platform/storage/objectStorage";
@@ -113,6 +113,90 @@ export class ExpenseService {
           : null,
       }))
     );
+  }
+
+  async historyFor(salespersonId: string, cursor?: string) {
+    const salesperson = await this.prisma.staffUser.findUnique({
+      where: { id: salespersonId },
+      select: { id: true, name: true },
+    });
+    if (!salesperson) throw new FieldServiceError("staff_not_found", 404);
+    if (cursor) {
+      const ownedCursor = await this.prisma.fieldExpense.findFirst({
+        where: { id: cursor, salespersonId },
+        select: { id: true },
+      });
+      if (!ownedCursor) throw new FieldServiceError("expense_cursor_invalid", 400);
+    }
+
+    const [groups, rows] = await Promise.all([
+      this.prisma.fieldExpense.groupBy({
+        by: ["status"],
+        where: { salespersonId },
+        _count: { _all: true },
+        _sum: { amount: true },
+      }),
+      this.prisma.fieldExpense.findMany({
+        where: { salespersonId },
+        orderBy: [{ expenseDate: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+        take: 51,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      }),
+    ]);
+
+    const statuses = ["submitted", "approved", "rejected"] as const;
+    const totals = Object.fromEntries(statuses.map((status) => {
+      const group = groups.find((entry: any) => entry.status === status);
+      return [status, {
+        count: group?._count._all ?? 0,
+        amount: new Prisma.Decimal(group?._sum.amount ?? 0).toFixed(2),
+      }];
+    })) as Record<(typeof statuses)[number], { count: number; amount: string }>;
+    const claimed = statuses.reduce(
+      (sum, status) => ({
+        count: sum.count + totals[status].count,
+        amount: sum.amount.plus(totals[status].amount),
+      }),
+      { count: 0, amount: new Prisma.Decimal(0) }
+    );
+    const page = rows.slice(0, 50);
+    return {
+      salesperson,
+      totals: { claimed: { count: claimed.count, amount: claimed.amount.toFixed(2) }, ...totals },
+      expenses: await Promise.all(page.map(async ({ receiptObjectKey, ...expense }: any) => ({
+        ...expense,
+        amount: expense.amount.toString(),
+        hasReceipt: receiptObjectKey != null,
+        receiptUrl: receiptObjectKey
+          ? await this.storage().signedReadUrl(receiptObjectKey, 300).catch(() => null)
+          : null,
+      }))),
+      nextCursor: rows.length > 50 ? page[page.length - 1].id : null,
+    };
+  }
+
+  async receiptFor(salespersonId: string, expenseId: string) {
+    const expense = await this.prisma.fieldExpense.findFirst({
+      where: { id: expenseId, salespersonId },
+      select: { receiptObjectKey: true },
+    });
+    if (!expense?.receiptObjectKey) throw new FieldServiceError("expense_receipt_not_found", 404);
+    try {
+      return { receiptUrl: await this.storage().signedReadUrl(expense.receiptObjectKey, 300) };
+    } catch {
+      throw new FieldServiceError("expense_receipt_unavailable", 503);
+    }
+  }
+
+  async claimants(scopeStaffIds: string[] | null) {
+    return this.prisma.staffUser.findMany({
+      where: {
+        ...(scopeStaffIds ? { id: { in: scopeStaffIds } } : {}),
+        fieldExpenses: { some: {} },
+      },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    });
   }
 
   async decide(input: {

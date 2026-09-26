@@ -24,7 +24,7 @@ beforeAll(async()=>{
  await prisma.creditProfile.create({data:{retailerId:retailer,rating:"N",kycVerifiedAt:new Date()}});
  await prisma.product.create({data:{id:product,name:"Test grain",category:"Local",sapMaterialId:product}});
  for (let i=0;i<3;i++) {
-  await prisma.variant.create({data:{id:variants[i],productId:product,unitSize:i===2?"5kg":"1kg",unit:"kg",unitsPerCase:i===2?6:30,unitWeightKg:i===2?5:1,sellingEntity:i===1?"padam_international":"jain_traders",gstPercent:i===1?12:5}});
+  await prisma.variant.create({data:{id:variants[i],productId:product,unitSize:i===2?"5kg":"1kg",unit:"kg",unitsPerCase:i===2?6:i===1?20:30,unitWeightKg:i===2?5:1,sellingEntity:i===1?"padam_international":"jain_traders",gstPercent:i===1?12:5}});
   await prisma.priceList.create({data:{tierId:tier,productId:product,variantId:variants[i],price:i===1?2000:10000,rateBasis:i===1?"case":"quintal"}});
  }
  await prisma.inventorySnapshot.create({data:{productId:product,sapMaterialId:product,warehouseCode:"WH-001",onHand:10000,available:10000,status:"available",syncedAt:new Date()}});

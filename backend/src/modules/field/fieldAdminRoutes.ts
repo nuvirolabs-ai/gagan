@@ -153,6 +153,69 @@ export function createFieldAdminRouter(options: {
 
   /* --------------------------------- routes ------------------------------- */
 
+  const beatStop = z.object({
+    retailerId: z.string().uuid(),
+    purpose: z.enum(["sales_call", "collection", "service", "onboarding", "merchandising", "other"]).optional(),
+    note: z.string().trim().max(300).optional(),
+  });
+  const beatBody = z.object({
+    salespersonId: z.string().uuid(), name: z.string().trim().min(1).max(120),
+    stops: z.array(beatStop).min(1).max(60),
+  });
+
+  router.get("/field/beat-templates", requirePermission(Permissions.ROUTE_MANAGE),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      try {
+        const salespersonId = typeof req.query.salespersonId === "string" ? req.query.salespersonId : undefined;
+        res.json({ templates: await services.routes.listBeatTemplates({
+          salespersonId, scopeStaffIds: await scopeOf(req, salespersonId),
+        }) });
+      } catch (error) { sendError(error, res, next); }
+    })
+  );
+
+  router.post("/field/beat-templates", requirePermission(Permissions.ROUTE_MANAGE),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      const parsed = beatBody.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+      try {
+        const template = await services.routes.saveBeatTemplate({ ...parsed.data,
+          origin: "leader", actorStaffId: req.staffAuth!.staffId,
+          scopeStaffIds: await scopeOf(req, parsed.data.salespersonId),
+        });
+        res.status(201).json({ template });
+      } catch (error) { sendError(error, res, next); }
+    })
+  );
+
+  router.put("/field/beat-templates/:id", requirePermission(Permissions.ROUTE_MANAGE),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      const parsed = beatBody.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+      try {
+        const template = await services.routes.saveBeatTemplate({ ...parsed.data,
+          templateId: req.params.id, origin: "leader", actorStaffId: req.staffAuth!.staffId,
+          scopeStaffIds: await scopeOf(req, parsed.data.salespersonId),
+        });
+        res.json({ template });
+      } catch (error) { sendError(error, res, next); }
+    })
+  );
+
+  router.post("/field/beat-templates/:id/apply", requirePermission(Permissions.ROUTE_MANAGE),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      const parsed = z.object({ salespersonId: z.string().uuid(), planDate: isoDate }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+      try {
+        const plan = await services.routes.applyBeatTemplate({
+          templateId: req.params.id, ...parsed.data, actorStaffId: req.staffAuth!.staffId,
+          scopeStaffIds: await scopeOf(req, parsed.data.salespersonId),
+        });
+        res.status(201).json({ plan });
+      } catch (error) { sendError(error, res, next); }
+    })
+  );
+
   router.get(
     "/field/routes",
     requirePermission(Permissions.ROUTE_MANAGE),
@@ -321,6 +384,48 @@ export function createFieldAdminRouter(options: {
             scopeStaffIds: await scopeOf(req as StaffAuthedRequest, req.query.salespersonId),
           }),
         });
+      } catch (error) {
+        sendError(error, res, next);
+      }
+    })
+  );
+
+  router.get(
+    "/field/expenses/claimants",
+    requirePermission(Permissions.EXPENSE_REVIEW),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      try {
+        res.json({ claimants: await services.expenses.claimants(await scopeOf(req)) });
+      } catch (error) {
+        sendError(error, res, next);
+      }
+    })
+  );
+
+  router.get(
+    "/field/expenses/staff/:salespersonId",
+    requirePermission(Permissions.EXPENSE_REVIEW),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      const cursor = req.query.cursor;
+      if (cursor !== undefined && (typeof cursor !== "string" || cursor.length > 100 || !cursor)) {
+        return res.status(400).json({ error: "invalid_cursor" });
+      }
+      try {
+        await scopeOf(req, req.params.salespersonId);
+        res.json(await services.expenses.historyFor(req.params.salespersonId, cursor));
+      } catch (error) {
+        sendError(error, res, next);
+      }
+    })
+  );
+
+  router.get(
+    "/field/expenses/staff/:salespersonId/receipts/:expenseId",
+    requirePermission(Permissions.EXPENSE_REVIEW),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      try {
+        await scopeOf(req, req.params.salespersonId);
+        res.json(await services.expenses.receiptFor(req.params.salespersonId, req.params.expenseId));
       } catch (error) {
         sendError(error, res, next);
       }

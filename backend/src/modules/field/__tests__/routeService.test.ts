@@ -101,6 +101,75 @@ describe("planning a route", () => {
   });
 });
 
+describe("manual beat templates", () => {
+  const stops = [{ retailerId: "retailer-1" }, { retailerId: "retailer-2" }];
+
+  it("lists only the caller's own templates", async () => {
+    const prisma = fakePrisma();
+    prisma.beatTemplate.findMany.mockResolvedValue([{ id: "beat-1", salespersonId: "staff-1" }]);
+    const result = await new RouteService(prisma).listBeatTemplates({ salespersonId: "staff-1", origin: "self" });
+    expect(result).toEqual([{ id: "beat-1", salespersonId: "staff-1" }]);
+    expect(prisma.beatTemplate.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { salespersonId: "staff-1", origin: "self" },
+    }));
+  });
+
+  it("rejects an unassigned retailer before creating a template", async () => {
+    const prisma = fakePrisma();
+    prisma.staffUser.findUnique.mockResolvedValue({ salesRepId: "rep-1", status: "active" });
+    prisma.retailer.findMany.mockResolvedValue([{ id: "retailer-1" }]);
+    await expect(new RouteService(prisma).saveBeatTemplate({
+      salespersonId: "staff-1", actorStaffId: "staff-1", origin: "self", name: "North", stops,
+    })).rejects.toMatchObject({ code: "retailer_not_assigned_to_salesperson", status: 422 });
+    expect(prisma.beatTemplate.create).not.toHaveBeenCalled();
+  });
+
+  it("refuses a salesperson editing a leader template", async () => {
+    const prisma = fakePrisma();
+    prisma.beatTemplate.findUnique.mockResolvedValue({ id: "beat-1", salespersonId: "staff-1", origin: "leader" });
+    await expect(new RouteService(prisma).saveBeatTemplate({
+      templateId: "beat-1", salespersonId: "staff-1", actorStaffId: "staff-1", origin: "self", name: "North", stops,
+    })).rejects.toMatchObject({ code: "beat_template_not_found", status: 404 });
+  });
+
+  it("refuses to apply over an existing dated route", async () => {
+    const prisma = fakePrisma();
+    prisma.beatTemplate.findUnique.mockResolvedValue({ id: "beat-1", salespersonId: "staff-1", name: "North", stops });
+    prisma.routePlan.findUnique.mockResolvedValue({ id: "plan-1" });
+    await expect(new RouteService(prisma).applyBeatTemplate({
+      templateId: "beat-1", salespersonId: "staff-1", actorStaffId: "manager-1", planDate: day("2026-10-01"),
+      scopeStaffIds: ["staff-1"],
+    })).rejects.toMatchObject({ code: "route_date_occupied", status: 409 });
+    expect(prisma.routePlan.create).not.toHaveBeenCalled();
+  });
+
+  it("copies ordered stops into a draft without changing the template", async () => {
+    const prisma = fakePrisma();
+    prisma.beatTemplate.findUnique.mockResolvedValue({
+      id: "beat-1", salespersonId: "staff-1", name: "North", stops: [
+        { retailerId: "retailer-2", purpose: "service", note: "Call" },
+        { retailerId: "retailer-1", purpose: "sales_call", note: null },
+      ],
+    });
+    prisma.staffUser.findUnique.mockResolvedValue({ salesRepId: "rep-1", status: "active" });
+    prisma.retailer.findMany.mockResolvedValue([{ id: "retailer-1" }, { id: "retailer-2" }]);
+    prisma.routePlan.findUnique.mockResolvedValue(null);
+    prisma.routePlan.create.mockResolvedValue({ id: "plan-2", status: "draft" });
+    const plan = await new RouteService(prisma).applyBeatTemplate({
+      templateId: "beat-1", salespersonId: "staff-1", actorStaffId: "manager-1", planDate: day("2026-10-01"),
+      scopeStaffIds: ["staff-1"],
+    });
+    expect(plan).toMatchObject({ id: "plan-2", status: "draft" });
+    expect(prisma.routePlan.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      status: "draft", stops: { create: [
+        expect.objectContaining({ retailerId: "retailer-2", sequence: 1, purpose: "service" }),
+        expect.objectContaining({ retailerId: "retailer-1", sequence: 2, purpose: "sales_call" }),
+      ] },
+    }) });
+    expect(prisma.beatTemplate.update).not.toHaveBeenCalled();
+  });
+});
+
 describe("running a route", () => {
   it("locks the salesperson before a stop so plan replacement cannot erase a concurrent skip", async () => {
     const prisma = fakePrisma();

@@ -4,6 +4,8 @@ import { prisma } from "../../lib/prisma";
 import { publicMediaUrl } from "../../lib/media";
 import { requireAdmin } from "../../lib/adminAuth";
 import { catalogueImageState, catalogueOrderingState, catalogueStatusWhere } from "../../modules/catalog/catalogueVisibility";
+import { validateDraftPack } from "../../modules/catalog/draftPack";
+import { Prisma } from "@prisma/client";
 
 const router = Router();
 router.use(requireAdmin);
@@ -71,6 +73,7 @@ router.post("/price-list", async (req, res) => {
 
   const variant = await prisma.variant.findUnique({ where: { id: parsed.data.variantId } });
   if (!variant) return res.status(404).json({ error: "Variant not found" });
+  if (variant.catalogStatus === "pending_review") return res.status(409).json({ error: "draft_commercial_configuration_required" });
   if (variant.sellingEntity) return res.status(409).json({error:"Use Commercial configuration to explicitly review the rate basis and GST"});
 
   const row = await prisma.priceList.upsert({
@@ -87,39 +90,111 @@ router.post("/price-list", async (req, res) => {
 });
 
 const productSchema = z.object({
-  name: z.string().min(1),
-  category: z.string().min(1),
+  name: z.string().trim().min(1),
+  category: z.string().trim().min(1),
   imageUrl: z.string().url().optional(),
   description: z.string().max(2000).optional(),
-  variants: z
-    .array(
-      z.object({
-        unitSize: z.string().min(1),
-        unit: z.string().min(1),
-        unitsPerCase: z.number().int().positive(),
-        unitWeightKg: z.number().positive(),
-      })
-    )
-    .min(1),
+  variants: z.array(z.object({
+    unitSize: z.string().trim().min(1),
+    unit: z.string().trim().min(1),
+    unitsPerCase: z.number().int().positive(),
+    unitWeightKg: z.number().positive(),
+  })).min(1),
 });
+
+const draftProductSchema = productSchema.omit({ variants: true });
+const draftVariantSchema = productSchema.shape.variants.element;
+
+function packErrors(packs: z.infer<typeof draftVariantSchema>[]) {
+  return packs.flatMap((pack, index) => validateDraftPack(pack).errors.map((error) => ({ index, error })));
+}
+
+const packKey = (pack: { unitSize: string; unitsPerCase: number }) => `${pack.unitSize.trim().toLowerCase()}|${pack.unitsPerCase}`;
+const uniqueConflict = (error: unknown) => error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
 
 router.post("/products", async (req, res) => {
   const parsed = productSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
   }
+  const errors = packErrors(parsed.data.variants);
+  if (errors.length) return res.status(400).json({ error: "invalid_pack", details: errors });
+  const packs = parsed.data.variants.map(packKey);
+  if (new Set(packs).size !== packs.length) return res.status(409).json({ error: "duplicate_pack" });
+  const existing = await prisma.product.findMany({ where: { name: { equals: parsed.data.name, mode: "insensitive" } }, select: { id: true } });
+  if (existing.length) return res.status(409).json({ error: "product_name_exists" });
 
-  const product = await prisma.product.create({
+  try { const product = await prisma.product.create({
     data: {
       name: parsed.data.name,
       category: parsed.data.category,
+      catalogStatus: "pending_review",
       imageUrl: parsed.data.imageUrl,
       description: parsed.data.description,
-      variants: { create: parsed.data.variants },
+      variants: { create: parsed.data.variants.map((variant) => ({ ...variant, catalogStatus: "pending_review" })) },
     },
     include: { variants: true },
   });
   res.status(201).json({ product });
+  } catch (error) {
+    if (uniqueConflict(error)) return res.status(409).json({ error: "catalog_identity_exists" });
+    throw error;
+  }
+});
+
+router.put("/products/:id", async (req, res) => {
+  const parsed = draftProductSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid_product", details: parsed.error.flatten() });
+  const existing = await prisma.product.findUnique({ where: { id: req.params.id } });
+  if (!existing) return res.status(404).json({ error: "product_not_found" });
+  if (existing.catalogStatus !== "pending_review") return res.status(409).json({ error: "draft_only" });
+  const matches = await prisma.product.findMany({ where: { name: { equals: parsed.data.name, mode: "insensitive" } }, select: { id: true } });
+  if (matches.some((match) => match.id !== existing.id)) return res.status(409).json({ error: "product_name_exists" });
+  try {
+    const product = await prisma.product.update({ where: { id: existing.id, catalogStatus: "pending_review" }, data: parsed.data });
+    res.json({ product });
+  } catch (error) {
+    if (uniqueConflict(error)) return res.status(409).json({ error: "product_name_exists" });
+    throw error;
+  }
+});
+
+router.put("/variants/:id", async (req, res) => {
+  const parsed = draftVariantSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid_pack", details: parsed.error.flatten() });
+  const errors = packErrors([parsed.data]);
+  if (errors.length) return res.status(400).json({ error: "invalid_pack", details: errors });
+  const existing = await prisma.variant.findUnique({ where: { id: req.params.id } });
+  if (!existing) return res.status(404).json({ error: "variant_not_found" });
+  if (existing.catalogStatus !== "pending_review") return res.status(409).json({ error: "draft_only" });
+  const duplicate = await prisma.variant.findFirst({ where: { productId: existing.productId, unitSize: { equals: parsed.data.unitSize, mode: "insensitive" }, unitsPerCase: parsed.data.unitsPerCase, id: { not: existing.id } } });
+  if (duplicate) return res.status(409).json({ error: "duplicate_pack" });
+  try {
+    const variant = await prisma.variant.update({ where: { id: existing.id, catalogStatus: "pending_review" }, data: parsed.data });
+    res.json({ variant });
+  } catch (error) {
+    if (uniqueConflict(error)) return res.status(409).json({ error: "duplicate_pack" });
+    throw error;
+  }
+});
+
+router.post("/products/:id/variants", async (req, res) => {
+  const parsed = draftVariantSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid_pack", details: parsed.error.flatten() });
+  const errors = packErrors([parsed.data]);
+  if (errors.length) return res.status(400).json({ error: "invalid_pack", details: errors });
+  const product = await prisma.product.findUnique({ where: { id: req.params.id } });
+  if (!product) return res.status(404).json({ error: "product_not_found" });
+  if (product.catalogStatus !== "pending_review") return res.status(409).json({ error: "draft_only" });
+  const duplicate = await prisma.variant.findFirst({ where: { productId: product.id, unitSize: { equals: parsed.data.unitSize, mode: "insensitive" }, unitsPerCase: parsed.data.unitsPerCase } });
+  if (duplicate) return res.status(409).json({ error: "duplicate_pack" });
+  try {
+    const variant = await prisma.variant.create({ data: { ...parsed.data, productId: product.id, catalogStatus: "pending_review" } });
+    res.status(201).json({ variant });
+  } catch (error) {
+    if (uniqueConflict(error)) return res.status(409).json({ error: "duplicate_pack" });
+    throw error;
+  }
 });
 
 export default router;

@@ -140,6 +140,11 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
     cancelLeave: (id: string) => post(`/rep/field/leave/${id}/cancel`),
 
     route: (date?: string) => request(`/rep/field/route${date ? `?date=${date}` : ""}`),
+    beatTemplates: () => request("/rep/field/beat-templates"),
+    saveBeatTemplate: (body: { name: string; stops: Array<{ retailerId: string; purpose?: string; note?: string }> }) =>
+      post("/rep/field/beat-templates", body),
+    updateBeatTemplate: (id: string, body: { name: string; stops: Array<{ retailerId: string; purpose?: string; note?: string }> }) =>
+      request(`/rep/field/beat-templates/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(body) }),
     routeHistory: (from?: string, to?: string) =>
       request(`/rep/field/route/history${rangeQuery(from, to)}`),
     skipRouteStop: (stopId: string, reason: string) =>

@@ -234,6 +234,52 @@ export function createFieldRouter(options: {
 
   /* --------------------------------- route -------------------------------- */
 
+  const selfBeatBody = z.object({
+    name: z.string().trim().min(1).max(120),
+    stops: z.array(z.object({
+      retailerId: z.string().uuid(),
+      purpose: z.enum(["sales_call", "collection", "service", "onboarding", "merchandising", "other"]).optional(),
+      note: z.string().trim().max(300).optional(),
+    })).min(1).max(60),
+  });
+
+  router.get("/field/beat-templates", requirePermission(Permissions.ROUTE_MANAGE_SELF),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      try {
+        res.json({ templates: await services.routes.listBeatTemplates({
+          salespersonId: req.staffAuth!.staffId, origin: "self",
+        }) });
+      } catch (error) { sendFieldError(error, res, next); }
+    })
+  );
+
+  router.post("/field/beat-templates", requirePermission(Permissions.ROUTE_MANAGE_SELF),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      const parsed = selfBeatBody.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+      try {
+        const template = await services.routes.saveBeatTemplate({ ...parsed.data,
+          salespersonId: req.staffAuth!.staffId, actorStaffId: req.staffAuth!.staffId, origin: "self",
+        });
+        res.status(201).json({ template });
+      } catch (error) { sendFieldError(error, res, next); }
+    })
+  );
+
+  router.put("/field/beat-templates/:id", requirePermission(Permissions.ROUTE_MANAGE_SELF),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      const parsed = selfBeatBody.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+      try {
+        const template = await services.routes.saveBeatTemplate({ ...parsed.data,
+          templateId: req.params.id, salespersonId: req.staffAuth!.staffId,
+          actorStaffId: req.staffAuth!.staffId, origin: "self",
+        });
+        res.json({ template });
+      } catch (error) { sendFieldError(error, res, next); }
+    })
+  );
+
   router.get(
     "/field/route",
     requirePermission(Permissions.ROUTE_EXECUTE),
@@ -559,10 +605,10 @@ export function createFieldRouter(options: {
     asyncRoute(async (req: StaffAuthedRequest, res, next) => {
       try {
         res.json({
-          issues: await services.issues.list({
-            salespersonId: req.staffAuth!.staffId,
-            retailerId: typeof req.query.retailerId === "string" ? req.query.retailerId : undefined,
-          }),
+          issues: await services.issues.listForSalesperson(
+            req.staffAuth!.staffId,
+            typeof req.query.retailerId === "string" ? req.query.retailerId : undefined
+          ),
         });
       } catch (error) {
         sendFieldError(error, res, next);

@@ -69,6 +69,8 @@ describe("Admin Import Center PostgreSQL/API workflow", () => {
       "unit",
       "units_per_case",
       "unit_weight_kg",
+      "product_id",
+      "variant_id",
       "description",
       "image_url",
       "sap_material_id",
@@ -76,7 +78,7 @@ describe("Admin Import Center PostgreSQL/API workflow", () => {
 
     const csv = [
       headers.join(","),
-      `${productName},Test,1 kg,kg,12,1,,,`,
+      `${productName},Test,1 kg,kg,12,1,,,,,`,
       "",
     ].join("\n");
     const preview = await request(app)

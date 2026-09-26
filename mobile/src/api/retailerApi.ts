@@ -58,6 +58,10 @@ export function createRetailerApi(request: ApiRequest, store: SessionStore) {
     serviceRequests: () => request("/service-requests"),
     submitServiceRequest: (description: string, clientReference: string) => post("/service-requests", { description, clientReference }),
     withdrawServiceRequest: (id: string) => post(`/service-requests/${encodeURIComponent(id)}/withdraw`),
+    salespersonFeedback: (cursor?: string) => request(`/salesperson-feedback${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
+    salespersonFeedbackByReference: (clientReference: string) => request(`/salesperson-feedback/submissions/${encodeURIComponent(clientReference)}`),
+    submitSalespersonFeedback: (description: string, clientReference: string, expectedSalesRepId: string) =>
+      post("/salesperson-feedback", { description, clientReference, expectedSalesRepId }),
     surveys: () => request("/surveys"),
     survey: (id: string) => request(`/surveys/${id}`),
     submitSurvey: (id: string, body: { idempotencyKey: string; answers: Array<{ questionId: string; optionIds?: string[]; value?: string | number | boolean | null }> }) =>

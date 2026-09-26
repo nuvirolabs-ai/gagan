@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
@@ -14,6 +14,7 @@ import { createFieldAdminRouter } from "../../field/fieldAdminRoutes";
 const prismaDir = resolve(__dirname, "../../../../prisma");
 const expansion = join(prismaDir, "migrations/20260925150000_sales_target_scope_expand/migration.sql");
 const contract = join(prismaDir, "migrations/20260925160000_sales_target_scope_constraints/migration.sql");
+const expansionName = "20260925150000_sales_target_scope_expand";
 const base = process.env.DATABASE_URL;
 const baseUrl = base ? new URL(base) : null;
 const localTestDb = baseUrl && ["localhost", "127.0.0.1"].includes(baseUrl.hostname)
@@ -47,9 +48,12 @@ describe.skipIf(!localTestDb)("SalesTarget scope PostgreSQL transition", () => {
   beforeAll(() => {
     expect(existsSync(expansion)).toBe(true);
     expect(existsSync(contract)).toBe(true);
-    expect(readdirSync(join(prismaDir, "migrations")).filter((entry) => entry !== "migration_lock.toml")).toHaveLength(54);
+    expect(readdirSync(join(prismaDir, "migrations")).filter((entry) => entry < expansionName && entry !== "migration_lock.toml")).toHaveLength(52);
     run("createdb", ["--maintenance-db", maintenanceUrl!.toString(), name]);
-    cpSync(prismaDir, baseline, { recursive: true, filter: (source) => !source.includes("20260925150000_sales_target_scope_expand") && !source.includes("20260925160000_sales_target_scope_constraints") && !source.includes("held_migrations") });
+    cpSync(prismaDir, baseline, { recursive: true, filter: (source) => {
+      const [directory, migration] = relative(prismaDir, source).split(sep);
+      return !source.includes("held_migrations") && (directory !== "migrations" || !migration || migration === "migration_lock.toml" || migration < expansionName);
+    } });
     run("npx", ["prisma", "migrate", "deploy", "--schema", join(baseline, "schema.prisma")], dbUrl);
     expect(sql(dbUrl, 'SELECT count(*) FROM "_prisma_migrations" WHERE finished_at IS NOT NULL')).toBe("52");
   }, 120_000);
@@ -193,7 +197,8 @@ describe.skipIf(!localTestDb)("SalesTarget scope PostgreSQL transition", () => {
     run("createdb", ["--maintenance-db", maintenanceUrl!.toString(), freshName]);
     try {
       run("npx", ["prisma", "migrate", "deploy", "--schema", join(prismaDir, "schema.prisma")], freshUrl.toString());
-      expect(sql(freshUrl.toString(), 'SELECT count(*) FROM "_prisma_migrations" WHERE finished_at IS NOT NULL')).toBe("54");
+      const migrationCount = readdirSync(join(prismaDir, "migrations")).filter((entry) => entry !== "migration_lock.toml").length;
+      expect(sql(freshUrl.toString(), 'SELECT count(*) FROM "_prisma_migrations" WHERE finished_at IS NOT NULL')).toBe(String(migrationCount));
       expect(sql(freshUrl.toString(), `SELECT is_nullable FROM information_schema.columns WHERE table_name = 'SalesTarget' AND column_name = 'scope'`)).toBe("NO");
     } finally {
       run("dropdb", ["--if-exists", "--maintenance-db", maintenanceUrl!.toString(), freshName]);

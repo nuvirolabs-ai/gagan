@@ -190,6 +190,28 @@ export class IssueService {
     });
   }
 
+  async listForSalesperson(salespersonId: string, retailerId?: string) {
+    const staff = await this.prisma.staffUser.findUnique({
+      where: { id: salespersonId },
+      select: { salesRepId: true },
+    });
+    const ownedRetailerRequest = staff?.salesRepId
+      ? [{ raisedByStaffId: null, retailer: { salesRepId: staff.salesRepId } }]
+      : [];
+    return this.prisma.serviceIssue.findMany({
+      where: {
+        ...(retailerId ? { retailerId } : {}),
+        OR: [{ raisedByStaffId: salespersonId }, ...ownedRetailerRequest],
+      },
+      include: {
+        retailer: { select: { id: true, name: true } },
+        raisedBy: { select: { id: true, name: true } },
+      },
+      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+      take: 200,
+    });
+  }
+
   async updateStatus(input: {
     issueId: string;
     actorStaffId: string;

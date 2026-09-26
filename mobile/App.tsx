@@ -29,6 +29,7 @@ import StoreLocationScreen from "./src/screens/StoreLocationScreen";
 import LanguageSelectionScreen from "./src/screens/LanguageSelectionScreen";
 import MarketSurveysScreen from "./src/screens/MarketSurveysScreen";
 import ServiceRequestsScreen from "./src/screens/ServiceRequestsScreen";
+import SalespersonFeedbackScreen from "./src/screens/SalespersonFeedbackScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -117,6 +118,7 @@ function RootNavigator() {
           <Stack.Screen name="StoreLocation" component={StoreLocationScreen} options={{ title: t("location.title"), headerBackTitle: t("tabs.account") }} />
           <Stack.Screen name="MarketSurveys" component={MarketSurveysScreen} options={{ title: "Market surveys", headerBackTitle: t("tabs.account") }} />
           <Stack.Screen name="ServiceRequests" component={ServiceRequestsScreen} options={{ title: "Service requests", headerBackTitle: t("tabs.account") }} />
+          <Stack.Screen name="SalespersonFeedback" component={SalespersonFeedbackScreen} options={{ title: "Salesperson feedback", headerBackTitle: t("tabs.account") }} />
         </>
       )}
     </Stack.Navigator>

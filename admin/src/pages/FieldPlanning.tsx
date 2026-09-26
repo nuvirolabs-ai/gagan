@@ -19,6 +19,7 @@ export default function FieldPlanning() {
   const [allStaff, setAllStaff] = useState<any[]>([]);
   const [retailers, setRetailers] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
+  const [templates, setTemplates] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
   const [targets, setTargets] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +29,8 @@ export default function FieldPlanning() {
   const [planSalesperson, setPlanSalesperson] = useState("");
   const [planName, setPlanName] = useState("");
   const [planStops, setPlanStops] = useState<string[]>([]);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const [templateStopDetails, setTemplateStopDetails] = useState<Record<string, { purpose?: string; note?: string }>>({});
 
   const [taskForm, setTaskForm] = useState({
     assignedToStaffId: "",
@@ -47,12 +50,13 @@ export default function FieldPlanning() {
 
   const load = async () => {
     try {
-      const [staffResult, retailerResult, planResult, taskResult, targetResult] = await Promise.all([
+      const [staffResult, retailerResult, planResult, taskResult, targetResult, templateResult] = await Promise.all([
         api.staff(),
         api.retailers(),
-        api.routePlans({ from: today(), to: today() }),
+        api.routePlans({ from: planDate, to: planDate }),
         api.fieldTasks(),
         api.salesTargets(undefined, "all"),
+        api.beatTemplates(),
       ]);
       // A historical SalesRep link alone does not give a manager-only user a field day.
       setStaff((staffResult.staff ?? []).filter((member: any) =>
@@ -62,6 +66,7 @@ export default function FieldPlanning() {
       setAllStaff(staffResult.staff ?? []);
       setRetailers(retailerResult.retailers ?? []);
       setPlans(planResult.plans ?? []);
+      setTemplates(templateResult.templates ?? []);
       setTasks(taskResult.tasks ?? []);
       setTargets(targetResult.targets ?? []);
       setError(null);
@@ -72,7 +77,7 @@ export default function FieldPlanning() {
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [planDate]);
 
   const toggleStop = (retailerId: string) =>
     setPlanStops((current) =>
@@ -80,6 +85,50 @@ export default function FieldPlanning() {
         ? current.filter((id) => id !== retailerId)
         : [...current, retailerId]
     );
+
+  const selectSalesperson = (id: string) => {
+    setPlanSalesperson(id);
+    setPlanStops([]);
+    setEditingTemplateId(null);
+    setTemplateStopDetails({});
+  };
+
+  const saveBeat = async () => {
+    if (!planSalesperson || !planName.trim() || planStops.length === 0) {
+      setError("Pick a salesperson, name the beat and select at least one assigned store.");
+      return;
+    }
+    const body = { salespersonId: planSalesperson, name: planName.trim(),
+      stops: planStops.map((retailerId) => ({ retailerId, ...templateStopDetails[retailerId] })) };
+    try {
+      if (editingTemplateId) await api.updateBeatTemplate(editingTemplateId, body);
+      else await api.saveBeatTemplate(body);
+      setMessage(editingTemplateId ? "Beat updated." : "Beat saved for reuse.");
+      setError(null);
+      setEditingTemplateId(null);
+      setTemplateStopDetails({});
+      setPlanStops([]);
+      setPlanName("");
+      await load();
+    } catch (err) {
+      setMessage(null);
+      setError(explain(err, "Could not save the beat"));
+    }
+  };
+
+  const applyBeat = async (template: any) => {
+    try {
+      await api.applyBeatTemplate(template.id, { salespersonId: template.salespersonId, planDate });
+      setMessage("Beat copied to a draft route for the selected date.");
+      setError(null);
+      await load();
+    } catch (err) {
+      setMessage(null);
+      setError((err as any)?.body?.error === "route_date_occupied"
+        ? "A route is already planned for that date."
+        : explain(err, "Could not apply the beat to that date"));
+    }
+  };
 
   const savePlan = async (publish: boolean) => {
     if (!planSalesperson || planStops.length === 0) {
@@ -183,10 +232,11 @@ export default function FieldPlanning() {
             <h2 className="section-title">Plan a route</h2>
             <div className="form-grid">
               <div className="field">
-                <label>Salesperson</label>
+                <label htmlFor="route-salesperson">Salesperson</label>
                 <select
+                  id="route-salesperson"
                   value={planSalesperson}
-                  onChange={(event) => setPlanSalesperson(event.target.value)}
+                  onChange={(event) => selectSalesperson(event.target.value)}
                 >
                   <option value="">Select…</option>
                   {staff.map((member) => (
@@ -197,16 +247,18 @@ export default function FieldPlanning() {
                 </select>
               </div>
               <div className="field">
-                <label>Date</label>
+                <label htmlFor="route-date">Date</label>
                 <input
+                  id="route-date"
                   type="date"
                   value={planDate}
                   onChange={(event) => setPlanDate(event.target.value)}
                 />
               </div>
               <div className="field">
-                <label>Route name</label>
+                <label htmlFor="route-name">Route name</label>
                 <input
+                  id="route-name"
                   value={planName}
                   onChange={(event) => setPlanName(event.target.value)}
                   placeholder="Kothrud & Baner beat"
@@ -218,7 +270,7 @@ export default function FieldPlanning() {
               Stops in visit order ({planStops.length} selected)
             </h3>
             <div className="chip-row">
-              {retailers.map((retailer: any) => {
+              {retailers.filter((retailer: any) => planSalesperson && retailer.salesRep?.id === staff.find((member) => member.id === planSalesperson)?.salesRepId).map((retailer: any) => {
                 const index = planStops.indexOf(retailer.id);
                 return (
                   <button
@@ -233,6 +285,9 @@ export default function FieldPlanning() {
               })}
             </div>
             <div className="row" style={{ gap: 8, marginTop: 12 }}>
+              <button className="secondary" onClick={() => void saveBeat()}>
+                {editingTemplateId ? "Update beat" : "Save beat"}
+              </button>
               <button className="secondary" onClick={() => void savePlan(false)}>
                 Save draft
               </button>
@@ -241,8 +296,37 @@ export default function FieldPlanning() {
           </div>
 
           <div className="card" style={{ padding: 0 }}>
+            <div style={{ padding: "16px 20px 0" }}>
+              <h2 className="section-title">Saved beats</h2>
+            </div>
+            {templates.length === 0 ? <div className="empty-state">No reusable beats saved.</div> : (
+              <table>
+                <thead><tr><th>Salesperson</th><th>Beat</th><th>Stores</th><th>Source</th><th>Actions</th></tr></thead>
+                <tbody>{templates.map((template: any) => (
+                  <tr key={template.id}>
+                    <td>{template.salesperson?.name ?? template.salespersonId}</td>
+                    <td>{template.name}</td>
+                    <td className="small">{template.stops.map((stop: any) => stop.retailer?.name).join(", ")}</td>
+                    <td>{template.origin === "self" ? "Salesperson" : "Leader"}</td>
+                    <td>
+                      {template.origin === "leader" ? <button className="sm secondary" onClick={() => {
+                        setPlanSalesperson(template.salespersonId);
+                        setPlanName(template.name);
+                        setPlanStops(template.stops.map((stop: any) => stop.retailerId));
+                        setTemplateStopDetails(Object.fromEntries(template.stops.map((stop: any) => [stop.retailerId, { purpose: stop.purpose, note: stop.note }])));
+                        setEditingTemplateId(template.id);
+                      }}>Edit</button> : null}
+                      <button className="sm" onClick={() => void applyBeat(template)}>Apply to date</button>
+                    </td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            )}
+          </div>
+
+          <div className="card" style={{ padding: 0 }}>
             {plans.length === 0 ? (
-              <div className="empty-state">No routes planned for today.</div>
+              <div className="empty-state">No routes planned for the selected date.</div>
             ) : (
               <table>
                 <thead>

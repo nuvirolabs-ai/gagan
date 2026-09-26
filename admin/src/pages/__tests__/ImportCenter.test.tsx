@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import ImportCenter from "../ImportCenter";
+import { api } from "../../api";
 
 vi.mock("../../api", () => ({ api: {
   importTypes: vi.fn(async () => ({ types: [{ type: "retailers", label: "Retailers", description: "Retailer master data", required: ["name", "phone"], optional: [], modes: ["upsert"] }] })),
@@ -24,5 +25,11 @@ describe("Import Center", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Apply import" }));
     await waitFor(() => expect(screen.getByText("Import complete")).toBeInTheDocument());
+  });
+
+  it("explains that product imports create drafts", async () => {
+    vi.mocked(api.importTypes).mockResolvedValueOnce({ types: [{ type: "products", label: "Products / SKUs", description: "Products", required: ["product_name", "unit_size"], optional: ["product_id", "variant_id"], modes: ["create_only", "update_only", "upsert"] }] });
+    render(<ImportCenter />);
+    expect(await screen.findByText(/New products and packs stay pending review/)).toBeInTheDocument();
   });
 });

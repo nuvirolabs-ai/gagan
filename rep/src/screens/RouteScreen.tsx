@@ -33,6 +33,7 @@ import {
 } from "../offline/operationalReadCache";
 import { colors, radius, spacing } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
+import { toggleBeatRetailer } from "./beatDraft";
 
 const STOP_TONE: Record<string, "green" | "neutral" | "gold"> = {
   visited: "green",
@@ -68,6 +69,115 @@ export function openDirections(retailer: {
     Linking.openURL(`https://maps.google.com/?q=${retailer.latitude},${retailer.longitude}`).catch(
       () => Alert.alert("No maps app", "This phone has no app that can open directions.")
     )
+  );
+}
+
+function OwnBeats() {
+  const { staff } = useRep();
+  const canManage = staff?.permissions.includes("route.manage_self") ?? false;
+  const currentStaffId = useRef(staff?.id ?? null);
+  currentStaffId.current = staff?.id ?? null;
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [retailers, setRetailers] = useState<any[]>([]);
+  const [name, setName] = useState("");
+  const [selected, setSelected] = useState<string[]>([]);
+  const [stopDetails, setStopDetails] = useState<Record<string, { purpose?: string; note?: string }>>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const accountId = currentStaffId.current;
+    if (!canManage || !accountId) return;
+    try {
+      const [beats, stores] = await Promise.all([repApi.beatTemplates(), repApi.retailers()]);
+      if (currentStaffId.current !== accountId) return;
+      setTemplates(beats.templates ?? []);
+      setRetailers(stores.retailers ?? []);
+      setError(null);
+    } catch {
+      if (currentStaffId.current === accountId) setError("Could not load your beats. Try again when connected.");
+    }
+  }, [canManage, staff?.id]);
+
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
+
+  const reset = () => {
+    setEditingId(null);
+    setName("");
+    setSelected([]);
+    setStopDetails({});
+    setQuery("");
+  };
+
+  const save = async () => {
+    if (!name.trim() || selected.length === 0) {
+      Alert.alert("Complete the beat", "Add a name and at least one assigned store.");
+      return;
+    }
+    const accountId = currentStaffId.current;
+    setSaving(true);
+    try {
+      const body = { name: name.trim(), stops: selected.map((retailerId) => ({ retailerId, ...stopDetails[retailerId] })) };
+      if (editingId) await repApi.updateBeatTemplate(editingId, body);
+      else await repApi.saveBeatTemplate(body);
+      if (currentStaffId.current !== accountId) return;
+      reset();
+      await load();
+    } catch {
+      if (currentStaffId.current === accountId) Alert.alert("Could not save beat", "Check that every store is still assigned to you, then try again.");
+    } finally {
+      if (currentStaffId.current === accountId) setSaving(false);
+    }
+  };
+
+  if (!canManage) return null;
+  const visibleRetailers = retailers.filter((retailer) => retailer.name.toLowerCase().includes(query.trim().toLowerCase()));
+
+  return (
+    <View style={styles.beatSection}>
+      <Text style={styles.title}>My beats</Text>
+      {error ? <Text style={styles.metaWarn}>{error}</Text> : null}
+      {templates.map((template) => (
+        <View key={template.id} style={styles.beatRow}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.stopName}>{template.name}</Text>
+            <Text style={styles.muted}>{template.stops.length} stores</Text>
+          </View>
+          <SecondaryButton label="Edit" icon="pencil-outline" onPress={() => {
+            setEditingId(template.id);
+            setName(template.name);
+            setSelected(template.stops.map((stop: any) => stop.retailerId));
+            setStopDetails(Object.fromEntries(template.stops.map((stop: any) => [stop.retailerId, { purpose: stop.purpose, note: stop.note }])));
+          }} />
+        </View>
+      ))}
+      <Field label={editingId ? "Edit beat name" : "New beat name"}>
+        <TextInput value={name} onChangeText={setName} placeholder="North beat" placeholderTextColor={colors.inkFaint} style={inputStyle} maxLength={120} />
+      </Field>
+      <Field label={`Stores in visit order (${selected.length})`}>
+        <TextInput value={query} onChangeText={setQuery} placeholder="Find assigned store" placeholderTextColor={colors.inkFaint} style={inputStyle} />
+      </Field>
+      {visibleRetailers.map((retailer) => {
+        const index = selected.indexOf(retailer.id);
+        return (
+          <View key={retailer.id} style={styles.beatRow}>
+            <Text style={[styles.stopName, { flex: 1 }]} numberOfLines={2}>{retailer.name}</Text>
+            <SecondaryButton
+              label={index >= 0 ? `${index + 1}. Selected` : "Add"}
+              icon={index >= 0 ? "checkmark-circle-outline" : "add-circle-outline"}
+              disabled={index < 0 && selected.length >= 60}
+              onPress={() => setSelected((current) => toggleBeatRetailer(current, retailer.id))}
+            />
+          </View>
+        );
+      })}
+      <View style={styles.actions}>
+        {editingId ? <SecondaryButton label="Cancel edit" onPress={reset} /> : null}
+        <PrimaryButton label={editingId ? "Update beat" : "Save beat"} icon="save-outline" disabled={saving} onPress={() => void save()} />
+      </View>
+    </View>
   );
 }
 
@@ -164,11 +274,10 @@ export default function RouteScreen({ navigation }: any) {
   if (!route) {
     return (
       <AppScreen>
-        <EmptyState
-          icon="map-marker-path"
-          title={t("route.emptyTitle")}
-          body={error ?? t("today.noRoutePublished")}
-        />
+        <KeyboardSafeScrollView containerStyle={styles.screen} contentContainerStyle={styles.content}>
+          <EmptyState icon="map-marker-path" title={t("route.emptyTitle")} body={error ?? t("today.noRoutePublished")} />
+          <OwnBeats key={`${staff?.id}:${staff?.permissions.includes("route.manage_self")}`} />
+        </KeyboardSafeScrollView>
       </AppScreen>
     );
   }
@@ -299,6 +408,7 @@ export default function RouteScreen({ navigation }: any) {
             ) : null}
           </View>
         ))}
+        <OwnBeats key={`${staff?.id}:${staff?.permissions.includes("route.manage_self")}`} />
       </KeyboardSafeScrollView>
     </AppScreen>
   );
@@ -336,4 +446,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.separator,
   },
+  beatSection: { gap: spacing.md, paddingTop: spacing.xl, paddingBottom: spacing.xxl },
+  beatRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.separator },
 });

@@ -3,6 +3,7 @@ import { prisma } from "../../lib/prisma";
 import type {
   DelegationInput,
   SellingLeaderSetupInput,
+  SalespersonSetupInput,
   StaffCreateInput,
   StaffManagement,
 } from "./adminStaffRoutes";
@@ -159,7 +160,19 @@ export class StaffManagementService implements StaffManagement {
     private readonly db: typeof prisma = prisma
   ) {}
 
-  async setupSellingLeader(input: SellingLeaderSetupInput, actorStaffId: string) {
+  setupSellingLeader(input: SellingLeaderSetupInput, actorStaffId: string) {
+    return this.setupSeller(input, actorStaffId, "sales_leader");
+  }
+
+  setupSalesperson(input: SalespersonSetupInput, actorStaffId: string) {
+    return this.setupSeller(input, actorStaffId, "salesperson");
+  }
+
+  private async setupSeller(
+    input: SellingLeaderSetupInput,
+    actorStaffId: string,
+    mode: "sales_leader" | "salesperson"
+  ) {
     if (Boolean(input.staffId) === Boolean(input.newStaff)) {
       throw new StaffManagementError("staff_identity_required", 400);
     }
@@ -191,6 +204,13 @@ export class StaffManagementService implements StaffManagement {
         // SalesRep has no phone uniqueness constraint. Locking its table keeps
         // candidate resolution and a possible create indivisible for this setup.
         await tx.$executeRawUnsafe('LOCK TABLE "SalesRep" IN SHARE ROW EXCLUSIVE MODE');
+        const staffPhones = await tx.staffUser.findMany({ select: { id: true, phone: true } });
+        if (staffPhones.some((other) => {
+          if (other.id === staff.id) return false;
+          try { return normalizeIndianPhone(other.phone) === canonicalPhone; } catch { return false; }
+        })) {
+          throw new StaffManagementError("staff_identity_ambiguous", 409);
+        }
         const reps = await tx.salesRep.findMany({ select: { id: true, name: true, phone: true } });
         const matching = reps.filter((rep) => {
           try { return normalizeIndianPhone(rep.phone) === canonicalPhone; } catch { return false; }
@@ -223,12 +243,16 @@ export class StaffManagementService implements StaffManagement {
         const salesRole = roles.find((role) => role.name === "salesperson");
         const managerRole = roles.find((role) => role.name === "field_manager");
         const salesPermissions = new Set(salesRole?.permissions.map((row) => row.permission.name) ?? []);
-        if (!salesRole || !managerRole || ![Permissions.ORDER_CREATE_FOR_RETAILER, Permissions.ROUTE_EXECUTE, Permissions.ATTENDANCE_MANAGE_SELF]
+        if (!salesRole || ![Permissions.ORDER_CREATE_FOR_RETAILER, Permissions.ROUTE_EXECUTE, Permissions.ATTENDANCE_MANAGE_SELF]
           .every((permission) => salesPermissions.has(permission)) ||
-            !managerRole.permissions.some((row) => row.permission.name === Permissions.PERFORMANCE_VIEW_TEAM)) {
+            (mode === "sales_leader" && !managerRole?.permissions.some((row) => row.permission.name === Permissions.PERFORMANCE_VIEW_TEAM))) {
           throw new StaffManagementError("role_permission_mismatch", 409);
         }
-        for (const role of [salesRole, managerRole]) {
+        if (mode === "salesperson" && managerRole &&
+            await tx.staffRole.findUnique({ where: { staffId_roleId: { staffId: staff.id, roleId: managerRole.id } } })) {
+          throw new StaffManagementError("selling_leader_setup_required", 409);
+        }
+        for (const role of mode === "sales_leader" ? [salesRole, managerRole!] : [salesRole]) {
           const existing = await tx.staffRole.findUnique({ where: { staffId_roleId: { staffId: staff.id, roleId: role.id } } });
           if (!existing) {
             await tx.staffRole.create({ data: { staffId: staff.id, roleId: role.id } });
@@ -258,13 +282,14 @@ export class StaffManagementService implements StaffManagement {
           await tx.staffUser.update({ where: { id: move.employeeId }, data: { managerId: move.managerId } });
           await tx.auditEvent.create({ data: {
             actorStaffId, action: "staff.manager_changed", subjectType: HIERARCHY_SUBJECT_TYPE, subjectId: move.employeeId,
-            metadata: { previousManagerId, newManagerId: move.managerId, reason: "selling_leader_setup" },
+            metadata: { previousManagerId, newManagerId: move.managerId, reason: `${mode}_setup` },
           } });
           managerOf.set(move.employeeId, move.managerId);
         }
         await tx.auditEvent.create({ data: {
-          actorStaffId, action: "staff.selling_leader_setup", subjectType: "StaffUser", subjectId: staff.id,
-          metadata: { salesRepId: repId, reportIds: input.reportIds ?? [] },
+          actorStaffId, action: mode === "sales_leader" ? "staff.selling_leader_setup" : "staff.salesperson_setup",
+          subjectType: "StaffUser", subjectId: staff.id,
+          metadata: mode === "sales_leader" ? { salesRepId: repId, reportIds: input.reportIds ?? [] } : { salesRepId: repId },
         } });
         const final = await tx.staffUser.findUniqueOrThrow({
           where: { id: staff.id },
@@ -273,7 +298,7 @@ export class StaffManagementService implements StaffManagement {
             roles: { select: { role: { select: { name: true } } } },
           },
         });
-        return { staff: final, roles: final.roles.map(({ role }) => role.name), workspaceMode: "sales_leader" as const };
+        return { staff: final, roles: final.roles.map(({ role }) => role.name), workspaceMode: mode };
       }, { isolationLevel: "Serializable", timeout: 15_000 });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {

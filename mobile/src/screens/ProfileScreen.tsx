@@ -110,6 +110,12 @@ export default function ProfileScreen({ navigation }: any) {
       hint: "Ask for help or review submitted requests",
       onPress: () => navigation.navigate("ServiceRequests"),
     },
+    {
+      icon: "chatbox-ellipses-outline",
+      label: "Salesperson feedback",
+      hint: "Share feedback about your assigned salesperson",
+      onPress: () => navigation.navigate("SalespersonFeedback"),
+    },
   ];
 
   return (

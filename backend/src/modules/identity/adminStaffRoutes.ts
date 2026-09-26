@@ -15,6 +15,7 @@ export interface StaffManagement {
   createDelegation(input: DelegationInput, actorStaffId: string): Promise<unknown>;
   revokeDelegation(id: string, actorStaffId: string): Promise<void>;
   setupSellingLeader(input: SellingLeaderSetupInput, actorStaffId: string): Promise<unknown>;
+  setupSalesperson(input: SalespersonSetupInput, actorStaffId: string): Promise<unknown>;
   setupManagerOnly(staffId: string, actorStaffId: string): Promise<unknown>;
 }
 
@@ -25,6 +26,8 @@ export interface SellingLeaderSetupInput {
   reportIds?: string[];
   territory?: string;
 }
+
+export type SalespersonSetupInput = Omit<SellingLeaderSetupInput, "reportIds">;
 
 export interface StaffCreateInput {
   name: string;
@@ -52,6 +55,7 @@ const sellingLeaderSetupSchema = z.object({
   reportIds: z.array(z.string().uuid()).max(500).optional(),
   territory: z.string().trim().max(100).optional(),
 }).strict();
+const salespersonSetupSchema = sellingLeaderSetupSchema.omit({ reportIds: true });
 
 export function createAdminStaffRouter(options: AdminStaffRouterOptions) {
   const router = Router();
@@ -121,6 +125,35 @@ export function createAdminStaffRouter(options: AdminStaffRouterOptions) {
       }
       const result = await options.service.setupSellingLeader(parsed.data, req.staffAuth!.staffId);
       res.status(201).json(result);
+    })
+  );
+  router.post(
+    "/staff/:id/salesperson-setup",
+    asyncRoute(async (req: StaffAuthedRequest, res) => {
+      const parsed = salespersonSetupSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+      if (parsed.data.managerId !== undefined && !req.staffAuth!.permissions.includes(Permissions.ORG_MANAGE)) {
+        return res.status(403).json({ error: "permission_required", permission: Permissions.ORG_MANAGE });
+      }
+      res.json(await options.service.setupSalesperson({ staffId: req.params.id, ...parsed.data }, req.staffAuth!.staffId));
+    })
+  );
+  router.post(
+    "/staff/salesperson-setup",
+    asyncRoute(async (req: StaffAuthedRequest, res) => {
+      const parsed = salespersonSetupSchema.extend({
+        newStaff: z.object({
+          name: z.string().trim().min(2).max(100),
+          phone: z.string().min(10).max(20),
+          email: z.string().email(),
+          employeeRef: z.string().trim().min(1).max(50).optional(),
+        }),
+      }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+      if (parsed.data.managerId !== undefined && !req.staffAuth!.permissions.includes(Permissions.ORG_MANAGE)) {
+        return res.status(403).json({ error: "permission_required", permission: Permissions.ORG_MANAGE });
+      }
+      res.status(201).json(await options.service.setupSalesperson(parsed.data, req.staffAuth!.staffId));
     })
   );
   router.post(

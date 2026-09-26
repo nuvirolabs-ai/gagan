@@ -4,9 +4,12 @@ import type { ReactNode } from "react";
 import FieldExpenses from "../FieldExpenses";
 import { AuthContext } from "../../auth-context";
 
-const { decideExpense, fieldExpenses } = vi.hoisted(() => ({
+const { decideExpense, fieldExpenses, expenseHistory, expenseClaimants, expenseReceipt } = vi.hoisted(() => ({
   decideExpense: vi.fn().mockResolvedValue({}),
   fieldExpenses: vi.fn(),
+  expenseHistory: vi.fn(),
+  expenseClaimants: vi.fn(),
+  expenseReceipt: vi.fn(),
 }));
 
 /** The signed-in reviewer. Rows belonging to them are treated differently. */
@@ -44,23 +47,40 @@ vi.mock("../../api", () => ({
   inr: (value: number) => `₹${Math.round(value).toLocaleString("en-IN")}`,
   api: {
     fieldExpenses,
+    expenseHistory,
+    expenseClaimants,
+    expenseReceipt,
     decideExpense,
   },
 }));
 
 beforeEach(() => {
   fieldExpenses.mockResolvedValue({ expenses: [CLAIM] });
+  expenseClaimants.mockResolvedValue({ claimants: [{ id: "staff-ravi", name: "Ravi Kumar" }] });
+  expenseHistory.mockResolvedValue({
+    salesperson: { id: "staff-ravi", name: "Ravi Kumar" },
+    totals: {
+      claimed: { count: 3, amount: "60.35" },
+      submitted: { count: 1, amount: "10.25" },
+      approved: { count: 1, amount: "40.00" },
+      rejected: { count: 1, amount: "10.10" },
+    },
+    expenses: [{ ...CLAIM, amount: "10.25", decisionNote: null }],
+    nextCursor: null,
+  });
+  expenseReceipt.mockResolvedValue({ receiptUrl: "https://signed.example/fresh" });
 });
 
 describe("Field expenses", () => {
-  it("shows the claim with a signed receipt link rather than a storage key", async () => {
+  it("gets a fresh scope-checked receipt link on click in the review queue", async () => {
+    const opened = { location: { href: "about:blank" }, opener: null, close: vi.fn() };
+    vi.spyOn(window, "open").mockReturnValue(opened as unknown as Window);
     render(<FieldExpenses />, { wrapper: signedInAs("staff-deepak") });
-    expect(await screen.findByText("Ravi Kumar")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Ravi Kumar" })).toBeInTheDocument();
     expect(screen.getByText("₹450")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "View" })).toHaveAttribute(
-      "href",
-      "https://signed.example/receipt"
-    );
+    fireEvent.click(screen.getByRole("button", { name: "View receipt" }));
+    await waitFor(() => expect(opened.location.href).toBe("https://signed.example/fresh"));
+    expect(expenseReceipt).toHaveBeenCalledWith("staff-ravi", "expense-1");
   });
 
   it("records an approval decision", async () => {
@@ -69,6 +89,46 @@ describe("Field expenses", () => {
     await waitFor(() =>
       expect(decideExpense).toHaveBeenCalledWith("expense-1", "approved", undefined)
     );
+  });
+
+  it("opens a manager's read-only person history with explicitly labeled totals", async () => {
+    render(<FieldExpenses />, { wrapper: signedInAs("staff-deepak") });
+    fireEvent.click(await screen.findByRole("button", { name: "Ravi Kumar" }));
+    expect(await screen.findByText("Cumulative claimed")).toBeInTheDocument();
+    expect(screen.getByText("Includes submitted, approved, and rejected claims.")).toBeInTheDocument();
+    expect(screen.getByText("₹60.35")).toBeInTheDocument();
+    expect(screen.getByText("Approved claims")).toBeInTheDocument();
+    expect(screen.getByText("Rejected claims")).toBeInTheDocument();
+    expect(screen.getByText("Diesel, Kothrud beat")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  });
+
+  it("loads older claims without losing the cumulative total", async () => {
+    expenseHistory.mockResolvedValueOnce({
+      salesperson: { id: "staff-ravi", name: "Ravi Kumar" },
+      totals: { claimed: { count: 2, amount: "20.25" }, submitted: { count: 2, amount: "20.25" }, approved: { count: 0, amount: "0.00" }, rejected: { count: 0, amount: "0.00" } },
+      expenses: [{ ...CLAIM, amount: "10.25", receiptUrl: null }],
+      nextCursor: "expense-1",
+    }).mockResolvedValueOnce({
+      salesperson: { id: "staff-ravi", name: "Ravi Kumar" },
+      totals: { claimed: { count: 2, amount: "20.25" }, submitted: { count: 2, amount: "20.25" }, approved: { count: 0, amount: "0.00" }, rejected: { count: 0, amount: "0.00" } },
+      expenses: [{ ...CLAIM, id: "expense-older", amount: "10.00", description: "Older fuel", receiptUrl: null }],
+      nextCursor: null,
+    });
+    render(<FieldExpenses />, { wrapper: signedInAs("staff-deepak") });
+    fireEvent.click(await screen.findByRole("button", { name: "Ravi Kumar" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Load older claims" }));
+    expect(await screen.findByText("Older fuel")).toBeInTheDocument();
+    expect(screen.getAllByText("₹20.25")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "Load older claims" })).toBeNull();
+  });
+
+  it("can open a historical claimant who is absent from the capped review queue", async () => {
+    fieldExpenses.mockResolvedValue({ expenses: [] });
+    render(<FieldExpenses />, { wrapper: signedInAs("staff-deepak") });
+    fireEvent.change(await screen.findByLabelText("Person"), { target: { value: "staff-ravi" } });
+    expect(await screen.findByText("Cumulative claimed")).toBeInTheDocument();
+    expect(screen.getByText("₹60.35")).toBeInTheDocument();
   });
 });
 

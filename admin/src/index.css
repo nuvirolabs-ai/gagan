@@ -617,6 +617,10 @@ button, .button { min-height: 36px; border: 1px solid var(--oi-line); border-rad
 .button.secondary:hover, button.secondary:hover { border-color: rgba(10, 132, 255, .32); background: var(--oi-blue-soft); }
 .button.compact, button.sm { min-height: 32px; padding: 6px 10px; font-size: 11px; }
 .button.danger, button.danger { color: #fff; background: var(--oi-red); }
+button.expense-person-button { min-height: 0; padding: 0; border: 0; border-radius: 0; color: var(--oi-blue); background: transparent; font-weight: 650; text-align: left; }
+button.expense-person-button:hover { color: #0066cc; background: transparent; text-decoration: underline; }
+.expense-history-table { overflow-x: auto; }
+.expense-history-table table { min-width: 700px; }
 .secondary-action, .danger-outline { color: var(--oi-red) !important; border: 1px solid rgba(208, 68, 56, .38) !important; background: var(--oi-red-soft) !important; }
 .ghost { color: var(--oi-muted); background: transparent; }
 .ghost:hover { color: var(--oi-ink); background: rgba(118, 118, 128, .08); }

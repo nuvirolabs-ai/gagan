@@ -2,6 +2,7 @@ import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createFieldAdminRouter } from "../fieldAdminRoutes";
+import { ScopeError } from "../../org/scope";
 
 const services = {
   attendance: {
@@ -15,6 +16,9 @@ const services = {
     upsertPlan: vi.fn().mockResolvedValue({ id: "plan-1" }),
     publishPlan: vi.fn().mockResolvedValue({ id: "plan-1" }),
     routeForDate: vi.fn().mockResolvedValue(null),
+    listBeatTemplates: vi.fn().mockResolvedValue([]),
+    saveBeatTemplate: vi.fn().mockResolvedValue({ id: "beat-1" }),
+    applyBeatTemplate: vi.fn().mockResolvedValue({ id: "plan-2", status: "draft" }),
   },
   tasks: {
     list: vi.fn().mockResolvedValue([]),
@@ -22,7 +26,7 @@ const services = {
     assign: vi.fn().mockResolvedValue({ id: "task-1" }),
     cancel: vi.fn().mockResolvedValue({ id: "task-1" }),
   },
-  expenses: { list: vi.fn().mockResolvedValue([]), decide: vi.fn().mockResolvedValue({}) },
+  expenses: { list: vi.fn().mockResolvedValue([]), claimants: vi.fn().mockResolvedValue([]), historyFor: vi.fn().mockResolvedValue({ salesperson: { id: "staff-1", name: "Ravi" }, expenses: [], totals: {}, nextCursor: null }), receiptFor: vi.fn().mockResolvedValue({ receiptUrl: "https://signed.example/fresh" }), decide: vi.fn().mockResolvedValue({}) },
   issues: { list: vi.fn().mockResolvedValue([]), updateStatus: vi.fn().mockResolvedValue({}) },
   tracking: {
     lastKnownPositions: vi.fn().mockResolvedValue([]),
@@ -60,6 +64,7 @@ function app(permissions: string[] = MANAGER_PERMISSIONS) {
 }
 
 beforeEach(() => {
+  scopes.resolveFor.mockReset().mockResolvedValue({ staffIds: ["staff-1", "staff-2"] });
   for (const service of Object.values(services)) {
     for (const fn of Object.values(service as Record<string, any>)) (fn as any).mockClear?.();
   }
@@ -73,9 +78,15 @@ describe("back-office field permissions", () => {
     ["route list", "route.manage", "get", "/field/routes"],
     ["route save", "route.manage", "post", "/field/routes"],
     ["route publish", "route.manage", "post", "/field/routes/plan-1/publish"],
+    ["beat list", "route.manage", "get", "/field/beat-templates"],
+    ["beat save", "route.manage", "post", "/field/beat-templates"],
+    ["beat apply", "route.manage", "post", "/field/beat-templates/beat-1/apply"],
     ["task assignment", "route.manage", "post", "/field/tasks"],
     ["retailer marketing history", "route.manage", "get", "/field/retailers/retailer-1/marketing-history"],
     ["expense queue", "expense.review", "get", "/field/expenses"],
+    ["expense claimants", "expense.review", "get", "/field/expenses/claimants"],
+    ["expense history", "expense.review", "get", "/field/expenses/staff/staff-1"],
+    ["expense receipt", "expense.review", "get", "/field/expenses/staff/staff-1/receipts/expense-1"],
     ["expense decision", "expense.review", "post", "/field/expenses/expense-1/decision"],
     ["issue queue", "issue.review", "get", "/field/issues"],
     ["issue status", "issue.review", "post", "/field/issues/issue-1/status"],
@@ -104,6 +115,41 @@ describe("back-office field permissions", () => {
 });
 
 describe("back-office field behaviour", () => {
+  it("passes only the caller's reporting scope to claimant discovery", async () => {
+    const response = await request(app()).get("/field/expenses/claimants");
+    expect(response.status).toBe(200);
+    expect(services.expenses.claimants).toHaveBeenCalledWith(["staff-1", "staff-2"]);
+  });
+
+  it("scopes per-person expense history before reading it", async () => {
+    const response = await request(app()).get("/field/expenses/staff/staff-1?cursor=expense-49");
+    expect(response.status).toBe(200);
+    expect(scopes.resolveFor).toHaveBeenCalledWith(
+      expect.objectContaining({ staffId: "manager-1" }), "staff-1"
+    );
+    expect(services.expenses.historyFor).toHaveBeenCalledWith("staff-1", "expense-49");
+  });
+
+  it("does not read another team's expense history", async () => {
+    scopes.resolveFor.mockRejectedValueOnce(new ScopeError(403, "outside_reporting_scope"));
+    const response = await request(app()).get("/field/expenses/staff/staff-else");
+    expect(response.status).toBe(403);
+    expect(response.body.error).toBe("outside_reporting_scope");
+    expect(services.expenses.historyFor).not.toHaveBeenCalled();
+  });
+
+  it("scopes a fresh receipt link and refuses an out-of-scope person", async () => {
+    const allowed = await request(app()).get("/field/expenses/staff/staff-1/receipts/expense-1");
+    expect(allowed.status).toBe(200);
+    expect(allowed.body).toEqual({ receiptUrl: "https://signed.example/fresh" });
+    expect(services.expenses.receiptFor).toHaveBeenCalledWith("staff-1", "expense-1");
+    services.expenses.receiptFor.mockClear();
+    scopes.resolveFor.mockRejectedValueOnce(new ScopeError(403, "outside_reporting_scope"));
+    const refused = await request(app()).get("/field/expenses/staff/staff-else/receipts/expense-1");
+    expect(refused.status).toBe(403);
+    expect(services.expenses.receiptFor).not.toHaveBeenCalled();
+  });
+
   it("reads retailer marketing history only for the caller's reporting scope", async () => {
     const response = await request(app()).get("/field/retailers/retailer-1/marketing-history");
 
@@ -161,6 +207,28 @@ describe("back-office field behaviour", () => {
     expect(services.routes.upsertPlan).toHaveBeenCalledWith(
       expect.objectContaining({ createdByStaffId: "manager-1" })
     );
+  });
+
+  it("scopes a leader's template list to the requested salesperson", async () => {
+    const salespersonId = "00000000-0000-0000-0000-000000000001";
+    await request(app()).get(`/field/beat-templates?salespersonId=${salespersonId}`).expect(200);
+    expect(scopes.resolveFor).toHaveBeenCalledWith(expect.objectContaining({ staffId: "manager-1" }), salespersonId);
+    expect(services.routes.listBeatTemplates).toHaveBeenCalledWith({ salespersonId, scopeStaffIds: ["staff-1", "staff-2"] });
+  });
+
+  it("saves a leader template with server-stamped actor and applies only a draft", async () => {
+    const salespersonId = "00000000-0000-0000-0000-000000000001";
+    const body = { salespersonId, name: "North", stops: [{ retailerId: "00000000-0000-0000-0000-000000000002" }] };
+    await request(app()).post("/field/beat-templates").send(body).expect(201);
+    expect(services.routes.saveBeatTemplate).toHaveBeenCalledWith(expect.objectContaining({
+      salespersonId, actorStaffId: "manager-1", origin: "leader",
+    }));
+    await request(app()).post("/field/beat-templates/beat-1/apply")
+      .send({ salespersonId, planDate: "2026-10-01" }).expect(201);
+    expect(services.routes.applyBeatTemplate).toHaveBeenCalledWith(expect.objectContaining({
+      templateId: "beat-1", salespersonId, actorStaffId: "manager-1",
+    }));
+    expect(services.routes.publishPlan).not.toHaveBeenCalled();
   });
 
   it("summarises a team member's route as progress only, not their stop list", async () => {

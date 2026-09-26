@@ -37,5 +37,7 @@ describe("work home", () => {
     expect(screen.getByText("SAP outbox failures")).toBeInTheDocument();
     expect(screen.queryByText("CloudRest Memory Pillow")).not.toBeInTheDocument();
     expect(screen.queryByText("AeroFlex Running Shoes")).not.toBeInTheDocument();
+    expect(screen.getByText("local development")).toBeInTheDocument();
+    expect(screen.queryByText(/read-only/i)).not.toBeInTheDocument();
   });
 });

@@ -71,6 +71,98 @@ describe("field expenses", () => {
     expect(expense).not.toHaveProperty("receiptObjectKey");
   });
 
+  it("returns all-time claimed and status totals independently of the history page", async () => {
+    const prisma = fakePrisma();
+    prisma.staffUser.findUnique.mockResolvedValue({ id: "staff-1", name: "Ravi Kumar" });
+    prisma.fieldExpense.groupBy = vi.fn().mockResolvedValue([
+      { status: "submitted", _count: { _all: 1 }, _sum: { amount: "10.25" } },
+      { status: "approved", _count: { _all: 2 }, _sum: { amount: "20.50" } },
+      { status: "rejected", _count: { _all: 1 }, _sum: { amount: "3.10" } },
+    ]);
+    prisma.fieldExpense.findMany.mockResolvedValue(Array.from({ length: 51 }, (_, index) => ({
+      id: `expense-${index}`,
+      amount: "1.00",
+      receiptObjectKey: index === 0 ? "expense_receipt/2026/03/abc" : null,
+    })));
+
+    const result = await new ExpenseService(prisma, storage()).historyFor("staff-1");
+    expect(result.salesperson).toEqual({ id: "staff-1", name: "Ravi Kumar" });
+    expect(result.totals).toEqual({
+      claimed: { count: 4, amount: "33.85" },
+      submitted: { count: 1, amount: "10.25" },
+      approved: { count: 2, amount: "20.50" },
+      rejected: { count: 1, amount: "3.10" },
+    });
+    expect(result.expenses).toHaveLength(50);
+    expect(result.nextCursor).toBe("expense-49");
+    expect(result.expenses[0]).toMatchObject({ receiptUrl: "https://signed.example/receipt" });
+    expect(result.expenses[0]).not.toHaveProperty("receiptObjectKey");
+    expect(prisma.fieldExpense.groupBy).toHaveBeenCalledWith(expect.objectContaining({
+      where: { salespersonId: "staff-1" },
+    }));
+  });
+
+  it("returns the next history page without changing the all-time total", async () => {
+    const prisma = fakePrisma();
+    prisma.staffUser.findUnique.mockResolvedValue({ id: "staff-1", name: "Ravi Kumar" });
+    prisma.fieldExpense.findFirst.mockResolvedValue({ id: "expense-49" });
+    prisma.fieldExpense.groupBy = vi.fn().mockResolvedValue([]);
+    prisma.fieldExpense.findMany.mockResolvedValue([{ id: "older", amount: "5.00", receiptObjectKey: null }]);
+
+    const result = await new ExpenseService(prisma, storage()).historyFor("staff-1", "expense-49");
+    expect(result.nextCursor).toBeNull();
+    expect(result.totals.claimed).toEqual({ count: 0, amount: "0.00" });
+    expect(prisma.fieldExpense.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      cursor: { id: "expense-49" },
+      skip: 1,
+    }));
+    expect(prisma.fieldExpense.findFirst).toHaveBeenCalledWith({
+      where: { id: "expense-49", salespersonId: "staff-1" },
+      select: { id: true },
+    });
+  });
+
+  it.each(["foreign-expense", "nonexistent-expense"])(
+    "rejects %s as a history cursor without querying history",
+    async (cursor) => {
+      const prisma = fakePrisma();
+      prisma.staffUser.findUnique.mockResolvedValue({ id: "staff-1", name: "Ravi Kumar" });
+      prisma.fieldExpense.findFirst.mockResolvedValue(null);
+      await expect(new ExpenseService(prisma, storage()).historyFor("staff-1", cursor))
+        .rejects.toMatchObject({ code: "expense_cursor_invalid", status: 400 });
+      expect(prisma.fieldExpense.findFirst).toHaveBeenCalledWith({
+        where: { id: cursor, salespersonId: "staff-1" }, select: { id: true },
+      });
+      expect(prisma.fieldExpense.groupBy).toBeUndefined();
+      expect(prisma.fieldExpense.findMany).not.toHaveBeenCalled();
+    }
+  );
+
+  it("issues a fresh receipt URL only for the requested person's stored receipt", async () => {
+    const prisma = fakePrisma();
+    prisma.fieldExpense.findFirst.mockResolvedValue({ receiptObjectKey: "expense_receipt/2026/03/abc" });
+    const signedReadUrl = vi.fn().mockResolvedValue("https://signed.example/fresh");
+    const service = new ExpenseService(prisma, () => ({ signedReadUrl }) as any);
+    expect(await service.receiptFor("staff-1", "expense-1")).toEqual({ receiptUrl: "https://signed.example/fresh" });
+    expect(prisma.fieldExpense.findFirst).toHaveBeenCalledWith({
+      where: { id: "expense-1", salespersonId: "staff-1" }, select: { receiptObjectKey: true },
+    });
+    expect(signedReadUrl).toHaveBeenCalledWith("expense_receipt/2026/03/abc", 300);
+    prisma.fieldExpense.findFirst.mockResolvedValue(null);
+    await expect(service.receiptFor("staff-1", "foreign-or-missing"))
+      .rejects.toMatchObject({ code: "expense_receipt_not_found", status: 404 });
+  });
+
+  it("lists historical claimants only inside the caller's reporting scope", async () => {
+    const prisma = fakePrisma();
+    prisma.staffUser.findMany.mockResolvedValue([{ id: "staff-1", name: "Ravi Kumar" }]);
+    const claimants = await new ExpenseService(prisma, storage()).claimants(["staff-1"]);
+    expect(claimants).toEqual([{ id: "staff-1", name: "Ravi Kumar" }]);
+    expect(prisma.staffUser.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: { in: ["staff-1"] }, fieldExpenses: { some: {} } },
+    }));
+  });
+
   it("never lets a salesperson approve their own expense", async () => {
     const prisma = fakePrisma();
     prisma.fieldExpense.findUnique.mockResolvedValue({

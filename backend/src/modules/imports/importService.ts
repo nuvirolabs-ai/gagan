@@ -8,6 +8,7 @@ import { IMPORT_DEFINITIONS, IMPORT_TYPES, type ImportMode, type ImportType } fr
 import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, parseImportFile, rowsToCsv, type RawImportRow } from "./importParser";
 import { CommercialStatusCode } from "@prisma/client";
 import { recordCommercialStatusEvent } from "../commercialStatus/statusService";
+import { validateDraftPack } from "../catalog/draftPack";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 type JsonObject = Record<string, unknown>;
@@ -85,24 +86,26 @@ async function context(db: Db) {
   return { tiers, retailers, staff, products, inventory, prices };
 }
 
-function productMatch(ctx: Awaited<ReturnType<typeof context>>, name: string, unitSize: string, sapMaterialId?: string) {
-  const product = sapMaterialId
-    ? ctx.products.find((item) => item.sapMaterialId && lower(item.sapMaterialId) === lower(sapMaterialId))
+function productMatch(ctx: Awaited<ReturnType<typeof context>>, name: string, unitSize: string, options: { sapMaterialId?: string; unitsPerCase?: number | null; variantId?: string } = {}) {
+  const product = options.sapMaterialId
+    ? ctx.products.find((item) => item.sapMaterialId && lower(item.sapMaterialId) === lower(options.sapMaterialId!))
     : ctx.products.find((item) => lower(item.name) === lower(name));
   if (!product) return null;
-  const variant = product.variants.find((item) => lower(item.unitSize) === lower(unitSize));
-  return { product, variant };
+  const matches = product.variants.filter((item) => lower(item.unitSize) === lower(unitSize) && (options.unitsPerCase == null || item.unitsPerCase === options.unitsPerCase));
+  const variant = options.variantId ? matches.find((item) => item.id === options.variantId) : matches[0];
+  return { product, variant, ambiguous: !options.variantId && matches.length > 1 };
 }
 
 function addRequired(row: PreparedRow, keys: string[]) {
   for (const key of keys) if (!text(row.values, key)) row.errors.push(`${key} is required.`);
 }
 
-export async function validateRows(db: Db, type: ImportType, rawRows: RawImportRow[], mode: ImportMode) {
+export async function validateRows(db: Db, type: ImportType, rawRows: RawImportRow[], mode: ImportMode, ownedVariantIds = new Set<string>()) {
   const ctx = await context(db);
   const prepared = rawRows.map(resultRow);
   const employeeRefsInFile = new Set(rawRows.map((row) => lower(text(row.values, "employee_ref"))).filter(Boolean));
   const seen = new Set<string>();
+  const materialOwners = new Map<string, string>();
 
   for (const row of prepared) {
     const values = row.values;
@@ -131,15 +134,38 @@ export async function validateRows(db: Db, type: ImportType, rawRows: RawImportR
         addRequired(row, IMPORT_DEFINITIONS[type].required);
         const unitsPerCase = numberValue(values, "units_per_case");
         const unitWeightKg = numberValue(values, "unit_weight_kg");
-        if (unitsPerCase === null || !Number.isInteger(unitsPerCase) || unitsPerCase <= 0) row.errors.push("units_per_case must be a positive whole number.");
-        if (unitWeightKg === null || unitWeightKg <= 0) row.errors.push("unit_weight_kg must be positive.");
+        const pack = validateDraftPack({ unitSize: text(values, "unit_size"), unit: text(values, "unit"), unitsPerCase: unitsPerCase ?? 0, unitWeightKg: unitWeightKg ?? 0 });
+        row.errors.push(...pack.errors);
+        if (pack.countOnly && !pack.errors.length) row.warnings.push("Count-only pack remains draft-only; no piece conversion or activation is inferred.");
+        const identity = `product:${lower(text(values, "product_name"))}|${lower(text(values, "unit_size"))}|${unitsPerCase}`;
+        if (seen.has(identity)) row.errors.push("Duplicate product pack in this file.");
+        seen.add(identity);
         if (text(values, "image_url")) {
           try { const url = new URL(text(values, "image_url")); if (!/^https?:$/.test(url.protocol)) throw new Error(); } catch { row.errors.push("image_url must be an http(s) URL."); }
         }
-        const match = productMatch(ctx, text(values, "product_name"), text(values, "unit_size"), text(values, "sap_material_id"));
-        row.action = match?.variant ? "update" : "create";
-        if (match?.variant) row.match = { id: match.variant.id, label: `${match.product.name} / ${match.variant.unitSize}` };
-        row.resolved = { productId: match?.product.id ?? null, variantId: match?.variant?.id ?? null };
+        const productId = text(values, "product_id");
+        const variantId = text(values, "variant_id");
+        const named = ctx.products.filter((item) => lower(item.name) === lower(text(values, "product_name")));
+        const product = productId ? ctx.products.find((item) => item.id === productId) : variantId ? ctx.products.find((item) => item.variants.some((variant) => variant.id === variantId)) : named[0];
+        const matchingVariants = product?.variants.filter((item) => lower(item.unitSize) === lower(text(values, "unit_size")) && item.unitsPerCase === unitsPerCase) ?? [];
+        const variant = variantId ? product?.variants.find((item) => item.id === variantId) : matchingVariants[0];
+        const ownedProduct = product?.variants.some((item) => ownedVariantIds.has(item.id)) ?? false;
+        const materialId = lower(text(values, "sap_material_id"));
+        if (materialId && ctx.products.some((item) => lower(item.sapMaterialId ?? "") === materialId && item.id !== product?.id)) row.errors.push("sap_material_id belongs to another product.");
+        if (materialId && materialOwners.has(materialId) && materialOwners.get(materialId) !== lower(text(values, "product_name"))) row.errors.push("sap_material_id appears under multiple products in this file.");
+        if (materialId) materialOwners.set(materialId, lower(text(values, "product_name")));
+        if (named.length > 1 && !productId && !variantId) row.errors.push("Ambiguous product name; supply product_id.");
+        if (matchingVariants.length > 1 && !variantId) row.errors.push("Ambiguous existing pack; supply variant_id.");
+        if (productId && !product) row.errors.push("product_id does not match an existing product.");
+        if (variantId && !variant) row.errors.push("variant_id does not match an existing variant.");
+        if (product && lower(product.name) !== lower(text(values, "product_name"))) row.errors.push("product_name does not match product_id.");
+        if (variant?.catalogStatus !== undefined && variant.catalogStatus !== "pending_review") row.errors.push("Existing active catalogue rows cannot be edited by import.");
+        if (product && !productId && !variantId && ["active", "published"].includes(product.catalogStatus) && !ownedProduct) row.errors.push("Supply product_id for an existing active product.");
+        if (product && !productId && !variantId && product.catalogStatus === "pending_review" && !ownedProduct) row.errors.push("Supply product_id for an existing draft product.");
+        if (variant && !variantId) row.errors.push("Supply variant_id to update an existing draft pack.");
+        row.action = variant ? "update" : "create";
+        if (variant && product) row.match = { id: variant.id, label: `${product.name} / ${variant.unitSize}` };
+        row.resolved = { productId: product?.id ?? null, variantId: variant?.id ?? null };
         break;
       }
       case "salespeople": {
@@ -180,8 +206,10 @@ export async function validateRows(db: Db, type: ImportType, rawRows: RawImportR
         if (onHand === null || onHand < 0) row.errors.push("on_hand must be a non-negative number.");
         if (committed === null || committed < 0) row.errors.push("committed must be a non-negative number.");
         if (committed !== null && onHand !== null && committed > onHand) row.warnings.push("committed exceeds on_hand; available will be zero.");
-        const match = productMatch(ctx, text(values, "product_name"), text(values, "unit_size"), text(values, "sap_material_id"));
-        if (!match?.product) row.errors.push("product_name + unit_size (or sap_material_id) does not match an existing product variant.");
+        const match = productMatch(ctx, text(values, "product_name"), text(values, "unit_size"), { sapMaterialId: text(values, "sap_material_id"), unitsPerCase: numberValue(values, "units_per_case"), variantId: text(values, "variant_id") });
+        if (text(values, "units_per_case") && (!Number.isSafeInteger(numberValue(values, "units_per_case")) || (numberValue(values, "units_per_case") ?? 0) <= 0)) row.errors.push("units_per_case must be a positive whole number.");
+        if (match?.ambiguous) row.errors.push("Ambiguous existing pack; supply units_per_case or variant_id.");
+        if (!match?.variant) row.errors.push("product_name + unit_size (or sap_material_id) does not match an existing product variant.");
         const existing = ctx.inventory.find((item) => item.sapMaterialId !== null && lower(item.sapMaterialId) === lower(text(values, "sap_material_id")) && lower(item.warehouseCode) === lower(text(values, "warehouse_code")));
         row.action = existing ? "update" : "create";
         if (existing) row.match = { id: existing.id, label: `${existing.sapMaterialId} / ${existing.warehouseCode}` };
@@ -193,9 +221,12 @@ export async function validateRows(db: Db, type: ImportType, rawRows: RawImportR
         const price = numberValue(values, "price");
         if (price === null || price < 0) row.errors.push("price must be a non-negative number.");
         const tier = ctx.tiers.find((item) => lower(item.name) === lower(text(values, "tier")));
-        const match = productMatch(ctx, text(values, "product_name"), text(values, "unit_size"));
+        const match = productMatch(ctx, text(values, "product_name"), text(values, "unit_size"), { unitsPerCase: numberValue(values, "units_per_case"), variantId: text(values, "variant_id") });
+        if (text(values, "units_per_case") && (!Number.isSafeInteger(numberValue(values, "units_per_case")) || (numberValue(values, "units_per_case") ?? 0) <= 0)) row.errors.push("units_per_case must be a positive whole number.");
+        if (match?.ambiguous) row.errors.push("Ambiguous existing pack; supply units_per_case or variant_id.");
         if (!tier) row.errors.push("tier does not match an existing Gagan tier.");
         if (!match?.variant) row.errors.push("product_name + unit_size does not match an existing product variant.");
+        if (match?.product.catalogStatus === "pending_review" || match?.variant?.catalogStatus === "pending_review") row.errors.push("Draft packs cannot receive a default-case pricing import.");
         const existing = tier && match?.variant ? ctx.prices.find((item) => item.tierId === tier.id && item.variantId === match.variant!.id) : null;
         row.action = existing ? "update" : "create";
         if (existing) row.match = { id: existing.id, label: `${text(values, "tier")} / ${text(values, "product_name")}` };
@@ -304,15 +335,24 @@ async function applyRow(db: Db, type: ImportType, row: PreparedRow, mode: Import
   }
   if (type === "products") {
     const result = await inTransaction(db, async (tx) => {
-      const product = resolved.productId ? await tx.product.findUnique({ where: { id: String(resolved.productId) } }) : null;
-      if (product && mode === "create_only" && resolved.variantId) throw new ImportServiceError("already_exists", 409);
-      if (!product && mode === "update_only") throw new ImportServiceError("not_found", 404);
+      const matching = resolved.productId ? [] : await tx.product.findMany({ where: { name: { equals: text(v, "product_name"), mode: "insensitive" } } });
+      if (matching.length > 1) throw new ImportServiceError("ambiguous_product", 409);
+      const product = resolved.productId ? await tx.product.findUnique({ where: { id: String(resolved.productId) } }) : matching[0] ?? null;
+      if (product && !["pending_review", "active", "published"].includes(product.catalogStatus)) throw new ImportServiceError("draft_only", 409);
+      if (text(v, "sap_material_id")) {
+        const sameMaterial = await tx.product.findMany({ where: { sapMaterialId: { equals: text(v, "sap_material_id"), mode: "insensitive" } } });
+        if (sameMaterial.some((item) => item.id !== product?.id)) throw new ImportServiceError("sap_material_id_conflict", 409);
+      }
+      if (resolved.variantId && mode === "create_only") throw new ImportServiceError("already_exists", 409);
+      if (!resolved.variantId && mode === "update_only") throw new ImportServiceError("not_found", 404);
       const productData = { name: text(v, "product_name"), category: text(v, "category"), ...(text(v, "description") ? { description: text(v, "description") } : {}), ...(text(v, "image_url") ? { imageUrl: text(v, "image_url") } : {}), ...(text(v, "sap_material_id") ? { sapMaterialId: text(v, "sap_material_id") } : {}) };
-      const target = product ? await tx.product.update({ where: { id: product.id }, data: productData }) : await tx.product.create({ data: productData });
+      const target = product && ["active", "published"].includes(product.catalogStatus) ? product : product ? await tx.product.update({ where: { id: product.id, catalogStatus: "pending_review" }, data: productData }) : await tx.product.create({ data: { ...productData, catalogStatus: "pending_review" } });
       const variantData = { unitSize: text(v, "unit_size"), unit: text(v, "unit"), unitsPerCase: numberValue(v, "units_per_case")!, unitWeightKg: numberValue(v, "unit_weight_kg")! };
+      const existingVariant = resolved.variantId ? await tx.variant.findUnique({ where: { id: String(resolved.variantId) } }) : await tx.variant.findFirst({ where: { productId: target.id, unitSize: { equals: variantData.unitSize, mode: "insensitive" }, unitsPerCase: variantData.unitsPerCase } });
+      if (existingVariant && (!resolved.variantId || existingVariant.catalogStatus !== "pending_review" || existingVariant.productId !== target.id)) throw new ImportServiceError("existing_variant_requires_draft_id", 409);
       const variant = resolved.variantId
-        ? await tx.variant.update({ where: { id: String(resolved.variantId) }, data: variantData })
-        : await tx.variant.create({ data: { ...variantData, productId: target.id } });
+        ? await tx.variant.update({ where: { id: String(resolved.variantId), catalogStatus: "pending_review" }, data: variantData })
+        : await tx.variant.create({ data: { ...variantData, productId: target.id, catalogStatus: "pending_review" } });
       return { target, variant, action: resolved.variantId ? "updated" as const : "created" as const };
     });
     await audit(db, actorStaffId, jobId, "Variant", result.variant.id, "import.product_applied", mode);
@@ -345,6 +385,8 @@ async function applyRow(db: Db, type: ImportType, row: PreparedRow, mode: Import
     return { action: resolved.existingId ? "updated" as const : "created" as const, subjectType: "InventorySnapshot", subjectId: snapshot.id };
   }
   if (type === "pricing") {
+    const variant = await db.variant.findUnique({ where: { id: String(resolved.variantId) } });
+    if (variant?.catalogStatus === "pending_review") throw new ImportServiceError("draft_commercial_configuration_required", 409);
     const price = await db.priceList.upsert({ where: { tierId_variantId: { tierId: String(resolved.tierId), variantId: String(resolved.variantId) } }, update: { price: numberValue(v, "price")!, rateBasis: "case" }, create: { tierId: String(resolved.tierId), variantId: String(resolved.variantId), productId: (await db.variant.findUnique({ where: { id: String(resolved.variantId) }, select: { productId: true } }))!.productId, price: numberValue(v, "price")! } });
     await audit(db, actorStaffId, jobId, "PriceList", price.id, "import.pricing_applied", mode);
     return { action: resolved.existingId ? "updated" as const : "created" as const, subjectType: "PriceList", subjectId: price.id };
@@ -375,8 +417,9 @@ export async function applyImport(database: PrismaClient, jobId: string, actorSt
   if (!["preview", "completed_with_errors"].includes(job.status)) throw new ImportServiceError("import_not_applyable", 409);
   const mode = job.mode as ImportMode;
   const rawRows = ((job.preview as JsonObject | null)?.rawRows ?? []) as RawImportRow[];
-  const rows = await validateRows(db, job.importType, rawRows, mode);
   const previousRows = ((job.result as JsonObject | null)?.rows ?? []) as JsonObject[];
+  const ownedVariantIds = new Set(previousRows.filter((row) => row.status === "created" && row.subjectType === "Variant" && typeof row.subjectId === "string").map((row) => String(row.subjectId)));
+  const rows = await validateRows(db, job.importType, rawRows, mode, ownedVariantIds);
   const previousByRow = new Map(previousRows.map(row => [row.rowNumber, row]));
   await db.importJob.update({ where: { id: job.id }, data: { status: "applying", startedAt: new Date(), result: { phase: "applying" } as Prisma.InputJsonValue } });
   const results: JsonObject[] = [];
@@ -405,7 +448,7 @@ export async function applyImport(database: PrismaClient, jobId: string, actorSt
     } catch (error) {
       await db.$executeRaw`ROLLBACK TO SAVEPOINT import_row`;
       await db.$executeRaw`RELEASE SAVEPOINT import_row`;
-      results.push({ rowNumber: row.rowNumber, status: "failed", values: row.values, errors: [error instanceof ImportServiceError ? error.code : "row_apply_failed"] });
+      results.push({ rowNumber: row.rowNumber, status: "failed", values: row.values, errors: [error instanceof ImportServiceError ? error.code : error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002" ? "catalog_identity_exists" : "row_apply_failed"] });
     }
   }
   // Manager links are applied after all salesperson identities exist, which

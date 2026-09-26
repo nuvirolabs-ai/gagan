@@ -140,7 +140,7 @@ export default function LedgerScreen() {
           }[item.type];
           return (
             <View style={styles.entry}>
-              <View style={{ flex: 1, minWidth: 0 }}>
+              <View>
                 <Text style={styles.entryType} numberOfLines={1}>
                   {label}
                 </Text>
@@ -157,13 +157,9 @@ export default function LedgerScreen() {
                     {allocation.invoice.orderNo != null ? ` · ${t("pay.orderRef", { order: allocation.invoice.orderNo })}` : ""}
                   </Text>
                 ))}
-                <EntityAttribution
-                  rows={attribution.rows}
-                  status={attribution.status}
-                  variant="inline"
-                />
+                <EntityAttribution rows={attribution.rows} status={attribution.status} variant="stacked" />
               </View>
-              <View style={{ alignItems: "flex-end", flexShrink: 0 }}>
+              <View style={styles.entryTotals}>
                 <Text
                   style={[styles.entryAmount, { color: isDebit ? colors.danger : colors.green }]}
                 >
@@ -218,9 +214,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   entry: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
+    flexDirection: "column",
+    alignItems: "stretch",
     paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
@@ -228,6 +223,7 @@ const styles = StyleSheet.create({
   entryType: { fontSize: 14, fontWeight: "700", color: colors.ink },
   entryDate: { fontSize: 11.5, color: colors.inkMuted, marginTop: 2 },
   entryAssociation: { fontSize: 10.5, color: colors.inkMuted, marginTop: 3 },
-  entryAmount: { fontSize: 15, fontWeight: "700" },
-  entryBalance: { fontSize: 10.5, color: colors.inkMuted, marginTop: 2 },
+  entryTotals: { alignSelf: "stretch", marginTop: spacing.sm },
+  entryAmount: { fontSize: 15, fontWeight: "700", textAlign: "right" },
+  entryBalance: { fontSize: 10.5, color: colors.inkMuted, marginTop: 2, textAlign: "right" },
 });

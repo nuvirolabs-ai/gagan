@@ -5,6 +5,7 @@ import { useAuth } from "../useAuth";
 import { explain } from "../errorCopy";
 import { AgeDistribution, FlowMap, Icon, SectionLabel, Sparkline } from "../components/OperationalPrimitives";
 import { ageHours, ageLabel, inrShort, type FlowStage, type VisualTone } from "../components/operationalUtils";
+import { APP_ENVIRONMENT_LABEL } from "../environmentLabel";
 
 type Queue = { label: string; count: number; to: string; tone?: VisualTone; value?: number };
 type OrderRecord = { id?: string; orderNo?: string; status?: string; orderTotal?: number | string; createdAt?: string; retailer?: { name?: string }; items?: unknown[]; sapSyncStatus?: string; delivery?: { routeId?: string } };
@@ -210,7 +211,7 @@ export default function Dashboard() {
     <div className="page-shell home-page operational-instrument">
       <header className="page-header operating-header">
         <div><SectionLabel>{today}</SectionLabel><h1 className="page-title">{greeting(admin?.name ?? "Ops")}</h1><p className="page-sub">See what moved, what is constrained, and which decision deserves attention next.</p></div>
-        <div className="header-context operating-state"><span><i className="pulse" /> staging · read-only</span><b>{throughFlow === null ? "flow unavailable" : `${throughFlow}% current through-flow`}</b></div>
+        <div className="header-context operating-state"><span><i className="pulse" /> {APP_ENVIRONMENT_LABEL}</span><b>{throughFlow === null ? "flow unavailable" : `${throughFlow}% current through-flow`}</b></div>
       </header>
       {error ? <div className="banner error" role="alert">{error}</div> : null}
 

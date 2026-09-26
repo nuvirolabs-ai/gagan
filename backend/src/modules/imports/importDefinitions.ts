@@ -37,7 +37,7 @@ export const IMPORT_DEFINITIONS: Record<ImportType, {
     label: "Products / SKUs",
     description: "Product master rows. Each row represents one sellable variant.",
     required: ["product_name", "category", "unit_size", "unit", "units_per_case", "unit_weight_kg"],
-    optional: ["description", "image_url", "sap_material_id"],
+    optional: ["product_id", "variant_id", "description", "image_url", "sap_material_id"],
     example: {
       product_name: "Gagan Toor Dal",
       category: "Daal",
@@ -76,7 +76,7 @@ export const IMPORT_DEFINITIONS: Record<ImportType, {
     label: "Inventory",
     description: "Warehouse inventory snapshots using the canonical stock calculation.",
     required: ["warehouse_code", "sap_material_id", "product_name", "unit_size", "on_hand"],
-    optional: ["committed", "synced_at"],
+    optional: ["units_per_case", "variant_id", "committed", "synced_at"],
     example: {
       warehouse_code: "WH-001",
       sap_material_id: "MAT-IMPORT-001",
@@ -91,7 +91,7 @@ export const IMPORT_DEFINITIONS: Record<ImportType, {
     label: "Pricing",
     description: "Tier price rows for an existing sellable variant.",
     required: ["tier", "product_name", "unit_size", "price"],
-    optional: [],
+    optional: ["units_per_case", "variant_id"],
     example: { tier: "Gold", product_name: "Gagan Toor Dal", unit_size: "1 kg", price: "3150" },
   },
   sap_mappings: {

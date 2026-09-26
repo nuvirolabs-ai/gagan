@@ -18,6 +18,7 @@ import { QtyStepper, EmptyState, ScreenSkeleton, SectionTitle } from "../compone
 import { useLanguage } from "../i18n/LanguageContext";
 import { canChangeCatalogQuantity } from "../lib/catalogInteractions";
 import { catalogPricePresentation } from "../lib/catalogPricePresentation";
+import { configuredPositiveAmount } from "../lib/productDetailGuidance";
 
 export default function ProductDetailScreen({ route, navigation }: any) {
   const insets = useSafeAreaInsets();
@@ -107,6 +108,8 @@ export default function ProductDetailScreen({ route, navigation }: any) {
   const lineTotal = selected?.price != null ? Number(selected.price) * Math.max(inCart, 1) : 0;
   const priceDisplay = catalogPricePresentation(selected);
   const canAddSelected = selected ? canChangeCatalogQuantity(selected, inCart, inCart + 1) : false;
+  const freeDeliveryThreshold = configuredPositiveAmount(config.freeDeliveryThreshold);
+  const minOrderValue = configuredPositiveAmount(config.minOrderValue);
 
   return (
     <View style={styles.screen}>
@@ -173,7 +176,6 @@ export default function ProductDetailScreen({ route, navigation }: any) {
           {priceDisplay.caseEquivalent ? <Text style={styles.rateLabel}>{priceDisplay.caseEquivalent}</Text> : null}
           {selected?.rateBasis?.toLowerCase() === "quintal" || selected?.rateLabel ? <Text style={styles.rateLabel}>Excluding GST</Text> : null}
           {selected?.gstPending || selected?.taxStatus === "PENDING" ? <Text style={styles.pendingOrder}>GST pending — final tax will be applied before invoicing.</Text> : null}
-          {selected?.rateBasis?.toLowerCase() === "quintal" || selected?.rateLabel ? <Text style={styles.rateLabel}>Excluding GST</Text> : null}
           {selected?.orderable === false ? <Text style={styles.pendingOrder}>{selected.orderingReason ?? "Ordering setup pending"}</Text> : null}
           {selected?.isOverride ? (
             <View style={styles.override}>
@@ -187,18 +189,22 @@ export default function ProductDetailScreen({ route, navigation }: any) {
               <MaterialCommunityIcons name="scale-balance" size={17} color={colors.green} />
               <Text style={styles.infoText}>{t("product.billedWeight")}</Text>
             </View>
-            <View style={styles.infoRow}>
-              <Feather name="truck" size={16} color={colors.green} />
-              <Text style={styles.infoText}>
-                {t("product.freeDelivery", { amount: inr(config.freeDeliveryThreshold ?? 0) })}
-              </Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Feather name="shopping-bag" size={16} color={colors.green} />
-              <Text style={styles.infoText}>
-                {t("product.minimumOrder", { amount: inr(config.minOrderValue ?? 0) })}
-              </Text>
-            </View>
+            {freeDeliveryThreshold != null ? (
+              <View style={styles.infoRow}>
+                <Feather name="truck" size={16} color={colors.green} />
+                <Text style={styles.infoText}>
+                  {t("product.freeDelivery", { amount: inr(freeDeliveryThreshold) })}
+                </Text>
+              </View>
+            ) : null}
+            {minOrderValue != null ? (
+              <View style={styles.infoRow}>
+                <Feather name="shopping-bag" size={16} color={colors.green} />
+                <Text style={styles.infoText}>
+                  {t("product.minimumOrder", { amount: inr(minOrderValue) })}
+                </Text>
+              </View>
+            ) : null}
           </View>
         </View>
       </ScrollView>

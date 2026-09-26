@@ -92,6 +92,24 @@ async function request(
   return body;
 }
 
+async function requestBlob(path: string, allowRefresh = true): Promise<Blob> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    headers: { Authorization: accessToken ? `Bearer ${accessToken}` : "" },
+    credentials: "include",
+  });
+  if (res.status === 401 && allowRefresh) {
+    try {
+      await refreshAccessToken();
+      return requestBlob(path, false);
+    } catch {
+      clearAccessToken();
+      onUnauthorized?.();
+    }
+  }
+  if (!res.ok) throw new ApiError(res.status, await parseResponse(res));
+  return res.blob();
+}
+
 const post = (path: string, body?: unknown) =>
   request(path, { method: "POST", body: body ? JSON.stringify(body) : undefined });
 const patch = (path: string, body: unknown) =>
@@ -99,6 +117,15 @@ const patch = (path: string, body: unknown) =>
 const remove = (path: string) => request(path, { method: "DELETE" });
 
 export const api = {
+  exportServiceIssues: (filters?: { status?: string; retailerId?: string; salespersonId?: string; from?: string; through?: string }) => {
+    const query = new URLSearchParams();
+    if (filters?.status) query.set("status", filters.status);
+    if (filters?.retailerId) query.set("retailerId", filters.retailerId);
+    if (filters?.salespersonId) query.set("salespersonId", filters.salespersonId);
+    if (filters?.from) query.set("from", filters.from);
+    if (filters?.through) query.set("through", filters.through);
+    return requestBlob(`/admin/exports/service-issues.xlsx${query.size ? `?${query}` : ""}`);
+  },
   commercial:()=>request("/admin/commercial"),
   deliveryQuote:(id:string,lines:unknown)=>post(`/admin/commercial/orders/${id}/delivery-quote`,{lines}),
   saveCommercialSku:(id:string,body:unknown)=>request(`/admin/commercial/skus/${id}`,{method:"PUT",body:JSON.stringify(body)}),
@@ -174,6 +201,10 @@ export const api = {
     post(`/admin/staff/${staffId}/selling-leader-setup`, body),
   createSellingLeader: (body: { newStaff: { name: string; phone: string; email: string; employeeRef?: string }; managerId?: string | null; reportIds?: string[]; territory?: string }) =>
     post("/admin/staff/selling-leader-setup", body),
+  setupSalesperson: (staffId: string, body: { managerId?: string | null; territory?: string }) =>
+    post(`/admin/staff/${staffId}/salesperson-setup`, body),
+  createSalesperson: (body: { newStaff: { name: string; phone: string; email: string; employeeRef?: string }; managerId?: string | null; territory?: string }) =>
+    post("/admin/staff/salesperson-setup", body),
   setupManagerOnly: (staffId: string) => post(`/admin/staff/${staffId}/manager-only-setup`),
   createStaff: (data: unknown) => post("/admin/staff", data),
   setStaffStatus: (id: string, status: "active" | "suspended" | "revoked") =>
@@ -251,7 +282,11 @@ export const api = {
     }),
 
   tiers: () => request("/admin/tiers"),
-  products: () => request("/admin/products"),
+  products: (view?: "all") => request(`/admin/products${view === "all" ? "?view=all" : ""}`),
+  createProduct: (body: unknown) => post("/admin/products", body),
+  updateProduct: (id: string, body: unknown) => request(`/admin/products/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  updateVariant: (id: string, body: unknown) => request(`/admin/variants/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  addVariant: (productId: string, body: unknown) => post(`/admin/products/${productId}/variants`, body),
   setPrice: (tierId: string, variantId: string, price: number) =>
     post("/admin/price-list", { tierId, variantId, price }),
   locations: () => request("/admin/locations"),
@@ -301,6 +336,13 @@ export const api = {
     stops: Array<{ retailerId: string; purpose?: string; note?: string }>;
   }) => post("/admin/field/routes", body),
   publishRoutePlan: (id: string) => post(`/admin/field/routes/${id}/publish`),
+  beatTemplates: (salespersonId?: string) => request(`/admin/field/beat-templates${salespersonId ? `?salespersonId=${encodeURIComponent(salespersonId)}` : ""}`),
+  saveBeatTemplate: (body: { salespersonId: string; name: string; stops: Array<{ retailerId: string; purpose?: string; note?: string }> }) =>
+    post("/admin/field/beat-templates", body),
+  updateBeatTemplate: (id: string, body: { salespersonId: string; name: string; stops: Array<{ retailerId: string; purpose?: string; note?: string }> }) =>
+    request(`/admin/field/beat-templates/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  applyBeatTemplate: (id: string, body: { salespersonId: string; planDate: string }) =>
+    post(`/admin/field/beat-templates/${id}/apply`, body),
 
   fieldTasks: (filters?: { salespersonId?: string; status?: string }) => {
     const query = new URLSearchParams();
@@ -326,6 +368,11 @@ export const api = {
     const suffix = query.toString();
     return request(`/admin/field/expenses${suffix ? `?${suffix}` : ""}`);
   },
+  expenseHistory: (salespersonId: string, cursor?: string) =>
+    request(`/admin/field/expenses/staff/${encodeURIComponent(salespersonId)}${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
+  expenseReceipt: (salespersonId: string, expenseId: string) =>
+    request(`/admin/field/expenses/staff/${encodeURIComponent(salespersonId)}/receipts/${encodeURIComponent(expenseId)}`),
+  expenseClaimants: () => request("/admin/field/expenses/claimants"),
   decideExpense: (id: string, decision: "approved" | "rejected", note?: string) =>
     post(`/admin/field/expenses/${id}/decision`, { decision, note }),
 
@@ -340,6 +387,7 @@ export const api = {
     id: string,
     body: { status: string; assignedTeam?: string; resolutionNote?: string }
   ) => post(`/admin/field/issues/${id}/status`, body),
+  salespersonFeedback: (cursor?: string) => request(`/admin/salesperson-feedback${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
 
   fieldTeam: (date?: string) => request(`/admin/field/team${date ? `?to=${date}` : ""}`),
   liveFieldPositions: () => request("/admin/field/tracking/live"),

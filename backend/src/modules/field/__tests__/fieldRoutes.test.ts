@@ -17,6 +17,8 @@ const services = {
     routeForDate: vi.fn().mockResolvedValue(null),
     routeHistory: vi.fn().mockResolvedValue([]),
     skipStop: vi.fn().mockResolvedValue({ id: "stop-1" }),
+    listBeatTemplates: vi.fn().mockResolvedValue([]),
+    saveBeatTemplate: vi.fn().mockResolvedValue({ id: "beat-1" }),
   },
   activities: {
     log: vi.fn().mockResolvedValue({ activity: { id: "activity-1" }, idempotent: false }),
@@ -40,6 +42,7 @@ const services = {
   },
   issues: {
     list: vi.fn().mockResolvedValue([]),
+    listForSalesperson: vi.fn().mockResolvedValue([]),
     raise: vi.fn().mockResolvedValue({ id: "issue-1" }),
   },
   dashboard: {
@@ -84,6 +87,14 @@ beforeEach(() => {
 });
 
 describe("field routes always act on the caller's own identity", () => {
+  it("reads issues through the authenticated salesperson's assigned-store scope", async () => {
+    const response = await request(app(FIELD_PERMISSIONS, "staff-2"))
+      .get("/field/issues?retailerId=retailer-1");
+    expect(response.status).toBe(200);
+    expect(services.issues.listForSalesperson).toHaveBeenCalledWith("staff-2", "retailer-1");
+    expect(services.issues.list).not.toHaveBeenCalled();
+  });
+
   it("clocks in as the session's staff member, ignoring any body id", async () => {
     const response = await request(app())
       .post("/field/attendance/start")
@@ -150,6 +161,23 @@ describe("field routes always act on the caller's own identity", () => {
   it("reads the route for the caller only", async () => {
     await request(app()).get("/field/route?salespersonId=staff-999");
     expect(services.routes.routeForDate).toHaveBeenCalledWith("staff-1", expect.any(Date));
+  });
+
+  it("saves and edits only the session owner's self template", async () => {
+    const body = { salespersonId: "staff-999", name: "My north beat", stops: [{ retailerId: "00000000-0000-0000-0000-000000000002" }] };
+    const permissions = [...FIELD_PERMISSIONS, "route.manage_self"];
+    await request(app(permissions, "staff-7")).post("/field/beat-templates").send(body).expect(201);
+    await request(app(permissions, "staff-7")).put("/field/beat-templates/beat-1").send(body).expect(200);
+    expect(services.routes.saveBeatTemplate).toHaveBeenLastCalledWith(expect.objectContaining({
+      templateId: "beat-1", salespersonId: "staff-7", actorStaffId: "staff-7", origin: "self",
+    }));
+    await request(app(permissions, "staff-7")).get("/field/beat-templates?salespersonId=staff-999").expect(200);
+    expect(services.routes.listBeatTemplates).toHaveBeenCalledWith({ salespersonId: "staff-7", origin: "self" });
+  });
+
+  it("denies template writes with route execution but without self-management", async () => {
+    await request(app()).post("/field/beat-templates").send({}).expect(403);
+    expect(services.routes.saveBeatTemplate).not.toHaveBeenCalled();
   });
 });
 

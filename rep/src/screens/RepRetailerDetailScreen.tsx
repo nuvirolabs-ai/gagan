@@ -353,93 +353,6 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
           </View>
         </View>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t("retailer.openOutstandingLedger", { name: retailer.name })}
-          onPress={() => navigation.navigate("RepRetailerOutstanding", { retailerId: retailer.id, retailerName: retailer.name })}
-          style={({ pressed }) => [pressed && { opacity: 0.82 }]}
-        >
-          <Surface>
-            <View style={styles.moneyRow}>
-              <View style={styles.moneyCell}>
-                <Text style={styles.moneyLabel}>{t("profile.outstanding")}</Text>
-                <Text style={styles.moneyValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                  {inr(credit.outstanding)}
-                </Text>
-              </View>
-              <MaterialCommunityIcons name="chevron-right" size={22} color={colors.primary} />
-            </View>
-            <EntityAttribution
-              amounts={financialSummary?.entityBalances?.outstanding}
-              overdue={financialSummary?.entityBalances?.overdue}
-              expectedOverdue={Number(credit.overdue)}
-              status={financialSummary?.entityBalances?.attributionStatus}
-              expectedTotal={Number(credit.outstanding)}
-            />
-          </Surface>
-        </Pressable>
-
-        {baseline ? (
-          <Surface>
-            <SectionHeader title="Store intelligence" />
-            <View style={styles.intelligenceGrid}>
-              <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Last order</Text><Text style={styles.intelligenceValue}>{baseline.lastOrderAt ? new Date(baseline.lastOrderAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "No order yet"}</Text></View>
-              <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Days since order</Text><Text style={styles.intelligenceValue}>{baseline.daysSinceLastOrder ?? "—"}</Text></View>
-              <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Average order</Text><Text style={styles.intelligenceValue}>{baseline.averageOrderValue == null ? "—" : inr(baseline.averageOrderValue)}</Text></View>
-              <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Usual cycle</Text><Text style={styles.intelligenceValue}>{baseline.medianIntervalDays == null ? "Building" : `${baseline.medianIntervalDays} days`}</Text></View>
-              <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Last visit</Text><Text style={styles.intelligenceValue}>{baseline.lastVisitAt ? new Date(baseline.lastVisitAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"}</Text></View>
-              <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Route today</Text><Text style={styles.intelligenceValue}>{todayStop ? (todayStop.status === "visited" ? "Visited" : "Planned") : "Not planned"}</Text></View>
-            </View>
-            <Text style={styles.intelligenceFoot}>Regular categories: {baseline.regularCategories?.length ? baseline.regularCategories.join(", ") : "Building from order history"}</Text>
-            {baseline.trend !== "unknown" ? <StatusChip label={`Recent order trend ${baseline.trend}`} tone={baseline.trend === "rising" ? "green" : baseline.trend === "falling" ? "warning" : "neutral"} /> : null}
-            {opportunities.length > 0 ? (
-              <View style={styles.attentionBox}><Text style={styles.attentionTitle}>Needs attention</Text>{opportunities.slice(0, 2).map((item) => <Text key={item.id ?? item.headline} style={styles.muted}>• {item.headline}</Text>)}</View>
-            ) : null}
-          </Surface>
-        ) : null}
-
-        {schemes.length > 0 ? (
-          <Surface>
-            <SectionHeader title="Schemes for this store" />
-            {schemes.map((scheme) => (
-              <View key={scheme.id} style={styles.schemeRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.lineTitle}>{scheme.name}</Text>
-                  <Text style={styles.muted}>{scheme.headline} · Benefit {inr(scheme.discountAmount)}</Text>
-                  {scheme.progressPct != null ? <Text style={styles.muted}>{inr(scheme.progress)} of {inr(scheme.targetAmount)} delivered · {scheme.progressPct}%</Text> : <Text style={styles.muted}>Progress is calculated from delivered orders.</Text>}
-                </View>
-                {scheme.remaining != null ? <StatusChip label={scheme.remaining > 0 ? `${inr(scheme.remaining)} to go` : "Unlocked"} tone={scheme.remaining > 0 ? "gold" : "green"} /> : null}
-              </View>
-            ))}
-          </Surface>
-        ) : null}
-
-        {recentOrders.length >= 3 ? (
-          <Surface>
-            <SectionHeader title="Last 6 orders" />
-            <Text style={styles.muted}>A small view of this store's recent order value.</Text>
-            <View style={styles.orderBars}>
-              {recentOrders.slice(0, 6).map((order: any) => {
-                const value = Number(order.orderTotal) || 0;
-                const max = Math.max(...recentOrders.slice(0, 6).map((item: any) => Number(item.orderTotal) || 0), 1);
-                return <View key={order.id} style={styles.orderBarRow}><Text style={styles.orderBarDate}>{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</Text><View style={styles.orderBarTrack}><View style={[styles.orderBarFill, { width: `${Math.max(5, (value / max) * 100)}%` }]} /></View><Text style={styles.orderBarValue}>{inr(value)}</Text></View>;
-              })}
-            </View>
-          </Surface>
-        ) : null}
-
-        {credit.overdue > 0 ? (
-          <FocusCard tone="danger">
-            <Text style={styles.insight}>{inr(credit.overdue)} overdue</Text>
-            <Text style={styles.insightBody}>Collect before taking a large order.</Text>
-          </FocusCard>
-        ) : lastOrder ? (
-          <Text style={styles.insightQuiet}>
-            Last order {new Date(lastOrder.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} ·{" "}
-            {inr(Number(lastOrder.orderTotal))}
-          </Text>
-        ) : null}
-
         {activeVisitElsewhere ? (
           <FocusCard tone="gold">
             <Text style={styles.visitEyebrow}>{t("visit.activeVisitElsewhere")}</Text>
@@ -512,6 +425,93 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
             </View>
           </View>
         )}
+
+        {baseline ? (
+          <Surface>
+            <SectionHeader title="Store intelligence" />
+            <View style={styles.intelligenceGrid}>
+              <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Last order</Text><Text style={styles.intelligenceValue}>{baseline.lastOrderAt ? new Date(baseline.lastOrderAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "No order yet"}</Text></View>
+              <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Days since order</Text><Text style={styles.intelligenceValue}>{baseline.daysSinceLastOrder ?? "—"}</Text></View>
+              <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Average order</Text><Text style={styles.intelligenceValue}>{baseline.averageOrderValue == null ? "—" : inr(baseline.averageOrderValue)}</Text></View>
+              <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Usual cycle</Text><Text style={styles.intelligenceValue}>{baseline.medianIntervalDays == null ? "Building" : `${baseline.medianIntervalDays} days`}</Text></View>
+              <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Last visit</Text><Text style={styles.intelligenceValue}>{baseline.lastVisitAt ? new Date(baseline.lastVisitAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"}</Text></View>
+              <View style={styles.intelligenceCell}><Text style={styles.moneyLabel}>Route today</Text><Text style={styles.intelligenceValue}>{todayStop ? (todayStop.status === "visited" ? "Visited" : "Planned") : "Not planned"}</Text></View>
+            </View>
+            <Text style={styles.intelligenceFoot}>Regular categories: {baseline.regularCategories?.length ? baseline.regularCategories.join(", ") : "Building from order history"}</Text>
+            {baseline.trend !== "unknown" ? <StatusChip label={`Recent order trend ${baseline.trend}`} tone={baseline.trend === "rising" ? "green" : baseline.trend === "falling" ? "warning" : "neutral"} /> : null}
+            {opportunities.length > 0 ? (
+              <View style={styles.attentionBox}><Text style={styles.attentionTitle}>Needs attention</Text>{opportunities.slice(0, 2).map((item) => <Text key={item.id ?? item.headline} style={styles.muted}>• {item.headline}</Text>)}</View>
+            ) : null}
+          </Surface>
+        ) : null}
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("retailer.openOutstandingLedger", { name: retailer.name })}
+          onPress={() => navigation.navigate("RepRetailerOutstanding", { retailerId: retailer.id, retailerName: retailer.name })}
+          style={({ pressed }) => [pressed && { opacity: 0.82 }]}
+        >
+          <Surface>
+            <View style={styles.moneyRow}>
+              <View style={styles.moneyCell}>
+                <Text style={styles.moneyLabel}>{t("profile.outstanding")}</Text>
+                <Text style={styles.moneyValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                  {inr(credit.outstanding)}
+                </Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={22} color={colors.primary} />
+            </View>
+            <EntityAttribution
+              amounts={financialSummary?.entityBalances?.outstanding}
+              overdue={financialSummary?.entityBalances?.overdue}
+              expectedOverdue={Number(credit.overdue)}
+              status={financialSummary?.entityBalances?.attributionStatus}
+              expectedTotal={Number(credit.outstanding)}
+            />
+          </Surface>
+        </Pressable>
+
+        {schemes.length > 0 ? (
+          <Surface>
+            <SectionHeader title="Schemes for this store" />
+            {schemes.map((scheme) => (
+              <View key={scheme.id} style={styles.schemeRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.lineTitle}>{scheme.name}</Text>
+                  <Text style={styles.muted}>{scheme.headline} · Benefit {inr(scheme.discountAmount)}</Text>
+                  {scheme.progressPct != null ? <Text style={styles.muted}>{inr(scheme.progress)} of {inr(scheme.targetAmount)} delivered · {scheme.progressPct}%</Text> : <Text style={styles.muted}>Progress is calculated from delivered orders.</Text>}
+                </View>
+                {scheme.remaining != null ? <StatusChip label={scheme.remaining > 0 ? `${inr(scheme.remaining)} to go` : "Unlocked"} tone={scheme.remaining > 0 ? "gold" : "green"} /> : null}
+              </View>
+            ))}
+          </Surface>
+        ) : null}
+
+        {recentOrders.length >= 3 ? (
+          <Surface>
+            <SectionHeader title="Last 6 orders" />
+            <Text style={styles.muted}>A small view of this store's recent order value.</Text>
+            <View style={styles.orderBars}>
+              {recentOrders.slice(0, 6).map((order: any) => {
+                const value = Number(order.orderTotal) || 0;
+                const max = Math.max(...recentOrders.slice(0, 6).map((item: any) => Number(item.orderTotal) || 0), 1);
+                return <View key={order.id} style={styles.orderBarRow}><Text style={styles.orderBarDate}>{new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</Text><View style={styles.orderBarTrack}><View style={[styles.orderBarFill, { width: `${Math.max(5, (value / max) * 100)}%` }]} /></View><Text style={styles.orderBarValue}>{inr(value)}</Text></View>;
+              })}
+            </View>
+          </Surface>
+        ) : null}
+
+        {credit.overdue > 0 ? (
+          <FocusCard tone="danger">
+            <Text style={styles.insight}>{inr(credit.overdue)} overdue</Text>
+            <Text style={styles.insightBody}>Collect before taking a large order.</Text>
+          </FocusCard>
+        ) : lastOrder ? (
+          <Text style={styles.insightQuiet}>
+            Last order {new Date(lastOrder.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} ·{" "}
+            {inr(Number(lastOrder.orderTotal))}
+          </Text>
+        ) : null}
 
         {kyc?.status !== "approved" ? (
           <Surface>

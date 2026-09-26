@@ -266,10 +266,6 @@ export default function CartScreen({ navigation }: any) {
             <Text style={styles.sumValue}>{inr(total)}</Text>
           </View>
           <View style={styles.sumRow}>
-            <Text style={styles.sumLabel}>{t("cart.delivery")}</Text>
-            <Text style={[styles.sumValue, { color: colors.green }]}>{t("cart.deliveryIncluded")}</Text>
-          </View>
-          <View style={styles.sumRow}>
             <Text style={styles.totalLabel}>{quote ? quoteTax.totalLabel : "Catalogue subtotal"}</Text>
             <Text
               style={styles.totalValue}

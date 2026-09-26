@@ -26,11 +26,13 @@ import FieldTeam from "./pages/FieldTeam";
 import FieldPlanning from "./pages/FieldPlanning";
 import FieldExpenses from "./pages/FieldExpenses";
 import ServiceIssues from "./pages/ServiceIssues";
+import SalespersonFeedback from "./pages/SalespersonFeedback";
 import SalesLeader from "./pages/SalesLeader";
 import SalesOrganisation from "./pages/SalesOrganisation";
 import RetailerApprovals from "./pages/RetailerApprovals";
 import ImportCenter from "./pages/ImportCenter";
 import MarketSurveys from "./pages/MarketSurveys";
+import { APP_ENVIRONMENT_LABEL } from "./environmentLabel";
 
 type NavItem = { to: string; label: string; permissions: string[] };
 type NavGroup = { id: string; label: string; items: NavItem[] };
@@ -108,6 +110,7 @@ const NAV: NavGroup[] = [
       { to: "/field-planning", label: "Routes & tasks", permissions: ["route.manage"] },
       { to: "/field-expenses", label: "Expenses", permissions: ["expense.review"] },
       { to: "/service-issues", label: "Issues", permissions: ["issue.review"] },
+      { to: "/salesperson-feedback", label: "Feedback", permissions: ["feedback.review"] },
       { to: "/locations", label: "Store locations", permissions: ["location.view"] },
       { to: "/visits", label: "Visits", permissions: ["visit.view"] },
     ],
@@ -156,11 +159,11 @@ function TopBar() {
   const { admin } = useAuth();
   const location = useLocation();
   const initials = (admin?.name ?? "Ops Admin").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
-  return <header className="app-topbar"><div className="app-crumb"><strong>Gagan</strong><span>/</span><span>{pageLabel(location.pathname)}</span></div><div className="app-top-actions"><span className="environment-tag"><i /> staging · read-only</span><span className="app-avatar" aria-label={admin?.name ?? "Admin"}>{initials}</span></div></header>;
+  return <header className="app-topbar"><div className="app-crumb"><strong>Gagan</strong><span>/</span><span>{pageLabel(location.pathname)}</span></div><div className="app-top-actions"><span className="environment-tag"><i /> {APP_ENVIRONMENT_LABEL}</span><span className="app-avatar" aria-label={admin?.name ?? "Admin"}>{initials}</span></div></header>;
 }
 
 function LoadingWorkspace() {
-  return <div className="layout"><aside className="sidebar"><div className="brand">Gagan</div><div className="brand-sub">Operations console</div><div className="sidebar-loading-lines"><span /><span /><span /><span /><span /></div><div className="sidebar-foot"><div className="sidebar-user">Preparing workspace</div></div></aside><main className="main"><div className="app-topbar"><div className="app-crumb"><strong>Gagan</strong><span>/</span><span>Admin</span></div><span className="environment-tag"><i /> staging</span></div><div className="route-stage instrument-loading"><div className="skeleton skeleton-label" /><div className="skeleton skeleton-title" /><div className="skeleton skeleton-copy" /><div className="skeleton skeleton-flow" /><div className="instrument-grid-skeleton"><div className="skeleton skeleton-panel" /><div className="skeleton skeleton-panel" /><div className="skeleton skeleton-panel" /></div></div></main></div>;
+  return <div className="layout"><aside className="sidebar"><div className="brand">Gagan</div><div className="brand-sub">Operations console</div><div className="sidebar-loading-lines"><span /><span /><span /><span /><span /></div><div className="sidebar-foot"><div className="sidebar-user">Preparing workspace</div></div></aside><main className="main"><div className="app-topbar"><div className="app-crumb"><strong>Gagan</strong><span>/</span><span>Admin</span></div><span className="environment-tag"><i /> {APP_ENVIRONMENT_LABEL}</span></div><div className="route-stage instrument-loading"><div className="skeleton skeleton-label" /><div className="skeleton skeleton-title" /><div className="skeleton skeleton-copy" /><div className="skeleton skeleton-flow" /><div className="instrument-grid-skeleton"><div className="skeleton skeleton-panel" /><div className="skeleton skeleton-panel" /><div className="skeleton skeleton-panel" /></div></div></main></div>;
 }
 
 function Shell() {
@@ -237,6 +240,7 @@ function Shell() {
           <Route path="/field-planning" element={<Guard anyOf={["route.manage"]}><FieldPlanning /></Guard>} />
           <Route path="/field-expenses" element={<Guard anyOf={["expense.review"]}><FieldExpenses /></Guard>} />
           <Route path="/service-issues" element={<Guard anyOf={["issue.review"]}><ServiceIssues /></Guard>} />
+          <Route path="/salesperson-feedback" element={<Guard anyOf={["feedback.review"]}><SalespersonFeedback /></Guard>} />
           <Route
             path="/no-access"
             element={<div className="empty-state">No portal permissions are assigned.</div>}

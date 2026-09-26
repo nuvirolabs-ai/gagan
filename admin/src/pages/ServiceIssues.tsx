@@ -33,12 +33,18 @@ export default function ServiceIssues() {
   const [team, setTeam] = useState("");
   const [resolution, setResolution] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [retailerIdInput, setRetailerIdInput] = useState("");
+  const [retailerId, setRetailerId] = useState("");
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportThrough, setExportThrough] = useState("");
 
   const load = async () => {
     setLoading(true);
     try {
-      const result = await api.serviceIssues(status ? { status } : undefined);
+      const result = await api.serviceIssues(status || retailerId ? { status: status || undefined, retailerId: retailerId || undefined } : undefined);
       setIssues(result.issues ?? []);
       setError(null);
     } catch (err) {
@@ -51,7 +57,7 @@ export default function ServiceIssues() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+  }, [status, retailerId]);
 
   const update = async (id: string, next: string) => {
     if (["resolved", "closed", "rejected"].includes(next) && resolution.trim().length < 3) {
@@ -71,14 +77,58 @@ export default function ServiceIssues() {
     }
   };
 
+  const exportExcel = async () => {
+    if (exportFrom && exportThrough && exportFrom > exportThrough) {
+      setExportError("Export through date must be on or after the from date.");
+      return;
+    }
+    setExporting(true);
+    try {
+      const file = await api.exportServiceIssues({
+        status: status || undefined, retailerId: retailerId || undefined,
+        from: exportFrom || undefined, through: exportThrough || undefined,
+      });
+      const url = URL.createObjectURL(file);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "gagan-service-issues.xlsx";
+      document.body.appendChild(link);
+      try {
+        link.click();
+        window.setTimeout(() => {
+          URL.revokeObjectURL(url);
+          link.remove();
+        }, 60_000);
+      } catch (error) {
+        URL.revokeObjectURL(url);
+        link.remove();
+        throw error;
+      }
+      setExportError(null);
+    } catch (err) {
+      const code = (err as { body?: { error?: string } } | null)?.body?.error;
+      setExportError(code === "export_too_large"
+        ? "There are more than 5,000 matching issues. Select a status or retailer to narrow the export."
+        : explain(err, "Could not export service issues"));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div>
-      <h1 className="page-title">Service issues</h1>
+      <div className="row" style={{ justifyContent: "space-between" }}>
+        <h1 className="page-title">Service issues</h1>
+        <button className="secondary" disabled={exporting} onClick={() => void exportExcel()}>
+          {exporting ? "Exporting..." : "Export Excel"}
+        </button>
+      </div>
       <p className="page-sub">
         Complaints and service requests raised by salespeople or submitted directly by retailers.
         Retailer withdrawals remain in history; in-progress work requires an operator to close it.
       </p>
       {error && <div className="banner error">{error}</div>}
+      {exportError && <div className="banner error">{exportError}</div>}
 
       <div className="tabs">
         {TABS.map((tab) => (
@@ -90,6 +140,24 @@ export default function ServiceIssues() {
             {LABEL[tab]}
           </button>
         ))}
+      </div>
+
+      <div className="row" style={{ marginBottom: 12, flexWrap: "wrap" }}>
+        <input
+          aria-label="Retailer ID filter"
+          placeholder="Retailer ID"
+          value={retailerIdInput}
+          onChange={(event) => setRetailerIdInput(event.target.value)}
+        />
+        <button className="secondary" onClick={() => setRetailerId(retailerIdInput.trim())}>Apply retailer filter</button>
+        <label className="field">
+          <span>Export from (UTC)</span>
+          <input type="date" value={exportFrom} onChange={(event) => setExportFrom(event.target.value)} />
+        </label>
+        <label className="field">
+          <span>Export through (UTC)</span>
+          <input type="date" value={exportThrough} onChange={(event) => setExportThrough(event.target.value)} />
+        </label>
       </div>
 
       <div className="card">

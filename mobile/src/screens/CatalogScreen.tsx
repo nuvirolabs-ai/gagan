@@ -140,6 +140,9 @@ export default function CatalogScreen({ navigation, route }: any) {
           ref={listRef}
           data={rows}
           keyExtractor={(group) => group.id}
+          initialNumToRender={4}
+          maxToRenderPerBatch={4}
+          windowSize={7}
           contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: tabBarContentSpace(cartCount, insets.bottom) }}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.green} />

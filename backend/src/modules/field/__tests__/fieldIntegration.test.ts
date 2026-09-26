@@ -29,6 +29,7 @@ let tokenA = "";
 let tokenB = "";
 let managerToken = "";
 let retailerTokenA = "";
+let retailerTokenB = "";
 const app = createApp();
 const coordinates = { latitude: 18.52, longitude: 73.85, accuracyMeters: 12 };
 
@@ -156,16 +157,18 @@ beforeAll(async () => {
     data: { managerId: ids.manager },
   });
 
-  const [sessionA, sessionB, managerSession, retailerSessionA] = await Promise.all([
+  const [sessionA, sessionB, managerSession, retailerSessionA, retailerSessionB] = await Promise.all([
     lazyIdentitySessionService.createSession({ realm: "staff", subjectId: ids.staffA, deviceName: "test" }),
     lazyIdentitySessionService.createSession({ realm: "staff", subjectId: ids.staffB, deviceName: "test" }),
     lazyIdentitySessionService.createSession({ realm: "admin", subjectId: ids.manager, deviceName: "test" }),
     lazyIdentitySessionService.createSession({ realm: "retailer", subjectId: ids.retailerA, deviceName: "test" }),
+    lazyIdentitySessionService.createSession({ realm: "retailer", subjectId: ids.retailerB, deviceName: "test" }),
   ]);
   tokenA = sessionA.accessToken;
   tokenB = sessionB.accessToken;
   managerToken = managerSession.accessToken;
   retailerTokenA = retailerSessionA.accessToken;
+  retailerTokenB = retailerSessionB.accessToken;
 });
 
 afterAll(async () => {
@@ -187,7 +190,7 @@ afterAll(async () => {
     select: { id: true },
   });
   const orderIds = orders.map(({ id }) => id);
-  await prisma.deviceSession.deleteMany({ where: { subjectId: { in: [...staffIds, ids.retailerA] } } });
+  await prisma.deviceSession.deleteMany({ where: { subjectId: { in: [...staffIds, ids.retailerA, ids.retailerB] } } });
   await prisma.sapOutbox.deleteMany({ where: { referenceId: { in: orderIds } } });
   await prisma.commercialStatusEvent.deleteMany({ where: { orderId: { in: orderIds } } });
   await prisma.dispatchAuthorization.deleteMany({ where: { orderId: { in: orderIds } } });
@@ -502,6 +505,18 @@ describe("customer activity and issues reach the customer timeline", () => {
     expect(repOpen.body.issues).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: issueId, status: "open" })])
     );
+
+    const [otherRetailer, otherRep, otherRepAdmin, otherRetailerWithdrawal] = await Promise.all([
+      request(app).get("/service-requests").set("Authorization", `Bearer ${retailerTokenB}`).expect(200),
+      request(app).get(`/rep/field/issues?retailerId=${ids.retailerA}`).set("Authorization", `Bearer ${tokenB}`).expect(200),
+      request(app).post(`/admin/field/issues/${issueId}/status`).set("Authorization", `Bearer ${tokenB}`).send({ status: "resolved", resolutionNote: "Not authorized" }),
+      request(app).post(`/service-requests/${issueId}/withdraw`).set("Authorization", `Bearer ${retailerTokenB}`),
+    ]);
+    expect(otherRetailer.body.requests.map((issue: { id: string }) => issue.id)).not.toContain(issueId);
+    expect(otherRep.body.issues.map((issue: { id: string }) => issue.id)).not.toContain(issueId);
+    expect([401, 403]).toContain(otherRepAdmin.status);
+    expect(otherRetailerWithdrawal.status).toBe(404);
+    expect((await prisma.serviceIssue.findUniqueOrThrow({ where: { id: issueId } })).status).toBe("open");
 
     await request(app)
       .post(`/admin/field/issues/${issueId}/status`)

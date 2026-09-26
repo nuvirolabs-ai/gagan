@@ -32,4 +32,31 @@ describe("Import Center", () => {
     render(<ImportCenter />);
     expect(await screen.findByText(/New products and packs stay pending review/)).toBeInTheDocument();
   });
+
+  it("counts matched preview rows as updates in the summary and confirmation", async () => {
+    vi.mocked(api.applyImport).mockClear();
+    vi.mocked(api.importTypes).mockResolvedValueOnce({ types: [{
+      type: "retailers", label: "Retailers", description: "Retailer master data",
+      required: ["name", "phone"], optional: [], modes: ["upsert", "update_only"],
+    }] });
+    vi.mocked(api.importPreview).mockResolvedValueOnce({
+      job: { id: "job-update" },
+      summary: { totalRows: 1, validRows: 1, warningRows: 0, failedRows: 0 },
+      rows: [{ rowNumber: 2, values: {}, errors: [], warnings: [], action: "update",
+        match: { id: "retailer-1", label: "Sunrise Stores" } }],
+    });
+    render(<ImportCenter />);
+    expect(await screen.findByText("Data Import")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Update existing only" }));
+    fireEvent.change(screen.getByLabelText("Choose file"), { target: { files: [new File(["csv"], "retailers.csv", { type: "text/csv" })] } });
+    fireEvent.click(screen.getByRole("button", { name: "Preview import →" }));
+    expect(await screen.findByText("Ready for review")).toBeInTheDocument();
+    expect(screen.getByText("This import will").closest(".import-decision")?.querySelector("small"))
+      .toHaveTextContent("0 create · 1 update");
+    fireEvent.click(screen.getByRole("button", { name: "Apply 1 records →" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("0to create");
+    expect(screen.getByRole("dialog")).toHaveTextContent("1to update");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(api.applyImport).not.toHaveBeenCalled();
+  });
 });

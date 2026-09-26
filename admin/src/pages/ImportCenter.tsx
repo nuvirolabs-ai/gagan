@@ -12,6 +12,18 @@ function formatBytes(bytes?: number) { if (!bytes) return ""; return bytes < 102
 function modeLabel(mode: string) { return mode === "create_only" ? "Create new only" : mode === "update_only" ? "Update existing only" : "Upsert"; }
 function modeDescription(mode: string) { if (mode === "create_only") return "Only rows that do not match an existing record will be created."; if (mode === "update_only") return "Only matched Gagan records will be updated."; return "Creates missing records and updates matched records."; }
 
+function actionCounts(preview: any) {
+  if (preview?.applied) return {
+    createCount: preview.summary?.createdRows ?? 0,
+    updateCount: preview.summary?.updatedRows ?? 0,
+  };
+  const readyRows: ImportRow[] = (preview?.rows ?? []).filter((row: ImportRow) => row.errors.length === 0);
+  return {
+    createCount: readyRows.filter((row) => row.action === "create").length,
+    updateCount: readyRows.filter((row) => row.action === "update").length,
+  };
+}
+
 function downloadBlob(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -74,8 +86,7 @@ export default function ImportCenter() {
     catch (err) { setError(err instanceof Error ? err.message : "Could not download errors"); }
   };
   const step = preview?.applied ? 4 : preview ? 3 : file ? 2 : 1;
-  const previewCreateCount = preview?.summary?.createdRows ?? preview?.summary?.validRows ?? 0;
-  const previewUpdateCount = preview?.summary?.updatedRows ?? 0;
+  const { createCount: previewCreateCount, updateCount: previewUpdateCount } = actionCounts(preview);
 
   return <div className="import-center">
     <div className="import-heading"><div><p className="eyebrow">System / controlled data</p><h1 className="page-title">Data Import</h1><p className="page-sub">Bring approved master data into Gagan safely.</p></div><div className="import-environment"><span className="status-dot" /> staging · mock SAP</div></div>
@@ -111,8 +122,7 @@ function ImportPreview({ preview, busy, onApply, onErrors }: { preview: any; bus
   const rows: ImportRow[] = preview.rows ?? [];
   const [filter, setFilter] = useState("all");
   const visibleRows = rows.slice(0, 100).filter((row) => filter === "all" || filter === "errors" && row.errors.length > 0 || filter === "warnings" && row.warnings.length > 0 || filter === "ready" && !row.errors.length && !row.warnings.length);
-  const createCount = summary.createdRows ?? summary.validRows ?? 0;
-  const updateCount = summary.updatedRows ?? 0;
+  const { createCount, updateCount } = actionCounts(preview);
   const applicable = createCount + updateCount;
   return <section className="import-preview"><div className="import-preview-heading"><div><span className="section-label">Import read</span><h2>{preview.applied ? "Import complete" : "Ready for review"}</h2><p>{preview.applied ? "The server recorded this batch and its row-level outcome." : "Nothing changes until you explicitly apply this preview."}</p></div><div className="import-preview-actions">{summary.failedRows ? <button className="secondary sm" onClick={onErrors}>Download errors</button> : null}{!preview.applied ? <button disabled={busy || summary.failedRows > 0} onClick={onApply}>{summary.failedRows ? "Resolve errors first" : `Apply ${applicable} records →`}</button> : <span className="import-applied-state">Applied</span>}</div></div><div className="import-summary"><div><strong>{summary.totalRows ?? 0}</strong><span>Total rows</span></div><div className="good"><strong>{createCount}</strong><span>Create</span></div><div className="good"><strong>{updateCount}</strong><span>Update</span></div><div className="warning"><strong>{summary.warningRows ?? 0}</strong><span>Warnings</span></div><div className="bad"><strong>{summary.failedRows ?? 0}</strong><span>Blocked</span></div></div>{!preview.applied && summary.failedRows === 0 ? <div className="import-decision"><span className="section-label">This import will</span><strong>{applicable} records move into Gagan after confirmation.</strong><small>{createCount} create · {updateCount} update · {summary.warningRows ?? 0} warning{(summary.warningRows ?? 0) === 1 ? "" : "s"}</small></div> : null}<div className="import-preview-toolbar"><span className="section-label">Preview rows</span><div role="group" aria-label="Preview filters" className="import-filter-group">{[["all", "All"], ["ready", "Ready"], ["warnings", "Warnings"], ["errors", "Errors"]].map(([value, label]) => <button key={value} type="button" className={filter === value ? "selected" : ""} onClick={() => setFilter(value)}>{label}</button>)}</div></div><div className="import-table-wrap"><table><thead><tr><th>Row</th><th>Action</th><th>Record</th><th>Validation</th></tr></thead><tbody>{visibleRows.map((row) => <tr key={row.rowNumber}><td className="mono">{row.rowNumber}</td><td><span className={`pill ${row.errors.length ? "warning" : row.action === "update" ? "active" : "neutral"}`}>{row.errors.length ? "blocked" : row.action}</span></td><td>{row.match?.label ?? "New canonical record"}</td><td>{row.errors.length ? <span className="import-error-text">{row.errors.join(" · ")}</span> : row.warnings.length ? <span className="import-warning-text">{row.warnings.join(" · ")}</span> : <span className="muted">Ready</span>}</td></tr>)}</tbody></table>{rows.length > 100 ? <div className="import-table-foot">Showing first 100 of {summary.totalRows ?? rows.length} rows. Full validation remains recorded in the job.</div> : null}{rows.length === 0 ? <div className="import-table-foot">No rows match this view.</div> : null}</div></section>;
 }

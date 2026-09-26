@@ -25,6 +25,7 @@ describe("Import Center", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Apply import" }));
     await waitFor(() => expect(screen.getByText("Import complete")).toBeInTheDocument());
+    expect(screen.getByRole("status")).toHaveTextContent("1 created, 0 updated.");
   });
 
   it("explains that product imports create drafts", async () => {

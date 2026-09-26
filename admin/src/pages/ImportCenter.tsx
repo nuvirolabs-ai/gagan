@@ -71,7 +71,7 @@ export default function ImportCenter() {
   const apply = async () => {
     if (!preview?.job?.id || preview.summary?.failedRows) return;
     setBusy(true); setError(null); setNotice(null); setShowConfirm(false);
-    try { const result = await api.applyImport(preview.job.id); setPreview({ ...preview, summary: result, applied: true }); setNotice(result.failedRows ? "Import completed with row-level errors." : "Import applied successfully. Existing records were updated safely."); await load(); }
+    try { const result = await api.applyImport(preview.job.id); setPreview({ ...preview, summary: result, applied: true }); setNotice(result.failedRows ? "Import completed with row-level errors." : `Import complete: ${result.createdRows} created, ${result.updatedRows} updated.`); await load(); }
     catch (err) { setError(err instanceof Error ? err.message : "Could not apply this import"); }
     finally { setBusy(false); }
   };

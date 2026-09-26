@@ -6,7 +6,7 @@ import { Permissions } from "../identity/roleCatalog";
 import { prisma } from "../../lib/prisma";
 import { defaultFieldServices, sendFieldError, type FieldServices } from "./fieldRoutes";
 import { FieldServiceError } from "./attendanceService";
-import { startOfDay } from "./fieldDomain";
+import { endOfDay, startOfDay } from "./fieldDomain";
 import { ScopeError, ScopeResolver, scopeResolver as defaultScopeResolver } from "../org/scope";
 import type { PrismaClient } from "@prisma/client";
 import { resolveTargetWriteScope, TargetScopeError } from "../performance/targetScope";
@@ -552,7 +552,10 @@ export function createFieldAdminRouter(options: {
     "/field/team",
     requirePermission(Permissions.ATTENDANCE_REVIEW),
     asyncRoute(async (req: StaffAuthedRequest, res, next) => {
-      const to = parseDateParam(req.query.to, new Date());
+      const parsedTo = parseDateParam(req.query.to, new Date());
+      const to = typeof req.query.to === "string" && /^\d{4}-\d{2}-\d{2}$/.test(req.query.to)
+        ? endOfDay(parsedTo)
+        : parsedTo;
       const from = parseDateParam(req.query.from, startOfDay(to));
       try {
         const team = await services.attendance.teamAttendance(to, await scopeOf(req));

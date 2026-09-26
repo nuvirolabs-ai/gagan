@@ -977,7 +977,7 @@ describe("daily team sales summary uses canonical orders", () => {
           placedBy: "rep",
           placedByRepId: ids.repB,
           orderTotal: "1499.75",
-          createdAt: new Date("2026-09-20T15:00:00.000Z"),
+          createdAt: new Date("2026-09-20T23:59:59.999Z"),
         },
         {
           retailerId: ids.retailerA,
@@ -1004,6 +1004,18 @@ describe("daily team sales summary uses canonical orders", () => {
     expect(
       [...metricsByStaff.values()].reduce((sum: number, metrics: any) => sum + metrics.orderValue, 0)
     ).toBe(5500.5);
+
+    const adminDateOnly = await request(app)
+      .get("/admin/field/team")
+      .query({ to: "2026-09-20" })
+      .set("Authorization", `Bearer ${managerToken}`)
+      .expect(200);
+    const dateOnlyMetrics = new Map(
+      adminDateOnly.body.members.map((member: any) => [member.salespersonId, member.metrics])
+    );
+    expect([...dateOnlyMetrics.keys()].sort()).toEqual([ids.staffA, ids.staffB].sort());
+    expect(dateOnlyMetrics.get(ids.staffA)).toMatchObject({ orders: 1, orderValue: 1250.5 });
+    expect(dateOnlyMetrics.get(ids.staffB)).toMatchObject({ orders: 2, orderValue: 4250 });
   });
 });
 

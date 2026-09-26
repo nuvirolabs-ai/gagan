@@ -251,4 +251,23 @@ describe("back-office field behaviour", () => {
       progress: { total: 5, visited: 2, skipped: 0, pending: 3, completionPct: 40 },
     });
   });
+
+  it("includes the full selected day for Admin's date-only team request", async () => {
+    services.attendance.teamAttendance.mockResolvedValueOnce([
+      { salespersonId: "staff-1", name: "Ravi", mark: "present" },
+    ]);
+
+    const response = await request(app()).get("/field/team?to=2026-09-15");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      from: "2026-09-15T00:00:00.000Z",
+      to: "2026-09-15T23:59:59.999Z",
+    });
+    expect(services.dashboard.metricsFor).toHaveBeenCalledWith({
+      salespersonId: "staff-1",
+      from: new Date("2026-09-15T00:00:00.000Z"),
+      to: new Date("2026-09-15T23:59:59.999Z"),
+    });
+  });
 });

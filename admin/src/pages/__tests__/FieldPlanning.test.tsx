@@ -5,7 +5,7 @@ import FieldPlanning from "../FieldPlanning";
 
 vi.mock("../../api", () => ({ api: {
   staff: vi.fn(), retailers: vi.fn(), routePlans: vi.fn(), fieldTasks: vi.fn(),
-  salesTargets: vi.fn(), setSalesTarget: vi.fn(), publishRoutePlan: vi.fn(),
+  salesTargets: vi.fn(), setSalesTarget: vi.fn(), publishRoutePlan: vi.fn(), assignFieldTask: vi.fn(),
   beatTemplates: vi.fn(), saveBeatTemplate: vi.fn(), updateBeatTemplate: vi.fn(), applyBeatTemplate: vi.fn(),
 } }));
 
@@ -27,6 +27,7 @@ describe("Field Planning target scope", () => {
     vi.mocked(api.fieldTasks).mockResolvedValue({ tasks: [] });
     vi.mocked(api.salesTargets).mockResolvedValue({ targets: [] });
     vi.mocked(api.setSalesTarget).mockResolvedValue({ target: { id: "target-1" } });
+    vi.mocked(api.assignFieldTask).mockResolvedValue({ task: { id: "task-1" } });
   });
 
   it("lists both scopes and sends an explicit TEAM zero target for a manager", async () => {
@@ -79,5 +80,21 @@ describe("Field Planning target scope", () => {
     render(<FieldPlanning />);
     fireEvent.click(await screen.findByRole("button", { name: "Apply to date" }));
     expect(await screen.findByText("A route is already planned for that date.")).toBeInTheDocument();
+  });
+
+  it("sends a task description so the assignee knows no customer action is requested", async () => {
+    render(<FieldPlanning />);
+    fireEvent.click(await screen.findByRole("button", { name: "Tasks" }));
+    fireEvent.change(screen.getAllByRole("combobox")[0], { target: { value: "rep-1" } });
+    fireEvent.change(screen.getByPlaceholderText("Collect the signed delivery note"), { target: { value: "[UAT] POP photo evidence test" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Description" }), {
+      target: { value: "Synthetic acceptance only. No real store visit or customer action." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Assign task" }));
+    await waitFor(() => expect(api.assignFieldTask).toHaveBeenCalledWith(expect.objectContaining({
+      assignedToStaffId: "rep-1",
+      title: "[UAT] POP photo evidence test",
+      description: "Synthetic acceptance only. No real store visit or customer action.",
+    })));
   });
 });

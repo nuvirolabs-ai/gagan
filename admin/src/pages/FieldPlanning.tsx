@@ -405,6 +405,16 @@ export default function FieldPlanning() {
                 />
               </div>
               <div className="field">
+                <label htmlFor="task-description">Description</label>
+                <textarea
+                  id="task-description"
+                  rows={3}
+                  maxLength={1000}
+                  value={taskForm.description}
+                  onChange={(event) => setTaskForm({ ...taskForm, description: event.target.value })}
+                />
+              </div>
+              <div className="field">
                 <label>Customer (optional)</label>
                 <select
                   value={taskForm.retailerId}

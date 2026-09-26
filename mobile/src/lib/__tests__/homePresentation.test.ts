@@ -197,6 +197,19 @@ describe("accountModel", () => {
     ).toBe("clear");
   });
 
+  it("does not call a mismatched account paid up", () => {
+    const model = accountModel({
+      outstanding: 0,
+      overdue: 0,
+      creditLimit: 100000,
+      used: 0,
+      available: 100000,
+      utilisationPct: 0,
+    }, null, true);
+    expect(model.kind).toBe("reconciliation");
+    expect(model.outstanding).toBeNull();
+  });
+
   it("keeps overdue visible when there is a due balance", () => {
     const model = accountModel({
       outstanding: 62412,

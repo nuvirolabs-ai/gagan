@@ -316,7 +316,7 @@ export default function TodayScreen({ navigation }: any) {
   const remainingTasks = (today.tasks ?? []).filter((task: any) => task.status !== "done" && task.status !== "cancelled");
   const planned = safeCount(route?.progress?.total);
   const visited = safeCount(route?.progress?.visited) + safeCount(route?.progress?.skipped);
-  const completion = Math.max(0, Math.min(100, safeCount(target?.completionPct)));
+  const completion = Math.max(0, safeCount(target?.completionPct));
   const targetActual = target?.unit === "currency" ? inr(safeCount(target.actual)) : String(safeCount(target?.actual));
   const targetTotal = target?.unit === "currency" ? inr(safeCount(target.target)) : String(safeCount(target?.target));
   const targetProgressDetail = positiveTarget

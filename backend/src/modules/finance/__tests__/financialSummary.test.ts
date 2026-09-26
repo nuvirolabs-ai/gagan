@@ -59,6 +59,29 @@ describe("shared financial summary", () => {
     const summary = await financialSummaryFor(prisma, ids.retailer, new Date("2026-08-21"));
     expect(summary).toMatchObject({ outstanding: 12_500, overdue: 12_500, source: "local_invoice_ledger", isStale: false });
     expect(summary?.invoiceAgeing?.totalOutstanding).toBe(12_500);
+    expect(summary?.reconciliationRequired).toBe(true);
+
+    const session = await lazyIdentitySessionService.createSession({
+      realm: "retailer", subjectId: ids.retailer, deviceName: "finance-reconciliation-test",
+    });
+    const app = createApp();
+    try {
+      const headers = { Authorization: `Bearer ${session.accessToken}` };
+      const home = await request(app).get("/home").set(headers).expect(200);
+      expect(home.body.financialSummary.reconciliationRequired).toBe(true);
+      const ledger = await request(app).get(`/ledger/${ids.retailer}`).set(headers).expect(200);
+      expect(ledger.body.financialSummary.reconciliationRequired).toBe(true);
+      const dues = await request(app).get("/payments/dues").set(headers).expect(200);
+      expect(dues.body.financialSummary.reconciliationRequired).toBe(true);
+      const before = await prisma.payment.count({ where: { retailerId: ids.retailer } });
+      const intent = await request(app).post("/payments/intent").set(headers)
+        .set("Idempotency-Key", `reconciliation-${run}`).send({ amount: 100 });
+      expect(intent.status).toBe(409);
+      expect(intent.body).toEqual({ error: "financial_reconciliation_required" });
+      expect(await prisma.payment.count({ where: { retailerId: ids.retailer } })).toBe(before);
+    } finally {
+      await prisma.deviceSession.deleteMany({ where: { subjectId: ids.retailer } });
+    }
   });
 
   it("reads back entity balances from invoice snapshots and payment allocations", async () => {
@@ -112,11 +135,13 @@ describe("shared financial summary", () => {
       },
     });
 
+    await prisma.retailer.update({ where: { id: ids.entityRetailer }, data: { currentBalance: 95, overdueAmount: 70 } });
     const summary = await financialSummaryFor(prisma, ids.entityRetailer, new Date("2026-08-21T00:00:00.000Z"));
 
     expect(summary).toMatchObject({
       outstanding: 95,
       overdue: 70,
+      reconciliationRequired: false,
       entityBalances: {
         outstanding: { jainTraders: 40, padamInternational: 30, unattributed: 25 },
         overdue: { jainTraders: 40, padamInternational: 30, unattributed: 0 },

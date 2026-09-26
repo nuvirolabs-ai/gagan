@@ -149,6 +149,10 @@ export default function Ledger() {
 
   const recordPayment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (data?.financialSummary?.reconciliationRequired) {
+      setError("Account balance is under review. Resolve the financial mismatch before recording a payment.");
+      return;
+    }
     const value = Number(amount);
     if (!Number.isFinite(value) || value <= 0) {
       setError("Enter a payment amount greater than zero");
@@ -169,6 +173,7 @@ export default function Ledger() {
   };
 
   const current = retailers.find((r) => r.id === selected);
+  const reconciliationRequired = Boolean(data?.financialSummary?.reconciliationRequired);
 
   return (
     <div>
@@ -193,10 +198,15 @@ export default function Ledger() {
 
       {data && (
         <>
+          {reconciliationRequired ? (
+            <div className="banner error" role="alert">
+              <strong>Account balance under review</strong>. The invoice projection and historical balance disagree. Do not collect or record a payment until the financial records are reconciled.
+            </div>
+          ) : null}
           <div className="metrics">
             <div className="metric">
               <div className="metric-label">Outstanding</div>
-              <div className="metric-value">{inr(data.currentBalance)}</div>
+              <div className="metric-value">{reconciliationRequired ? "—" : inr(data.currentBalance)}</div>
             </div>
             <div className="metric">
               <div className="metric-label">Credit limit</div>
@@ -205,7 +215,7 @@ export default function Ledger() {
             <div className="metric">
               <div className="metric-label">Available</div>
               <div className="metric-value" style={{ color: "var(--green)" }}>
-                {inr(Math.max(data.creditLimit - data.currentBalance, 0))}
+                {reconciliationRequired ? "—" : inr(Math.max(data.creditLimit - data.currentBalance, 0))}
               </div>
             </div>
             <div className="metric">
@@ -214,20 +224,20 @@ export default function Ledger() {
                 className="metric-value"
                 style={{ color: data.overdueAmount > 0 ? "var(--danger)" : undefined }}
               >
-                {inr(data.overdueAmount)}
+                {reconciliationRequired ? "—" : inr(data.overdueAmount)}
               </div>
             </div>
           </div>
 
-          <EntityAttribution
+          {!reconciliationRequired && <EntityAttribution
             value={data.financialSummary?.entityBalances?.outstanding}
             overdue={data.financialSummary?.entityBalances?.overdue}
             expectedOverdue={Number(data.overdueAmount)}
             status={data.financialSummary?.entityBalances?.attributionStatus}
             expectedTotal={Number(data.currentBalance)}
-          />
+          />}
 
-          <form className="card" onSubmit={recordPayment}>
+          {!reconciliationRequired && <form className="card" onSubmit={recordPayment}>
             <h3 style={{ marginTop: 0, fontSize: 15 }}>Record a payment</h3>
             <div className="row">
               <div className="grow" style={{ maxWidth: 220 }}>
@@ -243,7 +253,7 @@ export default function Ledger() {
                 {busy ? "Recording…" : "Record payment"}
               </button>
             </div>
-          </form>
+          </form>}
 
           <div className="card" style={{ padding: 0 }}>
             {data.entries.length === 0 ? (

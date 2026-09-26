@@ -53,6 +53,21 @@ beforeEach(() => {
 });
 
 describe("Admin financial entity attribution", () => {
+  it("does not present or record a payable balance while reconciliation is required", async () => {
+    mocks.ledger.mockResolvedValueOnce({
+      currentBalance: 0,
+      creditLimit: 1000,
+      overdueAmount: 0,
+      financialSummary: { reconciliationRequired: true, entityBalances: { outstanding: { jainTraders: 0, padamInternational: 0, unattributed: 0 }, overdue: { jainTraders: 0, padamInternational: 0, unattributed: 0 }, attributionStatus: "review_required" } },
+      entries: [{ id: "legacy-1", kind: "invoice", direction: "debit", amount: "62412", balanceAfter: "62412", createdAt: "2026-09-01T00:00:00.000Z" }],
+    });
+    showLedger();
+    expect(await screen.findByText("Account balance under review")).toBeTruthy();
+    expect(screen.queryByText("₹0.00")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Record payment" })).toBeNull();
+    expect(screen.getByText("₹62412.00")).toBeTruthy();
+  });
+
   it("shows company balances and each ledger entry split without hiding the consolidated total", async () => {
     showLedger();
 

@@ -69,6 +69,11 @@ describe("screen integration contracts", () => {
     expect(home).toContain("No target has been configured for this period.");
     expect(home).toContain("{positiveTarget ? (");
   });
+  it("shows uncapped achievement above target on the personal Home", () => {
+    const home = source("TodayScreen.tsx");
+    expect(home).toContain("const completion = Math.max(0, safeCount(target?.completionPct));");
+    expect(home).not.toContain("Math.min(100, safeCount(target?.completionPct))");
+  });
   it("removes profile credit presentation but preserves the credit approval guard", () => {
     const profile = source("RepRetailerDetailScreen.tsx");
     expect(profile).not.toContain('t("profile.availableCredit")');

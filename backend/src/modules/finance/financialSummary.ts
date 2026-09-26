@@ -20,6 +20,7 @@ export type FinancialSummary = {
   source: "local_invoice_ledger" | "cached_retailer_balance";
   syncedAt: Date | null;
   isStale: boolean;
+  reconciliationRequired: boolean;
 };
 
 /** One financial contract for retailer, salesperson, and admin surfaces. */
@@ -51,6 +52,7 @@ export async function financialSummaryFor(db: Db, retailerId: string, now = new 
       source: invoiceAgeing ? "local_invoice_ledger" : "cached_retailer_balance",
       syncedAt: null,
       isStale: !invoiceAgeing,
+      reconciliationRequired: false,
     };
   }
 
@@ -64,6 +66,7 @@ export async function financialSummaryFor(db: Db, retailerId: string, now = new 
   const outstanding = invoiceAgeing ? invoiceAgeing.totalOutstanding : Number(retailer.currentBalance);
   const overdue = invoiceAgeing ? invoiceAgeing.totalOverdue : Number(retailer.overdueAmount);
   const creditLimit = Number(retailer.creditLimit);
+  const reconciliationRequired = hasLocalInvoices && Math.abs(Number(retailer.currentBalance) - outstanding) > 0.01;
 
   return {
     outstanding,
@@ -80,5 +83,6 @@ export async function financialSummaryFor(db: Db, retailerId: string, now = new 
     source: hasLocalInvoices ? "local_invoice_ledger" : "cached_retailer_balance",
     syncedAt: hasLocalInvoices ? latestInvoice?.updatedAt ?? null : null,
     isStale: !hasLocalInvoices,
+    reconciliationRequired,
   };
 }

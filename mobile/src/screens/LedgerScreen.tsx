@@ -17,7 +17,7 @@ export default function LedgerScreen() {
   const { retailer } = useAuth();
   const { t } = useLanguage();
   const [entries, setEntries] = useState<Entry[]>([]);
-  const [summary, setSummary] = useState({ balance: "0", limit: "0", overdue: "0", entityBalances: null as EntityBalances | null });
+  const [summary, setSummary] = useState({ balance: "0", limit: "0", overdue: "0", entityBalances: null as EntityBalances | null, reconciliationRequired: false });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -31,6 +31,7 @@ export default function LedgerScreen() {
       limit: res.creditLimit,
       overdue: String(res.financialSummary?.overdue ?? 0),
       entityBalances: res.financialSummary?.entityBalances ?? null,
+      reconciliationRequired: res.financialSummary?.reconciliationRequired ?? false,
     });
     setLoadError(false);
   }, [retailer?.id]);
@@ -97,13 +98,17 @@ export default function LedgerScreen() {
             adjustsFontSizeToFit
             minimumFontScale={0.65}
           >
-            {inr(balance)}
+            {summary.reconciliationRequired ? "—" : inr(balance)}
           </Text>
         </View>
       </View>
-      <View style={styles.entitySummary}>
-        <EntityAttribution rows={summaryAttribution.rows} status={summaryAttribution.status} />
-      </View>
+      {summary.reconciliationRequired ? (
+        <Text style={styles.review}>{t("finance.balanceUnderReviewBody")}</Text>
+      ) : (
+        <View style={styles.entitySummary}>
+          <EntityAttribution rows={summaryAttribution.rows} status={summaryAttribution.status} />
+        </View>
+      )}
 
       <SectionList
         sections={sections}
@@ -188,6 +193,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   entitySummary: { marginHorizontal: spacing.lg },
+  review: { marginHorizontal: spacing.lg, marginTop: spacing.sm, color: colors.danger, fontSize: 12.5, fontWeight: "600" },
   cell: { flex: 1, paddingRight: spacing.sm },
   cellBorder: {
     borderLeftWidth: StyleSheet.hairlineWidth,

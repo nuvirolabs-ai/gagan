@@ -91,4 +91,21 @@ describe("approved retailer commerce polish", () => {
     expect(emptyBranch).toContain("staleNotice");
     expect(emptyBranch).toContain("dismissStaleNotice");
   });
+  it("does not prefill or offer a zero-rupee payment", () => {
+    const pay = readFileSync(fileURLToPath(new URL("../../screens/PayScreen.tsx", import.meta.url)), "utf8");
+    expect(pay).toContain("setAmount(defaultAmount > 0 ? String(defaultAmount) : \"\")");
+    expect(pay).toContain("{dues.outstanding > 0 && (");
+  });
+  it("keeps unreconciled balances out of payable and all-clear presentations", () => {
+    const pay = readFileSync(fileURLToPath(new URL("../../screens/PayScreen.tsx", import.meta.url)), "utf8");
+    const ledger = readFileSync(fileURLToPath(new URL("../../screens/LedgerScreen.tsx", import.meta.url)), "utf8");
+    const profile = readFileSync(fileURLToPath(new URL("../../screens/ProfileScreen.tsx", import.meta.url)), "utf8");
+    const account = readFileSync(fileURLToPath(new URL("../../components/home/AccountStrip.tsx", import.meta.url)), "utf8");
+    expect(homeScreenSource).toContain("data?.financialSummary?.reconciliationRequired");
+    expect(profile).toContain("data?.financialSummary?.reconciliationRequired");
+    expect(account).toContain('account.kind === "reconciliation"');
+    expect(ledger).toContain("summary.reconciliationRequired");
+    expect(pay).toContain("dues.financialSummary?.reconciliationRequired");
+    expect(pay).toContain("!reconciliationRequired && (");
+  });
 });

@@ -82,7 +82,8 @@ export default function PayScreen({ navigation }: any) {
       setJainAmount("");
       setPadamAmount("");
       // Default to clearing overdue first — that's what a retailer usually wants.
-      setAmount(String(duesResult.value.overdue > 0 ? duesResult.value.overdue : duesResult.value.outstanding));
+      const defaultAmount = duesResult.value.overdue > 0 ? duesResult.value.overdue : duesResult.value.outstanding;
+      setAmount(defaultAmount > 0 ? String(defaultAmount) : "");
     }
     setPayments(historyResult.status === "fulfilled" ? historyResult.value.payments ?? [] : []);
     setPaymentHistoryUnavailable(historyResult.status === "rejected");
@@ -113,6 +114,7 @@ export default function PayScreen({ navigation }: any) {
   }
 
   const paymentInvoices: PaymentInvoiceOption[] = dues.paymentInvoices ?? [];
+  const reconciliationRequired = Boolean(dues.financialSummary?.reconciliationRequired);
   const invoiceAllocationRequired = Boolean(dues.invoiceAllocationRequired);
   const selectedInvoice = paymentInvoices.find((invoice) => invoice.id === selectedInvoiceId) ?? null;
   const jainValue = parseMoneyInput(jainAmount);
@@ -130,7 +132,7 @@ export default function PayScreen({ navigation }: any) {
     cents(value) <= cents(selectedInvoice.outstanding)
   );
   const genericValid = genericValue !== null && genericValue > 0 && genericValue <= Number(dues.outstanding);
-  const valid = invoiceAllocationRequired ? scopedValid : genericValid;
+  const valid = !reconciliationRequired && (invoiceAllocationRequired ? scopedValid : genericValid);
   const paymentValue = invoiceAllocationRequired ? value : genericValue ?? 0;
   const eligibleInvoiceTotal = paymentInvoices
     .filter((invoice) => invoice.paymentEligible)
@@ -247,10 +249,10 @@ export default function PayScreen({ navigation }: any) {
             adjustsFontSizeToFit
             minimumFontScale={0.65}
           >
-            {inr(dues.outstanding)}
+            {reconciliationRequired ? "—" : inr(dues.outstanding)}
           </Text>
         </View>
-        {dues.overdue > 0 ? (
+        {!reconciliationRequired && dues.overdue > 0 ? (
           <View style={[styles.cell, styles.cellBorder]}>
             <Text style={styles.cellLabel} numberOfLines={1}>
               {t("home.overdue")}
@@ -267,31 +269,39 @@ export default function PayScreen({ navigation }: any) {
         ) : null}
       </View>
 
-      <SectionTitle>{t("pay.howDuesAge")}</SectionTitle>
-      <View style={styles.band}>
-        {BUCKETS.map((b, i) => {
-          const amt = Number(ageing[b.key] ?? 0);
-          if (amt <= 0) return null;
-          return (
-            <View key={b.key} style={[styles.row, i > 0 && styles.rowBorder]}>
-              <Text style={styles.rowLabel}>{b.label}</Text>
-              <Text style={[styles.rowValue, b.danger && { color: colors.danger }]}>{inr(amt)}</Text>
-            </View>
-          );
-        })}
-        {ageing.oldestDueDate && (
-          <Text style={styles.oldest}>
-            Oldest unpaid bill was due{" "}
-            {new Date(ageing.oldestDueDate).toLocaleDateString("en-IN", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            })}
-          </Text>
-        )}
-      </View>
+      {reconciliationRequired ? (
+        <Text style={styles.warningText}>{t("finance.balanceUnderReviewBody")}</Text>
+      ) : null}
 
-      {invoiceAllocationRequired ? (
+      {!reconciliationRequired && (
+        <>
+          <SectionTitle>{t("pay.howDuesAge")}</SectionTitle>
+          <View style={styles.band}>
+            {BUCKETS.map((b, i) => {
+              const amt = Number(ageing[b.key] ?? 0);
+              if (amt <= 0) return null;
+              return (
+                <View key={b.key} style={[styles.row, i > 0 && styles.rowBorder]}>
+                  <Text style={styles.rowLabel}>{b.label}</Text>
+                  <Text style={[styles.rowValue, b.danger && { color: colors.danger }]}>{inr(amt)}</Text>
+                </View>
+              );
+            })}
+            {ageing.oldestDueDate && (
+              <Text style={styles.oldest}>
+                Oldest unpaid bill was due{" "}
+                {new Date(ageing.oldestDueDate).toLocaleDateString("en-IN", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
+              </Text>
+            )}
+          </View>
+        </>
+      )}
+
+      {!reconciliationRequired && (invoiceAllocationRequired ? (
         <>
           <SectionTitle>{t("pay.selectInvoice")}</SectionTitle>
           <View style={styles.invoiceList}>
@@ -415,9 +425,11 @@ export default function PayScreen({ navigation }: any) {
                   <Text style={styles.quickText}>{t("pay.payOverdue")}</Text>
                 </TouchableOpacity>
               )}
-              <TouchableOpacity style={styles.quickBtn} onPress={() => setAmount(String(dues.outstanding))}>
-                <Text style={styles.quickText}>{t("pay.payAll")}</Text>
-              </TouchableOpacity>
+              {dues.outstanding > 0 && (
+                <TouchableOpacity style={styles.quickBtn} onPress={() => setAmount(String(dues.outstanding))}>
+                  <Text style={styles.quickText}>{t("pay.payAll")}</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {!valid && amount.length > 0 ? (
@@ -432,26 +444,28 @@ export default function PayScreen({ navigation }: any) {
             Payments clear your oldest bill first, so paying reduces overdue before anything else.
           </Text>
         </>
+      ))}
+
+      {!reconciliationRequired && (
+        <TouchableOpacity
+          style={[styles.payBtn, (!valid || paying) && styles.payBtnDisabled]}
+          disabled={!valid || paying}
+          onPress={pay}
+        >
+          {paying ? (
+            <ActivityIndicator color={colors.onDark} />
+          ) : (
+            <>
+              <MaterialCommunityIcons name="cellphone-check" size={18} color={colors.onDark} />
+              <Text style={styles.payText}>Pay {valid ? inr(paymentValue) : ""} by UPI</Text>
+            </>
+          )}
+        </TouchableOpacity>
       )}
 
-      <TouchableOpacity
-        style={[styles.payBtn, (!valid || paying) && styles.payBtnDisabled]}
-        disabled={!valid || paying}
-        onPress={pay}
-      >
-        {paying ? (
-          <ActivityIndicator color={colors.onDark} />
-        ) : (
-          <>
-            <MaterialCommunityIcons name="cellphone-check" size={18} color={colors.onDark} />
-            <Text style={styles.payText}>Pay {valid ? inr(paymentValue) : ""} by UPI</Text>
-          </>
-        )}
-      </TouchableOpacity>
-
-      <Text style={styles.devHint}>
-        Development mode — payments are simulated and no money moves.
-      </Text>
+      {!reconciliationRequired && (
+        <Text style={styles.devHint}>Development mode — payments are simulated and no money moves.</Text>
+      )}
 
       <SectionTitle>{t("pay.recentPayments")}</SectionTitle>
       <View style={styles.history}>

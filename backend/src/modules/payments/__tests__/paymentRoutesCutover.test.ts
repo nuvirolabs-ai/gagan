@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   findRetailer: vi.fn(),
   invoiceCount: vi.fn(),
   createIntent: vi.fn(),
+  financialSummary: vi.fn(),
 }));
 
 vi.mock("../../../lib/prisma", () => ({
@@ -36,6 +37,7 @@ vi.mock("../../../lib/payments", () => ({
   getPaymentProvider: () => ({ verifyCallback: mocks.verifyCallback,createIntent:mocks.createIntent }),
 }));
 vi.mock("../paymentService", () => ({ settleSucceededPayment: mocks.settleNew }));
+vi.mock("../../finance/financialSummary", () => ({ financialSummaryFor: mocks.financialSummary }));
 
 import paymentRoutes from "../../../routes/payments";
 
@@ -53,10 +55,23 @@ describe("payment callback API cutover", () => {
 
   it("blocks unallocated commercial payment before contacting a provider",async()=>{
     mocks.findRetailer.mockResolvedValue({id:"retailer-1",currentBalance:1000});
+    mocks.findPayment.mockResolvedValue(null);
+    mocks.financialSummary.mockResolvedValue({reconciliationRequired:false});
     mocks.invoiceCount.mockResolvedValue(1);
     const app=express();app.use(express.json(),paymentRoutes);
     const response=await request(app).post("/payments/intent").set("Idempotency-Key","attempt-1").send({amount:100});
     expect(response.status).toBe(409);expect(response.body.error).toContain("specific invoice");
+    expect(mocks.createIntent).not.toHaveBeenCalled();
+  });
+  it("blocks a new payment intent while the account balance is unreconciled", async () => {
+    mocks.findRetailer.mockResolvedValue({ id: "retailer-1", currentBalance:62412 });
+    mocks.findPayment.mockResolvedValue(null);
+    mocks.financialSummary.mockResolvedValue({ reconciliationRequired: true });
+    mocks.createIntent.mockClear();
+    const app = express(); app.use(express.json(), paymentRoutes);
+    const response = await request(app).post("/payments/intent").set("Idempotency-Key", "unreconciled-1").send({ amount: 100 });
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ error: "financial_reconciliation_required" });
     expect(mocks.createIntent).not.toHaveBeenCalled();
   });
   it("settles a verified success through the exactly-once payment service", async () => {

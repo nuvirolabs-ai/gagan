@@ -217,6 +217,13 @@ router.post("/payments", async (req, res) => {
   if (!retailer) return res.status(404).json({ error: "Retailer not found" });
 
   const providerRef = `manual:${parsed.data.idempotencyKey}`;
+  const existingPayment = await prisma.payment.findUnique({ where: { providerRef } });
+  if (!existingPayment) {
+    const summary = await financialSummaryFor(prisma, retailer.id);
+    if (summary?.reconciliationRequired) {
+      return res.status(409).json({ error: "financial_reconciliation_required" });
+    }
+  }
   const payment = await prisma.payment.upsert({
     where: { providerRef },
     update: {},

@@ -30,7 +30,7 @@ export interface HeroModel {
   progressPct?: number;
 }
 
-export type AccountKind = "due" | "clear" | "unavailable";
+export type AccountKind = "due" | "clear" | "unavailable" | "reconciliation";
 
 export interface AccountModel {
   kind: AccountKind;
@@ -211,8 +211,19 @@ export function selectHero(input: {
 
 export function accountModel(
   credit: HomeCredit | null | undefined,
-  entityBalances?: EntityBalances | null
+  entityBalances?: EntityBalances | null,
+  reconciliationRequired = false
 ): AccountModel {
+  if (reconciliationRequired) {
+    return {
+      kind: "reconciliation",
+      outstanding: null,
+      overdue: null,
+      available: null,
+      entityRows: [],
+      entityAttributionStatus: "review_required",
+    };
+  }
   if (!credit) {
     return {
       kind: "unavailable",

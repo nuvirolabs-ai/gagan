@@ -120,7 +120,7 @@ export interface HomePayload {
   retailer: { id: string; name: string; phone: string; tier: string };
   salesRep: HomeSalesRep | null;
   credit: HomeCredit;
-  financialSummary?: { entityBalances?: EntityBalances };
+  financialSummary?: { entityBalances?: EntityBalances; reconciliationRequired?: boolean };
   scheme: HomeScheme | null;
   quickOrder: QuickOrderItem[];
   productGroups: HomeProductGroup[];

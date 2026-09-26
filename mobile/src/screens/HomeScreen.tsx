@@ -127,7 +127,7 @@ export default function HomeScreen({ navigation }: any) {
   // Product discovery owns the primary Home real estate. Order status is
   // intentionally rendered as a compact secondary row below the promotions.
   const header = headerCopy({ activeOrder: null, scheme });
-  const account = accountModel(credit, data?.financialSummary?.entityBalances);
+  const account = accountModel(credit, data?.financialSummary?.entityBalances, data?.financialSummary?.reconciliationRequired);
   const hour = new Date().getHours();
   const arriving = formatDeliveryWhen(activeOrder?.expectedDeliveryAt);
   const addableUsual = reorderLines(lastOrder, productGroups);

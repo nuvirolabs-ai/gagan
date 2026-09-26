@@ -142,6 +142,11 @@ router.post("/payments/intent", requireAuth, createRateLimiter({ name: "payment-
   }
 
   if (!payment) {
+    const summary = await financialSummaryFor(prisma, retailer.id);
+    if (!summary) return res.status(404).json({ error: "Retailer not found" });
+    if (summary.reconciliationRequired) {
+      return res.status(409).json({ error: "financial_reconciliation_required" });
+    }
     const outstanding = Number(retailer.currentBalance);
     if (outstanding <= 0) {
       return res.status(400).json({ error: "There is nothing outstanding to pay" });

@@ -71,7 +71,7 @@ export default function ProfileScreen({ navigation }: any) {
     {
       icon: "cash-multiple",
       label: t("profile.payDues"),
-      hint: credit?.overdue > 0 ? `${inr(credit.overdue)} ${t("ledger.overdue")}` : t("profile.payDuesClear"),
+      hint: data?.financialSummary?.reconciliationRequired ? t("finance.balanceUnderReview") : credit?.overdue > 0 ? `${inr(credit.overdue)} ${t("ledger.overdue")}` : t("profile.payDuesClear"),
       onPress: () => navigation.navigate("Pay"),
     },
     {
@@ -131,7 +131,7 @@ export default function ProfileScreen({ navigation }: any) {
 
       {credit ? (
         <AccountStrip
-          account={accountModel(credit)}
+          account={accountModel(credit, data?.financialSummary?.entityBalances, data?.financialSummary?.reconciliationRequired)}
           onPay={() => navigation.navigate("Pay")}
           onLedger={() => navigation.navigate("Ledger")}
         />

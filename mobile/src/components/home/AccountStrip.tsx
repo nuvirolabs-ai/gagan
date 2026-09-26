@@ -29,6 +29,20 @@ export default function AccountStrip({
     );
   }
 
+  if (account.kind === "reconciliation") {
+    return (
+      <View style={styles.band} accessibilityLabel={t("finance.balanceUnderReview")}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.clearTitle}>{t("finance.balanceUnderReview")}</Text>
+          <Text style={styles.clearBody}>{t("finance.balanceUnderReviewBody")}</Text>
+        </View>
+        <TouchableOpacity onPress={onLedger} accessibilityRole="button">
+          <Text style={styles.link}>{t("home.ledger")}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   if (account.kind === "clear") {
     return (
       <View style={styles.band} accessibilityLabel={t("home.allClear")}>

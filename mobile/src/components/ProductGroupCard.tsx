@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 
 import ProductThumb from "./ProductThumb";
 import { catalogPricePresentation } from "../lib/catalogPricePresentation";
@@ -148,21 +147,11 @@ export default function ProductGroupCard({
         </View>
       ) : null}
 
-      <View style={styles.footer}>
-        {group.hasMultiplePacks ? (
-          <Text style={styles.footNote} numberOfLines={1}>
-            <Ionicons name="cube-outline" size={11} color={colors.inkFaint} />{" "}
-            {group.skus.length} pack sizes
-          </Text>
-        ) : (
-          <View />
-        )}
-        {selected && orderable ? (
+      {selected && orderable ? (
+        <View style={styles.footer}>
           <QtyStepper qty={qty} onChange={(next) => onChangeQty(selected, next)} compact />
-        ) : (
-          <Text style={styles.footNote}>{selected?.orderingReason ?? "Unavailable"}</Text>
-        )}
-      </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -220,6 +209,5 @@ const styles = StyleSheet.create({
   packChipText: { fontSize: 12, fontWeight: "700", color: colors.inkMuted },
   packChipTextActive: { color: colors.onAccent },
 
-  footer: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  footNote: { fontSize: 11, color: colors.inkFaint },
+  footer: { flexDirection: "row", justifyContent: "flex-end" },
 });

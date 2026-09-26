@@ -38,4 +38,18 @@ describe("product group footer", () => {
     expect(rendered.match(/Ordering setup pending/g)).toHaveLength(1);
     expect(rendered).not.toContain("pack sizes");
   });
+
+  it("disables the quantity control while catalogue inventory is being revalidated", () => {
+    const tree = ProductGroupCard({
+      group: { id: "product-1", name: "Test Dal", category: "Daal", imageUrl: null, skus: [{ ...skus[0], price: 100, orderable: true }], hasMultiplePacks: false },
+      qtyFor: () => 0, onChangeQty: vi.fn(), appearance: "row", orderingDisabled: true,
+    });
+    function findStepper(node: ReactNode): any {
+      if (Array.isArray(node)) return node.map(findStepper).find(Boolean);
+      if (!isValidElement(node)) return null;
+      if (node.type === "QtyStepper") return node;
+      return findStepper((node.props as { children?: ReactNode }).children);
+    }
+    expect(findStepper(tree)?.props.disabled).toBe(true);
+  });
 });

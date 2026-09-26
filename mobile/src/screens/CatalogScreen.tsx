@@ -11,6 +11,7 @@ import { ScreenHeader, SearchBar, ChipRow, EmptyState, ScreenSkeleton } from "..
 import { useCart } from "../context/CartContext";
 import { useLanguage } from "../i18n/LanguageContext";
 import { canChangeCatalogQuantity, resolveCatalogCategory } from "../lib/catalogInteractions";
+import { catalogPresentation } from "../lib/catalogPresentation";
 
 const ALL = "All";
 const CATEGORY_LABELS: Record<string, string> = {
@@ -26,6 +27,8 @@ const CATEGORY_LABELS: Record<string, string> = {
 export default function CatalogScreen({ navigation, route }: any) {
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<ProductGroupLike>>(null);
+  const hasLoaded = useRef(false);
+  const catalogFresh = useRef(false);
   useScrollToTop(listRef);
   const { lines, addLine, updateQty } = useCart();
   const { t } = useLanguage();
@@ -41,18 +44,25 @@ export default function CatalogScreen({ navigation, route }: any) {
     const res = await api.getCatalog();
     setGroups(res.groups ?? []);
     setCategories(res.categories ?? []);
+    hasLoaded.current = true;
+    catalogFresh.current = true;
     setLoadError(false);
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
+      catalogFresh.current = false;
+      if (hasLoaded.current) setRefreshing(true);
+      else setLoading(true);
       load()
         .catch(() => {
-          setGroups([]);
+          if (!hasLoaded.current) setGroups([]);
           setLoadError(true);
         })
-        .finally(() => setLoading(false));
+        .finally(() => {
+          setLoading(false);
+          setRefreshing(false);
+        });
     }, [load])
   );
 
@@ -64,8 +74,9 @@ export default function CatalogScreen({ navigation, route }: any) {
   }, [route?.params?.category, categories]);
 
   const onRefresh = async () => {
+    catalogFresh.current = false;
     setRefreshing(true);
-    await load().catch(() => {});
+    await load().catch(() => setLoadError(true));
     setRefreshing(false);
   };
 
@@ -87,6 +98,7 @@ export default function CatalogScreen({ navigation, route }: any) {
   const qtyFor = (variantId: string) => lines.find((l) => l.variantId === variantId)?.qty ?? 0;
 
   const setQty = (group: ProductGroupLike, sku: Sku, next: number) => {
+    if (!catalogFresh.current) return;
     const current = qtyFor(sku.id);
     // Inventory is authoritative in the API. Allow a shopper to remove an
     // already-saved line, but never add a new case when SAP has not supplied
@@ -106,6 +118,7 @@ export default function CatalogScreen({ navigation, route }: any) {
   };
 
   const cartCount = lines.reduce((n, l) => n + l.qty, 0);
+  const presentation = catalogPresentation({ hasLoaded: hasLoaded.current, loading, refreshing, loadError });
 
   return (
     <View style={styles.screen}>
@@ -133,7 +146,14 @@ export default function CatalogScreen({ navigation, route }: any) {
         />
       </View>
 
-      {loading ? (
+      {presentation.showRefreshError && <View style={styles.refreshError}>
+        <Text style={styles.refreshErrorText}>{t("catalog.refreshError")}</Text>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t("common.retry")} disabled={refreshing} onPress={() => void onRefresh()}>
+          <Ionicons name="refresh" size={20} color={colors.danger} />
+        </TouchableOpacity>
+      </View>}
+
+      {presentation.showSkeleton ? (
         <ScreenSkeleton featured rows={3} />
       ) : (
         <FlatList
@@ -174,6 +194,7 @@ export default function CatalogScreen({ navigation, route }: any) {
                 navigation.navigate("ProductDetail", { productId: item.skus[0]?.productId })
               }
               appearance={index === 0 ? "featured" : "row"}
+              orderingDisabled={presentation.disableOrdering}
             />
           )}
         />
@@ -184,6 +205,8 @@ export default function CatalogScreen({ navigation, route }: any) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
+  refreshError: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, backgroundColor: colors.surfaceAlt },
+  refreshErrorText: { flex: 1, color: colors.danger, fontSize: 12.5, lineHeight: 18 },
   cartChip: {
     flexDirection: "row",
     alignItems: "center",

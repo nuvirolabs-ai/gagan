@@ -66,6 +66,7 @@ export default function ProductGroupCard({
   onOpen,
   compact,
   appearance = "card",
+  orderingDisabled = false,
 }: {
   group: ProductGroupLike;
   qtyFor: (variantId: string) => number;
@@ -74,6 +75,7 @@ export default function ProductGroupCard({
   compact?: boolean;
   /** Home merchandising: featured wash or compact row. Catalog keeps "card". */
   appearance?: "card" | "featured" | "row";
+  orderingDisabled?: boolean;
 }) {
   // A pack the shopper already has in the cart is the one they mean; otherwise
   // start on the first orderable pack rather than a sold-out one.
@@ -149,7 +151,7 @@ export default function ProductGroupCard({
 
       {selected && orderable ? (
         <View style={styles.footer}>
-          <QtyStepper qty={qty} onChange={(next) => onChangeQty(selected, next)} compact />
+          <QtyStepper qty={qty} onChange={(next) => onChangeQty(selected, next)} compact disabled={orderingDisabled} />
         </View>
       ) : null}
     </View>

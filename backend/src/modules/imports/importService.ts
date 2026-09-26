@@ -63,6 +63,10 @@ function lower(value: string) {
   return value.trim().toLowerCase();
 }
 
+function canonicalPhoneOrNull(value: string): string | null {
+  try { return normalizeIndianPhone(value); } catch { return null; }
+}
+
 function withMode(row: PreparedRow, mode: ImportMode) {
   if (row.action === "blocked") return;
   if (mode === "create_only" && row.action === "update") row.errors.push("A matching record already exists (create-only mode).");
@@ -124,7 +128,9 @@ export async function validateRows(db: Db, type: ImportType, rawRows: RawImportR
         if (text(values, "salesperson_employee_ref") && !salesperson?.salesRepId) row.errors.push("salesperson_employee_ref must match an existing salesperson.");
         const creditLimit = text(values, "credit_limit") ? numberValue(values, "credit_limit") : 0;
         if (creditLimit === null || creditLimit < 0) row.errors.push("credit_limit must be a non-negative number.");
-        const existing = phone ? ctx.retailers.find((item) => item.phone === phone) : null;
+        const matches = phone ? ctx.retailers.filter((item) => canonicalPhoneOrNull(item.phone) === phone) : [];
+        if (matches.length > 1) row.errors.push("Multiple retailer records share this phone after normalization.");
+        const existing = matches.length === 1 ? matches[0] : null;
         row.action = existing ? "update" : "create";
         if (existing) row.match = { id: existing.id, label: existing.name };
         row.resolved = { phone, tierId: tier?.id, salesRepId: salesperson?.salesRepId ?? null, existingId: existing?.id ?? null };
@@ -313,12 +319,23 @@ async function applyRow(db: Db, type: ImportType, row: PreparedRow, mode: Import
   const resolved = row.resolved ?? {};
   if (type === "retailers") {
     const result = await inTransaction(db, async (tx) => {
-      const existing = await tx.retailer.findUnique({ where: { phone: String(resolved.phone) } });
+      const phone = String(resolved.phone);
+      const digits = phone.slice(3);
+      const candidates = await tx.retailer.findMany({ where: { phone: { in: [phone, digits, `0${digits}`, `91${digits}`] } } });
+      const previewMatchId = typeof resolved.existingId === "string" ? resolved.existingId : null;
+      if (previewMatchId && !candidates.some((item) => item.id === previewMatchId)) {
+        const previewMatch = await tx.retailer.findUnique({ where: { id: previewMatchId } });
+        if (previewMatch) candidates.push(previewMatch);
+      }
+      const matches = candidates.filter((item) => canonicalPhoneOrNull(item.phone) === phone);
+      if (matches.length > 1) throw new ImportServiceError("ambiguous_retailer_phone", 409);
+      const existing = matches[0] ?? null;
+      if (previewMatchId && existing?.id !== previewMatchId) throw new ImportServiceError("retailer_identity_changed", 409);
       if (existing && mode === "create_only") throw new ImportServiceError("already_exists", 409);
       if (!existing && mode === "update_only") throw new ImportServiceError("not_found", 404);
       const data = { name: text(v, "name"), shopAddress: text(v, "shop_address"), tierId: String(resolved.tierId), creditLimit: numberValue(v, "credit_limit") ?? 0, ...(resolved.salesRepId ? { salesRepId: String(resolved.salesRepId) } : {}), ...(text(v, "sap_customer_id") ? { sapCustomerId: text(v, "sap_customer_id") } : {}) };
       if (existing) return { row: await tx.retailer.update({ where: { id: existing.id }, data }), action: "updated" as const };
-      const created = await tx.retailer.create({ data: { ...data, phone: String(resolved.phone) } });
+      const created = await tx.retailer.create({ data: { ...data, phone } });
       await tx.retailerLocation.create({ data: { retailerId: created.id, status: "NOT_SET", source: "MIGRATION", locationVersion: 0 } });
       await tx.creditProfile.create({ data: { retailerId: created.id, rating: "N", accountCreatedAt: created.createdAt, nextReviewAt: nextQuarterlyCheckpoint(created.createdAt) } });
       await recordCommercialStatusEvent(tx, {

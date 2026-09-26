@@ -6,15 +6,17 @@ import { prisma } from "../../lib/prisma";
 import { lazyIdentitySessionService } from "../../modules/identity/sessionRuntime";
 
 const run = randomUUID();
-const ids = { adminUser: randomUUID(), staff: randomUUID() };
+const ids = { adminUser: randomUUID(), staff: randomUUID(), seller: randomUUID() };
 const productName = `ADM-02 import ${run}`;
 const actorPhone = `89${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "1")}`;
 const app = createApp();
 let token = "";
+let sellerToken = "";
 let importJobId = "";
 
 beforeAll(async () => {
   const adminRole = await prisma.role.findUniqueOrThrow({ where: { name: "platform_admin" } });
+  const sellerRole = await prisma.role.findUniqueOrThrow({ where: { name: "salesperson" } });
   await prisma.adminUser.create({
     data: {
       id: ids.adminUser,
@@ -39,15 +41,29 @@ beforeAll(async () => {
     deviceName: "adm02-import-integration-test",
   });
   token = session.accessToken;
+  await prisma.staffUser.create({
+    data: {
+      id: ids.seller,
+      name: "ADM-03 seller denial test",
+      phone: `88${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "2")}`,
+      email: `adm03-seller-${run}@test.invalid`,
+      roles: { create: { roleId: sellerRole.id } },
+    },
+  });
+  sellerToken = (await lazyIdentitySessionService.createSession({
+    realm: "staff",
+    subjectId: ids.seller,
+    deviceName: "adm03-import-denial-test",
+  })).accessToken;
 });
 
 afterAll(async () => {
-  await prisma.deviceSession.deleteMany({ where: { subjectId: ids.staff } });
+  await prisma.deviceSession.deleteMany({ where: { subjectId: { in: [ids.staff, ids.seller] } } });
   await prisma.auditEvent.deleteMany({ where: { actorStaffId: ids.staff } });
   if (importJobId) await prisma.importJob.deleteMany({ where: { id: importJobId } });
   await prisma.variant.deleteMany({ where: { product: { name: productName } } });
   await prisma.product.deleteMany({ where: { name: productName } });
-  await prisma.staffUser.deleteMany({ where: { id: ids.staff } });
+  await prisma.staffUser.deleteMany({ where: { id: { in: [ids.staff, ids.seller] } } });
   await prisma.adminUser.deleteMany({ where: { id: ids.adminUser } });
   expect(await prisma.importJob.count({ where: { id: importJobId } })).toBe(0);
   expect(await prisma.product.count({ where: { name: productName } })).toBe(0);
@@ -56,6 +72,11 @@ afterAll(async () => {
 });
 
 describe("Admin Import Center PostgreSQL/API workflow", () => {
+  it("does not expose imports or catalogue drafts to a salesperson session", async () => {
+    await request(app).get("/admin/imports").set("Authorization", `Bearer ${sellerToken}`).expect(401);
+    await request(app).get("/admin/products?view=all").set("Authorization", `Bearer ${sellerToken}`).expect(401);
+  });
+
   it("matches template headers, previews without writes, then applies and reads back one product", async () => {
     const template = await request(app)
       .get("/admin/imports/templates/products.csv")

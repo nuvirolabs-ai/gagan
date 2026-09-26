@@ -5,6 +5,7 @@ import { createApp } from "../../../app";
 import { prisma } from "../../../lib/prisma";
 import { lazyIdentitySessionService } from "../../identity/sessionRuntime";
 import { financialSummaryFor } from "../financialSummary";
+import { FieldDashboardService } from "../../field/dashboardService";
 
 const run = randomUUID();
 const ids = {
@@ -16,23 +17,31 @@ const ids = {
   attributedInvoice: `summary-attributed-invoice-${run}`,
   legacyInvoice: `summary-legacy-invoice-${run}`,
   payment: `summary-payment-${run}`,
+  rep: randomUUID(),
+  staff: randomUUID(),
 };
 
 beforeAll(async () => {
   await prisma.tier.create({ data: { id: ids.tier, name: `Summary tier ${run}` } });
-  await prisma.retailer.create({ data: { id: ids.retailer, name: "Summary retailer", phone: `87${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "7")}`, shopAddress: "Test", tierId: ids.tier, creditLimit: 100_000, currentBalance: 62_412, overdueAmount: 40_500 } });
+  await prisma.salesRep.create({ data: { id: ids.rep, name: "Summary rep", phone: `86${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "6")}` } });
+  const role = await prisma.role.findUniqueOrThrow({ where: { name: "salesperson" } });
+  await prisma.staffUser.create({ data: { id: ids.staff, name: "Summary staff", phone: `86${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "6")}`, email: `summary-${run}@test.invalid`, salesRepId: ids.rep, roles: { create: { roleId: role.id } } } });
+  await prisma.retailer.create({ data: { id: ids.retailer, name: "Summary retailer", phone: `87${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "7")}`, shopAddress: "Test", tierId: ids.tier, salesRepId: ids.rep, creditLimit: 100_000, currentBalance: 62_412, overdueAmount: 40_500 } });
   await prisma.retailer.create({ data: { id: ids.entityRetailer, name: "Entity summary retailer", phone: `88${run.replace(/\D/g, "").slice(0, 8).padEnd(8, "8")}`, shopAddress: "Test", tierId: ids.tier, creditLimit: 100_000, currentBalance: 0, overdueAmount: 0 } });
 });
 
 afterAll(async () => {
   await prisma.paymentAllocation.deleteMany({ where: { paymentId: ids.payment } });
   await prisma.payment.deleteMany({ where: { id: ids.payment } });
+  await prisma.deviceSession.deleteMany({ where: { subjectId: ids.staff } });
+  await prisma.staffUser.deleteMany({ where: { id: ids.staff } });
   await prisma.invoice.deleteMany({ where: { retailerId: ids.entityRetailer } });
-  await prisma.retailer.delete({ where: { id: ids.entityRetailer } });
+  await prisma.retailer.deleteMany({ where: { id: ids.entityRetailer } });
   await prisma.invoice.deleteMany({ where: { retailerId: ids.retailer } });
   await prisma.order.deleteMany({ where: { id: ids.order } });
-  await prisma.retailer.delete({ where: { id: ids.retailer } });
-  await prisma.tier.delete({ where: { id: ids.tier } });
+  await prisma.retailer.deleteMany({ where: { id: ids.retailer } });
+  await prisma.salesRep.deleteMany({ where: { id: ids.rep } });
+  await prisma.tier.deleteMany({ where: { id: ids.tier } });
   await prisma.$disconnect();
 });
 
@@ -60,6 +69,18 @@ describe("shared financial summary", () => {
     expect(summary).toMatchObject({ outstanding: 12_500, overdue: 12_500, source: "local_invoice_ledger", isStale: false });
     expect(summary?.invoiceAgeing?.totalOutstanding).toBe(12_500);
     expect(summary?.reconciliationRequired).toBe(true);
+
+    const receivables = await new FieldDashboardService(prisma).pendingCollections(ids.staff);
+    expect(receivables.retailers).toEqual([]);
+    expect(receivables.reviewRetailers).toEqual([{ id: ids.retailer, name: "Summary retailer" }]);
+    expect(receivables.totalOverdue).toBe(0);
+    const staffSession = await lazyIdentitySessionService.createSession({ realm: "staff", subjectId: ids.staff, deviceName: "finance-reconciliation-rep-test" });
+    const repHeaders = { Authorization: `Bearer ${staffSession.accessToken}` };
+    const repToday = await request(createApp()).get("/rep/field/today").set(repHeaders).expect(200);
+    expect(repToday.body.pendingCollections.reviewRetailers).toEqual([{ id: ids.retailer, name: "Summary retailer" }]);
+    const repRetailers = await request(createApp()).get("/rep/retailers").set(repHeaders).expect(200);
+    expect(repRetailers.body.retailers[0].financialSummary.reconciliationRequired).toBe(true);
+    expect(repRetailers.body.totals).toMatchObject({ count: 1, outstanding: 0, overdue: 0, reconciliationRequiredCount: 1 });
 
     const session = await lazyIdentitySessionService.createSession({
       realm: "retailer", subjectId: ids.retailer, deviceName: "finance-reconciliation-test",

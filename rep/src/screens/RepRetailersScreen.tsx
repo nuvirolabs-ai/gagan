@@ -126,7 +126,7 @@ export default function RepRetailersScreen({ navigation }: any) {
       const matchesQuery = !q || r.name.toLowerCase().includes(q) || r.phone.includes(q);
       if (!matchesQuery) return false;
       if (filter === "route") return routeIds.has(r.id);
-      if (filter === "overdue") return Number(r.overdue) > 0;
+      if (filter === "overdue") return !r.financialSummary?.reconciliationRequired && Number(r.overdue) > 0;
       if (filter === "opportunities") return opportunityIds.has(r.id);
       return true;
     });
@@ -163,8 +163,9 @@ export default function RepRetailersScreen({ navigation }: any) {
       </View>
 
       <Text style={styles.summary} numberOfLines={2}>
-        {totals.count} · {inr(totals.outstanding)} outstanding
-        {totals.overdue > 0 ? ` · ${inr(totals.overdue)} overdue` : ""}
+        {totals.count} · {totals.reconciliationRequiredCount > 0
+          ? t("finance.reviewExcluded", { count: totals.reconciliationRequiredCount })
+          : `${inr(totals.outstanding)} outstanding${totals.overdue > 0 ? ` · ${inr(totals.overdue)} overdue` : ""}`}
       </Text>
 
       <SearchBar value={query} onChange={setQuery} placeholder={t("retailers.search")} />
@@ -217,9 +218,12 @@ export default function RepRetailersScreen({ navigation }: any) {
             />
           }
           renderItem={({ item }) => {
-            const overdue = Number(item.overdue) > 0;
+            const reviewRequired = item.financialSummary?.reconciliationRequired === true;
+            const overdue = !reviewRequired && Number(item.overdue) > 0;
             const onRoute = routeIds.has(item.id);
-            const chip = overdue
+            const chip = reviewRequired
+              ? { label: t("finance.reviewTitle"), tone: "danger" as const }
+              : overdue
               ? { label: t("retailers.filterOverdue"), tone: "danger" as const }
               : onRoute
                 ? { label: t("retailers.routeToday"), tone: "green" as const }
@@ -230,9 +234,9 @@ export default function RepRetailersScreen({ navigation }: any) {
               <OutletCard
                 item={item}
                 chip={chip}
-                dueLabel={overdue ? t("retailers.overdueAmount", { amount: inr(item.overdue) }) : t("retailers.due", { amount: inr(item.outstanding) })}
-                dueTone={overdue ? "danger" : "ink"}
-                creditLabel={t("retailers.credit", { amount: inr(item.available) })}
+                dueLabel={reviewRequired ? t("finance.reviewTitle") : overdue ? t("retailers.overdueAmount", { amount: inr(item.overdue) }) : t("retailers.due", { amount: inr(item.outstanding) })}
+                dueTone={reviewRequired || overdue ? "danger" : "ink"}
+                creditLabel={reviewRequired ? t("finance.creditUnderReview") : t("retailers.credit", { amount: inr(item.available) })}
                 onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: item.id })}
               />
             );

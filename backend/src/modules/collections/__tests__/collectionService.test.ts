@@ -193,4 +193,32 @@ describe("field collection workflow", () => {
     expect(await prisma.financialLedgerEntry.count({ where: { paymentId: first.paymentId } })).toBe(1);
     expect(await prisma.collectionSubmission.count({ where: { status: "confirmed", retailerId: ids.retailer } })).toBe(1);
   });
+
+  it("does not accept a new collection while the account balance needs reconciliation", async () => {
+    await prisma.retailer.update({ where: { id: ids.retailer }, data: { currentBalance: 62_412 } });
+    const before = await prisma.collectionSubmission.count({ where: { retailerId: ids.retailer } });
+    await expect(service.submit({
+      retailerId: ids.retailer,
+      collectorStaffId: "collector-1",
+      actorPermissions: ["collection.submit"],
+      amount: 100,
+      method: "cash",
+      reference: "uat-review-no-payment",
+      idempotencyKey: `reconciliation-${randomUUID()}`,
+    })).rejects.toMatchObject({ code: "financial_reconciliation_required", status: 409 });
+    expect(await prisma.collectionSubmission.count({ where: { retailerId: ids.retailer } })).toBe(before);
+  });
+
+  it("does not start a new payment when Accounts confirms a pending collection for an account under review", async () => {
+    const pending = await prisma.collectionSubmission.findFirstOrThrow({
+      where: { retailerId: ids.retailer, status: "pending", paymentId: null },
+    });
+    const before = await prisma.payment.count({ where: { retailerId: ids.retailer } });
+    await expect(service.confirm(pending.id, {
+      actorStaffId: "accounts-1",
+      actorPermissions: ["collection.confirm"],
+      stepUpUntil: new Date(Date.now() + 60_000),
+    })).rejects.toMatchObject({ code: "financial_reconciliation_required", status: 409 });
+    expect(await prisma.payment.count({ where: { retailerId: ids.retailer } })).toBe(before);
+  });
 });

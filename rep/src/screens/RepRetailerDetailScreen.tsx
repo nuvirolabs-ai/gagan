@@ -212,6 +212,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   }
 
   const { retailer, credit, recentOrders, recentLedger, kyc, financialSummary } = data;
+  const reviewRequired = financialSummary?.reconciliationRequired === true;
   const kycApproved = retailer.lifecycle === "active" && (kyc?.status === "approved" || kyc?.legacyVerified === true);
   const blocked = credit.available <= 0 || !kycApproved;
   const visiting = Boolean(activeVisit && !activeVisit.checkedOutAt);
@@ -332,7 +333,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
     <AppScreen>
       <KeyboardSafeScrollView contentContainerStyle={[styles.content, { paddingBottom: 140 + insets.bottom }]}>
         <View style={styles.head}>
-          <InitialsBadge name={retailer.name} size={56} tone={credit.overdue > 0 ? "danger" : "green"} />
+          <InitialsBadge name={retailer.name} size={56} tone={reviewRequired || credit.overdue > 0 ? "danger" : "green"} />
           <View style={{ flex: 1 }}>
             <Text style={styles.name}>{retailer.name}</Text>
             <Text style={styles.address} numberOfLines={2}>
@@ -372,7 +373,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
             <PrimaryButton label={t("customer.takeOrder")} icon="cart-outline" disabled={blocked} onPress={startOrder} />
             <View style={styles.actions}>
               <View style={{ flex: 1 }}>
-                {capabilities.canCollect && (Number(credit.outstanding) > 0 || Number(credit.overdue) > 0) ? (
+                {capabilities.canCollect && !reviewRequired && (Number(credit.outstanding) > 0 || Number(credit.overdue) > 0) ? (
                   <SecondaryButton
                     label={t("customer.collect")}
                     icon="wallet-outline"
@@ -439,8 +440,8 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
             </View>
             <Text style={styles.intelligenceFoot}>Regular categories: {baseline.regularCategories?.length ? baseline.regularCategories.join(", ") : "Building from order history"}</Text>
             {baseline.trend !== "unknown" ? <StatusChip label={`Recent order trend ${baseline.trend}`} tone={baseline.trend === "rising" ? "green" : baseline.trend === "falling" ? "warning" : "neutral"} /> : null}
-            {opportunities.length > 0 ? (
-              <View style={styles.attentionBox}><Text style={styles.attentionTitle}>Needs attention</Text>{opportunities.slice(0, 2).map((item) => <Text key={item.id ?? item.headline} style={styles.muted}>• {item.headline}</Text>)}</View>
+            {opportunities.filter((item) => !reviewRequired || item.type !== "COLLECTION_DUE").length > 0 ? (
+              <View style={styles.attentionBox}><Text style={styles.attentionTitle}>Needs attention</Text>{opportunities.filter((item) => !reviewRequired || item.type !== "COLLECTION_DUE").slice(0, 2).map((item) => <Text key={item.id ?? item.headline} style={styles.muted}>• {item.headline}</Text>)}</View>
             ) : null}
           </Surface>
         ) : null}
@@ -456,18 +457,18 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
               <View style={styles.moneyCell}>
                 <Text style={styles.moneyLabel}>{t("profile.outstanding")}</Text>
                 <Text style={styles.moneyValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                  {inr(credit.outstanding)}
+                  {reviewRequired ? "—" : inr(credit.outstanding)}
                 </Text>
               </View>
               <MaterialCommunityIcons name="chevron-right" size={22} color={colors.primary} />
             </View>
-            <EntityAttribution
+            {reviewRequired ? <Text style={styles.muted}>{t("finance.reviewTitle")}. {t("finance.reviewBody")}</Text> : <EntityAttribution
               amounts={financialSummary?.entityBalances?.outstanding}
               overdue={financialSummary?.entityBalances?.overdue}
               expectedOverdue={Number(credit.overdue)}
               status={financialSummary?.entityBalances?.attributionStatus}
               expectedTotal={Number(credit.outstanding)}
-            />
+            />}
           </Surface>
         </Pressable>
 
@@ -501,7 +502,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
           </Surface>
         ) : null}
 
-        {credit.overdue > 0 ? (
+        {!reviewRequired && credit.overdue > 0 ? (
           <FocusCard tone="danger">
             <Text style={styles.insight}>{inr(credit.overdue)} overdue</Text>
             <Text style={styles.insightBody}>Collect before taking a large order.</Text>

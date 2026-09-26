@@ -24,4 +24,17 @@ describe("visibleAttentionItems", () => {
     });
     expect(followUpItems[0]).toMatchObject({ source: "follow_up", subtitle: "Confirm new range" });
   });
+
+  it("shows a finance review instead of collection advice for the same store", () => {
+    const items = visibleAttentionItems({
+      accountReviews: [{ id: "r1", name: "Mahesh Store" }],
+      overdueRetailers: [],
+      opportunityActions: [
+        { type: "COLLECTION_DUE", retailerId: "r1", headline: "Collect from Mahesh Store" },
+      ],
+    });
+    expect(items).toEqual([expect.objectContaining({
+      retailerId: "r1", title: "Mahesh Store", source: "reconciliation",
+    })]);
+  });
 });

@@ -23,6 +23,7 @@ type FinanceSummary = {
   creditLimit: number;
   availableCredit: number;
   isStale: boolean;
+  reconciliationRequired?: boolean;
   entityBalances?: {
     outstanding?: EntityAmounts;
     overdue?: EntityAmounts;
@@ -139,31 +140,31 @@ export default function RepRetailerOutstandingScreen({ route }: any) {
             <View style={styles.grow}>
               <Text style={styles.outstandingLabel}>{t("profile.outstanding")}</Text>
               <Text style={styles.outstandingValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                {inr(summary.outstanding)}
+                {summary.reconciliationRequired ? "—" : inr(summary.outstanding)}
               </Text>
             </View>
           </View>
           <View style={styles.metrics}>
             <View style={styles.metric}>
               <Text style={styles.metricLabel}>{t("retailer.overdue")}</Text>
-              <Text style={styles.metricValue}>{inr(summary.overdue)}</Text>
+              <Text style={styles.metricValue}>{summary.reconciliationRequired ? "—" : inr(summary.overdue)}</Text>
             </View>
             <View style={styles.metric}>
               <Text style={styles.metricLabel}>{t("profile.availableCredit")}</Text>
-              <Text style={styles.metricValue}>{inr(summary.availableCredit)}</Text>
+              <Text style={styles.metricValue}>{summary.reconciliationRequired ? "—" : inr(summary.availableCredit)}</Text>
             </View>
             <View style={styles.metric}>
               <Text style={styles.metricLabel}>{t("retailer.creditLimit")}</Text>
               <Text style={styles.metricValue}>{inr(summary.creditLimit)}</Text>
             </View>
           </View>
-          <EntityAttribution
+          {summary.reconciliationRequired ? <Text style={styles.stale}>{t("finance.reviewTitle")}. {t("finance.reviewBody")}</Text> : <EntityAttribution
             amounts={summary.entityBalances?.outstanding}
             overdue={summary.entityBalances?.overdue}
             expectedOverdue={summary.overdue}
             status={summary.entityBalances?.attributionStatus}
             expectedTotal={summary.outstanding}
-          />
+          />}
           {summary.isStale ? <Text style={styles.stale}>{t("retailer.accountDataStale")}</Text> : null}
         </Surface>
 

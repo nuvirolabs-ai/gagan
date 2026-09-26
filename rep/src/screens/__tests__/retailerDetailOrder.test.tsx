@@ -77,4 +77,22 @@ describe("Salesperson retailer detail order", () => {
     }
     expect(blocks.slice(5).join(" ")).toContain("retailer.recentOrders");
   });
+
+  it("does not show a payable number for an account needing reconciliation", () => {
+    state.values.set(0, {
+      retailer: { id: "store-1", name: "Test Store", shopAddress: "Main Road", lifecycle: "active" },
+      credit: { outstanding: 0, overdue: 0, available: 500 },
+      recentOrders: [], recentLedger: [], kyc: { status: "approved" },
+      financialSummary: { reconciliationRequired: true },
+    });
+    state.values.set(1, { status: "VERIFIED" });
+    state.values.set(12, { trend: "unknown", regularCategories: [] });
+    state.values.set(15, []);
+    state.values.set(17, false);
+    const screen = RepRetailerDetailScreen({ route: { params: { retailerId: "store-1" } }, navigation: {} });
+    const scroll = Children.toArray(screen.props.children)[0] as React.ReactElement<{ children: ReactNode }>;
+    const rendered = Children.toArray(scroll.props.children).map(content).join(" ");
+    expect(rendered).toContain("finance.reviewTitle");
+    expect(rendered).not.toContain("INR 0");
+  });
 });

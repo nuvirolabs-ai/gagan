@@ -165,6 +165,7 @@ router.get("/retailers", requireRep, async (req: RepRequest, res) => {
       overdue: financial.overdue,
       available: financial.availableCredit,
       utilisationPct: limit > 0 ? Math.round((balance / limit) * 100) : 0,
+      reconciliationRequired: financial.reconciliationRequired,
       financialSummary: financial,
     };
   }));
@@ -173,8 +174,9 @@ router.get("/retailers", requireRep, async (req: RepRequest, res) => {
     retailers: summary,
     totals: {
       count: summary.length,
-      outstanding: summary.reduce((s, r) => s + r.outstanding, 0),
-      overdue: summary.reduce((s, r) => s + r.overdue, 0),
+      outstanding: summary.reduce((s, r) => s + (r.reconciliationRequired ? 0 : r.outstanding), 0),
+      overdue: summary.reduce((s, r) => s + (r.reconciliationRequired ? 0 : r.overdue), 0),
+      reconciliationRequiredCount: summary.filter((r) => r.reconciliationRequired).length,
     },
   });
 });

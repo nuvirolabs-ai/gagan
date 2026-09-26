@@ -15,6 +15,7 @@ import {
   workedMinutes,
 } from "./fieldDomain";
 import { buildPerformanceVisuals } from "./performanceVisuals";
+import { financialSummaryFor } from "../finance/financialSummary";
 
 type Db = PrismaClient | any;
 
@@ -240,7 +241,7 @@ export class FieldDashboardService {
    */
   async pendingCollections(salespersonId: string) {
     const salesRepId = await this.salesRepIdFor(salespersonId);
-    if (!salesRepId) return { retailers: [], totalOverdue: 0, totalOutstanding: 0 };
+    if (!salesRepId) return { retailers: [], reviewRetailers: [], totalOverdue: 0, totalOutstanding: 0 };
     const retailers = await this.prisma.retailer.findMany({
       where: { salesRepId, overdueAmount: { gt: 0 } },
       select: {
@@ -254,8 +255,13 @@ export class FieldDashboardService {
       orderBy: { overdueAmount: "desc" },
       take: 25,
     });
+    const reviewed = await Promise.all(retailers.map(async (retailer: any) => ({
+      retailer,
+      reconciliationRequired: (await financialSummaryFor(this.prisma, retailer.id))?.reconciliationRequired ?? false,
+    })));
+    const actionable = reviewed.filter(({ reconciliationRequired }) => !reconciliationRequired).map(({ retailer }) => retailer);
     return {
-      retailers: retailers.map((retailer: any) => ({
+      retailers: actionable.map((retailer: any) => ({
         id: retailer.id,
         name: retailer.name,
         phone: retailer.phone,
@@ -263,8 +269,9 @@ export class FieldDashboardService {
         overdue: money(retailer.overdueAmount),
         outstanding: money(retailer.currentBalance),
       })),
-      totalOverdue: retailers.reduce((sum: number, r: any) => sum + money(r.overdueAmount), 0),
-      totalOutstanding: retailers.reduce((sum: number, r: any) => sum + money(r.currentBalance), 0),
+      reviewRetailers: reviewed.filter(({ reconciliationRequired }) => reconciliationRequired).map(({ retailer }) => ({ id: retailer.id, name: retailer.name })),
+      totalOverdue: actionable.reduce((sum: number, r: any) => sum + money(r.overdueAmount), 0),
+      totalOutstanding: actionable.reduce((sum: number, r: any) => sum + money(r.currentBalance), 0),
     };
   }
 

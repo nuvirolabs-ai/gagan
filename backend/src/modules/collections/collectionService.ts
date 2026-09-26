@@ -4,6 +4,7 @@ import { prisma } from "../../lib/prisma";
 import { settleSucceededPayment, type PaymentSettlementResult } from "../payments/paymentService";
 import { getObjectStorage } from "../../platform/storage/storageRuntime";
 import { ObjectStorageError, type ObjectStorage } from "../../platform/storage/objectStorage";
+import { financialSummaryFor } from "../finance/financialSummary";
 
 export class CollectionServiceError extends Error {
   constructor(public readonly code: string, public readonly status = 409, public readonly details?: unknown) {
@@ -124,6 +125,9 @@ export class CollectionService {
       where: { collectorStaffId: input.collectorStaffId, retailerId: input.retailerId, active: true },
     });
     if (!assignment) throw new CollectionServiceError("collection_assignment_required", 403);
+    if ((await financialSummaryFor(prisma, input.retailerId))?.reconciliationRequired) {
+      throw new CollectionServiceError("financial_reconciliation_required", 409);
+    }
     if(input.invoiceScopeId) {
       if(!/^\d+(\.\d{1,2})?$/.test(input.jainAmount ?? "") || !/^\d+(\.\d{1,2})?$/.test(input.padamAmount ?? "")) throw new CollectionServiceError("explicit_invoice_allocation_required",400);
       const b=await prisma.$transaction(tx=>invoiceBalances(tx,input.invoiceScopeId!));
@@ -310,6 +314,9 @@ export class CollectionService {
       await tx.$queryRaw`SELECT "id" FROM "Retailer" WHERE "id" = ${submission.retailerId} FOR UPDATE`;
       const retailer = await tx.retailer.findUnique({ where: { id: submission.retailerId } });
       if (!retailer) throw new CollectionServiceError("retailer_not_found", 404);
+      if ((await financialSummaryFor(tx, submission.retailerId))?.reconciliationRequired) {
+        throw new CollectionServiceError("financial_reconciliation_required", 409);
+      }
       // Commercial collections are validated against their invoice in the
       // atomic settlement below, never against a retailer-wide reporting total.
       if (!submission.invoiceScopeId && Number(submission.amount) > Number(retailer.currentBalance)) {

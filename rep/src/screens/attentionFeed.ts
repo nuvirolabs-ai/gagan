@@ -9,7 +9,7 @@ export function visibleAttentionItems<
   TAction extends { type: string; retailerId: string; headline: string; why?: string },
   TFollowUp extends { id: string; retailer?: { id: string; name: string } | null; notes?: string | null },
   TIssue extends { id: string; retailer?: { id: string; name: string } | null; type?: string; description?: string | null },
->(input: { overdueRetailers: TRetailer[]; opportunityActions: TAction[]; followUps?: TFollowUp[]; serviceIssues?: TIssue[]; limit?: number }) {
+>(input: { overdueRetailers: TRetailer[]; accountReviews?: Array<{ id: string; name: string }>; opportunityActions: TAction[]; followUps?: TFollowUp[]; serviceIssues?: TIssue[]; limit?: number }) {
   const limit = input.limit ?? 3;
   const overdueIds = new Set<string>();
   const items: Array<{
@@ -18,9 +18,15 @@ export function visibleAttentionItems<
     title: string;
     subtitle?: string;
     overdue?: number;
-    source: "overdue" | "opportunity" | "follow_up" | "service_issue";
+    source: "overdue" | "reconciliation" | "opportunity" | "follow_up" | "service_issue";
     type?: string;
   }> = [];
+
+  for (const retailer of input.accountReviews ?? []) {
+    if (items.length >= limit) break;
+    overdueIds.add(retailer.id);
+    items.push({ key: `reconciliation-${retailer.id}`, retailerId: retailer.id, title: retailer.name, source: "reconciliation" });
+  }
 
   for (const retailer of input.overdueRetailers) {
     if (items.length >= limit) break;

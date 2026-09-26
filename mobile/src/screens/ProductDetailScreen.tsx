@@ -145,7 +145,12 @@ export default function ProductDetailScreen({ route, navigation }: any) {
                   <Text style={[styles.variantTitle, active && styles.variantTitleActive]}>
                     {v.packLabel ?? v.unitSize}
                   </Text>
-                  <Text style={[styles.variantSub, active && styles.variantSubActive]}>
+                  <Text
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.75}
+                    style={[styles.variantSub, active && styles.variantSubActive]}
+                  >
                     {v.packDetail ?? `${v.unitSize} × ${v.unitsPerCase}`}
                   </Text>
                 </TouchableOpacity>
@@ -268,8 +273,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.sm,
     paddingVertical: 9,
-    paddingHorizontal: 14,
+    paddingHorizontal: 10,
     minHeight: 44,
+    minWidth: 108,
     justifyContent: "center",
     backgroundColor: "transparent",
   },

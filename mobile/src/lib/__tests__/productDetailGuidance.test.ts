@@ -25,4 +25,10 @@ describe("product detail guidance", () => {
     const source = readFileSync(fileURLToPath(new URL("../../screens/CartScreen.tsx", import.meta.url)), "utf8");
     expect(source).not.toContain('t("cart.deliveryIncluded")');
   });
+
+  it("keeps the complete pack detail inside its variant chip", () => {
+    const source = readFileSync(fileURLToPath(new URL("../../screens/ProductDetailScreen.tsx", import.meta.url)), "utf8");
+    expect(source).toMatch(/numberOfLines=\{1\}[\s\S]*?adjustsFontSizeToFit[\s\S]*?minimumFontScale=\{0\.75\}[\s\S]*?styles\.variantSub/);
+    expect(source).toMatch(/variant: \{[\s\S]*?minWidth: 108/);
+  });
 });

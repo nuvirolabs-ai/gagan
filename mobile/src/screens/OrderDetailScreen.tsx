@@ -11,6 +11,7 @@ import { StatusPill, OrderTimeline, OrderLifecycleCaption, EmptyState, ScreenSke
 import { useLanguage } from "../i18n/LanguageContext";
 import { formatOrderRef } from "../lib/orderRef";
 import { orderAttributionLabel } from "../lib/orderAttribution";
+import { hasOrderAmountMismatch } from "../lib/orderAmountMismatch";
 
 const POD_LABEL: Record<string, string> = {
   photo: "Photo",
@@ -156,6 +157,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
           <Text style={styles.sumLabel}>{t("orders.orderedValue")}</Text>
           <Text style={styles.sumValue}>{inr(Number(order.orderTotal))}</Text>
         </View>
+        {hasOrderAmountMismatch(order) && <Text style={styles.amountWarning}>{t("orders.amountMismatch")}</Text>}
         {invoice?.commercialSnapshot && <CommercialBreakdown value={invoice.commercialSnapshot}/>}
         {invoice?.entityOutstanding && <Text style={styles.sumLabel}>This invoice outstanding · Jain ₹{invoice.entityOutstanding.jain} · Padam ₹{invoice.entityOutstanding.padam}</Text>}
         {invoice ? (
@@ -265,6 +267,7 @@ const styles = StyleSheet.create({
   sumValue: { fontSize: 13.5, fontWeight: "600", color: colors.ink, flexShrink: 0 },
 
   noteText: { fontSize: 12.5, color: colors.inkMuted, lineHeight: 18, marginTop: spacing.sm },
+  amountWarning: { fontSize: 12.5, color: colors.danger, lineHeight: 18, marginBottom: spacing.sm },
 
   reorderBtn: {
     flexDirection: "row",

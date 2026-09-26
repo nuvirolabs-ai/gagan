@@ -6,6 +6,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { AppScreen, EmptyState, OrderTimeline, PrimaryButton, SectionHeader, StatusPill, Surface } from "../components/ui";
 import { repApi } from "../api/repClient";
 import { formatOrderRef } from "../lib/orderRef";
+import { hasOrderAmountMismatch } from "../lib/orderAmountMismatch";
 import { colors, inr, spacing } from "../theme";
 import { nextOrderVisitAction, type OrderVisitAction } from "./orderVisitAction";
 
@@ -118,6 +119,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
             return <View key={item.id} style={styles.itemRow}><View style={{ flex: 1 }}><Text style={styles.itemName}>{name}</Text><Text style={styles.muted}>{pack || "Standard pack"} · Qty {item.qtyOrdered}</Text></View><View style={styles.itemRight}><Text style={styles.itemPrice}>{inr(lineTotal)}</Text><Text style={styles.muted}>{inr(Number(item.unitPrice))} each</Text></View></View>;
           })}
           <View style={styles.totalRow}><Text style={styles.totalLabel}>Order total</Text><Text style={styles.totalValue}>{inr(Number(order.orderTotal))}</Text></View>
+          {hasOrderAmountMismatch(order) && <Text style={styles.amountWarning}>The item amounts do not add up to the recorded order total. Confirm the amount with Gagan before relying on it.</Text>}
         </Surface>}
 
         <Surface>
@@ -161,6 +163,7 @@ const styles = StyleSheet.create({
   totalRow: { flexDirection: "row", justifyContent: "space-between", paddingTop: spacing.lg },
   totalLabel: { color: colors.inkMuted, fontSize: 14, fontWeight: "600" },
   totalValue: { color: colors.ink, fontSize: 18, fontWeight: "700" },
+  amountWarning: { color: colors.danger, fontSize: 12.5, lineHeight: 18, marginTop: spacing.sm },
   eventRow: { flexDirection: "row", gap: spacing.md, paddingVertical: spacing.sm, alignItems: "flex-start" },
   eventDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.border, marginTop: 4 },
   eventDotCurrent: { backgroundColor: colors.primary },

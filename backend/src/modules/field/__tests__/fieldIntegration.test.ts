@@ -6,6 +6,7 @@ import { prisma } from "../../../lib/prisma";
 import { lazyIdentitySessionService } from "../../../modules/identity/sessionRuntime";
 import { getObjectStorage } from "../../../platform/storage/storageRuntime";
 import { startOfDay } from "../fieldDomain";
+import { RouteService } from "../routeService";
 
 const run = randomUUID();
 const digits = run.replace(/\D/g, "").slice(0, 8).padEnd(8, "1");
@@ -285,9 +286,42 @@ describe("manual reusable beats", () => {
       .send({ salespersonId: ids.staffA, planDate }).expect(409);
     const route = await request(app).get(`/rep/field/route?date=${planDate}`)
       .set("Authorization", `Bearer ${tokenA}`).expect(200);
-    expect(route.body.route).toMatchObject({ status: "draft", name: "North updated", stops: [
+    expect(route.body.route).toBeNull();
+    const history = await request(app).get(`/rep/field/route/history?from=${planDate}&to=${planDate}`)
+      .set("Authorization", `Bearer ${tokenA}`).expect(200);
+    expect(history.body.plans).toEqual([]);
+    const draftStop = await prisma.routePlanStop.findFirstOrThrow({ where: { routePlanId: applied.body.plan.id } });
+    const skippedDraft = await request(app).post(`/rep/field/route/stops/${draftStop.id}/skip`)
+      .set("Authorization", `Bearer ${tokenA}`).send({ reason: "Not visited" }).expect(409);
+    expect(skippedDraft.body.error).toBe("route_not_published");
+    const stillPending = await prisma.routePlanStop.findUniqueOrThrow({ where: { id: draftStop.id } });
+    expect(stillPending.status).toBe("pending");
+    await expect(new RouteService(prisma).applyBeatTemplate({
+      templateId: own.body.template.id, salespersonId: ids.staffA,
+      actorStaffId: ids.staffA, planDate: new Date("2026-11-15"), scopeStaffIds: [ids.staffA],
+    })).rejects.toMatchObject({ code: "route_self_approval_forbidden", status: 403 });
+    await expect(new RouteService(prisma).publishPlan({
+      planId: applied.body.plan.id, actorStaffId: ids.staffA, scopeStaffIds: [ids.staffA],
+    })).rejects.toMatchObject({ code: "route_self_approval_forbidden", status: 403 });
+
+    await request(app).post(`/admin/field/routes/${applied.body.plan.id}/publish`)
+      .set("Authorization", `Bearer ${managerToken}`).expect(200);
+    const activeRoute = await request(app).get(`/rep/field/route?date=${planDate}`)
+      .set("Authorization", `Bearer ${tokenA}`).expect(200);
+    expect(activeRoute.body.route).toMatchObject({ status: "published", name: "North updated", stops: [
       expect.objectContaining({ purpose: "service", retailer: expect.objectContaining({ id: ids.retailerA }) }),
     ] });
+    await prisma.routePlan.update({
+      where: { id: applied.body.plan.id }, data: { status: "completed", completedAt: new Date() },
+    });
+    const completedRoute = await request(app).get(`/rep/field/route?date=${planDate}`)
+      .set("Authorization", `Bearer ${tokenA}`).expect(200);
+    expect(completedRoute.body.route).toMatchObject({ id: applied.body.plan.id, status: "completed" });
+    const completedHistory = await request(app).get(`/rep/field/route/history?from=${planDate}&to=${planDate}`)
+      .set("Authorization", `Bearer ${tokenA}`).expect(200);
+    expect(completedHistory.body.plans).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: applied.body.plan.id, status: "completed" }),
+    ]));
   });
 });
 
@@ -666,6 +700,29 @@ describe("task activity photo evidence", () => {
 });
 
 describe("a planned stop and the visit that happened stay one record", () => {
+  it("does not link a check-in to an unpublished route stop", async () => {
+    const plan = await prisma.routePlan.create({
+      data: {
+        salespersonId: ids.staffB,
+        planDate: startOfDay(new Date()),
+        status: "draft",
+        stops: { create: [{ retailerId: ids.retailerB, sequence: 1, purpose: "service" }] },
+      },
+      include: { stops: true },
+    });
+    const checkIn = await request(app)
+      .post(`/rep/retailers/${ids.retailerB}/check-in`)
+      .set("Authorization", `Bearer ${tokenB}`)
+      .send(coordinates)
+      .expect(201);
+    expect(checkIn.body.visit.routeStopId).toBeNull();
+    expect(await prisma.routePlanStop.findUniqueOrThrow({ where: { id: plan.stops[0].id } }))
+      .toMatchObject({ status: "pending" });
+    await prisma.salesVisit.delete({ where: { id: checkIn.body.visit.id } });
+    await prisma.routePlanStop.delete({ where: { id: plan.stops[0].id } });
+    await prisma.routePlan.delete({ where: { id: plan.id } });
+  });
+
   it("links the route stop on check-in and settles it only on checkout", async () => {
     const planDate = startOfDay(new Date());
     const plan = await prisma.routePlan.create({

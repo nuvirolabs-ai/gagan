@@ -156,6 +156,9 @@ export class RouteService {
       where: { id: input.templateId }, include: { stops: { orderBy: { sequence: "asc" } } },
     });
     if (!template || template.salespersonId !== input.salespersonId) throw new FieldServiceError("beat_template_not_found", 404);
+    if (template.origin === "self" && input.actorStaffId === input.salespersonId) {
+      throw new FieldServiceError("route_self_approval_forbidden", 403);
+    }
     return this.prisma.$transaction(async (tx: Db) => {
       await tx.$queryRaw`SELECT "id" FROM "StaffUser" WHERE "id" = ${input.salespersonId} FOR UPDATE`;
       await tx.$queryRaw`SELECT "id" FROM "BeatTemplate" WHERE "id" = ${input.templateId} FOR SHARE`;
@@ -163,6 +166,9 @@ export class RouteService {
         where: { id: input.templateId }, include: { stops: { orderBy: { sequence: "asc" } } },
       });
       if (!current || current.salespersonId !== input.salespersonId) throw new FieldServiceError("beat_template_not_found", 404);
+      if (current.origin === "self" && input.actorStaffId === input.salespersonId) {
+        throw new FieldServiceError("route_self_approval_forbidden", 403);
+      }
       const planDate = startOfDay(input.planDate);
       const existing = await tx.routePlan.findUnique({
         where: { salespersonId_planDate: { salespersonId: input.salespersonId, planDate } },
@@ -199,7 +205,7 @@ export class RouteService {
     if (salespersonIds.length === 0) return progressByStaff;
 
     const plans = await this.prisma.routePlan.findMany({
-      where: { salespersonId: { in: salespersonIds }, planDate: startOfDay(date) },
+      where: { salespersonId: { in: salespersonIds }, planDate: startOfDay(date), status: { in: ["published", "completed"] } },
       include: { stops: { orderBy: { sequence: "asc" }, include: { retailer: { select: STOP_RETAILER_SELECT } } } },
     });
     for (const plan of plans as any[]) {
@@ -223,7 +229,7 @@ export class RouteService {
         },
       },
     });
-    if (!plan) return null;
+    if (!plan || (plan.status !== "published" && plan.status !== "completed")) return null;
     const stops: PublicRouteStop[] = plan.stops.map(publicStop);
     return {
       id: plan.id,
@@ -240,7 +246,7 @@ export class RouteService {
 
   async routeHistory(salespersonId: string, from: Date, to: Date) {
     const plans = await this.prisma.routePlan.findMany({
-      where: { salespersonId, planDate: { gte: startOfDay(from), lte: startOfDay(to) } },
+      where: { salespersonId, status: { in: ["published", "completed"] }, planDate: { gte: startOfDay(from), lte: startOfDay(to) } },
       include: { stops: { select: { status: true, sequence: true } } },
       orderBy: { planDate: "desc" },
     });
@@ -267,9 +273,10 @@ export class RouteService {
       await tx.$queryRaw`SELECT "id" FROM "RoutePlanStop" WHERE "id" = ${input.stopId} FOR UPDATE`;
       const stop = await tx.routePlanStop.findUnique({
         where: { id: input.stopId },
-        include: { routePlan: { select: { salespersonId: true } }, visits: { where: { checkedOutAt: null }, select: { id: true } } },
+        include: { routePlan: { select: { salespersonId: true, status: true } }, visits: { where: { checkedOutAt: null }, select: { id: true } } },
       });
       if (!stop || stop.routePlan.salespersonId !== input.salespersonId) throw new FieldServiceError("route_stop_not_found", 404);
+      if (stop.routePlan.status !== "published") throw new FieldServiceError("route_not_published", 409);
       if (stop.status !== "pending") throw new FieldServiceError("route_stop_already_settled", 409);
       if (stop.visits?.length) throw new FieldServiceError("route_stop_visit_active", 409);
       return tx.routePlanStop.update({
@@ -304,7 +311,7 @@ export class RouteService {
         routePlan: {
           salespersonId: input.salespersonId,
           planDate: startOfDay(at),
-          status: { in: ["draft", "published"] },
+          status: "published",
         },
       },
       orderBy: { sequence: "asc" },
@@ -313,9 +320,9 @@ export class RouteService {
       await tx.$queryRaw`SELECT "id" FROM "RoutePlanStop" WHERE "id" = ${stop.id} FOR UPDATE`;
       const current = await tx.routePlanStop.findUnique({
         where: { id: stop.id },
-        include: { visits: { select: { id: true } } },
+        include: { routePlan: { select: { status: true } }, visits: { select: { id: true } } },
       });
-      if (!current || current.status !== "pending" || current.visits.length) return null;
+      if (!current || current.routePlan.status !== "published" || current.status !== "pending" || current.visits.length) return null;
       await tx.salesVisit.update({
         where: { id: input.visitId },
         data: { routeStopId: stop.id, purpose: stop.purpose },
@@ -421,6 +428,7 @@ export class RouteService {
     if (!isWithinScope(plan.salespersonId, input.scopeStaffIds)) {
       throw new FieldServiceError("outside_reporting_scope", 403);
     }
+    if (plan.salespersonId === input.actorStaffId) throw new FieldServiceError("route_self_approval_forbidden", 403);
     if (plan.status !== "draft") throw new FieldServiceError("route_plan_not_draft", 409);
     return this.prisma.$transaction(async (tx: Db) => {
       const published = await tx.routePlan.update({

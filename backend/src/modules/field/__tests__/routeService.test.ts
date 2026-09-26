@@ -174,7 +174,7 @@ describe("running a route", () => {
   it("locks the salesperson before a stop so plan replacement cannot erase a concurrent skip", async () => {
     const prisma = fakePrisma();
     prisma.routePlanStop.findUnique.mockResolvedValue({
-      id: "stop-1", status: "pending", routePlan: { salespersonId: "staff-1" }, visits: [],
+      id: "stop-1", status: "pending", routePlan: { salespersonId: "staff-1", status: "published" }, visits: [],
     });
     prisma.routePlanStop.update.mockResolvedValue({ id: "stop-1", status: "skipped" });
     await new RouteService(prisma).skipStop({ stopId: "stop-1", salespersonId: "staff-1", reason: "Shop shut" });
@@ -212,7 +212,7 @@ describe("running a route", () => {
     prisma.routePlanStop.findUnique.mockResolvedValue({
       id: "stop-1",
       status: "visited",
-      routePlan: { salespersonId: "staff-1" },
+      routePlan: { salespersonId: "staff-1", status: "published" },
     });
     await expect(
       new RouteService(prisma).skipStop({
@@ -231,7 +231,9 @@ describe("running a route", () => {
       purpose: "collection",
       sequence: 2,
     });
-    prisma.routePlanStop.findUnique.mockResolvedValue({ id: "stop-1", status: "pending", visits: [] });
+    prisma.routePlanStop.findUnique.mockResolvedValue({
+      id: "stop-1", status: "pending", routePlan: { status: "published" }, visits: [],
+    });
 
     const at = new Date("2026-03-10T11:00:00Z");
     const stop = await new RouteService(prisma).linkVisitToPlannedStop({

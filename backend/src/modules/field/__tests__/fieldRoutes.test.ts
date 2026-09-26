@@ -163,6 +163,17 @@ describe("field routes always act on the caller's own identity", () => {
     expect(services.routes.routeForDate).toHaveBeenCalledWith("staff-1", expect.any(Date));
   });
 
+  it("defaults the route to the India calendar day", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-26T18:34:00.000Z"));
+    try {
+      await request(app()).get("/field/route").expect(200);
+      expect(services.routes.routeForDate).toHaveBeenCalledWith("staff-1", new Date("2026-09-27T00:00:00.000Z"));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("saves and edits only the session owner's self template", async () => {
     const body = { salespersonId: "staff-999", name: "My north beat", stops: [{ retailerId: "00000000-0000-0000-0000-000000000002" }] };
     const permissions = [...FIELD_PERMISSIONS, "route.manage_self"];

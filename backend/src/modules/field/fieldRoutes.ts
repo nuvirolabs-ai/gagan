@@ -26,6 +26,7 @@ import {
 import { CUSTOMER_ACTIVITY_TYPES, startOfDay } from "./fieldDomain";
 import { STAGING_SALES_KIT } from "./salesKit";
 import { prisma } from "../../lib/prisma";
+import { dateColumn } from "../founder/period";
 
 export interface FieldServices {
   attendance: AttendanceService;
@@ -284,7 +285,7 @@ export function createFieldRouter(options: {
     "/field/route",
     requirePermission(Permissions.ROUTE_EXECUTE),
     asyncRoute(async (req: StaffAuthedRequest, res, next) => {
-      const date = parseDateParam(req.query.date, new Date());
+      const date = parseDateParam(req.query.date, dateColumn(new Date()));
       try {
         res.json({ route: await services.routes.routeForDate(req.staffAuth!.staffId, date) });
       } catch (error) {

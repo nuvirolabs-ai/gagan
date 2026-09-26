@@ -3,7 +3,7 @@ import {beforeAll,afterAll,beforeEach,describe,it,expect} from "vitest";
 import {prisma} from "../../../lib/prisma";
 import {LocationService} from "../locationService";
 import {RouteService} from "../../field/routeService";
-import {startOfDay} from "../../field/fieldDomain";
+import {dateColumn} from "../../founder/period";
 const key=randomUUID(),staff=randomUUID(),rep=randomUUID(),tier=randomUUID(),stores=[randomUUID(),randomUUID()];
 const config={maxAccuracyMeters:50,verifiedRadiusMeters:150,reviewRadiusMeters:500};
 const input=(retailerId=stores[0])=>({salespersonId:staff,retailerId,latitude:18.52,longitude:73.85,accuracyMeters:10});
@@ -22,7 +22,7 @@ afterAll(async()=>{
 });
 describe("single-open visit on PostgreSQL",()=>{
  it("same retailer parallel calls and response retry use one intended visit and route stop",async()=>{
-  const plan=await prisma.routePlan.create({data:{salespersonId:staff,planDate:startOfDay(new Date()),status:"published",stops:{create:{retailerId:stores[0],sequence:1}}},include:{stops:true}});
+  const plan=await prisma.routePlan.create({data:{salespersonId:staff,planDate:dateColumn(new Date()),status:"published",stops:{create:{retailerId:stores[0],sequence:1}}},include:{stops:true}});
   const visits=await Promise.all([service.checkIn(input()),service.checkIn(input())]);
   expect(visits[0].id).toBe(visits[1].id);
   expect((await service.checkIn(input())).id).toBe(visits[0].id);
@@ -38,7 +38,7 @@ describe("single-open visit on PostgreSQL",()=>{
   expect(await prisma.salesVisit.count({where:{salespersonId:staff,checkedOutAt:null}})).toBe(1);
  });
  it("a failed route collaborator rolls back the visit",async()=>{
-  const plan=await prisma.routePlan.create({data:{salespersonId:staff,planDate:startOfDay(new Date()),status:"published",stops:{create:{retailerId:stores[0],sequence:1}}},include:{stops:true}});
+  const plan=await prisma.routePlan.create({data:{salespersonId:staff,planDate:dateColumn(new Date()),status:"published",stops:{create:{retailerId:stores[0],sequence:1}}},include:{stops:true}});
   const failing=new LocationService(prisma,config,{afterCheckIn:async(visit,tx)=>{
    await new RouteService(prisma).linkVisitToPlannedStop({visitId:visit.id,...visit},tx);
    throw new Error("route failure");
@@ -58,7 +58,7 @@ describe("single-open visit on PostgreSQL",()=>{
   expect((await service.checkIn(input(stores[1]))).id).not.toBe(visit.id);
  });
  it("order activity does not settle a route stop; successful checkout does once",async()=>{
-  const plan=await prisma.routePlan.create({data:{salespersonId:staff,planDate:startOfDay(new Date()),status:"published",stops:{create:{retailerId:stores[0],sequence:1}}},include:{stops:true}});
+  const plan=await prisma.routePlan.create({data:{salespersonId:staff,planDate:dateColumn(new Date()),status:"published",stops:{create:{retailerId:stores[0],sequence:1}}},include:{stops:true}});
   const visit=await service.checkIn(input());
   expect((await prisma.routePlanStop.findUniqueOrThrow({where:{id:plan.stops[0].id}})).status).toBe("pending");
   const results=await Promise.allSettled([service.checkOut({...input(),visitId:visit.id,outcome:"no_order",noOrderReason:"already_has_stock"}),service.checkOut({...input(),visitId:visit.id,outcome:"no_order",noOrderReason:"already_has_stock"})]);
@@ -68,7 +68,7 @@ describe("single-open visit on PostgreSQL",()=>{
   expect(stop.visitedAt).not.toBeNull();
  });
  it("cannot skip a route stop while its visit is active",async()=>{
-  const plan=await prisma.routePlan.create({data:{salespersonId:staff,planDate:startOfDay(new Date()),status:"published",stops:{create:{retailerId:stores[0],sequence:1}}},include:{stops:true}});
+  const plan=await prisma.routePlan.create({data:{salespersonId:staff,planDate:dateColumn(new Date()),status:"published",stops:{create:{retailerId:stores[0],sequence:1}}},include:{stops:true}});
   await service.checkIn(input());
   await expect(new RouteService(prisma).skipStop({stopId:plan.stops[0].id,salespersonId:staff,reason:"Closed"})).rejects.toMatchObject({code:"route_stop_visit_active"});
   expect((await prisma.routePlanStop.findUniqueOrThrow({where:{id:plan.stops[0].id}})).status).toBe("pending");

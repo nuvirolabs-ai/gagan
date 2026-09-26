@@ -5,8 +5,8 @@ import { createApp } from "../../../app";
 import { prisma } from "../../../lib/prisma";
 import { lazyIdentitySessionService } from "../../../modules/identity/sessionRuntime";
 import { getObjectStorage } from "../../../platform/storage/storageRuntime";
-import { startOfDay } from "../fieldDomain";
 import { RouteService } from "../routeService";
+import { dateColumn } from "../../founder/period";
 
 const run = randomUUID();
 const digits = run.replace(/\D/g, "").slice(0, 8).padEnd(8, "1");
@@ -704,7 +704,7 @@ describe("a planned stop and the visit that happened stay one record", () => {
     const plan = await prisma.routePlan.create({
       data: {
         salespersonId: ids.staffB,
-        planDate: startOfDay(new Date()),
+        planDate: dateColumn(new Date()),
         status: "draft",
         stops: { create: [{ retailerId: ids.retailerB, sequence: 1, purpose: "service" }] },
       },
@@ -724,7 +724,7 @@ describe("a planned stop and the visit that happened stay one record", () => {
   });
 
   it("links the route stop on check-in and settles it only on checkout", async () => {
-    const planDate = startOfDay(new Date());
+    const planDate = dateColumn(new Date());
     const plan = await prisma.routePlan.create({
       data: {
         salespersonId: ids.staffA,
@@ -970,7 +970,7 @@ describe("a salesperson without a planned beat can still sell", () => {
     expect(routeBefore.body.route).toBeNull();
     expect(
       await prisma.routePlan.count({
-        where: { salespersonId: ids.staffB, planDate: startOfDay(new Date()) },
+        where: { salespersonId: ids.staffB, planDate: dateColumn(new Date()) },
       })
     ).toBe(0);
 
@@ -1018,7 +1018,7 @@ describe("a salesperson without a planned beat can still sell", () => {
     expect(routeAfter.body.route).toBeNull();
     expect(
       await prisma.routePlan.count({
-        where: { salespersonId: ids.staffB, planDate: startOfDay(new Date()) },
+        where: { salespersonId: ids.staffB, planDate: dateColumn(new Date()) },
       })
     ).toBe(0);
   });

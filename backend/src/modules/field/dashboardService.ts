@@ -16,6 +16,7 @@ import {
 } from "./fieldDomain";
 import { buildPerformanceVisuals } from "./performanceVisuals";
 import { financialSummaryFor } from "../finance/financialSummary";
+import { dateColumn } from "../founder/period";
 
 type Db = PrismaClient | any;
 
@@ -149,7 +150,7 @@ export class FieldDashboardService {
       await Promise.all([
         this.attendance.openSession(input.salespersonId),
         this.tracking.state({ salespersonId: input.salespersonId }),
-        this.routes.routeForDate(input.salespersonId, now),
+        this.routes.routeForDate(input.salespersonId, dateColumn(now)),
         this.tasks.forSalesperson({ salespersonId: input.salespersonId, limit: 20 }),
         this.metricsFor({ salespersonId: input.salespersonId, from: dayStart, to: dayEnd }),
         this.activities.openFollowUps(input.salespersonId, dayEnd),

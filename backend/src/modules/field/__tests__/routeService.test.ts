@@ -256,6 +256,27 @@ describe("running a route", () => {
     });
   });
 
+  it("links a stop on the India calendar day before UTC midnight", async () => {
+    const prisma = fakePrisma();
+    prisma.salesVisit.findUnique.mockResolvedValue({
+      id: "visit-1", salespersonId: "staff-1", retailerId: "retailer-1", routeStopId: null,
+    });
+    prisma.routePlanStop.findFirst.mockResolvedValue(null);
+
+    await new RouteService(prisma).linkVisitToPlannedStop({
+      visitId: "visit-1",
+      salespersonId: "staff-1",
+      retailerId: "retailer-1",
+      at: new Date("2026-09-26T18:34:00.000Z"),
+    });
+
+    expect(prisma.routePlanStop.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        routePlan: expect.objectContaining({ planDate: day("2026-09-27") }),
+      }),
+    }));
+  });
+
   it("leaves an unplanned visit alone", async () => {
     const prisma = fakePrisma();
     prisma.salesVisit.findUnique.mockResolvedValue({id:"visit-1",salespersonId:"staff-1",retailerId:"retailer-9",routeStopId:null});

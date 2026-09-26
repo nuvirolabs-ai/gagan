@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../../lib/prisma";
+import { dateColumn } from "../founder/period";
 import { FieldServiceError } from "./attendanceService";
 import { isWithinScope, nextStop, routeProgress, startOfDay } from "./fieldDomain";
 
@@ -310,7 +311,7 @@ export class RouteService {
         visits: { none: {} },
         routePlan: {
           salespersonId: input.salespersonId,
-          planDate: startOfDay(at),
+          planDate: dateColumn(at),
           status: "published",
         },
       },

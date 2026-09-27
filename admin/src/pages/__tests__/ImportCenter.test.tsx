@@ -34,6 +34,20 @@ describe("Import Center", () => {
     expect(await screen.findByText(/New products and packs stay pending review/)).toBeInTheDocument();
   });
 
+  it("opens the requested inventory source when the deep link is available", async () => {
+    window.history.replaceState({}, "", "/imports?type=inventory");
+    vi.mocked(api.importTypes).mockResolvedValueOnce({ types: [
+      { type: "retailers", label: "Retailers", description: "Retailers", required: [], optional: [], modes: ["upsert"] },
+      { type: "inventory", label: "Inventory", description: "Inventory", required: [], optional: [], modes: ["upsert"] },
+    ] });
+    try {
+      render(<ImportCenter />);
+      expect(await screen.findByRole("heading", { name: "Inventory" })).toBeInTheDocument();
+    } finally {
+      window.history.replaceState({}, "", "/");
+    }
+  });
+
   it("counts matched preview rows as updates in the summary and confirmation", async () => {
     vi.mocked(api.applyImport).mockClear();
     vi.mocked(api.importTypes).mockResolvedValueOnce({ types: [{

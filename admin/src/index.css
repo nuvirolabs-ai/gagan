@@ -1281,6 +1281,7 @@ button.warehouse-order-row:hover, button.warehouse-order-row:focus-visible, butt
 .ordering-setup-actions p { width: 100%; margin: 0 0 6px; }
 .ordering-blockers { margin: 8px 0; padding-left: 21px; }
 .ordering-blockers button { padding: 3px 0; color: var(--ink); text-align: left; text-decoration: underline; }
+.ordering-stock-link { display: inline-block; margin-top: 4px; }
 .ordering-price-row { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(105px, 1fr) minmax(110px, 1fr); gap: 8px; align-items: end; padding: 12px 0; }
 .ordering-price-row .muted { grid-column: 1 / -1; }
 @media (max-width: 560px) { .ordering-price-row { grid-template-columns: 1fr 1fr; } .ordering-price-row strong { grid-column: 1 / -1; } }

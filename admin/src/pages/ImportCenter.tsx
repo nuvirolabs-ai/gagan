@@ -33,7 +33,7 @@ function downloadBlob(blob: Blob, name: string) {
 export default function ImportCenter() {
   const [types, setTypes] = useState<ImportType[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [selectedType, setSelectedType] = useState("");
+  const [selectedType, setSelectedType] = useState(() => new URLSearchParams(window.location.search).get("type") ?? "");
   const [selectedHistory, setSelectedHistory] = useState<HistoryItem | null>(null);
   const [mode, setMode] = useState("upsert");
   const [file, setFile] = useState<File | null>(null);
@@ -51,7 +51,7 @@ export default function ImportCenter() {
     try {
       const [typeResult, historyResult] = await Promise.all([api.importTypes(), api.imports()]);
       setTypes(typeResult.types ?? []); setHistory(historyResult.imports ?? []);
-      setSelectedType((current) => current || typeResult.types?.[0]?.type || "");
+      setSelectedType((current) => typeResult.types?.some((type: ImportType) => type.type === current) ? current : typeResult.types?.[0]?.type || "");
     } catch (err) { setError(err instanceof Error ? err.message : "Could not load Data Import"); }
   }, []);
   useEffect(() => { void load(); }, [load]);

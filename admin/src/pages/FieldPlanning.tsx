@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import { explain } from "../errorCopy";
 import { todayLocal } from "../localDate";
@@ -45,7 +45,7 @@ export default function FieldPlanning() {
     targetValue: "",
   });
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const [staffResult, retailerResult, planResult, taskResult, targetResult, templateResult] = await Promise.all([
         api.staff(),
@@ -70,11 +70,11 @@ export default function FieldPlanning() {
     } catch (err) {
       setError(explain(err, "Could not load field planning"));
     }
-  };
+  }, [planDate]);
 
   useEffect(() => {
     void load();
-  }, [planDate]);
+  }, [load]);
 
   const toggleStop = (retailerId: string) =>
     setPlanStops((current) =>

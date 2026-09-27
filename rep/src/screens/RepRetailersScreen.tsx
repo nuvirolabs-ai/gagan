@@ -216,7 +216,7 @@ export default function RepRetailersScreen({ navigation }: any) {
         </FilterChipRow> : null}
       </View> : null}
 
-      {today?.route && routeTotal > 0 ? (
+      {filter !== "myBeats" && today?.route && routeTotal > 0 ? (
         <Surface level={1} style={styles.routeSummary}>
           <View style={styles.routeSummaryHead}>
             <View>

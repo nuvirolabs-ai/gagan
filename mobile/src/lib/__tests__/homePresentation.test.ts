@@ -210,6 +210,33 @@ describe("accountModel", () => {
     expect(model.outstanding).toBeNull();
   });
 
+  it("keeps a positive disputed balance available for a labelled Home readout", () => {
+    const model = accountModel({
+      outstanding: 12500,
+      overdue: 12500,
+      creditLimit: 100000,
+      used: 62412,
+      available: 37588,
+      utilisationPct: 62,
+    }, null, true, 62412);
+    expect(model.kind).toBe("reconciliation");
+    expect(model.outstanding).toBe(62412);
+    expect(model.overdue).toBeNull();
+    expect(model.entityRows).toEqual([]);
+  });
+
+  it("does not display an invalid disputed amount as dues", () => {
+    const model = accountModel({
+      outstanding: 12500,
+      overdue: 0,
+      creditLimit: 0,
+      used: 0,
+      available: 0,
+      utilisationPct: 0,
+    }, null, true, Number.NaN);
+    expect(model.outstanding).toBeNull();
+  });
+
   it("keeps overdue visible when there is a due balance", () => {
     const model = accountModel({
       outstanding: 62412,

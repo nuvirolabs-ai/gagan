@@ -31,10 +31,11 @@ export default function AccountStrip({
 
   if (account.kind === "reconciliation") {
     return (
-      <View style={styles.band} accessibilityLabel={t("finance.balanceUnderReview")}>
+      <View style={styles.band} accessibilityLabel={`${t("home.dues")}: ${account.outstanding == null ? t("finance.balanceUnderReview") : inr(account.outstanding)}. ${t("finance.underReview")}`}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.clearTitle}>{t("finance.balanceUnderReview")}</Text>
-          <Text style={styles.clearBody}>{t("finance.balanceUnderReviewBody")}</Text>
+          <Text style={styles.duesLabel}>{t("home.dues")}</Text>
+          {account.outstanding == null ? null : <Text style={[styles.value, narrow && styles.valueNarrow]}>{inr(account.outstanding)}</Text>}
+          <Text style={styles.reviewLabel}>{t("finance.underReview")}</Text>
         </View>
         <TouchableOpacity onPress={onLedger} accessibilityRole="button">
           <Text style={styles.link}>{t("home.ledger")}</Text>
@@ -160,5 +161,7 @@ const styles = StyleSheet.create({
   quiet: { flex: 1, fontSize: 13, color: colors.inkMuted, fontWeight: "600" },
   clearTitle: { fontSize: 14, fontWeight: "700", color: colors.green },
   clearBody: { fontSize: 12.5, color: colors.inkMuted, marginTop: 2 },
+  duesLabel: { fontSize: 12.5, fontWeight: "700", color: colors.inkMuted },
+  reviewLabel: { fontSize: 11.5, fontWeight: "700", color: colors.warning, marginTop: 3 },
   link: { fontSize: 13, fontWeight: "700", color: colors.green },
 });

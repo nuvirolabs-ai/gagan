@@ -90,6 +90,8 @@ describe("shared financial summary", () => {
       const headers = { Authorization: `Bearer ${session.accessToken}` };
       const home = await request(app).get("/home").set(headers).expect(200);
       expect(home.body.financialSummary.reconciliationRequired).toBe(true);
+      expect(home.body.financialSummary.reviewBalance).toBe(62_412);
+      expect(home.body.credit.outstanding).toBe(12_500);
       const ledger = await request(app).get(`/ledger/${ids.retailer}`).set(headers).expect(200);
       expect(ledger.body.financialSummary.reconciliationRequired).toBe(true);
       const dues = await request(app).get("/payments/dues").set(headers).expect(200);

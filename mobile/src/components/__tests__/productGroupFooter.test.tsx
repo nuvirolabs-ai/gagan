@@ -22,6 +22,12 @@ function content(node: ReactNode): string {
   return content((node.props as { children?: ReactNode }).children);
 }
 
+function findAll(node: ReactNode, type: string): any[] {
+  if (Array.isArray(node)) return node.flatMap((child) => findAll(child, type));
+  if (!isValidElement(node)) return [];
+  return [...(node.type === type ? [node] : []), ...findAll((node.props as { children?: ReactNode }).children, type)];
+}
+
 const skus: Sku[] = ["1 kg", "5 kg", "30 kg"].map((packLabel, index) => ({
   id: `sku-${index}`, productId: "product-1", packLabel, packDetail: packLabel,
   unitSize: String(index + 1), unitsPerCase: 1, price: null,
@@ -29,6 +35,18 @@ const skus: Sku[] = ["1 kg", "5 kg", "30 kg"].map((packLabel, index) => ({
 }));
 
 describe("product group footer", () => {
+  it("gives catalogue rows a larger thumbnail and groups pack choice with the add control", () => {
+    const tree = ProductGroupCard({
+      group: { id: "product-1", name: "Test Dal", category: "Daal", imageUrl: null, skus: skus.map((sku) => ({ ...sku, price: 100, orderable: true })), hasMultiplePacks: true },
+      qtyFor: () => 0, onChangeQty: vi.fn(), appearance: "row",
+    });
+    expect(findAll(tree, "ProductThumb")[0].props.size).toBeGreaterThanOrEqual(84);
+    const footer = findAll(tree, "View").find((view) => view.props.accessibilityLabel === "Pack selection and quantity");
+    expect(footer).toBeTruthy();
+    expect(findAll(footer, "QtyStepper")).toHaveLength(1);
+    expect(findAll(footer, "TouchableOpacity").filter((item) => item.props.accessibilityState?.selected !== undefined)).toHaveLength(3);
+  });
+
   it("does not repeat a non-orderable reason or clip a redundant pack count", () => {
     const tree = ProductGroupCard({
       group: { id: "product-1", name: "Test Dal", category: "Daal", imageUrl: null, skus, hasMultiplePacks: true },

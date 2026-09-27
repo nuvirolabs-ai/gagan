@@ -158,7 +158,10 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
       available: financialSummary.availableCredit,
       utilisationPct: creditLimit > 0 ? Math.round((used / creditLimit) * 100) : 0,
     },
-    financialSummary,
+    financialSummary: {
+      ...financialSummary,
+      reviewBalance: financialSummary.reconciliationRequired ? Number(retailer.currentBalance) : null,
+    },
     scheme: featuredScheme
       ? {
           name: featuredScheme.name,

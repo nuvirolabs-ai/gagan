@@ -212,12 +212,15 @@ export function selectHero(input: {
 export function accountModel(
   credit: HomeCredit | null | undefined,
   entityBalances?: EntityBalances | null,
-  reconciliationRequired = false
+  reconciliationRequired = false,
+  reviewBalance?: number | null
 ): AccountModel {
   if (reconciliationRequired) {
     return {
       kind: "reconciliation",
-      outstanding: null,
+      outstanding: reviewBalance != null && Number.isFinite(reviewBalance) && reviewBalance > 0
+        ? reviewBalance
+        : null,
       overdue: null,
       available: null,
       entityRows: [],

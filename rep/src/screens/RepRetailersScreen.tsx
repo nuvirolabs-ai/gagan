@@ -29,8 +29,9 @@ import {
 } from "../components/ui";
 import { staffCapabilities } from "../auth/staffCapabilities";
 import { useLanguage } from "../i18n/LanguageContext";
+import { ownBeatRetailerIds, type OwnBeat } from "./ownBeatOutlets";
 
-type Filter = "all" | "route" | "overdue" | "opportunities";
+type Filter = "all" | "route" | "myBeats" | "overdue" | "opportunities";
 
 export function OutletCard({
   item,
@@ -93,14 +94,30 @@ export default function RepRetailersScreen({ navigation }: any) {
   const [totals, setTotals] = useState<any>({ count: 0, outstanding: 0, overdue: 0 });
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  const [ownBeats, setOwnBeats] = useState<OwnBeat[]>([]);
+  const [selectedBeatId, setSelectedBeatId] = useState("");
+  const [beatsError, setBeatsError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
-    const res = await repApi.retailers();
+    const [res, beats] = await Promise.all([
+      repApi.retailers(),
+      capabilities.canManageOwnBeat ? repApi.beatTemplates().then((result) => {
+        setBeatsError(false);
+        return result.templates as OwnBeat[];
+      }).catch(() => {
+        setBeatsError(true);
+        return null;
+      }) : Promise.resolve([] as OwnBeat[]),
+    ]);
     setRetailers(res.retailers);
     setTotals(res.totals);
-  }, []);
+    if (beats) {
+      setOwnBeats(beats);
+      setSelectedBeatId((current) => beats.some((beat) => beat.id === current) ? current : "");
+    }
+  }, [capabilities.canManageOwnBeat]);
 
   useFocusEffect(
     useCallback(() => {
@@ -125,6 +142,7 @@ export default function RepRetailersScreen({ navigation }: any) {
     () => new Set((today?.opportunities?.actions ?? []).map((action: any) => action.retailerId)),
     [today]
   );
+  const ownBeatIds = useMemo(() => ownBeatRetailerIds(ownBeats, selectedBeatId), [ownBeats, selectedBeatId]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -132,15 +150,17 @@ export default function RepRetailersScreen({ navigation }: any) {
       const matchesQuery = !q || r.name.toLowerCase().includes(q) || r.phone.includes(q);
       if (!matchesQuery) return false;
       if (filter === "route") return routeIds.has(r.id);
+      if (filter === "myBeats") return ownBeatIds.has(r.id);
       if (filter === "overdue") return !r.financialSummary?.reconciliationRequired && Number(r.overdue) > 0;
       if (filter === "opportunities") return opportunityIds.has(r.id);
       return true;
     });
-  }, [retailers, query, filter, routeIds, opportunityIds]);
+  }, [retailers, query, filter, routeIds, ownBeatIds, opportunityIds]);
 
   const filters: Array<{ id: Filter; label: string }> = [
     { id: "all", label: t("retailers.filterAll") },
     { id: "route", label: t("retailers.filterRoute") },
+    ...(capabilities.canManageOwnBeat ? [{ id: "myBeats" as Filter, label: "My beats" }] : []),
     { id: "overdue", label: t("retailers.filterOverdue") },
     { id: "opportunities", label: t("retailers.filterOpportunities") },
   ];
@@ -187,6 +207,15 @@ export default function RepRetailersScreen({ navigation }: any) {
         ))}
       </FilterChipRow>
 
+      {filter === "myBeats" ? <View style={styles.beatsSection}>
+        <Text style={styles.beatsNote}>Saved beats · manager approval is required before they become a route.</Text>
+        {beatsError ? <Text style={styles.beatsError}>Could not load your beats. Pull down to retry.</Text> : null}
+        {ownBeats.length > 0 ? <FilterChipRow>
+          <FilterChip label="All my beats" active={!selectedBeatId} onPress={() => setSelectedBeatId("")} />
+          {ownBeats.map((beat) => <FilterChip key={beat.id} label={beat.name} active={selectedBeatId === beat.id} onPress={() => setSelectedBeatId(beat.id)} />)}
+        </FilterChipRow> : null}
+      </View> : null}
+
       {today?.route && routeTotal > 0 ? (
         <Surface level={1} style={styles.routeSummary}>
           <View style={styles.routeSummaryHead}>
@@ -219,8 +248,8 @@ export default function RepRetailersScreen({ navigation }: any) {
           ListEmptyComponent={
             <EmptyState
               icon="store-outline"
-              title={query || filter !== "all" ? t("retailers.noMatch") : t("retailers.noneAssigned")}
-              body={query || filter !== "all" ? t("retailers.noMatchBody") : t("retailers.noneAssignedBody")}
+              title={filter === "myBeats" && ownBeats.length === 0 ? "No saved beats yet" : query || filter !== "all" ? t("retailers.noMatch") : t("retailers.noneAssigned")}
+              body={filter === "myBeats" && ownBeats.length === 0 ? "Create a beat from My Day to see its assigned stores here." : query || filter !== "all" ? t("retailers.noMatchBody") : t("retailers.noneAssignedBody")}
             />
           }
           renderItem={({ item }) => {
@@ -269,6 +298,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textSecondary,
   },
+  beatsSection: { paddingBottom: spacing.sm },
+  beatsNote: { color: colors.inkMuted, fontSize: 12.5, paddingHorizontal: spacing.xl, paddingVertical: spacing.xs },
+  beatsError: { color: colors.danger, fontSize: 12.5, paddingHorizontal: spacing.xl },
   routeSummary: {
     marginHorizontal: spacing.xl,
     marginBottom: spacing.md,

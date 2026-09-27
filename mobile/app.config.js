@@ -7,11 +7,11 @@ module.exports = ({ config }) => {
     const reviewVersionCode = Number(process.env.GAGAN_REVIEW_VERSION_CODE);
     const versionCode = Number.isInteger(reviewVersionCode) && reviewVersionCode > 0
       ? reviewVersionCode
-      : 30;
+      : 31;
     return {
       ...config,
       name: "Gagan Retailer Review",
-      version: process.env.GAGAN_REVIEW_VERSION_NAME || "1.0.30",
+      version: process.env.GAGAN_REVIEW_VERSION_NAME || "1.0.31",
       scheme: "gaganretailerreview",
       android: { ...config.android, package: `${config.android.package}.review`, versionCode },
       ios: { ...config.ios, bundleIdentifier: `${config.ios.bundleIdentifier}.review` },

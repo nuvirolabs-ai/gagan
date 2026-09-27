@@ -35,16 +35,29 @@ const skus: Sku[] = ["1 kg", "5 kg", "30 kg"].map((packLabel, index) => ({
 }));
 
 describe("product group footer", () => {
-  it("gives catalogue rows a larger thumbnail and groups pack choice with the add control", () => {
+  it.each(["row", "featured"] as const)("anchors the add control beside %s product details", (appearance) => {
     const tree = ProductGroupCard({
       group: { id: "product-1", name: "Test Dal", category: "Daal", imageUrl: null, skus: skus.map((sku) => ({ ...sku, price: 100, orderable: true })), hasMultiplePacks: true },
-      qtyFor: () => 0, onChangeQty: vi.fn(), appearance: "row",
+      qtyFor: () => 0, onChangeQty: vi.fn(), appearance,
     });
     expect(findAll(tree, "ProductThumb")[0].props.size).toBeGreaterThanOrEqual(84);
-    const footer = findAll(tree, "View").find((view) => view.props.accessibilityLabel === "Pack selection and quantity");
-    expect(footer).toBeTruthy();
-    expect(findAll(footer, "QtyStepper")).toHaveLength(1);
-    expect(findAll(footer, "TouchableOpacity").filter((item) => item.props.accessibilityState?.selected !== undefined)).toHaveLength(3);
+    const main = findAll(tree, "View").find((view) => view.props.accessibilityLabel === "Product and action");
+    const action = findAll(main, "View").find((view) => view.props.accessibilityLabel === "Quantity action position");
+    expect(action).toBeTruthy();
+    expect(findAll(action, "QtyStepper")[0].props.qty).toBe(0);
+    expect(findAll(tree, "TouchableOpacity").filter((item) => item.props.accessibilityState?.selected !== undefined)).toHaveLength(3);
+  });
+
+  it("moves an expanded quantity stepper below details without changing the action anchor", () => {
+    const tree = ProductGroupCard({
+      group: { id: "product-1", name: "Test Dal", category: "Daal", imageUrl: null, skus: [{ ...skus[0], price: 100, orderable: true }], hasMultiplePacks: false },
+      qtyFor: () => 1, onChangeQty: vi.fn(), appearance: "row",
+    });
+    const action = findAll(tree, "View").find((view) => view.props.accessibilityLabel === "Quantity action position");
+    const expanded = findAll(tree, "View").find((view) => view.props.accessibilityLabel === "Expanded quantity controls");
+    expect(action).toBeTruthy();
+    expect(findAll(action, "QtyStepper")).toHaveLength(0);
+    expect(findAll(expanded, "QtyStepper")[0].props.qty).toBe(1);
   });
 
   it("does not repeat a non-orderable reason or clip a redundant pack count", () => {

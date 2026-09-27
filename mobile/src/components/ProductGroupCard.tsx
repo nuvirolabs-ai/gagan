@@ -91,45 +91,50 @@ export default function ProductGroupCard({
   const priceDisplay = catalogPricePresentation(selected);
   const row = appearance === "row";
   const featured = appearance === "featured";
+  const aligned = row || featured;
   const thumb = row ? 84 : featured ? 96 : compact ? 60 : 72;
 
   return (
     <View style={[styles.card, compact && styles.cardCompact, featured && styles.cardFeatured, row && styles.cardRow]}>
-      <TouchableOpacity
-        activeOpacity={onOpen ? 0.85 : 1}
-        onPress={onOpen}
-        disabled={!onOpen}
-        style={[styles.head, row && styles.headRow]}
-      >
-        <ProductThumb
-          name={group.name}
-          category={group.category}
-          imageUrl={selected?.imageStatus === "placeholder" || selected?.imageStatus === "pending" ? null : selected?.imageUrl ?? group.imageUrl}
-          imageStatus={selected?.imageStatus}
-          imageLabel={selected?.imageLabel}
-          size={thumb}
-        />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={[styles.name, row && styles.nameRow, featured && styles.nameFeatured]} numberOfLines={2}>
-            {group.name}
-          </Text>
-          <Text style={[styles.pack, row && styles.packRowText]} numberOfLines={row ? 2 : 1}>
-            {selected ? selected.packDetail : "—"}
-          </Text>
-          <Text style={[styles.price, row && styles.priceRow]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
-            {priceDisplay.primary}
-          </Text>
-          {priceDisplay.perKg ? <Text style={[styles.rateLabel, row && styles.rateLabelRow]}>{priceDisplay.perKg}</Text> : null}
-          {priceDisplay.caseEquivalent ? <Text style={[styles.rateLabel, row && styles.rateLabelRow]}>{priceDisplay.caseEquivalent}</Text> : null}
-          {selected?.rateBasis?.toLowerCase() === "quintal" || selected?.rateLabel ? <Text style={[styles.rateLabel, row && styles.rateLabelRow]}>Excluding GST</Text> : null}
-          {selected?.gstPending || selected?.taxStatus === "PENDING" ? <Text style={styles.outOfStock}>GST pending — final tax will be applied before invoicing.</Text> : null}
-          {!orderable && selected ? <Text style={styles.outOfStock}>{selected.orderingReason ?? "Out of stock"}</Text> : null}
-        </View>
-      </TouchableOpacity>
+      <View style={styles.mainRow} accessibilityLabel="Product and action">
+        <TouchableOpacity
+          activeOpacity={onOpen ? 0.85 : 1}
+          onPress={onOpen}
+          disabled={!onOpen}
+          style={[styles.head, row && styles.headRow]}
+        >
+          <ProductThumb
+            name={group.name}
+            category={group.category}
+            imageUrl={selected?.imageStatus === "placeholder" || selected?.imageStatus === "pending" ? null : selected?.imageUrl ?? group.imageUrl}
+            imageStatus={selected?.imageStatus}
+            imageLabel={selected?.imageLabel}
+            size={thumb}
+          />
+          <View style={styles.details}>
+            <Text style={[styles.name, row && styles.nameRow, featured && styles.nameFeatured]} numberOfLines={aligned ? undefined : 2}>
+              {group.name}
+            </Text>
+            <Text style={[styles.pack, row && styles.packRowText]} numberOfLines={aligned ? 2 : 1}>
+              {selected ? selected.packDetail : "—"}
+            </Text>
+            <Text style={[styles.price, row && styles.priceRow]} numberOfLines={aligned ? undefined : 1} adjustsFontSizeToFit={!aligned} minimumFontScale={0.8}>
+              {priceDisplay.primary}
+            </Text>
+            {priceDisplay.perKg ? <Text style={[styles.rateLabel, row && styles.rateLabelRow]}>{priceDisplay.perKg}</Text> : null}
+            {priceDisplay.caseEquivalent ? <Text style={[styles.rateLabel, row && styles.rateLabelRow]}>{priceDisplay.caseEquivalent}</Text> : null}
+            {selected?.rateBasis?.toLowerCase() === "quintal" || selected?.rateLabel ? <Text style={[styles.rateLabel, row && styles.rateLabelRow]}>Excluding GST</Text> : null}
+            {selected?.gstPending || selected?.taxStatus === "PENDING" ? <Text style={styles.outOfStock}>GST pending — final tax will be applied before invoicing.</Text> : null}
+            {!orderable && selected ? <Text style={styles.outOfStock}>{selected.orderingReason ?? "Out of stock"}</Text> : null}
+          </View>
+        </TouchableOpacity>
+        {aligned ? <View style={styles.actionSlot} accessibilityLabel="Quantity action position">
+          {selected && orderable && qty === 0 ? <QtyStepper qty={0} onChange={(next) => onChangeQty(selected, next)} compact disabled={orderingDisabled} /> : null}
+        </View> : null}
+      </View>
 
-      {group.hasMultiplePacks || (selected && orderable) ? (
-        <View style={[styles.footer, (row || featured) && styles.footerGrouped, row && styles.footerRow]} accessibilityLabel={row ? "Pack selection and quantity" : undefined}>
-          {group.hasMultiplePacks ? <View style={[styles.packRow, (row || featured) && styles.packRowCatalogue]}>
+      {group.hasMultiplePacks ? (
+        <View style={[styles.packRow, row && styles.packRowIndented, featured && styles.packRowFeatured]}>
           {group.skus.map((sku) => {
             const active = sku.id === selected?.id;
             return (
@@ -147,8 +152,12 @@ export default function ProductGroupCard({
               </TouchableOpacity>
             );
           })}
-          </View> : null}
-          {selected && orderable ? <QtyStepper qty={qty} onChange={(next) => onChangeQty(selected, next)} compact disabled={orderingDisabled} /> : null}
+        </View>
+      ) : null}
+
+      {selected && orderable && (qty > 0 || !aligned) ? (
+        <View style={styles.expandedControls} accessibilityLabel="Expanded quantity controls">
+          <QtyStepper qty={qty} onChange={(next) => onChangeQty(selected, next)} compact disabled={orderingDisabled} />
         </View>
       ) : null}
     </View>
@@ -180,14 +189,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0,
     elevation: 0,
     paddingHorizontal: 0,
+    paddingRight: spacing.md,
     paddingVertical: spacing.lg,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
   nameFeatured: { fontSize: 16 },
   packChipRow: { minHeight: 40, paddingVertical: 9, paddingHorizontal: 13 },
-  head: { flexDirection: "row", gap: spacing.md, alignItems: "center" },
+  mainRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  head: { flex: 1, minWidth: 0, flexDirection: "row", gap: spacing.md, alignItems: "center" },
   headRow: { minHeight: 96, alignItems: "flex-start" },
+  details: { flex: 1, minWidth: 0 },
+  actionSlot: { width: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
   name: { fontSize: 14.5, fontWeight: "700", color: colors.ink },
   nameRow: { fontSize: 16, lineHeight: 21 },
   pack: { fontSize: 11.5, color: colors.inkMuted, marginTop: 2 },
@@ -198,8 +211,9 @@ const styles = StyleSheet.create({
   rateLabel: { fontSize: 10.5, color: colors.inkMuted, marginTop: 1 },
   rateLabelRow: { fontSize: 11.5, lineHeight: 16 },
 
-  packRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, width: "100%" },
-  packRowCatalogue: { flexShrink: 1, width: "auto" },
+  packRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  packRowIndented: { marginLeft: 84 + spacing.md },
+  packRowFeatured: { marginLeft: 96 + spacing.md },
   packChip: {
     paddingHorizontal: 11,
     paddingVertical: 6,
@@ -214,7 +228,5 @@ const styles = StyleSheet.create({
   packChipText: { fontSize: 13, fontWeight: "700", color: colors.inkMuted },
   packChipTextActive: { color: colors.onAccent },
 
-  footer: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: spacing.sm },
-  footerGrouped: { justifyContent: "flex-start" },
-  footerRow: { paddingLeft: 84 + spacing.md },
+  expandedControls: { flexDirection: "row", justifyContent: "flex-end" },
 });

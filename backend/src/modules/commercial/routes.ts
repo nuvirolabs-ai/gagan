@@ -10,6 +10,7 @@ import { quoteFor, setFreight, CommercialError, invoiceBalances, snapshot,quoteD
 import { postInvoicePayment } from "./payment";
 import { PaymentSettlementError } from "../payments/paymentService";
 import { internalStatusForQuote } from "../commercialStatus/statusService";
+import { enableOrdering, getOrderingSetup, OrderingSetupError } from "../catalog/orderingSetup";
 
 const items=z.array(z.object({variantId:z.string().min(1),qty:z.number().int().positive()})).min(1).max(200);
 const money=z.string().regex(/^\d+(\.\d{1,2})?$/).refine(s=>Number(s)<=9999999999.99);
@@ -107,6 +108,24 @@ router.put("/admin/commercial/skus/:id",requireAdmin,async(req:AdminRequest,res)
     routingClass: req.body.routingClass || null,
     routingBagEquivalent: req.body.routingBagEquivalent || null,
   });
+  const managed = await prisma.variant.findUnique({ where: { id: req.params.id }, select: { catalogKey: true } });
+  if (managed?.catalogKey) {
+    try {
+      const setup = await getOrderingSetup(req.params.id);
+      const prices = setup.effective.prices.filter(price => price.tierId !== body.tierId);
+      prices.push({ tierId: body.tierId, rate: body.rate, rateBasis: body.rateBasis });
+      const result = await enableOrdering(req.params.id, setup.revision, {
+        gstPercent: body.gstPercent, sellingEntity: body.sellingEntity,
+        routingClass: body.routingClass, routingBagEquivalent: body.routingBagEquivalent,
+        prices,
+      }, req.staffAuth!.staffId);
+      return res.json({ variant: result.pack });
+    } catch (error) {
+      if (error instanceof OrderingSetupError) return res.status(error.status).json({ error: error.code, blockers: error.blockers });
+      if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === "P2034" || (error.code === "P2010" && error.meta?.code === "40001"))) return res.status(409).json({ error: "setup_changed" });
+      throw error;
+    }
+  }
   const result=await prisma.$transaction(async tx=>{
     // Finalizing GST retires the narrowly-scoped pre-GST ordering exception.
     // The invoice guard remains fail-closed if a caller does not supply a

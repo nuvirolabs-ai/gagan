@@ -1169,6 +1169,15 @@ model Variant {
   priceOverrides           PriceOverride[]
   inventorySnapshots       InventorySnapshot[]
   proposalOrderIntentItems RetailerProposalOrderIntentItem[]
+  orderingDraft             CatalogOrderingDraft?
+}
+
+model CatalogOrderingDraft {
+  variantId String  @id
+  variant   Variant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  values    Json
+  updatedByStaffId String
+  updatedAt DateTime @updatedAt
 }
 
 /// Server-priced draft; manager freight edits stop at acceptance.

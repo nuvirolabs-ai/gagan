@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import OrderingSetupPanel from "./OrderingSetupPanel";
 
 const inr = (value: number) => `₹${Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 const visibleStatus = (status?: string) => !status || ["active", "published", "pending_review"].includes(status);
@@ -15,6 +16,7 @@ export default function Catalog() {
   const [draft, setDraft] = useState("");
   const [editor, setEditor] = useState<Editor | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
+  const [setupVariantId, setSetupVariantId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -155,9 +157,12 @@ export default function Catalog() {
                       </td>
                       <td className="small">
                         {v.unitSize} × {v.unitsPerCase}
+                        <div className="muted small">{v.catalogStatus === "active" ? "Ordering enabled" : v.catalogStatus === "pending_review" ? "Draft" : "Setup needed"}</div>
+                        <div className="muted small">{v.stock?.status === "in_stock" ? `In stock · ${v.stock.available} available` : v.stock?.status === "out_of_stock" ? "Out of stock" : "Stock needs verification"}</div>
+                        <div className="muted small">{v.gstPercent != null ? `GST ${v.gstPercent}% configured` : v.gstPending ? "GST pending exception" : "GST pending"}</div>
+                        <button type="button" className="sm" onClick={() => setSetupVariantId(v.id)}>{v.catalogStatus === "active" ? "Manage setup" : v.catalogStatus === "pending_review" ? "Complete setup" : "Set up ordering"}</button>
                         <div className="muted small">Variant ID: <code>{v.id}</code> <button type="button" className="ghost sm" onClick={() => copyId(v.id)}>Copy variant ID</button></div>
                         {v.catalogStatus === "pending_review" && <div><button className="ghost sm" onClick={() => setEditor({ kind: "variant", product: p, variant: v })}>Edit draft</button></div>}
-                        {v.sellingEntity && <div><a href="/commercial">Edit company, rate basis & GST</a></div>}
                       </td>
                       <td className="right small muted">{caseWeight} kg</td>
                       {v.prices.map((pr: any) => {
@@ -168,8 +173,8 @@ export default function Catalog() {
                         const isEditing = editing === cellKey;
                         return (
                           <td key={pr.tierId} className="right">
-                            {p.catalogStatus === "pending_review" || v.catalogStatus === "pending_review" ? (
-                              <span className="muted small">{pr.price == null ? "Not configured" : `${inr(pr.price)} / ${basis}`}</span>
+                            {p.catalogStatus === "pending_review" || v.catalogStatus === "pending_review" || v.catalogKey ? (
+                              <span className="small">{pr.price == null ? "Not configured" : `${inr(pr.price)} / ${basis}`}{perKg != null && <span className="muted small" style={{ display: "block" }}>{inr(perKg)} / kg</span>}{equivalent != null && <span className="muted small" style={{ display: "block" }}>{inr(equivalent)} / {caseWeight} KG case</span>}</span>
                             ) : isEditing ? (
                               <div className="row" style={{ justifyContent: "flex-end" }}>
                                 <span className="small">INR / {basis}</span>
@@ -214,6 +219,7 @@ export default function Catalog() {
           </table>
         )}
       </div>
+      {setupVariantId && <OrderingSetupPanel variantId={setupVariantId} onClose={() => setSetupVariantId(null)} onSaved={async (enabled, alreadyEnabled, label) => { await load(); setNotice(enabled ? `${alreadyEnabled ? "Changes saved" : "Ordering enabled"} for ${label}. Retailer eligibility, applicable price and current stock still apply.` : `Setup draft saved for ${label}. Ordering remains unchanged.`); }} />}
     </div>
   );
 }

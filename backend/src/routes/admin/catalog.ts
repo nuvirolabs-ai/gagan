@@ -6,9 +6,39 @@ import { requireAdmin } from "../../lib/adminAuth";
 import { catalogueImageState, catalogueOrderingState, catalogueStatusWhere } from "../../modules/catalog/catalogueVisibility";
 import { validateDraftPack } from "../../modules/catalog/draftPack";
 import { Prisma } from "@prisma/client";
+import { DEFAULT_WAREHOUSE_CODE, INVENTORY_STALE_AFTER_MS, selectInventorySnapshot } from "../../modules/inventory/inventoryService";
+import { enableOrdering, getOrderingSetup, OrderingSetupError, saveOrderingDraft } from "../../modules/catalog/orderingSetup";
+import type { AdminRequest } from "../../lib/adminAuth";
 
 const router = Router();
 router.use(requireAdmin);
+
+function setupFailure(error: unknown, res: import("express").Response) {
+  if (error instanceof OrderingSetupError) return res.status(error.status).json({ error: error.code, blockers: error.blockers });
+  if (error instanceof z.ZodError) return res.status(400).json({ error: "Review the price, GST and billing values before saving." });
+  if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === "P2034" || (error.code === "P2010" && error.meta?.code === "40001"))) return res.status(409).json({ error: "setup_changed", blockers: ["Another edit was saved at the same time. Reopen this pack and review the latest values."] });
+  throw error;
+}
+
+router.get("/variants/:id/ordering-setup", async (req, res) => {
+  try { res.json(await getOrderingSetup(req.params.id)); }
+  catch (error) { return setupFailure(error, res); }
+});
+
+const setupRequest = z.object({ revision: z.string().length(64), values: z.unknown() });
+router.put("/variants/:id/ordering-draft", async (req: AdminRequest, res) => {
+  const parsed = setupRequest.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid_setup_request" });
+  try { res.json(await saveOrderingDraft(req.params.id, parsed.data.revision, parsed.data.values, req.staffAuth!.staffId)); }
+  catch (error) { return setupFailure(error, res); }
+});
+
+router.post("/variants/:id/enable-ordering", async (req: AdminRequest, res) => {
+  const parsed = setupRequest.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid_setup_request" });
+  try { res.json(await enableOrdering(req.params.id, parsed.data.revision, parsed.data.values, req.staffAuth!.staffId)); }
+  catch (error) { return setupFailure(error, res); }
+});
 
 router.get("/products", async (req, res) => {
   const includeInactive = req.query.view === "all";
@@ -24,6 +54,7 @@ router.get("/products", async (req, res) => {
 
   const priceKey = (tierId: string, variantId: string) => `${tierId}:${variantId}`;
   const prices = new Map(priceList.map((p) => [priceKey(p.tierId, p.variantId), Number(p.price)]));
+  const snapshots = await prisma.inventorySnapshot.findMany({ where: { warehouseCode: DEFAULT_WAREHOUSE_CODE, productId: { in: products.map(product => product.id) } } });
 
   res.json({
     tiers,
@@ -37,6 +68,12 @@ router.get("/products", async (req, res) => {
       imageUrl: publicMediaUrl(req, p.imageUrl),
       description: p.description,
       variants: p.variants.map((v) => ({
+        stock: (() => {
+          const snapshot = selectInventorySnapshot(p, v, snapshots.filter(row => row.productId === p.id));
+          if (!snapshot) return { status: "needs_verification", available: null };
+          if (Date.now() - snapshot.syncedAt.getTime() > INVENTORY_STALE_AFTER_MS) return { status: "needs_verification", available: Number(snapshot.available) };
+          return { status: snapshot.status === "unavailable" || Number(snapshot.available) <= 0 ? "out_of_stock" : "in_stock", available: Number(snapshot.available) };
+        })(),
         id: v.id,
         catalogKey: v.catalogKey,
         internalCode: v.internalCode,
@@ -74,7 +111,7 @@ router.post("/price-list", async (req, res) => {
   const variant = await prisma.variant.findUnique({ where: { id: parsed.data.variantId } });
   if (!variant) return res.status(404).json({ error: "Variant not found" });
   if (variant.catalogStatus === "pending_review") return res.status(409).json({ error: "draft_commercial_configuration_required" });
-  if (variant.sellingEntity) return res.status(409).json({error:"Use Commercial configuration to explicitly review the rate basis and GST"});
+  if (variant.catalogKey || variant.sellingEntity || variant.routingClass) return res.status(409).json({error:"Use Catalog ordering setup to review the rate basis, GST and billing rule"});
 
   const row = await prisma.priceList.upsert({
     where: { tierId_variantId: { tierId: parsed.data.tierId, variantId: parsed.data.variantId } },

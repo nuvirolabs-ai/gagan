@@ -1265,3 +1265,22 @@ button.warehouse-order-row:hover, button.warehouse-order-row:focus-visible, butt
   .warehouse-line span { font-size: 9px; }
   .warehouse-line b { font-size: 10px; }
 }
+.ordering-setup-backdrop { position: fixed; z-index: 30; inset: 0; display: flex; justify-content: flex-end; background: rgba(15, 25, 22, .4); }
+.ordering-setup-panel { display: flex; flex-direction: column; width: min(620px, 100%); height: 100%; background: var(--surface); box-shadow: -14px 0 40px rgba(0,0,0,.16); outline: none; }
+.ordering-setup-head, .ordering-setup-actions { padding: 18px 22px; border-bottom: 1px solid var(--border); }
+.ordering-setup-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.ordering-setup-head h2 { margin: 0 0 5px; font-size: 21px; }
+.ordering-setup-head p { margin: 0; color: var(--ink-muted); }
+.ordering-setup-scroll { flex: 1; overflow-y: auto; padding: 18px 22px; }
+.ordering-setup-scroll details { padding: 14px 0; border-bottom: 1px solid var(--border); }
+.ordering-setup-scroll summary { display: flex; justify-content: space-between; gap: 12px; font-weight: 650; cursor: pointer; }
+.ordering-setup-scroll summary span { font-weight: 400; color: var(--ink-muted); }
+.ordering-setup-scroll label { display: block; margin-top: 12px; }
+.ordering-setup-scroll input, .ordering-setup-scroll select { width: 100%; max-width: 330px; display: block; margin-top: 5px; }
+.ordering-setup-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--border); border-bottom: 0; }
+.ordering-setup-actions p { width: 100%; margin: 0 0 6px; }
+.ordering-blockers { margin: 8px 0; padding-left: 21px; }
+.ordering-blockers button { padding: 3px 0; color: var(--ink); text-align: left; text-decoration: underline; }
+.ordering-price-row { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(105px, 1fr) minmax(110px, 1fr); gap: 8px; align-items: end; padding: 12px 0; }
+.ordering-price-row .muted { grid-column: 1 / -1; }
+@media (max-width: 560px) { .ordering-price-row { grid-template-columns: 1fr 1fr; } .ordering-price-row strong { grid-column: 1 / -1; } }

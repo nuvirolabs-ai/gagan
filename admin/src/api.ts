@@ -283,6 +283,9 @@ export const api = {
 
   tiers: () => request("/admin/tiers"),
   products: (view?: "all") => request(`/admin/products${view === "all" ? "?view=all" : ""}`),
+  orderingSetup: (id: string) => request(`/admin/variants/${id}/ordering-setup`),
+  saveOrderingDraft: (id: string, body: unknown) => request(`/admin/variants/${id}/ordering-draft`, { method: "PUT", body: JSON.stringify(body) }),
+  enableOrdering: (id: string, body: unknown) => post(`/admin/variants/${id}/enable-ordering`, body),
   createProduct: (body: unknown) => post("/admin/products", body),
   updateProduct: (id: string, body: unknown) => request(`/admin/products/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   updateVariant: (id: string, body: unknown) => request(`/admin/variants/${id}`, { method: "PUT", body: JSON.stringify(body) }),

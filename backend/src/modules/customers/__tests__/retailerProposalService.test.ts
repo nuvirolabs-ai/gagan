@@ -31,7 +31,7 @@ function fakePrisma(overrides: Record<string, any> = {}) {
     evidenceAsset: {
       create: vi.fn().mockImplementation(async ({ data }: any) => ({ id: "asset-1", ...data })),
     },
-    tier: { findUnique: vi.fn().mockResolvedValue({ id: "tier-1" }) },
+    tier: { findUnique: vi.fn().mockResolvedValue({ id: "tier-1", name: "Silver" }) },
     auditEvent: { create: vi.fn() },
     $queryRaw: vi.fn().mockResolvedValue([{ id: "proposal-1" }]),
     ...overrides,
@@ -81,8 +81,8 @@ describe("punching demand for a proposed retailer", () => {
           catalogStatus: "active", gstPercent: 5, gstPendingOrderAllowed: false }],
       }]) },
       priceList: { findMany: vi.fn().mockResolvedValue([
-        { variantId: "variant-1", price: 3120, rateBasis: "case" },
-        { variantId: "variant-1", price: 3240, rateBasis: "case" },
+        { variantId: "variant-1", tierId: "tier-1", price: 3120, rateBasis: "case" },
+        { variantId: "variant-1", tierId: "tier-2", price: 3240, rateBasis: "case" },
       ]) },
     });
     prisma.retailerProposal.findUnique.mockResolvedValue(pendingProposal);
@@ -91,9 +91,25 @@ describe("punching demand for a proposed retailer", () => {
 
     expect(result.catalog[0].variants[0]).toMatchObject({
       id: "variant-1", imageUrl: "/catalog/pack.jpg", price: null,
+      indicativePrice: 3120, indicativeTierName: "Silver",
       indicativePriceRange: { minCase: 3120, maxCase: 3240 },
     });
     expect(prisma.retailerProposal.update).not.toHaveBeenCalled();
+  });
+
+  it("does not fabricate a reference price when Silver is not configured", async () => {
+    const prisma = fakePrisma({
+      product: { findMany: vi.fn().mockResolvedValue([{
+        id: "product-1", name: "Dal", category: "Daal", variants: [{
+          id: "variant-1", unitSize: "1 KG", unitsPerCase: 30, unitWeightKg: 1, catalogStatus: "active",
+        }],
+      }]) },
+      priceList: { findMany: vi.fn().mockResolvedValue([{ variantId: "variant-1", tierId: "tier-2", price: 3240, rateBasis: "case" }]) },
+    });
+    prisma.retailerProposal.findUnique.mockResolvedValue(pendingProposal);
+
+    const result = await serviceFor(prisma).proposalDemandCatalog({ proposalId: pendingProposal.id, salespersonId: "staff-1" });
+    expect(result.catalog[0].variants[0]).toMatchObject({ price: null, indicativePrice: null, indicativeTierName: null });
   });
 
   it("captures normalized SKU demand for the proposal owner without pricing it", async () => {

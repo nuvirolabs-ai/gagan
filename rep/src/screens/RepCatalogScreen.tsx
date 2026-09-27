@@ -118,6 +118,12 @@ export default function RepCatalogScreen({ route, navigation }: any) {
   const demandLines = Object.entries(proposalLines).map(([variantId, line]) => ({ variantId, ...line }));
   const selectedLines = proposalDemandMode ? demandLines : lines;
   const cartCount = selectedLines.reduce((n, l) => n + l.qty, 0);
+  const demandEstimate = demandLines.reduce((total, line) => {
+    const sku = products.flatMap((product) => product.skus).find((item) => item.id === line.variantId);
+    return sku?.indicativePrice != null ? total + sku.indicativePrice * line.qty : total;
+  }, 0);
+  const demandHasMissingPrice = demandLines.some((line) =>
+    products.flatMap((product) => product.skus).find((item) => item.id === line.variantId)?.indicativePrice == null);
 
   const punchDemand = async () => {
     if (!proposalId || demandLines.length === 0 || punching) return;
@@ -131,7 +137,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
       );
       punchKey.current = null;
       setProposalLines({});
-      Alert.alert("Order punched", "Demand is recorded without pricing. It will be available for official order review after the retailer is approved.", [
+      Alert.alert("Demand recorded", "The displayed Silver prices were estimates. Final pricing is confirmed after retailer approval.", [
         { text: "Done", onPress: () => navigation.goBack() },
       ], { cancelable: false });
     } catch (error) {
@@ -191,12 +197,12 @@ export default function RepCatalogScreen({ route, navigation }: any) {
                     {variant.unitSize} × {variant.unitsPerCase}
                   </Text>
                   {proposalDemandMode ? <View style={styles.priceStack}>
-                    <Text style={styles.price}>{variant.indicativePriceRange
-                      ? variant.indicativePriceRange.minCase === variant.indicativePriceRange.maxCase
-                        ? `${inr(variant.indicativePriceRange.minCase)} / case`
-                        : `${inr(variant.indicativePriceRange.minCase)}–${inr(variant.indicativePriceRange.maxCase)} / case`
+                    <Text style={styles.price}>{variant.indicativePrice != null
+                      ? `${inr(variant.indicativePrice)} / case`
                       : "Price not configured"}</Text>
-                    <Text style={styles.rateLabel}>Indicative tier prices · final price after retailer approval</Text>
+                    <Text style={styles.rateLabel}>{variant.indicativePrice != null
+                      ? `${variant.indicativeTierName} indicative price · final price after approval`
+                      : "Ask Admin to configure the standard tier price"}</Text>
                   </View> : <View style={styles.priceStack}>
                     <View style={styles.priceRow}>
                       <Text style={styles.price}>
@@ -242,7 +248,9 @@ export default function RepCatalogScreen({ route, navigation }: any) {
               {cartCount} case{cartCount > 1 ? "s" : ""} · {selectedLines.length} line
               {selectedLines.length > 1 ? "s" : ""}
             </Text>
-            <Text style={styles.barValue}>{proposalDemandMode ? "Unpriced demand · pending approval" : `Catalogue subtotal · ${inr(cartTotal)}`}</Text>
+            <Text style={styles.barValue}>{proposalDemandMode
+              ? demandHasMissingPrice ? "Estimate unavailable · pending approval" : `Indicative total · ${inr(demandEstimate)}`
+              : `Catalogue subtotal · ${inr(cartTotal)}`}</Text>
           </View>
           <TouchableOpacity style={styles.placeBtn} accessibilityRole="button" disabled={punching} onPress={() => proposalDemandMode ? void punchDemand() : navigation.navigate("RepReviewOrder", { retailerId, retailerName })}>
             <Text style={styles.placeText}>{proposalDemandMode ? punching ? "Punching…" : "Punch order" : "Review order"}</Text>

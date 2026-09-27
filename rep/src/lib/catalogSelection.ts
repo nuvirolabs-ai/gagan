@@ -6,6 +6,7 @@ export interface CatalogSku {
   gstPending?: boolean; taxStatus?: "PENDING" | "READY" | "NOT_READY";
   pricePerKg?: number | null; isOverride?: boolean;
   indicativePriceRange?: { minCase: number; maxCase: number } | null;
+  indicativePrice?: number | null; indicativeTierName?: string | null;
   availability?: { status?: string; available?: number | null };
   imageUrl?: string | null;
   imageStatus?: "exact" | "placeholder" | "pending"; imageLabel?: string | null;

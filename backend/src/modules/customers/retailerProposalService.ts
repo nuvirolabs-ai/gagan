@@ -317,11 +317,13 @@ export class RetailerProposalService {
     }
     if (proposal.status !== "pending") throw new ProposalError("proposal_not_pending", 409);
 
-    const [products, prices] = await Promise.all([this.prisma.product.findMany({
+    const [products, prices, referenceTier] = await Promise.all([this.prisma.product.findMany({
       where: { catalogStatus: "active", variants: { some: { catalogStatus: "active" } } },
       include: { variants: { where: { catalogStatus: "active" } } },
       orderBy: { createdAt: "asc" },
-    }), this.prisma.priceList.findMany({ select: { variantId: true, price: true, rateBasis: true } })]) as [any[], Array<{ variantId: string; price: number; rateBasis: string }>];
+    }), this.prisma.priceList.findMany({ select: { variantId: true, tierId: true, price: true, rateBasis: true } }),
+      this.prisma.tier.findUnique({ where: { name: "Silver" }, select: { id: true, name: true } })
+    ]) as [any[], Array<{ variantId: string; tierId: string; price: number; rateBasis: string }>, { id: string; name: string } | null];
     return {
       catalog: products.map((product: any) => ({
         id: product.id,
@@ -332,8 +334,11 @@ export class RetailerProposalService {
         sapMaterialId: product.sapMaterialId,
         variants: product.variants.map((variant: any) => {
           const caseWeightKg = Number(variant.unitWeightKg) * variant.unitsPerCase;
-          const casePrices = prices.filter((price) => price.variantId === variant.id).map((price) =>
-            price.rateBasis === "quintal" ? Math.round(Number(price.price) * caseWeightKg) / 100 : Number(price.price));
+          const variantPrices = prices.filter((price) => price.variantId === variant.id);
+          const casePrice = (price: typeof variantPrices[number]) => price.rateBasis === "quintal"
+            ? Math.round(Number(price.price) * caseWeightKg) / 100 : Number(price.price);
+          const casePrices = variantPrices.map(casePrice);
+          const referencePrice = variantPrices.find((price) => price.tierId === referenceTier?.id);
           return ({
           id: variant.id,
           imageUrl: variant.imageUrl ?? product.imageUrl,
@@ -342,6 +347,8 @@ export class RetailerProposalService {
           unitsPerCase: variant.unitsPerCase,
           caseWeightKg,
           price: null,
+          indicativePrice: referencePrice ? casePrice(referencePrice) : null,
+          indicativeTierName: referencePrice ? referenceTier?.name : null,
           indicativePriceRange: casePrices.length ? { minCase: Math.min(...casePrices), maxCase: Math.max(...casePrices) } : null,
           ...catalogueImageState(variant),
           ...catalogueOrderingState(variant.catalogStatus, variant.gstPercent?.toString() ?? null, variant.gstPendingOrderAllowed),

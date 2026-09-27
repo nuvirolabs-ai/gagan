@@ -21,13 +21,14 @@ describe("pending retailer demand routes", () => {
     const service = { proposalDemandCatalog: vi.fn().mockResolvedValue({ catalog: [{
       id: "product-1", name: "Gagan Toor Dal", category: "Daal", sapMaterialId: "SAP-1", imageUrl: "/catalog/dal.jpg",
       variants: [{ id: "variant-1", unitSize: "1 KG", unit: "kg", unitsPerCase: 30, price: null,
-        imageUrl: "/catalog/pack.jpg", indicativePriceRange: { minCase: 3120, maxCase: 3240 } }],
+        imageUrl: "/catalog/pack.jpg", indicativePrice: 3120, indicativeTierName: "Silver", indicativePriceRange: { minCase: 3120, maxCase: 3240 } }],
     }], categories: ["Daal"] }) };
     const response = await request(appWith(orderPermissions, service)).get("/rep/retailer-proposals/proposal-1/catalog");
     expect(response.status).toBe(200);
     expect(response.body.groups[0].skus[0]).toMatchObject({
       imageUrl: expect.stringContaining("/catalog/pack.jpg"),
       indicativePriceRange: { minCase: 3120, maxCase: 3240 },
+      indicativePrice: 3120, indicativeTierName: "Silver",
     });
     expect(response.body.groups[0].skus[0].price).toBeNull();
   });

@@ -86,12 +86,13 @@ export function SearchBar({
 export function KeyboardSafeScrollView({
   children,
   containerStyle,
+  externalScrollRef,
   keyboardVerticalOffset = 0,
   contentContainerStyle,
   onFocus: userOnFocus,
   onScroll: userOnScroll,
   ...props
-}: ScrollViewProps & { containerStyle?: ViewStyle; keyboardVerticalOffset?: number }) {
+}: ScrollViewProps & { containerStyle?: ViewStyle; keyboardVerticalOffset?: number; externalScrollRef?: React.RefObject<ScrollView | null> }) {
   const keyboardActionClearance = 104;
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const scrollViewRef = useRef<ScrollView | null>(null);
@@ -160,7 +161,7 @@ export function KeyboardSafeScrollView({
       keyboardVerticalOffset={keyboardVerticalOffset}
     >
       <ScrollView
-        ref={scrollViewRef}
+        ref={(view) => { scrollViewRef.current = view; if (externalScrollRef) externalScrollRef.current = view; }}
         {...props}
         onFocus={handleFocus}
         onScroll={handleScroll}

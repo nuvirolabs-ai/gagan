@@ -1,9 +1,10 @@
 import React, { useCallback, useState } from "react";
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
-import { AppScreen, Banner, EmptyState, SectionTitle, Surface, Tag } from "../components/ui";
+import { AppScreen, Banner, EmptyState, PrimaryButton, SecondaryButton, SectionTitle, Surface, Tag, inputStyle } from "../components/ui";
 import { repApi } from "../api/repClient";
+import { useRep } from "../context/RepContext";
 import { colors, spacing } from "../theme";
 import { ISSUE_TYPES } from "./IssuesScreen";
 
@@ -16,10 +17,13 @@ const STATUS_TONE: Record<string, "green" | "gold" | "danger" | "neutral"> = {
 };
 
 export default function IssueDetailScreen({ route }: any) {
+  const { staff } = useRep();
   const issueId = route?.params?.issueId as string;
   const [issue, setIssue] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [resolutionNote, setResolutionNote] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     const response = await repApi.issues();
@@ -41,6 +45,25 @@ export default function IssueDetailScreen({ route }: any) {
   }
 
   const typeLabel = ISSUE_TYPES.find((option) => option.value === issue.type)?.label ?? issue.type;
+  const canAct = issue.status === "open" || issue.status === "in_progress";
+  const canWithdraw = canAct && issue.raisedByStaffId === staff?.id;
+  const update = async (action: "resolve" | "withdraw") => {
+    if (saving) return;
+    if (action === "resolve" && resolutionNote.trim().length < 3) {
+      Alert.alert("Resolution needed", "Describe how the issue was resolved.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await repApi.updateIssue(issueId, action, action === "resolve" ? resolutionNote.trim() : undefined);
+      await load();
+      Alert.alert(action === "resolve" ? "Resolution submitted" : "Issue withdrawn");
+    } catch (error: any) {
+      Alert.alert("Could not update issue", error?.message === "issue_already_closed" ? "This issue has already been closed. Refresh to see its status." : "Check your access and try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
   return (
     <AppScreen>
       <ScrollView
@@ -75,6 +98,23 @@ export default function IssueDetailScreen({ route }: any) {
           {issue.updatedAt ? <Text style={styles.muted}>Updated {new Date(issue.updatedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</Text> : null}
           {issue.resolvedAt ? <Text style={styles.muted}>Resolved {new Date(issue.resolvedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</Text> : null}
         </Surface>
+        {canAct ? <Surface>
+          <SectionTitle title="Update issue" />
+          <Text style={styles.muted}>Record the action taken for this store.</Text>
+          <TextInput
+            accessibilityLabel="Resolution details"
+            placeholder="How was it resolved?"
+            value={resolutionNote}
+            onChangeText={setResolutionNote}
+            multiline
+            style={[inputStyle, styles.resolutionInput]}
+          />
+          <PrimaryButton label={saving ? "Submitting…" : "Submit resolution"} onPress={() => void update("resolve")} disabled={saving} />
+          {canWithdraw ? <SecondaryButton label="Withdraw issue" onPress={() => Alert.alert("Withdraw this issue?", "This will keep the issue in history as withdrawn.", [
+            { text: "Keep issue", style: "cancel" },
+            { text: "Withdraw", style: "destructive", onPress: () => void update("withdraw") },
+          ])} disabled={saving} /> : null}
+        </Surface> : null}
       </ScrollView>
     </AppScreen>
   );
@@ -90,4 +130,5 @@ const styles = StyleSheet.create({
   address: { color: colors.inkMuted, fontSize: 13, lineHeight: 19, marginTop: spacing.md },
   metaRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: spacing.lg },
   body: { color: colors.ink, fontSize: 16, lineHeight: 24 },
+  resolutionInput: { minHeight: 82, textAlignVertical: "top" },
 });

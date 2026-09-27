@@ -35,8 +35,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Gagan Sales to choose collection proof images.",
-          "cameraPermission": "Allow Gagan Sales to photograph collection proof.",
+          "photosPermission": "Allow Gagan Sales to choose store task and collection proof images.",
+          "cameraPermission": "Allow Gagan Sales to photograph store task and collection proof.",
           "microphonePermission": false
         }
       ]

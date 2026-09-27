@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -6,6 +6,7 @@ import {
   Keyboard,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -114,6 +115,9 @@ export default function AddRetailerScreen({ navigation }: any) {
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [step, setStep] = useState(0);
   const [proposals, setProposals] = useState<any[]>([]);
+  const [expandedProposalId, setExpandedProposalId] = useState<string | null>(null);
+  const [jumpToRequests, setJumpToRequests] = useState(false);
+  const scrollRef = useRef<ScrollView | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -245,7 +249,7 @@ export default function AddRetailerScreen({ navigation }: any) {
     try {
       const base64 = await new File(photo.uri).base64();
       const digits = form.phone.replace(/\D/g, "").replace(/^91(?=\d{10}$)/, "");
-      await repApi.proposeRetailer({
+      const result = await repApi.proposeRetailer({
         businessName: form.businessName.trim(),
         groupName: form.groupName.trim(),
         ownerName: form.ownerName.trim(),
@@ -275,7 +279,9 @@ export default function AddRetailerScreen({ navigation }: any) {
       setFieldErrors({});
       await AsyncStorage.removeItem(DRAFT_KEY);
       await load();
-      Alert.alert(t("addRetailer.sent"), t("addRetailer.sentBody"));
+      setExpandedProposalId(result.proposal?.id ?? null);
+      setJumpToRequests(true);
+      Alert.alert(t("addRetailer.sent"), "The store is awaiting approval. You can open it in My requests to punch demand now; it becomes an official order only after approval.");
     } catch (err: any) {
       const code = err?.message;
       setError(
@@ -427,17 +433,22 @@ export default function AddRetailerScreen({ navigation }: any) {
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={colors.primary} /></View>;
 
   return (
-    <KeyboardSafeScrollView key={step} containerStyle={styles.screen} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={colors.primary} />}>
+    <KeyboardSafeScrollView key={step} externalScrollRef={scrollRef} containerStyle={styles.screen} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={colors.primary} />}>
         <View style={styles.header}><Text style={styles.kicker}>CUSTOMER MASTER</Text><Text style={styles.title}>New retailer</Text><Text style={styles.subtitle}>Submit a complete store profile for manager review. Approval creates one canonical retailer.</Text></View>
         <View style={styles.stepper}>{STEPS.map((label, index) => <Pressable key={label} accessibilityRole="button" accessibilityState={{ selected: index === step }} onPress={() => { if (index <= step) { Keyboard.dismiss(); setStep(index); } }} style={styles.step}><View style={[styles.stepDot, index <= step && styles.stepDotActive]}><Text style={[styles.stepNumber, index <= step && styles.stepNumberActive]}>{index + 1}</Text></View><Text style={[styles.stepLabel, index === step && styles.stepLabelActive]}>{label}</Text></Pressable>)}</View>
         {error ? <View style={styles.errorBanner}><Ionicons name="alert-circle-outline" size={18} color={colors.danger} /><Text style={styles.errorBannerText}>{error}</Text></View> : null}
         <View style={styles.formSurface}><Text style={styles.formHeading}>{STEPS[step]}</Text><Text style={styles.formProgress}>Step {step + 1} of {STEPS.length}</Text>{stepContent}</View>
         <View style={styles.navigation}>{step > 0 ? <Pressable accessibilityRole="button" onPress={() => { Keyboard.dismiss(); setError(""); setStep((current) => current - 1); }} style={styles.backButton}><Text style={styles.backText}>Back</Text></Pressable> : <View />}{step < STEPS.length - 1 ? <Pressable accessibilityRole="button" onPress={() => { const issue = validateStep(step); if (issue) setError(issue); else { Keyboard.dismiss(); setError(""); setStep((current) => current + 1); } }} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}><Text style={styles.primaryText}>Continue</Text><Ionicons name="arrow-forward" size={18} color={colors.onDark} /></Pressable> : <Pressable accessibilityRole="button" disabled={saving} onPress={() => void submit()} style={({ pressed }) => [styles.primaryButton, saving && styles.disabled, pressed && styles.pressed]}><Text style={styles.primaryText}>{saving ? "Sending…" : "Send for review"}</Text><Ionicons name="paper-plane-outline" size={18} color={colors.onDark} /></Pressable>}</View>
-        <View style={styles.requests}>
+        <View style={styles.requests} onLayout={(event) => {
+          if (!jumpToRequests) return;
+          const y = event.nativeEvent.layout.y;
+          requestAnimationFrame(() => scrollRef.current?.scrollTo({ y, animated: true }));
+          setJumpToRequests(false);
+        }}>
           <Text style={styles.sectionTitle}>My requests</Text>
           {proposals.length === 0 ? <Text style={styles.fieldHint}>Submitted stores and their review status will appear here.</Text> : proposals.map((proposal) => (
             <View key={proposal.id}>
-              <View style={styles.requestRow}>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Open ${proposal.businessName} request`} accessibilityState={{ expanded: expandedProposalId === proposal.id }} onPress={() => setExpandedProposalId((current) => current === proposal.id ? null : proposal.id)} style={styles.requestRow}>
                 <View style={styles.requestIcon}><Ionicons name="storefront-outline" size={18} color={colors.primary} /></View>
                 <View style={styles.requestMain}>
                   <Text style={styles.requestName}>{proposal.businessName}</Text>
@@ -446,7 +457,13 @@ export default function AddRetailerScreen({ navigation }: any) {
                 <View style={[styles.status, STATUS_TONE[proposal.status] ?? STATUS_TONE.pending]}>
                   <Text style={[styles.statusText, { color: (STATUS_TONE[proposal.status] ?? STATUS_TONE.pending).color }]}>{proposal.status}</Text>
                 </View>
-              </View>
+                <Ionicons name={expandedProposalId === proposal.id ? "chevron-up" : "chevron-down"} size={17} color={colors.textSecondary} />
+              </Pressable>
+              {expandedProposalId === proposal.id ? <View style={styles.requestDetail}>
+                <Text style={styles.fieldHint}>{proposal.shopAddress}{proposal.deliveryCity ? ` · ${proposal.deliveryCity}` : ""}</Text>
+                <Text style={styles.fieldHint}>{proposal.status === "pending" ? "Awaiting manager approval. Demand can be punched now, but no official order or price is committed until approval and review." : `Request ${proposal.status}.`}</Text>
+                {proposal.status === "pending" && canOrderForRetailers ? <Pressable accessibilityRole="button" onPress={() => navigation.navigate("RepCatalog", { proposalId: proposal.id, retailerName: proposal.businessName })}><Text style={styles.orderAction}>Take order (pending approval) →</Text></Pressable> : null}
+              </View> : null}
               {proposal.status === "pending" ? <View style={styles.proposalActions}>
                 {canOrderForRetailers ? <Pressable accessibilityRole="button" onPress={() => navigation.navigate("RepCatalog", {
                   proposalId: proposal.id, retailerName: proposal.businessName,
@@ -545,6 +562,7 @@ const styles = StyleSheet.create({
   requests: { gap: spacing.md, paddingTop: spacing.sm },
   sectionTitle: { color: colors.ink, fontSize: 16, fontWeight: "700" },
   requestRow: { minHeight: 56, flexDirection: "row", alignItems: "center", gap: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.separator, paddingVertical: spacing.sm },
+  requestDetail: { marginLeft: 44, paddingVertical: spacing.md, gap: spacing.sm },
   proposalActions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.lg, paddingVertical: spacing.xs, borderBottomWidth: 1, borderBottomColor: colors.separator },
   requestIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center" },
   requestMain: { flex: 1, gap: 2 },

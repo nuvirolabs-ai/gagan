@@ -212,6 +212,55 @@ export class IssueService {
     });
   }
 
+  async updateFromSalesperson(input: {
+    issueId: string;
+    salespersonId: string;
+    action: "resolve" | "withdraw";
+    resolutionNote?: string;
+  }) {
+    const note = input.resolutionNote?.trim();
+    if (input.action === "resolve" && (!note || note.length < 3 || note.length > 1000)) {
+      throw new FieldServiceError("issue_resolution_note_required", 400);
+    }
+    return this.prisma.$transaction(async (tx: Db) => {
+      await tx.$queryRaw`SELECT "id" FROM "ServiceIssue" WHERE "id" = ${input.issueId} FOR UPDATE`;
+      const issue = await tx.serviceIssue.findUnique({ where: { id: input.issueId } });
+      if (!issue) throw new FieldServiceError("issue_not_found", 404);
+      const [staff, retailer] = await Promise.all([
+        tx.staffUser.findUnique({ where: { id: input.salespersonId }, select: { salesRepId: true } }),
+        tx.retailer.findUnique({ where: { id: issue.retailerId }, select: { salesRepId: true } }),
+      ]);
+      if (!staff?.salesRepId || staff.salesRepId !== retailer?.salesRepId ||
+        (issue.raisedByStaffId !== null && issue.raisedByStaffId !== input.salespersonId)) {
+        throw new FieldServiceError("issue_not_found", 404);
+      }
+      if (input.action === "withdraw" && issue.raisedByStaffId !== input.salespersonId) {
+        throw new FieldServiceError("issue_not_withdrawable", 409);
+      }
+      if (issue.status !== "open" && issue.status !== "in_progress") {
+        throw new FieldServiceError("issue_already_closed", 409);
+      }
+      const status = input.action === "resolve" ? "resolved" : "withdrawn";
+      const updated = await tx.serviceIssue.update({
+        where: { id: issue.id },
+        data: {
+          status,
+          ...(input.action === "resolve" ? { resolutionNote: note, resolvedAt: new Date() } : { withdrawnAt: new Date(), withdrawnFromStatus: issue.status }),
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          actorStaffId: input.salespersonId,
+          action: `service_issue.salesperson_${status}`,
+          subjectType: "service_issue",
+          subjectId: issue.id,
+          metadata: { retailerId: issue.retailerId, previousStatus: issue.status, resolutionNote: note ?? null },
+        },
+      });
+      return updated;
+    });
+  }
+
   async updateStatus(input: {
     issueId: string;
     actorStaffId: string;

@@ -158,10 +158,11 @@ export class TaskService {
     };
   }
 
-  async forSalesperson(input: { salespersonId: string; includeClosed?: boolean; limit?: number }) {
+  async forSalesperson(input: { salespersonId: string; retailerId?: string; includeClosed?: boolean; limit?: number }) {
     return this.prisma.fieldTask.findMany({
       where: {
         assignedToStaffId: input.salespersonId,
+        ...(input.retailerId ? { retailerId: input.retailerId } : {}),
         ...(input.includeClosed ? {} : { status: { in: [...OPEN_STATUSES] } }),
       },
       include: { retailer: { select: { id: true, name: true, shopAddress: true } } },

@@ -512,6 +512,30 @@ describe("customer activity and issues reach the customer timeline", () => {
     expect(activities[0].serviceIssueId).toBe(response.body.issue.id);
   });
 
+  it("lets the assigned reporter resolve or withdraw without granting another rep access", async () => {
+    const raised = await request(app).post("/rep/field/issues")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ retailerId: ids.retailerA, type: "damaged_product", description: "Damaged carton" }).expect(201);
+    const path = `/rep/field/issues/${raised.body.issue.id}/action`;
+    await request(app).post(path).set("Authorization", `Bearer ${tokenB}`)
+      .send({ action: "resolve", resolutionNote: "Replacement checked" }).expect(404);
+    await request(app).post(path).set("Authorization", `Bearer ${tokenA}`)
+      .send({ action: "resolve" }).expect(400);
+    await request(app).post(path).set("Authorization", `Bearer ${tokenA}`)
+      .send({ action: "resolve", resolutionNote: "Replacement checked" }).expect(200);
+    await request(app).post(path).set("Authorization", `Bearer ${tokenA}`)
+      .send({ action: "withdraw" }).expect(409);
+    expect(await prisma.serviceIssue.findUniqueOrThrow({ where: { id: raised.body.issue.id } }))
+      .toMatchObject({ status: "resolved", resolutionNote: "Replacement checked" });
+
+    const toWithdraw = await request(app).post("/rep/field/issues")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ retailerId: ids.retailerA, type: "other", description: "Submitted in error" }).expect(201);
+    await request(app).post(`/rep/field/issues/${toWithdraw.body.issue.id}/action`)
+      .set("Authorization", `Bearer ${tokenA}`).send({ action: "withdraw" }).expect(200);
+    expect((await prisma.serviceIssue.findUniqueOrThrow({ where: { id: toWithdraw.body.issue.id } })).status).toBe("withdrawn");
+  });
+
   it("keeps a resolved service request synchronized in Rep and Retailer read APIs", async () => {
     const created = await request(app)
       .post("/rep/field/issues")

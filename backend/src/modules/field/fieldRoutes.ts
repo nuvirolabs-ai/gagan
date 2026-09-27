@@ -404,10 +404,15 @@ export function createFieldRouter(options: {
     "/field/tasks",
     requirePermission(Permissions.TASK_COMPLETE),
     asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      const retailerId = req.query.retailerId;
+      if (retailerId !== undefined && (typeof retailerId !== "string" || !z.string().uuid().safeParse(retailerId).success)) {
+        return res.status(400).json({ error: "invalid_retailer_id" });
+      }
       try {
         res.json({
           tasks: await services.tasks.forSalesperson({
             salespersonId: req.staffAuth!.staffId,
+            retailerId: retailerId as string | undefined,
             includeClosed: req.query.includeClosed === "true",
           }),
         });
@@ -647,6 +652,27 @@ export function createFieldRouter(options: {
           salespersonId: req.staffAuth!.staffId,
         });
         res.status(201).json({ issue });
+      } catch (error) {
+        sendFieldError(error, res, next);
+      }
+    })
+  );
+
+  router.post(
+    "/field/issues/:id/action",
+    requirePermission(Permissions.ISSUE_RAISE),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      const parsed = z.object({
+        action: z.enum(["resolve", "withdraw"]),
+        resolutionNote: z.string().trim().min(3).max(1000).optional(),
+      }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+      try {
+        res.json({ issue: await services.issues.updateFromSalesperson({
+          issueId: req.params.id,
+          salespersonId: req.staffAuth!.staffId,
+          ...parsed.data,
+        }) });
       } catch (error) {
         sendFieldError(error, res, next);
       }

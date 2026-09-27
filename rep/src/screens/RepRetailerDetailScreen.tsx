@@ -35,6 +35,7 @@ import {
   KeyboardSafeScrollView,
 } from "../components/ui";
 import ActivityComposer, { ACTIVITY_LABELS } from "../components/ActivityComposer";
+import TaskEvidenceSheet from "../components/TaskEvidenceSheet";
 import EntityAttribution from "../components/EntityAttribution";
 import { haptic } from "../feedback/haptics";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -61,6 +62,8 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   const [recentVisits, setRecentVisits] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
   const [marketingHistory, setMarketingHistory] = useState<any[]>([]);
+  const [storeTasks, setStoreTasks] = useState<any[]>([]);
+  const [evidenceTask, setEvidenceTask] = useState<any | null>(null);
   const [marketingHistoryExpanded, setMarketingHistoryExpanded] = useState(false);
   const [marketingHistoryLoaded, setMarketingHistoryLoaded] = useState(false);
   const [marketingHistoryLoading, setMarketingHistoryLoading] = useState(false);
@@ -78,7 +81,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   const [checkingIn, setCheckingIn] = useState(false);
 
   const load = useCallback(async () => {
-    const [retailerData, locationData, visitData, activityData, baselineData, opportunityData, todayData, schemeData] = await Promise.all([
+    const [retailerData, locationData, visitData, activityData, baselineData, opportunityData, todayData, schemeData, taskData] = await Promise.all([
       repApi.retailer(retailerId),
       repApi.getLocation(retailerId),
       repApi.visits(),
@@ -89,6 +92,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
       repApi.opportunities(50).catch(() => ({ actions: [] })),
       repApi.today().catch(() => null),
       repApi.schemes(retailerId).catch(() => ({ schemes: [] })),
+      capabilities.canCompleteTasks ? repApi.tasks(retailerId).catch(() => ({ tasks: [] })) : Promise.resolve({ tasks: [] }),
     ]);
     const allVisits = visitData.visits ?? [];
     const visits = allVisits.filter((visit: any) => visit.retailerId === retailerId);
@@ -103,7 +107,8 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
     setOpportunities((opportunityData.actions ?? []).filter((item: any) => item.retailerId === retailerId));
     setTodayField(todayData);
     setSchemes(schemeData.schemes ?? []);
-  }, [retailerId, capabilities.canLogActivity]);
+    setStoreTasks((taskData.tasks ?? []).filter((task: any) => task.retailerId === retailerId && task.status !== "cancelled"));
+  }, [retailerId, capabilities.canLogActivity, capabilities.canCompleteTasks]);
 
   useEffect(() => {
     marketingHistoryRequest.current += 1;
@@ -604,6 +609,14 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
                 />
               </Pressable>
             </View>
+            {storeTasks.length > 0 ? <View style={{ gap: spacing.sm, marginVertical: spacing.md }}>
+              {storeTasks.map((task: any) => <SecondaryButton
+                key={task.id}
+                label={`Add photos · ${task.title}`}
+                icon="camera-outline"
+                onPress={() => setEvidenceTask(task)}
+              />)}
+            </View> : <Text style={styles.muted}>Photos are attached to assigned in-store tasks. No task is assigned for this store yet.</Text>}
             {marketingHistoryExpanded ? (
               marketingHistoryLoading ? (
                 <Text style={styles.muted}>{t("common.loading")}</Text>
@@ -740,6 +753,21 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
           )}
         </View>
       </KeyboardSafeScrollView>
+      <TaskEvidenceSheet visible={Boolean(evidenceTask)} task={evidenceTask} onClose={() => setEvidenceTask(null)} onChanged={() => {
+        const requestId = ++marketingHistoryRequest.current;
+        setMarketingHistoryExpanded(true);
+        setMarketingHistoryLoading(true);
+        void repApi.marketingHistory(retailerId).then((result) => {
+          if (marketingHistoryRequest.current !== requestId) return;
+          setMarketingHistory(result.executions ?? []);
+          setMarketingHistoryLoaded(true);
+          setMarketingHistoryFailed(false);
+        }).catch(() => {
+          if (marketingHistoryRequest.current === requestId) setMarketingHistoryFailed(true);
+        }).finally(() => {
+          if (marketingHistoryRequest.current === requestId) setMarketingHistoryLoading(false);
+        });
+      }} />
 
       {!visiting && !activeVisitElsewhere ? (
         <View style={[styles.bar, { paddingBottom: spacing.section + insets.bottom }]}>

@@ -172,7 +172,7 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
     marketingHistory: (retailerId: string) =>
       request(`/rep/field/retailers/${retailerId}/marketing-history`),
 
-    tasks: () => request("/rep/field/tasks"),
+    tasks: (retailerId?: string) => request(`/rep/field/tasks${retailerId ? `?retailerId=${encodeURIComponent(retailerId)}` : ""}`),
     setTaskStatus: (id: string, status: "in_progress" | "done", note?: string) =>
       post(`/rep/field/tasks/${id}/status`, { status, note }),
     taskEvidence: (id: string) => request(`/rep/field/tasks/${id}/evidence`),
@@ -199,6 +199,8 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
 
     issues: (retailerId?: string) =>
       request(`/rep/field/issues${retailerId ? `?retailerId=${retailerId}` : ""}`),
+    updateIssue: (id: string, action: "resolve" | "withdraw", resolutionNote?: string) =>
+      post(`/rep/field/issues/${id}/action`, { action, resolutionNote }),
     raiseIssue: (body: {
       retailerId: string;
       type: string;

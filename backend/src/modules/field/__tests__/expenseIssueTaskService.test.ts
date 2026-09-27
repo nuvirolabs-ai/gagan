@@ -196,6 +196,17 @@ describe("field expenses", () => {
   });
 });
 
+describe("store task photo entry", () => {
+  it("loads only the current salesperson's open tasks for the selected retailer", async () => {
+    const prisma = fakePrisma();
+    prisma.fieldTask.findMany.mockResolvedValue([]);
+    await new TaskService(prisma).forSalesperson({ salespersonId: "staff-1", retailerId: "retailer-1" });
+    expect(prisma.fieldTask.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { assignedToStaffId: "staff-1", retailerId: "retailer-1", status: { in: ["open", "in_progress"] } },
+    }));
+  });
+});
+
 describe("service issues", () => {
   function assigned(prisma: any, sameRep = true) {
     prisma.staffUser.findUnique.mockResolvedValue({ salesRepId: "rep-1" });
@@ -271,6 +282,27 @@ describe("service issues", () => {
         status: "in_progress",
       })
     ).rejects.toMatchObject({ code: "issue_already_closed" });
+  });
+
+  it("does not let a different salesperson change an issue", async () => {
+    const prisma = fakePrisma();
+    prisma.serviceIssue.findUnique.mockResolvedValue({ id: "issue-1", retailerId: "retailer-1", raisedByStaffId: "staff-1", status: "open" });
+    prisma.staffUser.findUnique.mockResolvedValue({ salesRepId: "rep-2" });
+    prisma.retailer.findUnique.mockResolvedValue({ salesRepId: "rep-1" });
+    await expect(new IssueService(prisma).updateFromSalesperson({
+      issueId: "issue-1", salespersonId: "staff-2", action: "resolve", resolutionNote: "Checked replacement",
+    })).rejects.toMatchObject({ code: "issue_not_found" });
+    expect(prisma.serviceIssue.update).not.toHaveBeenCalled();
+  });
+
+  it("requires the original staff reporter to withdraw an issue", async () => {
+    const prisma = fakePrisma();
+    prisma.serviceIssue.findUnique.mockResolvedValue({ id: "issue-1", retailerId: "retailer-1", raisedByStaffId: null, status: "open" });
+    prisma.staffUser.findUnique.mockResolvedValue({ salesRepId: "rep-1" });
+    prisma.retailer.findUnique.mockResolvedValue({ salesRepId: "rep-1" });
+    await expect(new IssueService(prisma).updateFromSalesperson({
+      issueId: "issue-1", salespersonId: "staff-1", action: "withdraw",
+    })).rejects.toMatchObject({ code: "issue_not_withdrawable" });
   });
 });
 

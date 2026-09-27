@@ -33,6 +33,7 @@ vi.mock("../../components/ui", () => Object.fromEntries([
   "Skeleton", "StatusChip", "StatusPill", "Surface", "TextButton", "TimelineEvent", "KeyboardSafeScrollView",
 ].map((name) => [name, name])));
 vi.mock("../../components/ActivityComposer", () => ({ default: "ActivityComposer", ACTIVITY_LABELS: {} }));
+vi.mock("../../components/TaskEvidenceSheet", () => ({ default: "TaskEvidenceSheet" }));
 vi.mock("../../components/EntityAttribution", () => ({ default: "EntityAttribution" }));
 vi.mock("../../feedback/haptics", () => ({ haptic: vi.fn() }));
 vi.mock("../../i18n/LanguageContext", () => ({ useLanguage: () => ({ t: (key: string) => key }) }));
@@ -61,9 +62,9 @@ describe("Salesperson retailer detail order", () => {
       recentOrders: [], recentLedger: [], kyc: { status: "approved" }, financialSummary: {},
     });
     state.values.set(1, { status: "VERIFIED" });
-    state.values.set(12, { trend: "unknown", regularCategories: [] });
-    state.values.set(15, [{ id: "scheme-1", name: "Test Scheme", headline: "Offer", discountAmount: 10 }]);
-    state.values.set(17, false);
+    state.values.set(14, { trend: "unknown", regularCategories: [] });
+    state.values.set(17, [{ id: "scheme-1", name: "Test Scheme", headline: "Offer", discountAmount: 10 }]);
+    state.values.set(19, false);
 
     const screen = RepRetailerDetailScreen({ route: { params: { retailerId: "store-1" } }, navigation: {} });
     const scroll = Children.toArray(screen.props.children)[0] as React.ReactElement<{ children: ReactNode }>;
@@ -86,9 +87,9 @@ describe("Salesperson retailer detail order", () => {
       financialSummary: { reconciliationRequired: true },
     });
     state.values.set(1, { status: "VERIFIED" });
-    state.values.set(12, { trend: "unknown", regularCategories: [] });
-    state.values.set(15, []);
-    state.values.set(17, false);
+    state.values.set(14, { trend: "unknown", regularCategories: [] });
+    state.values.set(17, []);
+    state.values.set(19, false);
     const screen = RepRetailerDetailScreen({ route: { params: { retailerId: "store-1" } }, navigation: {} });
     const scroll = Children.toArray(screen.props.children)[0] as React.ReactElement<{ children: ReactNode }>;
     const rendered = Children.toArray(scroll.props.children).map(content).join(" ");

@@ -59,7 +59,7 @@ export default function ActivityComposer({
 }) {
   const { logActivity } = useField();
   const { t } = useLanguage();
-  const [type, setType] = useState<string | null>(null);
+  const [types, setTypes] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
   const [followUpMode, setFollowUpMode] = useState<string | null>(null);
   const [followUpDate, setFollowUpDate] = useState(() => addDays(isoDay(new Date()), 2));
@@ -67,30 +67,35 @@ export default function ActivityComposer({
   const [saving, setSaving] = useState(false);
 
   const submit = async () => {
-    if (!type) return Alert.alert("Pick what happened", "Choose an activity type to log.");
+    if (types.length === 0) return Alert.alert("Pick what happened", "Choose at least one activity type to log.");
     setSaving(true);
     try {
       const followUpAt = followUpMode
         ? new Date(`${followUpDate}T09:00:00.000Z`).toISOString()
         : undefined;
-      const result = await logActivity({
-        retailerId,
-        type,
-        visitId,
-        notes: notes.trim() || undefined,
-        followUpAt,
-      });
-      setType(null);
+      const followUpOwner = types.includes("follow_up_required") ? "follow_up_required" : types[0];
+      let queued = false;
+      for (const type of types) {
+        const result = await logActivity({
+          retailerId,
+          type,
+          visitId,
+          notes: notes.trim() || undefined,
+          followUpAt: type === followUpOwner ? followUpAt : undefined,
+        });
+        if (result === "queued") queued = true;
+        setTypes((current) => current.filter((value) => value !== type));
+      }
       setNotes("");
       setFollowUpMode(null);
       setFollowUpDate(addDays(isoDay(new Date()), 2));
       onLogged?.();
       Alert.alert(
         t("activity.logged"),
-        result === "queued" ? t("activity.queued") : "Saved to this customer's history."
+        queued ? t("activity.queued") : "Saved to this customer's history."
       );
     } catch (error: any) {
-      Alert.alert("Could not log this", error?.message ?? "Try again.");
+      Alert.alert("Could not log everything", `Saved activity types were removed from the selection. Retry the remaining types. ${error?.message ?? "Try again."}`);
     } finally {
       setSaving(false);
     }
@@ -99,7 +104,7 @@ export default function ActivityComposer({
   return (
     <View style={styles.wrap}>
       <Field label={t("activity.type")}>
-        <OptionGrid options={ACTIVITY_TYPES} value={type} onChange={setType} />
+        <OptionGrid options={ACTIVITY_TYPES} value={types} onChange={(type) => setTypes((current) => current.includes(type) ? current.filter((value) => value !== type) : [...current, type])} disabled={saving} />
       </Field>
       <Field label={t("visit.notes")} hint={t("common.optional")}>
         <TextInput

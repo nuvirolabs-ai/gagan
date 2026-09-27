@@ -37,6 +37,8 @@ describe("Catalog ordering panel", () => {
     render(<OrderingSetupPanel variantId="pack-one" onClose={onClose} onSaved={vi.fn().mockResolvedValue(undefined)} />);
     fireEvent.click(await screen.findByRole("button", { name: "Save & enable ordering" }));
     expect(mocks.enableOrdering).not.toHaveBeenCalled();
+    expect(screen.getByText(/GST not configured/)).toBeInTheDocument();
+    expect(screen.queryByText(/Approved GST-pending exception/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
     await waitFor(() => expect(mocks.enableOrdering).toHaveBeenCalledWith("pack-one", { revision: setup.revision, values: setup.values }));
     expect(onClose).toHaveBeenCalled();

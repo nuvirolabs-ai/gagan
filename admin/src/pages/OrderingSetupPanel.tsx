@@ -113,6 +113,7 @@ export default function OrderingSetupPanel({ variantId, onClose, onSaved }: { va
           </details>
           <details id="ordering-stock" open={setup.blockers.some(blocker => blocker.includes("stock") || blocker.includes("Stock") || blocker.includes("warehouse"))}><summary>Stock <span>{setup.inventory ? `${setup.inventory.available} available` : "Needs verification"}</span></summary>
             {setup.inventory ? <p>Warehouse {setup.inventory.warehouseCode} · {setup.inventory.available} available · {setup.inventory.status} · {setup.inventory.source}<br />Last verified {new Date(setup.inventory.syncedAt).toLocaleString("en-IN")}</p> : <p>No authorised inventory link is available for this pack.</p>}
+            {setup.blockers.some(blocker => blocker.includes("catalogue identity")) && <p className="muted small">Approve the catalogue identity before linking inventory to this pack.</p>}
             {setup.inventory?.source === "staging_uat" && <p>Test stock — not physical inventory.</p>}
             <p className="muted small">Stock refresh uses the existing authorised inventory flow. This panel does not change physical stock or verification time.</p>
             <a className="ordering-stock-link" href="/imports?type=inventory">Open inventory import</a>

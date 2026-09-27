@@ -49,6 +49,7 @@ describe("Catalog ordering panel", () => {
     render(<OrderingSetupPanel variantId="pack-one" onClose={vi.fn()} onSaved={vi.fn().mockResolvedValue(undefined)} />);
     expect(await screen.findByText(/This pack has no approved catalogue identity/)).toBeInTheDocument();
     expect(screen.getByText("Packing").closest("details")).toHaveAttribute("open");
+    expect(screen.getByText("Approve the catalogue identity before linking inventory to this pack.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open inventory import" })).toHaveAttribute("href", "/imports?type=inventory");
   });
 });

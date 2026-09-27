@@ -13,8 +13,8 @@ import { colors, radius, spacing } from "../theme";
 import { SCREEN_CONTENT_BOTTOM_GAP } from "../layout/viewportPolicy";
 import { useLanguage } from "../i18n/LanguageContext";
 import { toCollectionReceipt } from "./collectionEvidence";
+import { filterCollectionRetailers, type CollectionRetailer } from "./collectionRetailerSearch";
 
-type CollectionRetailer = { id: string; name: string; phone: string; shopAddress: string };
 type CollectionSubmission = { id: string; amount: number | string; method: string; status: string; retailer: { id: string; name: string; phone: string } };
 const methods = ["cash", "cheque", "neft", "upi"] as const;
 
@@ -28,6 +28,8 @@ export default function StaffHomeScreen() {
   const [retailers, setRetailers] = useState<CollectionRetailer[]>([]);
   const [submissions, setSubmissions] = useState<CollectionSubmission[]>([]);
   const [selectedRetailerId, setSelectedRetailerId] = useState("");
+  const [retailerQuery, setRetailerQuery] = useState("");
+  const [retailerPickerOpen, setRetailerPickerOpen] = useState(false);
   const [amount, setAmount] = useState("");
   const [invoices,setInvoices]=useState<any[]>([]);
   const [invoiceId,setInvoiceId]=useState("");
@@ -61,9 +63,13 @@ export default function StaffHomeScreen() {
         capabilities.canCollect ? repApi.collectionRetailers() : Promise.resolve({ retailers: [] }),
         canConfirmCollections ? repApi.collectionSubmissions() : Promise.resolve({ submissions: [] }),
       ]);
-      setRetailers(assigned.retailers.map((a: any) => a.retailer));
+      const assignedRetailers = assigned.retailers.map((a: any) => a.retailer) as CollectionRetailer[];
+      setRetailers(assignedRetailers);
       setSubmissions(queue.submissions);
-      if (presetRetailerId) setSelectedRetailerId(presetRetailerId);
+      setSelectedRetailerId((current) => {
+        if (current && assignedRetailers.some((retailer) => retailer.id === current)) return current;
+        return assignedRetailers.some((retailer) => retailer.id === presetRetailerId) ? presetRetailerId : "";
+      });
     } catch (error) {
       Alert.alert("Could not load collections", error instanceof Error ? error.message : "Try again.");
     } finally {
@@ -72,6 +78,16 @@ export default function StaffHomeScreen() {
   }, [canConfirmCollections, capabilities.canCollect, presetRetailerId]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const selectedRetailer = retailers.find((retailer) => retailer.id === selectedRetailerId);
+  const visibleRetailers = filterCollectionRetailers(retailers, retailerQuery);
+  const chooseRetailer = (retailer: CollectionRetailer) => {
+    if (saving) return;
+    if (retailer.id !== selectedRetailerId) collectionKey.current = null;
+    setSelectedRetailerId(retailer.id);
+    setRetailerQuery("");
+    setRetailerPickerOpen(false);
+  };
 
   const submit = async () => {
     if(submitting.current || !invoicesReady)return;
@@ -158,7 +174,21 @@ export default function StaffHomeScreen() {
         {capabilities.canCollect ? <View style={styles.card}>
           <View style={styles.cardTitleRow}><View style={styles.icon}><Ionicons name="cash-outline" size={22} color={colors.green} /></View><View><Text style={styles.title}>{t("work.submitCollection")}</Text><Text style={styles.muted}>{t("work.accountsVerify")}</Text></View></View>
           <Text style={styles.label}>Retailer</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>{retailers.map((retailer) => <TouchableOpacity key={retailer.id} onPress={() => setSelectedRetailerId(retailer.id)} style={[styles.chip, selectedRetailerId === retailer.id && styles.chipActive]}><Text style={[styles.chipText, selectedRetailerId === retailer.id && styles.chipTextActive]}>{retailer.name}</Text></TouchableOpacity>)}</ScrollView>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Select retailer" accessibilityState={{ expanded: retailerPickerOpen }} disabled={saving || retailers.length === 0} onPress={() => setRetailerPickerOpen((open) => !open)} style={styles.retailerPickerButton}>
+            <View style={styles.retailerPickerText}><Text style={styles.retailerName}>{selectedRetailer?.name ?? "Select retailer"}</Text>{selectedRetailer ? <Text style={styles.muted}>{selectedRetailer.shopAddress || selectedRetailer.phone}</Text> : null}</View>
+            <Ionicons name={retailerPickerOpen ? "chevron-up" : "chevron-down"} size={20} color={colors.inkMuted} />
+          </TouchableOpacity>
+          {retailers.length === 0 ? <Text style={styles.muted}>No retailers are assigned for collections. Ask an administrator to grant collection rights for a store.</Text> : null}
+          {retailerPickerOpen ? <View style={styles.retailerPickerList}>
+            <TextInput accessibilityLabel="Search assigned retailers" value={retailerQuery} onChangeText={setRetailerQuery} autoCapitalize="none" placeholder="Search name, phone or address" placeholderTextColor={colors.inkFaint} style={styles.input} />
+            <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" style={styles.retailerResults}>
+              {visibleRetailers.map((retailer) => <TouchableOpacity key={retailer.id} accessibilityRole="button" accessibilityLabel={`Select ${retailer.name}`} onPress={() => chooseRetailer(retailer)} style={styles.retailerResult}>
+                <Text style={styles.retailerName}>{retailer.name}</Text>
+                <Text style={styles.muted}>{[retailer.shopAddress, retailer.phone].filter(Boolean).join(" · ")}</Text>
+              </TouchableOpacity>)}
+              {visibleRetailers.length === 0 ? <Text style={styles.emptyRetailerSearch}>No assigned retailers match your search.</Text> : null}
+            </ScrollView>
+          </View> : null}
           <Text style={styles.label}>Amount (₹)</Text>
           {invoices.map(i=><TouchableOpacity key={i.id} disabled={saving} style={styles.attachment} onPress={()=>{setInvoiceId(i.id);setJain("");setPadam("");setAllocationConfirmed(false);}}><Text>Invoice #{i.invoiceNumber} {invoiceId===i.id?"· Selected":""} · Jain ₹{i.jain} · Padam ₹{i.padam}</Text></TouchableOpacity>)}
           {invoiceId ? <>
@@ -217,11 +247,13 @@ const styles = StyleSheet.create({
   title: { fontSize: 17, fontWeight: "700", color: colors.ink },
   muted: { fontSize: 12.5, lineHeight: 18, color: colors.inkMuted },
   label: { fontSize: 12, fontWeight: "700", color: colors.inkMuted, marginTop: spacing.sm },
-  chips: { gap: spacing.sm, paddingVertical: spacing.xs },
-  chip: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, backgroundColor: colors.surface },
-  chipActive: { borderColor: colors.green, backgroundColor: colors.greenSoft },
-  chipText: { color: colors.inkMuted, fontSize: 12, fontWeight: "600" },
-  chipTextActive: { color: colors.green },
+  retailerPickerButton: { minHeight: 52, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  retailerPickerText: { flex: 1, gap: 2 },
+  retailerName: { color: colors.ink, fontSize: 14, fontWeight: "700" },
+  retailerPickerList: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.sm, gap: spacing.sm },
+  retailerResults: { maxHeight: 260 },
+  retailerResult: { minHeight: 52, padding: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border, justifyContent: "center", gap: 2 },
+  emptyRetailerSearch: { color: colors.inkMuted, padding: spacing.md },
   input: { backgroundColor: colors.surfaceAlt, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.md, color: colors.ink, fontSize: 14, borderWidth: 1, borderColor: colors.border },
   notesInput: { minHeight: 88 },
   methodRow: { flexDirection: "row", gap: spacing.sm },

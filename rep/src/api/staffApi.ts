@@ -171,6 +171,7 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
       request(`/rep/field/activities?retailerId=${retailerId}`),
     marketingHistory: (retailerId: string) =>
       request(`/rep/field/retailers/${retailerId}/marketing-history`),
+    startStoreExecution: (retailerId: string) => post(`/rep/field/retailers/${retailerId}/execution`),
 
     tasks: (retailerId?: string) => request(`/rep/field/tasks${retailerId ? `?retailerId=${encodeURIComponent(retailerId)}` : ""}`),
     setTaskStatus: (id: string, status: "in_progress" | "done", note?: string) =>

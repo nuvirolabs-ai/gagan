@@ -423,6 +423,22 @@ export function createFieldRouter(options: {
   );
 
   router.post(
+    "/field/retailers/:retailerId/execution",
+    requirePermission(Permissions.TASK_COMPLETE),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      if (!z.string().uuid().safeParse(req.params.retailerId).success) return res.status(400).json({ error: "invalid_retailer_id" });
+      try {
+        res.json({ task: await services.tasks.startOwnExecution({
+          retailerId: req.params.retailerId,
+          salespersonId: req.staffAuth!.staffId,
+        }) });
+      } catch (error) {
+        sendFieldError(error, res, next);
+      }
+    })
+  );
+
+  router.post(
     "/field/tasks/:id/status",
     requirePermission(Permissions.TASK_COMPLETE),
     asyncRoute(async (req: StaffAuthedRequest, res, next) => {

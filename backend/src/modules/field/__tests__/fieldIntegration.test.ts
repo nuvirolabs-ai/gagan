@@ -614,6 +614,28 @@ describe("customer activity and issues reach the customer timeline", () => {
   });
 });
 
+describe("self-started in-store execution", () => {
+  it("creates one assigned task, reuses it on retry, and denies another salesperson", async () => {
+    const path = `/rep/field/retailers/${ids.retailerA}/execution`;
+    await request(app).post(path).set("Authorization", `Bearer ${tokenB}`).expect(404);
+    const first = await request(app).post(path).set("Authorization", `Bearer ${tokenA}`).expect(200);
+    const retry = await request(app).post(path).set("Authorization", `Bearer ${tokenA}`).expect(200);
+    expect(retry.body.task.id).toBe(first.body.task.id);
+    expect(first.body.task).toMatchObject({
+      assignedToStaffId: ids.staffA,
+      createdByStaffId: ids.staffA,
+      retailerId: ids.retailerA,
+      title: "In-store execution",
+      status: "in_progress",
+    });
+    const listed = await request(app).get(`/rep/field/tasks?retailerId=${ids.retailerA}`)
+      .set("Authorization", `Bearer ${tokenA}`).expect(200);
+    expect(listed.body.tasks.map((task: { id: string }) => task.id)).toContain(first.body.task.id);
+    expect((await request(app).get(`/rep/field/tasks?retailerId=${ids.retailerA}`)
+      .set("Authorization", `Bearer ${tokenB}`).expect(200)).body.tasks).toEqual([]);
+  });
+});
+
 describe("task activity photo evidence", () => {
   it("stores private evidence against the assigned task, retailer and salesperson", async () => {
     const task = await prisma.fieldTask.create({

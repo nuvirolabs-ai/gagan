@@ -27,6 +27,48 @@ export class TaskService {
     private readonly storage: () => ObjectStorage = getObjectStorage
   ) {}
 
+  async startOwnExecution(input: { salespersonId: string; retailerId: string }) {
+    return this.prisma.$transaction(async (tx: Db) => {
+      await tx.$queryRaw`SELECT "id" FROM "Retailer" WHERE "id" = ${input.retailerId} FOR UPDATE`;
+      const [staff, retailer] = await Promise.all([
+        tx.staffUser.findUnique({ where: { id: input.salespersonId }, select: { salesRepId: true, status: true } }),
+        tx.retailer.findUnique({ where: { id: input.retailerId }, select: { id: true, name: true, salesRepId: true } }),
+      ]);
+      if (!staff?.salesRepId || staff.status !== "active" || !retailer || retailer.salesRepId !== staff.salesRepId) {
+        throw new FieldServiceError("retailer_not_assigned", 404);
+      }
+      const where = {
+        assignedToStaffId: input.salespersonId,
+        createdByStaffId: input.salespersonId,
+        retailerId: input.retailerId,
+        title: "In-store execution",
+        status: { in: [...OPEN_STATUSES] },
+      };
+      const existing = await tx.fieldTask.findFirst({ where, include: { retailer: { select: { id: true, name: true } } } });
+      if (existing) return existing;
+      const task = await tx.fieldTask.create({
+        data: {
+          assignedToStaffId: input.salespersonId,
+          createdByStaffId: input.salespersonId,
+          retailerId: input.retailerId,
+          title: "In-store execution",
+          status: "in_progress",
+        },
+        include: { retailer: { select: { id: true, name: true } } },
+      });
+      await tx.auditEvent.create({
+        data: {
+          actorStaffId: input.salespersonId,
+          action: "field_task.self_execution_started",
+          subjectType: "field_task",
+          subjectId: task.id,
+          metadata: { retailerId: input.retailerId },
+        },
+      });
+      return task;
+    });
+  }
+
   async addEvidence(input: {
     taskId: string;
     salespersonId: string;

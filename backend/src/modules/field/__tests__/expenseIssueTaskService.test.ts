@@ -205,6 +205,15 @@ describe("store task photo entry", () => {
       where: { assignedToStaffId: "staff-1", retailerId: "retailer-1", status: { in: ["open", "in_progress"] } },
     }));
   });
+
+  it("rejects a salesperson starting execution for another rep's retailer", async () => {
+    const prisma = fakePrisma();
+    prisma.staffUser.findUnique.mockResolvedValue({ salesRepId: "rep-1", status: "active" });
+    prisma.retailer.findUnique.mockResolvedValue({ salesRepId: "rep-2" });
+    await expect(new TaskService(prisma).startOwnExecution({ salespersonId: "staff-1", retailerId: "retailer-2" }))
+      .rejects.toMatchObject({ code: "retailer_not_assigned", status: 404 });
+    expect(prisma.fieldTask.create).not.toHaveBeenCalled();
+  });
 });
 
 describe("service issues", () => {

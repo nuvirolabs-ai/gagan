@@ -64,6 +64,8 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   const [marketingHistory, setMarketingHistory] = useState<any[]>([]);
   const [storeTasks, setStoreTasks] = useState<any[]>([]);
   const [evidenceTask, setEvidenceTask] = useState<any | null>(null);
+  const [startingExecution, setStartingExecution] = useState(false);
+  const startingExecutionRef = useRef(false);
   const [marketingHistoryExpanded, setMarketingHistoryExpanded] = useState(false);
   const [marketingHistoryLoaded, setMarketingHistoryLoaded] = useState(false);
   const [marketingHistoryLoading, setMarketingHistoryLoading] = useState(false);
@@ -140,6 +142,22 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
       if (marketingHistoryRequest.current === requestId) setMarketingHistoryFailed(true);
     } finally {
       if (marketingHistoryRequest.current === requestId) setMarketingHistoryLoading(false);
+    }
+  };
+
+  const startExecution = async () => {
+    if (startingExecutionRef.current) return;
+    startingExecutionRef.current = true;
+    setStartingExecution(true);
+    try {
+      const result = await repApi.startStoreExecution(retailerId);
+      setStoreTasks((current) => current.some((task) => task.id === result.task.id) ? current : [result.task, ...current]);
+      setEvidenceTask(result.task);
+    } catch {
+      Alert.alert("Could not start execution", "Check that this store is assigned to you and try again online.");
+    } finally {
+      startingExecutionRef.current = false;
+      setStartingExecution(false);
     }
   };
 
@@ -609,14 +627,15 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
                 />
               </Pressable>
             </View>
-            {storeTasks.length > 0 ? <View style={{ gap: spacing.sm, marginVertical: spacing.md }}>
+            <View style={{ gap: spacing.sm, marginVertical: spacing.md }}>
+              <PrimaryButton label={startingExecution ? "Opening…" : "Add execution photos"} icon="camera-outline" onPress={() => void startExecution()} disabled={startingExecution} />
               {storeTasks.map((task: any) => <SecondaryButton
                 key={task.id}
                 label={`Add photos · ${task.title}`}
                 icon="camera-outline"
                 onPress={() => setEvidenceTask(task)}
               />)}
-            </View> : <Text style={styles.muted}>Photos are attached to assigned in-store tasks. No task is assigned for this store yet.</Text>}
+            </View>
             {marketingHistoryExpanded ? (
               marketingHistoryLoading ? (
                 <Text style={styles.muted}>{t("common.loading")}</Text>

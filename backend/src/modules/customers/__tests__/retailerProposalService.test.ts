@@ -73,6 +73,29 @@ describe("punching demand for a proposed retailer", () => {
     retailerId: null,
   };
 
+  it("shows real catalogue prices as an indicative tier range without assigning a tier", async () => {
+    const prisma = fakePrisma({
+      product: { findMany: vi.fn().mockResolvedValue([{
+        id: "product-1", name: "Gagan Toor Dal", category: "Daal", imageUrl: "/catalog/dal.jpg", sapMaterialId: "SAP-1",
+        variants: [{ id: "variant-1", imageUrl: "/catalog/pack.jpg", unitSize: "1 KG", unit: "kg", unitsPerCase: 30, unitWeightKg: 1,
+          catalogStatus: "active", gstPercent: 5, gstPendingOrderAllowed: false }],
+      }]) },
+      priceList: { findMany: vi.fn().mockResolvedValue([
+        { variantId: "variant-1", price: 3120, rateBasis: "case" },
+        { variantId: "variant-1", price: 3240, rateBasis: "case" },
+      ]) },
+    });
+    prisma.retailerProposal.findUnique.mockResolvedValue(pendingProposal);
+
+    const result = await serviceFor(prisma).proposalDemandCatalog({ proposalId: pendingProposal.id, salespersonId: "staff-1" });
+
+    expect(result.catalog[0].variants[0]).toMatchObject({
+      id: "variant-1", imageUrl: "/catalog/pack.jpg", price: null,
+      indicativePriceRange: { minCase: 3120, maxCase: 3240 },
+    });
+    expect(prisma.retailerProposal.update).not.toHaveBeenCalled();
+  });
+
   it("captures normalized SKU demand for the proposal owner without pricing it", async () => {
     const intent = { id: "intent-1", proposalId: pendingProposal.id, items: [{ variantId: "sku-1", qty: 3 }] };
     const prisma = fakePrisma({

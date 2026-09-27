@@ -190,7 +190,14 @@ export default function RepCatalogScreen({ route, navigation }: any) {
                   <Text style={styles.pack}>
                     {variant.unitSize} × {variant.unitsPerCase}
                   </Text>
-                  {proposalDemandMode ? <Text style={styles.pendingOrder}>Price after retailer approval</Text> : <View style={styles.priceStack}>
+                  {proposalDemandMode ? <View style={styles.priceStack}>
+                    <Text style={styles.price}>{variant.indicativePriceRange
+                      ? variant.indicativePriceRange.minCase === variant.indicativePriceRange.maxCase
+                        ? `${inr(variant.indicativePriceRange.minCase)} / case`
+                        : `${inr(variant.indicativePriceRange.minCase)}–${inr(variant.indicativePriceRange.maxCase)} / case`
+                      : "Price not configured"}</Text>
+                    <Text style={styles.rateLabel}>Indicative tier prices · final price after retailer approval</Text>
+                  </View> : <View style={styles.priceStack}>
                     <View style={styles.priceRow}>
                       <Text style={styles.price}>
                         {priceDisplay.primary}

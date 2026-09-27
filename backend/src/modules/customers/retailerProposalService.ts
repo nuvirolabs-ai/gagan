@@ -9,6 +9,7 @@ import { encryptPii, maskAadhaar } from "../../platform/security/pii";
 import { CommercialStatusCode } from "@prisma/client";
 import { recordCommercialStatusEvent } from "../commercialStatus/statusService";
 import { createOrderForRetailer, type OrderLineInput } from "../../lib/orders";
+import { catalogueImageState, catalogueOrderingState } from "../catalog/catalogueVisibility";
 
 type Db = PrismaClient | any;
 
@@ -316,11 +317,11 @@ export class RetailerProposalService {
     }
     if (proposal.status !== "pending") throw new ProposalError("proposal_not_pending", 409);
 
-    const products = await this.prisma.product.findMany({
+    const [products, prices] = await Promise.all([this.prisma.product.findMany({
       where: { catalogStatus: "active", variants: { some: { catalogStatus: "active" } } },
       include: { variants: { where: { catalogStatus: "active" } } },
       orderBy: { createdAt: "asc" },
-    });
+    }), this.prisma.priceList.findMany({ select: { variantId: true, price: true, rateBasis: true } })]) as [any[], Array<{ variantId: string; price: number; rateBasis: string }>];
     return {
       catalog: products.map((product: any) => ({
         id: product.id,
@@ -328,15 +329,23 @@ export class RetailerProposalService {
         category: product.category,
         imageUrl: product.imageUrl,
         description: product.description,
-        variants: product.variants.map((variant: any) => ({
+        sapMaterialId: product.sapMaterialId,
+        variants: product.variants.map((variant: any) => {
+          const caseWeightKg = Number(variant.unitWeightKg) * variant.unitsPerCase;
+          const casePrices = prices.filter((price) => price.variantId === variant.id).map((price) =>
+            price.rateBasis === "quintal" ? Math.round(Number(price.price) * caseWeightKg) / 100 : Number(price.price));
+          return ({
           id: variant.id,
           imageUrl: variant.imageUrl ?? product.imageUrl,
           unitSize: variant.unitSize,
           unit: variant.unit,
           unitsPerCase: variant.unitsPerCase,
+          caseWeightKg,
           price: null,
-          orderable: true,
-        })),
+          indicativePriceRange: casePrices.length ? { minCase: Math.min(...casePrices), maxCase: Math.max(...casePrices) } : null,
+          ...catalogueImageState(variant),
+          ...catalogueOrderingState(variant.catalogStatus, variant.gstPercent?.toString() ?? null, variant.gstPendingOrderAllowed),
+        }); }),
       })),
       categories: [...new Set(products.map((product: any) => product.category))].sort(),
     };

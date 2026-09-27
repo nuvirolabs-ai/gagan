@@ -1,6 +1,8 @@
 import { Router, type RequestHandler } from "express";
 import { z } from "zod";
 import { asyncRoute } from "../../platform/http/asyncRoute";
+import { publicMediaUrl } from "../../lib/media";
+import { groupCatalog } from "../catalog/catalogGrouping";
 import { requirePermission, type StaffAuthedRequest } from "../identity/permissions";
 import { Permissions } from "../identity/roleCatalog";
 import { ScopeError, ScopeResolver, scopeResolver as defaultScopeResolver } from "../org/scope";
@@ -105,10 +107,19 @@ export function createRetailerProposalRouter(options: {
     ...proposalOrderPermission,
     asyncRoute(async (req: StaffAuthedRequest, res, next) => {
       try {
-        res.json(await service.proposalDemandCatalog({
+        const result = await service.proposalDemandCatalog({
           proposalId: req.params.id,
           salespersonId: req.staffAuth!.staffId,
+        });
+        const catalog = result.catalog.map((product: any) => ({
+          ...product,
+          imageUrl: publicMediaUrl(req, product.imageUrl),
+          variants: product.variants.map((variant: any) => ({
+            ...variant,
+            imageUrl: publicMediaUrl(req, variant.imageUrl),
+          })),
         }));
+        res.json({ catalog, groups: groupCatalog(catalog), categories: result.categories });
       } catch (error) {
         sendProposalError(error, res, next);
       }

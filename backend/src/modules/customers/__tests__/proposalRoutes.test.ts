@@ -17,6 +17,20 @@ function appWith(permissions: string[], service: Record<string, any>) {
 const orderPermissions = ["retailer.propose", "order.create_for_retailer"];
 
 describe("pending retailer demand routes", () => {
+  it("serves grouped image URLs and indicative prices to an authorised salesperson", async () => {
+    const service = { proposalDemandCatalog: vi.fn().mockResolvedValue({ catalog: [{
+      id: "product-1", name: "Gagan Toor Dal", category: "Daal", sapMaterialId: "SAP-1", imageUrl: "/catalog/dal.jpg",
+      variants: [{ id: "variant-1", unitSize: "1 KG", unit: "kg", unitsPerCase: 30, price: null,
+        imageUrl: "/catalog/pack.jpg", indicativePriceRange: { minCase: 3120, maxCase: 3240 } }],
+    }], categories: ["Daal"] }) };
+    const response = await request(appWith(orderPermissions, service)).get("/rep/retailer-proposals/proposal-1/catalog");
+    expect(response.status).toBe(200);
+    expect(response.body.groups[0].skus[0]).toMatchObject({
+      imageUrl: expect.stringContaining("/catalog/pack.jpg"),
+      indicativePriceRange: { minCase: 3120, maxCase: 3240 },
+    });
+    expect(response.body.groups[0].skus[0].price).toBeNull();
+  });
   it("requires both proposal and order permissions before returning the proposal catalog", async () => {
     const service = { proposalDemandCatalog: vi.fn().mockResolvedValue({ catalog: [] }) };
     const response = await request(appWith(["retailer.propose"], service))

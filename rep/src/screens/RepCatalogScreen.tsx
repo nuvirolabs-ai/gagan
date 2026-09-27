@@ -246,10 +246,10 @@ export default function RepCatalogScreen({ route, navigation }: any) {
           <View style={{ flex: 1 }}>
             <Text style={styles.barLabel}>
               {cartCount} case{cartCount > 1 ? "s" : ""} · {selectedLines.length} line
-              {selectedLines.length > 1 ? "s" : ""}
+              {selectedLines.length > 1 ? "s" : ""}{proposalDemandMode ? " · excl. GST" : ""}
             </Text>
             <Text style={styles.barValue}>{proposalDemandMode
-              ? demandHasMissingPrice ? "Estimate unavailable · pending approval" : `Indicative total · ${inr(demandEstimate)}`
+              ? demandHasMissingPrice ? "Estimate unavailable" : `Est. ${inr(demandEstimate)}`
               : `Catalogue subtotal · ${inr(cartTotal)}`}</Text>
           </View>
           <TouchableOpacity style={styles.placeBtn} accessibilityRole="button" disabled={punching} onPress={() => proposalDemandMode ? void punchDemand() : navigation.navigate("RepReviewOrder", { retailerId, retailerName })}>

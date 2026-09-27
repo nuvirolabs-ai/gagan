@@ -45,7 +45,7 @@ describe("Catalog ordering panel", () => {
   it("opens missing identity in place and links stock to the supported inventory flow", async () => {
     mocks.orderingSetup.mockResolvedValueOnce({ ...setup, inventory: null, blockers: ["Approved catalogue identity is missing.", "Linked warehouse stock is unavailable. Use the authorised inventory import or refresh."] });
     render(<OrderingSetupPanel variantId="pack-one" onClose={vi.fn()} onSaved={vi.fn().mockResolvedValue(undefined)} />);
-    expect(await screen.findByText(/This draft still needs an approved catalogue identity/)).toBeInTheDocument();
+    expect(await screen.findByText(/This pack has no approved catalogue identity/)).toBeInTheDocument();
     expect(screen.getByText("Packing").closest("details")).toHaveAttribute("open");
     expect(screen.getByRole("link", { name: "Open inventory import" })).toHaveAttribute("href", "/imports?type=inventory");
   });

@@ -240,7 +240,7 @@ async function seedCatalogue(source: ClientUatSource, actorStaffId: string) {
   const sourceVariantIds = [...variantByKey.values()].map((variant) => variant.id);
   const variants = await prisma.variant.findMany({ where: { id: { in: sourceVariantIds } }, select: { id: true, productId: true, catalogKey: true } });
   await prisma.priceOverride.deleteMany({ where: { variantId: { in: sourceVariantIds } } });
-  await prisma.product.updateMany({ where: { OR: [{ catalogKey: null }, { catalogKey: { notIn: sourceProductKeys.map((id) => variants.find((variant) => variant.productId === id)?.catalogKey ?? "") } }], id: { notIn: sourceProductKeys } }, data: { catalogStatus: "archived" } });
+  await prisma.product.updateMany({ where: { OR: [{ catalogKey: null }, { catalogKey: { notIn: sourceProductKeys.map((id) => variants.find((variant) => variant.productId === id)?.catalogKey ?? "") } }], id: { notIn: sourceProductKeys } }, data: { catalogStatus: "archived", sapMaterialId: null } });
   await prisma.variant.updateMany({ where: { id: { notIn: sourceVariantIds } }, data: { catalogStatus: "archived" } });
   return { variantByKey, imagesReused };
 }
@@ -307,7 +307,7 @@ export async function seedClientUat(options: ClientUatSeedOptions, db: PrismaCli
     const assignment = options.source.assignments.find((item) => item.retailerPhone === retailer.phone);
     if (!assignment || assignment.salespersonEmployeeRef !== CLIENT_UAT_DEFAULTS.salespersonEmployeeRef) throw new Error(`client_uat_assignment_missing_${retailer.phone}`);
   }
-  await prisma.retailer.updateMany({ where: { salesRepId: platform.salesRep.id, phone: { notIn: [...sourcePhones] } }, data: { status: "suspended" } });
+  await prisma.retailer.updateMany({ where: { phone: { notIn: [...sourcePhones] } }, data: { status: "suspended", sapCustomerId: null } });
   const counts = { products: new Set([...catalogue.variantByKey.values()].map((variant) => variant.productId)).size, variants: sourceVariantIds.length, priceRows: sourceVariantIds.length * (await prisma.tier.count()), inventoryRows: sourceVariantIds.length, retailers: retailers.length, assignments: options.source.assignments.length, placeholders: options.source.products.filter((row) => !row.imageUrl).length, imagesReused: catalogue.imagesReused };
   const metadata = snapshotMetadata(options.source, { ...options, effectiveFrom, effectiveUntil }, actorStaffId, sourceManifestHash, counts, { name: platform.salesperson.name, phone: platform.salesperson.phone, employeeRef: platform.salesperson.employeeRef! });
   const latest = await prisma.auditEvent.findFirst({ where: { action: "staging.client_uat_snapshot", subjectType: "ClientUatEnvironment", subjectId: CLIENT_UAT_SNAPSHOT_SUBJECT }, orderBy: { createdAt: "desc" } });

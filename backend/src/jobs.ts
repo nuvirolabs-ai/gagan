@@ -107,6 +107,17 @@ export function startScheduledJobs() {
     return stop;
   }
 
+  // Client UAT is sourced exclusively from its attached workbook manifest.
+  // Keep the mock connector available for outbound order evidence, but do not
+  // let its development master-data fixtures introduce products or prices.
+  if (process.env.CLIENT_UAT_TARGET === "client-uat") {
+    const drainMins = minutesFromEnv("SAP_OUTBOX_INTERVAL_MINUTES", 5);
+    const drain = () => void safely("sap outbox drain", () => drainOutbox());
+    timers.push(setInterval(drain, drainMins * MINUTE));
+    console.log(`[job] client UAT SAP master sync disabled; mock outbox drain every ${drainMins}m`);
+    return stop;
+  }
+
   // Batch pull of master data. Spec §7 leaves real-time vs batch open; this is
   // the batch answer, and a real-time connector can simply ignore the schedule.
   // Inventory snapshots become stale after one hour. Refreshing every 30

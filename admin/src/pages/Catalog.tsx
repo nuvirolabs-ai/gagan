@@ -19,7 +19,7 @@ export default function Catalog() {
   const [savingDraft, setSavingDraft] = useState(false);
   const [setupVariantId, setSetupVariantId] = useState<string | null>(null);
   const [publishing, setPublishing] = useState<any>(null);
-  const [semantic, setSemantic] = useState({ brandName: "", groupName: "", productLabel: "", skuName: "", packingSize: "", masterBagBoxSize: "" });
+  const [outerPack, setOuterPack] = useState<"Bag" | "Box">("Bag");
   const [fieldErrors, setFieldErrors] = useState<DraftPackFields>({});
   const editorKey = editor ? `${editor.kind}:${editor.product?.id ?? ""}:${editor.variant?.id ?? ""}` : "";
   const [packDraft, setPackDraft] = useState({ key: "", packSize: "", unit: "kg", unitsPerCase: "", measuredWeightKg: "" });
@@ -57,6 +57,19 @@ export default function Catalog() {
     }
   };
 
+  const productBody = (values: FormData) => {
+    const imageUrl = String(values.get("imageUrl") ?? "").trim();
+    const brandName = String(values.get("brandName") ?? "").trim();
+    const groupName = String(values.get("groupName") ?? "").trim();
+    return {
+      name: String(values.get("name") ?? "").trim(),
+      ...(brandName ? { brandName } : {}),
+      ...(groupName ? { groupName } : {}),
+      category: String(values.get("category") ?? "").trim(),
+      ...(imageUrl ? { imageUrl } : {}),
+    };
+  };
+
   const saveDraft = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!editor || savingDraft) return;
@@ -72,8 +85,8 @@ export default function Catalog() {
     setError(null);
     setFieldErrors({});
     try {
-      if (editor.kind === "create" && pack) await api.createProduct({ name: String(values.get("name") ?? "").trim(), category: String(values.get("category") ?? "").trim(), variants: [pack] });
-      if (editor.kind === "product") await api.updateProduct(editor.product.id, { name: String(values.get("name") ?? "").trim(), category: String(values.get("category") ?? "").trim() });
+      if (editor.kind === "create" && pack) await api.createProduct({ ...productBody(values), variants: [pack] });
+      if (editor.kind === "product") await api.updateProduct(editor.product.id, productBody(values));
       if (editor.kind === "variant" && pack) await api.updateVariant(editor.variant.id, pack);
       if (editor.kind === "add" && pack) await api.addVariant(editor.product.id, pack);
       setEditor(null);
@@ -92,6 +105,37 @@ export default function Catalog() {
     }
   };
 
+  const saveAndPublish = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    const form = event.currentTarget.form;
+    if (!form || savingDraft) return;
+    const values = new FormData(form);
+    const built = buildDraftPack(packDraft);
+    if (!built.ok) {
+      setFieldErrors(built.fields);
+      setError(null);
+      return;
+    }
+    setSavingDraft(true);
+    setError(null);
+    setFieldErrors({});
+    try {
+      await api.createAndPublishProduct({ product: productBody(values), pack: { ...built.pack, outerPack: String(values.get("outerPack") ?? "Bag") } });
+      setEditor(null);
+      setNotice("Catalogue published. Ordering setup is still separate.");
+      await load();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        const readable = humanizePackFailure(err.body);
+        setFieldErrors(readable.fields);
+        setError(publicationMessage(err.body) === "Could not publish this catalogue pack." ? readable.message : publicationMessage(err.body));
+      } else {
+        setError("Could not publish this catalogue pack.");
+      }
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
   useEffect(() => {
     load();
   }, []);
@@ -104,7 +148,9 @@ export default function Catalog() {
     if (body?.error === "catalogue_publication_ambiguous") return "Publication is blocked because the pack match is ambiguous.";
     if (body?.error === "catalogue_semantics_pack_mismatch") return "The catalogue description does not match this pack.";
     if (body?.error === "catalogue_identity_mismatch") return "That product description does not match the existing catalogue identity.";
-    if (body?.error === "semantic_identity_required") return "Enter the brand, group, label, SKU, packing size, and master pack.";
+    if (body?.error === "invalid_outer_pack") return "Choose Bag or Box as the outer pack.";
+    if (body?.error === "product_name_exists") return "A product with this name already exists.";
+    if (body?.error === "semantic_identity_required") return "Could not derive catalogue identity from this product and pack.";
     return "Could not publish this catalogue pack.";
   };
 
@@ -113,9 +159,9 @@ export default function Catalog() {
     if (!publishing) return;
     setError(null);
     try {
-      await api.publishCatalogue(publishing.variant.id, semantic);
+      await api.publishCatalogueFromBusiness(publishing.variant.id, { outerPack });
       setPublishing(null);
-      setNotice("Catalogue published. Ordering is not enabled.");
+      setNotice("Catalogue published. Ordering setup is still separate.");
       await load();
     } catch (err) {
       if (err instanceof ApiError) setError(publicationMessage(err.body));
@@ -157,7 +203,7 @@ export default function Catalog() {
       </p>
 
       <div className="row" style={{ marginBottom: 16 }}>
-        <button onClick={() => setEditor({ kind: "create" })}>Create draft</button>
+        <button onClick={() => setEditor({ kind: "create" })}>Add product</button>
         <a href="/imports">Bulk import</a>
       </div>
 
@@ -167,14 +213,7 @@ export default function Catalog() {
         <p className="muted small">Publication will assign catalogue identity and make this pack available for commercial setup. It will not enable ordering.</p>
         <form onSubmit={publishCatalogue}>
           <div className="row">
-            <label>Brand<input value={semantic.brandName} onChange={(event) => setSemantic((current) => ({ ...current, brandName: event.target.value }))} /></label>
-            <label>Group<input value={semantic.groupName} onChange={(event) => setSemantic((current) => ({ ...current, groupName: event.target.value }))} /></label>
-            <label>Product label<input value={semantic.productLabel} onChange={(event) => setSemantic((current) => ({ ...current, productLabel: event.target.value }))} /></label>
-          </div>
-          <div className="row">
-            <label>SKU name<input value={semantic.skuName} onChange={(event) => setSemantic((current) => ({ ...current, skuName: event.target.value }))} /></label>
-            <label>Packing size<input value={semantic.packingSize} onChange={(event) => setSemantic((current) => ({ ...current, packingSize: event.target.value }))} /></label>
-            <label>Master pack<input value={semantic.masterBagBoxSize} onChange={(event) => setSemantic((current) => ({ ...current, masterBagBoxSize: event.target.value }))} /></label>
+            <label>Outer pack<select value={outerPack} onChange={(event) => setOuterPack(event.target.value as "Bag" | "Box")}><option value="Bag">Bag</option><option value="Box">Box</option></select></label>
           </div>
           <div className="row"><button type="submit">Publish catalogue</button><button type="button" className="secondary" onClick={() => setPublishing(null)}>Cancel</button></div>
         </form>
@@ -185,12 +224,17 @@ export default function Catalog() {
         <form key={editorKey} noValidate onSubmit={saveDraft}>
           {(editor.kind === "create" || editor.kind === "product") && <div className="row">
             <label>Product name<input name="name" required defaultValue={editor.product?.name ?? ""} /></label>
+            <label>Brand<input name="brandName" list="catalog-brand-options" required defaultValue={editor.product?.catalogIdentityBrand ?? "Gagan"} /></label>
+            <datalist id="catalog-brand-options"><option value="Gagan" /><option value="Laxmi" /></datalist>
+            <label>Product group<input name="groupName" required defaultValue={editor.product?.catalogIdentityGroup ?? ""} /></label>
             <label>Category<input name="category" required defaultValue={editor.product?.category ?? ""} /></label>
+            <label>Image URL<input name="imageUrl" type="url" defaultValue={editor.product?.imageUrl ?? ""} /></label>
           </div>}
           {editor.kind !== "product" && <div className="row">
             <label>Pack size<input name="packSize" inputMode="decimal" aria-invalid={Boolean(fieldErrors.packSize)} value={packDraft.packSize} onChange={(event) => setPackDraft((current) => ({ ...current, packSize: event.target.value }))} /></label>
             <label>Unit<select name="unit" aria-invalid={Boolean(fieldErrors.unit)} value={packDraft.unit} onChange={(event) => setPackDraft((current) => ({ ...current, unit: event.target.value }))}><option value="kg">kg</option><option value="g">g</option><option value="quintal">quintal</option><option value="pcs">pcs</option></select></label>
             <label>Units per case<input name="unitsPerCase" inputMode="numeric" aria-invalid={Boolean(fieldErrors.unitsPerCase)} value={packDraft.unitsPerCase} onChange={(event) => setPackDraft((current) => ({ ...current, unitsPerCase: event.target.value }))} /></label>
+            {editor.kind === "create" && <label>Outer pack<select name="outerPack" defaultValue="Bag"><option value="Bag">Bag</option><option value="Box">Box</option></select></label>}
             {packDraft.unit === "pcs" && <label>Measured weight per piece (kg)<input name="measuredWeightKg" inputMode="decimal" aria-invalid={Boolean(fieldErrors.weight)} value={packDraft.measuredWeightKg} onChange={(event) => setPackDraft((current) => ({ ...current, measuredWeightKg: event.target.value }))} /></label>}
           </div>}
           {editor.kind !== "product" && preview && <p>{preview.sentence}</p>}
@@ -200,7 +244,11 @@ export default function Catalog() {
           {editor.kind !== "product" && fieldErrors.unitsPerCase && <p role="alert">{fieldErrors.unitsPerCase}</p>}
           {editor.kind !== "product" && fieldErrors.weight && <p role="alert">{fieldErrors.weight}</p>}
           {editor.kind !== "product" && <p className="muted small">Mass packs derive weight from the pack size. Pieces need a measured weight. A saved draft is not ready for ordering until catalogue identity is published.</p>}
-          <div className="row"><button type="submit" disabled={savingDraft}>{editor.kind === "variant" || editor.kind === "add" ? "Save pack" : "Save draft"}</button><button type="button" className="secondary" onClick={() => setEditor(null)}>Cancel</button></div>
+          <div className="row">
+            <button type="submit" disabled={savingDraft}>{editor.kind === "variant" || editor.kind === "add" ? "Save pack" : "Save draft"}</button>
+            {editor.kind === "create" && <button type="button" disabled={savingDraft} onClick={saveAndPublish}>Save & publish</button>}
+            <button type="button" className="secondary" onClick={() => setEditor(null)}>Cancel</button>
+          </div>
         </form>
       </section>}
 
@@ -246,7 +294,7 @@ export default function Catalog() {
                         <div className="muted small">{v.stock?.status === "in_stock" ? `In stock · ${v.stock.available} available` : v.stock?.status === "out_of_stock" ? "Out of stock" : "Stock needs verification"}</div>
                         <div className="muted small">{v.gstPercent != null ? `GST ${v.gstPercent}% configured` : v.gstPending ? "GST pending exception" : "GST pending"}</div>
                         {v.catalogStatus === "pending_review" && !v.catalogKey
-                          ? <button type="button" className="sm" onClick={() => { setPublishing({ product: p, variant: v }); setSemantic({ brandName: "", groupName: "", productLabel: "", skuName: "", packingSize: v.unitSize, masterBagBoxSize: "" }); }}>Publish catalogue</button>
+                          ? <button type="button" className="sm" onClick={() => { setPublishing({ product: p, variant: v }); setOuterPack("Bag"); }}>Publish catalogue</button>
                           : <button type="button" className="sm" onClick={() => setSetupVariantId(v.id)}>{v.catalogStatus === "active" ? "Manage setup" : "Set up ordering"}</button>}
                         <div className="muted small">Variant ID: <code>{v.id}</code> <button type="button" className="ghost sm" onClick={() => copyId(v.id)}>Copy variant ID</button></div>
                         {v.catalogStatus === "pending_review" && <div><button className="ghost sm" onClick={() => setEditor({ kind: "variant", product: p, variant: v })}>Edit draft</button></div>}

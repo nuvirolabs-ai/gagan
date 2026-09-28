@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "../../../lib/prisma";
-import { productCatalogueIdentity, variantCatalogueIdentity } from "../catalogueIdentity";
-import { publishDraftCatalogue } from "../draftCataloguePublication";
+import { normalizeCatalogueText, productCatalogueIdentity, variantCatalogueIdentity } from "../catalogueIdentity";
+import { publishDraftCatalogue, publishDraftCatalogueFromBusinessInput, publishExistingDraftCatalogueFromBusinessInput } from "../draftCataloguePublication";
 import { getOrderingSetup } from "../orderingSetup";
 
 const actor = `catalogue-publication-${randomUUID()}`;
@@ -52,6 +52,34 @@ afterAll(async () => {
 });
 
 describe("draft catalogue publication", () => {
+  it("derives catalogue identity from normal Admin business fields", async () => {
+    const name = `Gagan Simple Daal ${randomUUID()}`;
+    const result = await publishDraftCatalogueFromBusinessInput({
+      product: { name, brandName: "Gagan", groupName: "Gagan Daal", category: "Daal", imageUrl: "https://example.test/daal.png" },
+      pack: { unitSize: "1 kg", unit: "kg", unitsPerCase: 30, unitWeightKg: 1, outerPack: "Bag" },
+    }, actor);
+    expect(result.outcome).toBe("published");
+    if (result.outcome !== "published") throw new Error("expected published result");
+    productIds.push(result.product.id);
+    variantIds.push(result.variant.id);
+
+    expect(result).toMatchObject({
+      outcome: "published",
+      duplicateDecision: "assigned",
+      product: { catalogStatus: "published", catalogIdentityBrand: "GAGAN", catalogIdentityGroup: "GAGAN DAAL", catalogIdentityLabel: name.replace(/^Gagan\s+/i, "").toUpperCase() },
+      variant: { catalogStatus: "published", catalogIdentitySkuName: normalizeCatalogueText(`${name.replace(/^Gagan\s+/i, "")} (1 kg x 30)`), catalogIdentityPackingSize: "1KG", catalogIdentityMasterPack: "30KG BAG" },
+    });
+    const saved = await prisma.variant.findUniqueOrThrow({ where: { id: result.variant.id }, include: { product: true } });
+    expect(saved.product.imageUrl).toBe("https://example.test/daal.png");
+    expect(saved.gstPercent).toBeNull();
+    expect(saved.sellingEntity).toBeNull();
+    expect(saved.routingClass).toBeNull();
+    expect(saved.product.sapMaterialId).toBeNull();
+    expect(await prisma.priceList.count({ where: { variantId: result.variant.id } })).toBe(0);
+    expect(await prisma.inventorySnapshot.count({ where: { variantId: result.variant.id } })).toBe(0);
+    expect((await getOrderingSetup(result.variant.id)).blockers).not.toContain("Approved catalogue identity is missing.");
+  });
+
   it("publishes a new draft without inventing commercial, inventory, or SAP data", async () => {
     const pack = scenario().oneKg;
     const { product, variant } = await createPack({ name: `UAT publication ${randomUUID()}` });
@@ -111,6 +139,21 @@ describe("draft catalogue publication", () => {
     expect(saved.catalogKey).toBe(identity.catalogKey);
   });
 
+  it("publishes an existing draft using stored semantic provenance and only the outer pack", async () => {
+    const pack = scenario().oneKg;
+    const { product, variant } = await createPack({ name: `UAT existing draft ${randomUUID()}`, identity: productCatalogueIdentity(pack) });
+    const result = await publishExistingDraftCatalogueFromBusinessInput(variant.id, "Box", actor);
+    expect(result).toMatchObject({
+      outcome: "published",
+      duplicateDecision: "assigned",
+      product: { id: product.id, catalogKey: productCatalogueIdentity(pack).catalogKey, internalCode: productCatalogueIdentity(pack).internalCode },
+      variant: { id: variant.id, catalogKey: variantCatalogueIdentity({ ...pack, masterBagBoxSize: "30KG BOX" }).catalogKey, catalogIdentityMasterPack: "30KG BOX" },
+    });
+    const saved = await prisma.variant.findUniqueOrThrow({ where: { id: variant.id }, include: { product: true } });
+    expect(saved.product.id).toBe(product.id);
+    expect(saved.catalogStatus).toBe("published");
+  });
+
   it("stores a restated tuple only when it derives the existing product key", async () => {
     const packs = scenario();
     const identity = productCatalogueIdentity(packs.oneKg);
@@ -157,5 +200,22 @@ describe("draft catalogue publication", () => {
     const productBlocked = await publishDraftCatalogue(pending.variant.id, otherPacks.fiveKg, actor);
     expect(productBlocked).toMatchObject({ outcome: "blocked", code: "canonical_product_exists", productId: other.product.id });
     expect((await prisma.product.findUniqueOrThrow({ where: { id: pending.product.id } })).catalogKey).toBeNull();
+  });
+
+  it("blocks a duplicate business publication before creating an orphan draft", async () => {
+    const input = {
+      product: { name: `Gagan Duplicate Daal ${randomUUID()}`, brandName: "Gagan", groupName: "Gagan Daal", category: "Daal" },
+      pack: { unitSize: "1 kg", unit: "kg", unitsPerCase: 30, unitWeightKg: 1, outerPack: "Bag" as const },
+    };
+    const first = await publishDraftCatalogueFromBusinessInput(input, actor);
+    expect(first.outcome).toBe("published");
+    if (first.outcome !== "published") throw new Error("expected first publication");
+    productIds.push(first.product.id);
+    variantIds.push(first.variant.id);
+    const productCount = await prisma.product.count();
+    const variantCount = await prisma.variant.count();
+    await expect(publishDraftCatalogueFromBusinessInput(input, actor)).rejects.toMatchObject({ code: "product_name_exists" });
+    expect(await prisma.product.count()).toBe(productCount);
+    expect(await prisma.variant.count()).toBe(variantCount);
   });
 });

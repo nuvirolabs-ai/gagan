@@ -18,6 +18,23 @@ export class CataloguePublicationError extends Error {
 }
 
 export type CataloguePublicationInput = Partial<ProductSemanticInput & VariantSemanticInput>;
+export type BusinessCataloguePublicationInput = {
+  product: {
+    name: string;
+    brandName: string;
+    groupName: string;
+    category: string;
+    imageUrl?: string;
+    description?: string;
+  };
+  pack: {
+    unitSize: string;
+    unit: string;
+    unitsPerCase: number;
+    unitWeightKg: number;
+    outerPack: "Bag" | "Box";
+  };
+};
 
 type Loaded = Prisma.VariantGetPayload<{ include: { product: true } }>;
 
@@ -30,6 +47,43 @@ function sameSellablePack(left: { unitSize: string; unit: string; unitsPerCase: 
     && normalizeCatalogueText(left.unit) === normalizeCatalogueText(right.unit)
     && left.unitsPerCase === right.unitsPerCase
     && Math.abs(Number(left.unitWeightKg) - Number(right.unitWeightKg)) <= 1e-9;
+}
+
+function displayPackSize(unitSize: string) {
+  return cleanUnitSize(unitSize).replace(/\s+/g, " ");
+}
+
+function cleanUnitSize(value: string) {
+  return String(value).trim();
+}
+
+function formatCaseWeightKg(unitWeightKg: number, unitsPerCase: number) {
+  const weight = Math.round(unitWeightKg * unitsPerCase * 1000) / 1000;
+  return String(Number(weight.toFixed(3)));
+}
+
+function stripBrandPrefix(productName: string, brandName: string) {
+  const cleanName = productName.trim().replace(/\s+/g, " ");
+  const cleanBrand = brandName.trim().replace(/\s+/g, " ");
+  if (!cleanBrand) return cleanName;
+  const match = new RegExp(`^${cleanBrand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s+`, "i");
+  return cleanName.replace(match, "").trim() || cleanName;
+}
+
+export function deriveCataloguePublicationInput(input: BusinessCataloguePublicationInput): ProductSemanticInput & VariantSemanticInput {
+  const productName = input.product.name.trim();
+  const brandName = input.product.brandName.trim();
+  const groupName = input.product.groupName.trim();
+  const productLabel = stripBrandPrefix(productName, brandName);
+  const packingSize = displayPackSize(input.pack.unitSize);
+  return {
+    brandName,
+    groupName,
+    productLabel,
+    skuName: `${productLabel} (${packingSize} x ${input.pack.unitsPerCase})`,
+    packingSize,
+    masterBagBoxSize: `${formatCaseWeightKg(input.pack.unitWeightKg, input.pack.unitsPerCase)}KG ${input.pack.outerPack}`,
+  };
 }
 
 async function recordBlock(
@@ -197,4 +251,68 @@ export async function publishDraftCatalogue(variantId: string, input: CatalogueP
     });
     return present(saved, "assigned");
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+}
+
+export async function publishDraftCatalogueFromBusinessInput(input: BusinessCataloguePublicationInput, actorStaffId: string) {
+  const productName = input.product.name.trim();
+  const brandName = input.product.brandName.trim();
+  const groupName = input.product.groupName.trim();
+  const category = input.product.category.trim();
+  if (!productName || !brandName || !groupName || !category) throw new CataloguePublicationError("invalid_product", 400);
+  if (!["Bag", "Box"].includes(input.pack.outerPack)) throw new CataloguePublicationError("invalid_outer_pack", 400);
+  const semantic = deriveCataloguePublicationInput(input);
+  const existing = await prisma.product.findMany({ where: { name: { equals: productName, mode: "insensitive" } }, select: { id: true } });
+  if (existing.length) throw new CataloguePublicationError("product_name_exists", 409);
+  const productIdentity = productCatalogueIdentity(semantic);
+  const variantIdentity = variantCatalogueIdentity(semantic);
+  const [productByKey, variantByKey] = await Promise.all([
+    prisma.product.findUnique({ where: { catalogKey: productIdentity.catalogKey }, select: { id: true } }),
+    prisma.variant.findUnique({ where: { catalogKey: variantIdentity.catalogKey }, select: { id: true, productId: true } }),
+  ]);
+  if (variantByKey) return { outcome: "blocked" as const, code: "canonical_pack_exists", productId: variantByKey.productId, variantId: variantByKey.id };
+  if (productByKey) return { outcome: "blocked" as const, code: "canonical_product_exists", productId: productByKey.id, variantId: "" };
+  const product = await prisma.product.create({
+    data: {
+      name: productName,
+      category,
+      catalogStatus: "pending_review",
+      imageUrl: input.product.imageUrl,
+      description: input.product.description,
+      catalogIdentityBrand: productIdentity.brand,
+      catalogIdentityGroup: productIdentity.group,
+      catalogIdentityLabel: productIdentity.label,
+      variants: {
+        create: [{
+          unitSize: input.pack.unitSize,
+          unit: input.pack.unit,
+          unitsPerCase: input.pack.unitsPerCase,
+          unitWeightKg: input.pack.unitWeightKg,
+          catalogStatus: "pending_review",
+          catalogImageStatus: "pending",
+          catalogImageLabel: "Image pending confirmation",
+        }],
+      },
+    },
+    include: { variants: true },
+  });
+  return publishDraftCatalogue(product.variants[0].id, semantic, actorStaffId);
+}
+
+export async function publishExistingDraftCatalogueFromBusinessInput(variantId: string, outerPack: "Bag" | "Box", actorStaffId: string) {
+  const variant = await prisma.variant.findUnique({ where: { id: variantId }, include: { product: true } });
+  if (!variant) throw new CataloguePublicationError("pack_not_found", 404);
+  const brandName = variant.product.catalogIdentityBrand ?? "";
+  const groupName = variant.product.catalogIdentityGroup ?? "";
+  const productLabel = variant.product.catalogIdentityLabel ?? "";
+  if (!brandName || !groupName || !productLabel) throw new CataloguePublicationError("semantic_identity_required", 400);
+  const packingSize = displayPackSize(variant.unitSize);
+  const semantic = {
+    brandName,
+    groupName,
+    productLabel,
+    skuName: `${productLabel} (${packingSize} x ${variant.unitsPerCase})`,
+    packingSize,
+    masterBagBoxSize: `${formatCaseWeightKg(Number(variant.unitWeightKg), variant.unitsPerCase)}KG ${outerPack}`,
+  };
+  return publishDraftCatalogue(variantId, semantic, actorStaffId);
 }

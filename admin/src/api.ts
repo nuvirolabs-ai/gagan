@@ -287,10 +287,12 @@ export const api = {
   saveOrderingDraft: (id: string, body: unknown) => request(`/admin/variants/${id}/ordering-draft`, { method: "PUT", body: JSON.stringify(body) }),
   enableOrdering: (id: string, body: unknown) => post(`/admin/variants/${id}/enable-ordering`, body),
   createProduct: (body: unknown) => post("/admin/products", body),
+  createAndPublishProduct: (body: unknown) => post("/admin/products/publish", body),
   updateProduct: (id: string, body: unknown) => request(`/admin/products/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   updateVariant: (id: string, body: unknown) => request(`/admin/variants/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   addVariant: (productId: string, body: unknown) => post(`/admin/products/${productId}/variants`, body),
   publishCatalogue: (variantId: string, body: unknown) => post(`/admin/variants/${variantId}/publish-catalogue`, body),
+  publishCatalogueFromBusiness: (variantId: string, body: unknown) => post(`/admin/variants/${variantId}/publish-catalogue-business`, body),
   setPrice: (tierId: string, variantId: string, price: number) =>
     post("/admin/price-list", { tierId, variantId, price }),
   locations: () => request("/admin/locations"),

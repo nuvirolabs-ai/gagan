@@ -6,13 +6,18 @@ import { Prisma } from "@prisma/client";
 const mocks = vi.hoisted(() => ({
   create: vi.fn(), productFind: vi.fn(), productFindMany: vi.fn(), productUpdate: vi.fn(),
   variantFind: vi.fn(), variantFindFirst: vi.fn(), variantUpdate: vi.fn(), variantCreate: vi.fn(), priceUpsert: vi.fn(),
+  publishBusiness: vi.fn(),
 }));
 vi.mock("../../../lib/prisma", () => ({ prisma: {
   product: { create: mocks.create, findUnique: mocks.productFind, findMany: mocks.productFindMany, update: mocks.productUpdate },
   variant: { findUnique: mocks.variantFind, findFirst: mocks.variantFindFirst, update: mocks.variantUpdate, create: mocks.variantCreate },
   priceList: { upsert: mocks.priceUpsert },
 } }));
-vi.mock("../../../lib/adminAuth", () => ({ requireAdmin: (_req: unknown, _res: unknown, next: () => void) => next() }));
+vi.mock("../../../lib/adminAuth", () => ({ requireAdmin: (req: any, _res: unknown, next: () => void) => { req.staffAuth = { staffId: "staff-1" }; next(); } }));
+vi.mock("../draftCataloguePublication", async (original) => ({
+  ...await original<typeof import("../draftCataloguePublication")>(),
+  publishDraftCatalogueFromBusinessInput: mocks.publishBusiness,
+}));
 
 import router from "../../../routes/admin/catalog";
 
@@ -34,6 +39,19 @@ describe("admin catalogue drafts", () => {
     expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
       catalogStatus: "pending_review", variants: { create: [expect.objectContaining({ catalogStatus: "pending_review" })] },
     }) }));
+  });
+
+  it("publishes a product from business fields without accepting semantic identity input", async () => {
+    mocks.publishBusiness.mockResolvedValue({ outcome: "published", product: { id: "p1" }, variant: { id: "v1" } });
+    const response = await request(app).post("/products/publish").send({
+      product: { name: "Gagan Toor Dal", brandName: "Gagan", groupName: "Gagan Toor Dal", category: "Daal", imageUrl: "https://example.test/toor.png" },
+      pack: { ...pack, outerPack: "Bag" },
+    });
+    expect(response.status).toBe(201);
+    expect(mocks.publishBusiness).toHaveBeenCalledWith({
+      product: { name: "Gagan Toor Dal", brandName: "Gagan", groupName: "Gagan Toor Dal", category: "Daal", imageUrl: "https://example.test/toor.png" },
+      pack: { ...pack, outerPack: "Bag" },
+    }, expect.any(String));
   });
 
   it("rejects changes to an active variant and product", async () => {

@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import Catalog from "../Catalog";
 import { ApiError } from "../../api";
 
-const mocks = vi.hoisted(() => ({ products: vi.fn(), setPrice: vi.fn(), createProduct: vi.fn(), updateProduct: vi.fn(), updateVariant: vi.fn(), addVariant: vi.fn(), publishCatalogue: vi.fn() }));
+const mocks = vi.hoisted(() => ({ products: vi.fn(), setPrice: vi.fn(), createProduct: vi.fn(), createAndPublishProduct: vi.fn(), updateProduct: vi.fn(), updateVariant: vi.fn(), addVariant: vi.fn(), publishCatalogue: vi.fn() }));
 vi.mock("../../api", async (original) => ({ ...await original<typeof import("../../api")>(), api: mocks }));
 
 beforeEach(() => {
@@ -47,8 +47,9 @@ describe("Catalog commercial rate display", () => {
   it("creates a pending-review product with an explicit mass pack", async () => {
     mocks.createProduct.mockResolvedValue({ product: { id: "new" } });
     render(<Catalog />);
-    fireEvent.click(await screen.findByRole("button", { name: "Create draft" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Add product" }));
     fireEvent.change(screen.getByLabelText("Product name"), { target: { value: "Sample dal" } });
+    fireEvent.change(screen.getByLabelText("Product group"), { target: { value: "Gagan Daal" } });
     fireEvent.change(screen.getByLabelText("Category"), { target: { value: "Daal" } });
     fireEvent.change(screen.getByLabelText("Pack size"), { target: { value: "500" } });
     fireEvent.change(screen.getByLabelText("Unit"), { target: { value: "g" } });
@@ -56,15 +57,16 @@ describe("Catalog commercial rate display", () => {
     expect(screen.getByText("500 g equals 0.5 kg per unit.")).toBeInTheDocument();
     expect(screen.queryByLabelText("Weight per unit (kg)")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
-    await waitFor(() => expect(mocks.createProduct).toHaveBeenCalledWith({ name: "Sample dal", category: "Daal", variants: [{ unitSize: "500 g", unit: "g", unitsPerCase: 12, unitWeightKg: 0.5 }] }));
+    await waitFor(() => expect(mocks.createProduct).toHaveBeenCalledWith({ name: "Sample dal", brandName: "Gagan", groupName: "Gagan Daal", category: "Daal", variants: [{ unitSize: "500 g", unit: "g", unitsPerCase: 12, unitWeightKg: 0.5 }] }));
     expect(mocks.products).toHaveBeenCalledWith("all");
   });
 
   it("saves 1 kg × 30 from separate pack size and unit fields", async () => {
     mocks.createProduct.mockResolvedValue({ product: { id: "daal" } });
     render(<Catalog />);
-    fireEvent.click(await screen.findByRole("button", { name: "Create draft" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Add product" }));
     fireEvent.change(screen.getByLabelText("Product name"), { target: { value: "Testing Daal" } });
+    fireEvent.change(screen.getByLabelText("Product group"), { target: { value: "Gagan Daal" } });
     fireEvent.change(screen.getByLabelText("Category"), { target: { value: "Daal" } });
     fireEvent.change(screen.getByLabelText("Pack size"), { target: { value: "1" } });
     fireEvent.change(screen.getByLabelText("Unit"), { target: { value: "kg" } });
@@ -72,15 +74,42 @@ describe("Catalog commercial rate display", () => {
     expect(screen.getByText("For a 1 kg pack, weight per unit is 1 kg.")).toBeInTheDocument();
     expect(screen.getByText("Case weight: 30 kg")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
-    await waitFor(() => expect(mocks.createProduct).toHaveBeenCalledWith({ name: "Testing Daal", category: "Daal", variants: [{ unitSize: "1 kg", unit: "kg", unitsPerCase: 30, unitWeightKg: 1 }] }));
+    await waitFor(() => expect(mocks.createProduct).toHaveBeenCalledWith({ name: "Testing Daal", brandName: "Gagan", groupName: "Gagan Daal", category: "Daal", variants: [{ unitSize: "1 kg", unit: "kg", unitsPerCase: 30, unitWeightKg: 1 }] }));
     expect(screen.queryByText("invalid_pack")).not.toBeInTheDocument();
     expect(await screen.findByText("Draft saved. It is not visible for ordering.")).toBeInTheDocument();
   });
 
+  it("publishes a new product from business fields without semantic identity entry", async () => {
+    mocks.createAndPublishProduct.mockResolvedValue({ product: { id: "published-product" }, variant: { id: "published-pack" } });
+    render(<Catalog />);
+    fireEvent.click(await screen.findByRole("button", { name: "Add product" }));
+    fireEvent.change(screen.getByLabelText("Product name"), { target: { value: "Gagan Toor Dal" } });
+    fireEvent.change(screen.getByLabelText("Product group"), { target: { value: "Gagan Toor Dal" } });
+    fireEvent.change(screen.getByLabelText("Category"), { target: { value: "Daal" } });
+    fireEvent.change(screen.getByLabelText("Pack size"), { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText("Unit"), { target: { value: "kg" } });
+    fireEvent.change(screen.getByLabelText("Units per case"), { target: { value: "30" } });
+    fireEvent.change(screen.getByLabelText("Outer pack"), { target: { value: "Bag" } });
+    fireEvent.change(screen.getByLabelText("Image URL"), { target: { value: "https://example.test/toor.png" } });
+
+    expect(screen.queryByLabelText("Product label")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("SKU name")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Master pack")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save & publish" }));
+    await waitFor(() => expect(mocks.createAndPublishProduct).toHaveBeenCalledWith({
+      product: { name: "Gagan Toor Dal", brandName: "Gagan", groupName: "Gagan Toor Dal", category: "Daal", imageUrl: "https://example.test/toor.png" },
+      pack: { unitSize: "1 kg", unit: "kg", unitsPerCase: 30, unitWeightKg: 1, outerPack: "Bag" },
+    }));
+    expect(mocks.createProduct).not.toHaveBeenCalled();
+    expect(await screen.findByText("Catalogue published. Ordering setup is still separate.")).toBeInTheDocument();
+  });
+
   it("blocks an empty pack size before calling the API", async () => {
     render(<Catalog />);
-    fireEvent.click(await screen.findByRole("button", { name: "Create draft" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Add product" }));
     fireEvent.change(screen.getByLabelText("Product name"), { target: { value: "Testing Daal" } });
+    fireEvent.change(screen.getByLabelText("Product group"), { target: { value: "Gagan Daal" } });
     fireEvent.change(screen.getByLabelText("Category"), { target: { value: "Daal" } });
     fireEvent.change(screen.getByLabelText("Pack size"), { target: { value: "0" } });
     fireEvent.change(screen.getByLabelText("Units per case"), { target: { value: "30" } });
@@ -92,8 +121,9 @@ describe("Catalog commercial rate display", () => {
   it("asks for measured weight only for piece packs", async () => {
     mocks.createProduct.mockResolvedValue({ product: { id: "pieces" } });
     render(<Catalog />);
-    fireEvent.click(await screen.findByRole("button", { name: "Create draft" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Add product" }));
     fireEvent.change(screen.getByLabelText("Product name"), { target: { value: "Sample pieces" } });
+    fireEvent.change(screen.getByLabelText("Product group"), { target: { value: "Gagan Pack" } });
     fireEvent.change(screen.getByLabelText("Category"), { target: { value: "Pack" } });
     fireEvent.change(screen.getByLabelText("Unit"), { target: { value: "pcs" } });
     fireEvent.change(screen.getByLabelText("Pack size"), { target: { value: "6" } });
@@ -103,14 +133,15 @@ describe("Catalog commercial rate display", () => {
     expect(mocks.createProduct).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText("Measured weight per piece (kg)"), { target: { value: "0.25" } });
     fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
-    await waitFor(() => expect(mocks.createProduct).toHaveBeenCalledWith({ name: "Sample pieces", category: "Pack", variants: [{ unitSize: "6 pcs", unit: "pcs", unitsPerCase: 12, unitWeightKg: 0.25 }] }));
+    await waitFor(() => expect(mocks.createProduct).toHaveBeenCalledWith({ name: "Sample pieces", brandName: "Gagan", groupName: "Gagan Pack", category: "Pack", variants: [{ unitSize: "6 pcs", unit: "pcs", unitsPerCase: 12, unitWeightKg: 0.25 }] }));
   });
 
   it("translates a raw invalid_pack response into a field message", async () => {
     mocks.createProduct.mockRejectedValue(new ApiError(400, { error: "invalid_pack", details: [{ index: 0, error: "unitsPerCase must be a positive whole number." }] }));
     render(<Catalog />);
-    fireEvent.click(await screen.findByRole("button", { name: "Create draft" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Add product" }));
     fireEvent.change(screen.getByLabelText("Product name"), { target: { value: "Testing Daal" } });
+    fireEvent.change(screen.getByLabelText("Product group"), { target: { value: "Gagan Daal" } });
     fireEvent.change(screen.getByLabelText("Category"), { target: { value: "Daal" } });
     fireEvent.change(screen.getByLabelText("Pack size"), { target: { value: "1" } });
     fireEvent.change(screen.getByLabelText("Units per case"), { target: { value: "30" } });

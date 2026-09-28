@@ -7,8 +7,9 @@ import { catalogueImageState, catalogueOrderingState, catalogueStatusWhere } fro
 import { validateDraftPack } from "../../modules/catalog/draftPack";
 import { Prisma } from "@prisma/client";
 import { DEFAULT_WAREHOUSE_CODE, INVENTORY_STALE_AFTER_MS, selectInventorySnapshot } from "../../modules/inventory/inventoryService";
-import { CataloguePublicationError, publishDraftCatalogue } from "../../modules/catalog/draftCataloguePublication";
+import { CataloguePublicationError, deriveCataloguePublicationInput, publishDraftCatalogue, publishDraftCatalogueFromBusinessInput, publishExistingDraftCatalogueFromBusinessInput } from "../../modules/catalog/draftCataloguePublication";
 import { enableOrdering, getOrderingSetup, OrderingSetupError, saveOrderingDraft } from "../../modules/catalog/orderingSetup";
+import { normalizeCatalogueText } from "../../modules/catalog/catalogueIdentity";
 import type { AdminRequest } from "../../lib/adminAuth";
 
 const router = Router();
@@ -49,6 +50,19 @@ router.post("/variants/:id/publish-catalogue", async (req: AdminRequest, res) =>
   if (!parsed.success) return res.status(400).json({ error: "semantic_identity_required" });
   try {
     const result = await publishDraftCatalogue(req.params.id, parsed.data, req.staffAuth!.staffId);
+    if (result.outcome === "blocked") return res.status(409).json({ error: result.code, productId: result.productId, variantId: result.variantId });
+    res.json(result);
+  } catch (error) {
+    return setupFailure(error, res);
+  }
+});
+
+const businessVariantPublishSchema = z.object({ outerPack: z.enum(["Bag", "Box"]) }).strict();
+router.post("/variants/:id/publish-catalogue-business", async (req: AdminRequest, res) => {
+  const parsed = businessVariantPublishSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "invalid_outer_pack" });
+  try {
+    const result = await publishExistingDraftCatalogueFromBusinessInput(req.params.id, parsed.data.outerPack, req.staffAuth!.staffId);
     if (result.outcome === "blocked") return res.status(409).json({ error: result.code, productId: result.productId, variantId: result.variantId });
     res.json(result);
   } catch (error) {
@@ -157,6 +171,8 @@ router.post("/price-list", async (req, res) => {
 
 const productSchema = z.object({
   name: z.string().trim().min(1),
+  brandName: z.string().trim().min(1).optional(),
+  groupName: z.string().trim().min(1).optional(),
   category: z.string().trim().min(1),
   imageUrl: z.string().url().optional(),
   description: z.string().max(2000).optional(),
@@ -170,6 +186,27 @@ const productSchema = z.object({
 
 const draftProductSchema = productSchema.omit({ variants: true });
 const draftVariantSchema = productSchema.shape.variants.element;
+const businessPublishSchema = z.object({
+  product: draftProductSchema.extend({ brandName: z.string().trim().min(1), groupName: z.string().trim().min(1) }),
+  pack: draftVariantSchema.extend({ outerPack: z.enum(["Bag", "Box"]) }),
+}).strict();
+
+function draftProductData(input: z.infer<typeof draftProductSchema>) {
+  const labelInput = input.brandName && input.groupName
+    ? {
+        product: { name: input.name, brandName: input.brandName, groupName: input.groupName, category: input.category },
+        pack: { unitSize: "1 KG", unit: "kg", unitsPerCase: 1, unitWeightKg: 1, outerPack: "Bag" as const },
+      }
+    : null;
+  const label = labelInput ? normalizeCatalogueText(deriveCataloguePublicationInput(labelInput).productLabel) : null;
+  const { brandName, groupName, ...product } = input;
+  return {
+    ...product,
+    ...(brandName ? { catalogIdentityBrand: brandName.trim().toUpperCase() } : {}),
+    ...(groupName ? { catalogIdentityGroup: groupName.trim().toUpperCase() } : {}),
+    ...(label ? { catalogIdentityLabel: label } : {}),
+  };
+}
 
 function packErrors(packs: z.infer<typeof draftVariantSchema>[]) {
   return packs.flatMap((pack, index) => validateDraftPack(pack).errors.map((error) => ({ index, error })));
@@ -192,11 +229,8 @@ router.post("/products", async (req, res) => {
 
   try { const product = await prisma.product.create({
     data: {
-      name: parsed.data.name,
-      category: parsed.data.category,
+      ...draftProductData(parsed.data),
       catalogStatus: "pending_review",
-      imageUrl: parsed.data.imageUrl,
-      description: parsed.data.description,
       variants: { create: parsed.data.variants.map((variant) => ({ ...variant, catalogStatus: "pending_review", catalogImageStatus: "pending", catalogImageLabel: "Image pending confirmation" })) },
     },
     include: { variants: true },
@@ -205,6 +239,21 @@ router.post("/products", async (req, res) => {
   } catch (error) {
     if (uniqueConflict(error)) return res.status(409).json({ error: "catalog_identity_exists" });
     throw error;
+  }
+});
+
+router.post("/products/publish", async (req: AdminRequest, res) => {
+  const parsed = businessPublishSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+  const errors = packErrors([parsed.data.pack]);
+  if (errors.length) return res.status(400).json({ error: "invalid_pack", details: errors });
+  try {
+    const result = await publishDraftCatalogueFromBusinessInput(parsed.data, req.staffAuth!.staffId);
+    if (result.outcome === "blocked") return res.status(409).json({ error: result.code, productId: result.productId, variantId: result.variantId });
+    res.status(201).json(result);
+  } catch (error) {
+    if (uniqueConflict(error)) return res.status(409).json({ error: "catalog_identity_exists" });
+    return setupFailure(error, res);
   }
 });
 
@@ -217,7 +266,7 @@ router.put("/products/:id", async (req, res) => {
   const matches = await prisma.product.findMany({ where: { name: { equals: parsed.data.name, mode: "insensitive" } }, select: { id: true } });
   if (matches.some((match) => match.id !== existing.id)) return res.status(409).json({ error: "product_name_exists" });
   try {
-    const product = await prisma.product.update({ where: { id: existing.id, catalogStatus: "pending_review" }, data: parsed.data });
+    const product = await prisma.product.update({ where: { id: existing.id, catalogStatus: "pending_review" }, data: draftProductData(parsed.data) });
     res.json({ product });
   } catch (error) {
     if (uniqueConflict(error)) return res.status(409).json({ error: "product_name_exists" });

@@ -28,6 +28,7 @@
     "catalogue:real": "ts-node --transpile-only scripts/realCatalogueImport.ts",
     "catalogue:seed-gst-pending-inventory": "ts-node --transpile-only scripts/seedApprovedStagingInventory.ts",
     "seed:client-uat": "ts-node --transpile-only scripts/seedClientUat.ts",
+    "export:client-uat-source": "ts-node --transpile-only scripts/exportClientUatSource.ts",
     "verify:client-uat": "ts-node --transpile-only scripts/verifyClientUat.ts"
   },
   "dependencies": {

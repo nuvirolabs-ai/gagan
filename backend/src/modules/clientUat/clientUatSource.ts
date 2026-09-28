@@ -422,3 +422,11 @@ export async function loadClientUatSource(paths: ClientUatSourcePaths, options: 
   const entries = await Promise.all((Object.entries(paths) as Array<[ClientUatSourceType, string]>).map(async ([type, filePath]) => [type, { filename: path.basename(filePath), buffer: await fs.readFile(filePath) }] as const));
   return parseClientUatSource(Object.fromEntries(entries) as ClientUatSourceBuffers, options);
 }
+
+export async function loadClientUatSourceManifest(filePath: string): Promise<ClientUatSource> {
+  const parsed = JSON.parse(await fs.readFile(filePath, "utf8")) as ClientUatSource;
+  if (!parsed || parsed.pricingBasis !== "INR/kg" || !parsed.sources || !parsed.products || !parsed.pricing || !parsed.retailers || !parsed.assignments) {
+    throw new ClientUatSourceError("invalid_manifest", `Client UAT source manifest is invalid: ${filePath}`);
+  }
+  return parsed;
+}

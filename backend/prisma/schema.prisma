@@ -1119,6 +1119,9 @@ model AppConfig {
 model Product {
   catalogKey         String?             @unique
   internalCode       String?             @unique
+  catalogIdentityBrand String?
+  catalogIdentityGroup String?
+  catalogIdentityLabel String?
   catalogStatus      String              @default("active")
   id                 String              @id @default(uuid())
   name               String
@@ -1136,6 +1139,9 @@ model Product {
 model Variant {
   catalogKey               String?                           @unique
   internalCode             String?                           @unique
+  catalogIdentitySkuName   String?
+  catalogIdentityPackingSize String?
+  catalogIdentityMasterPack String?
   catalogStatus            String                            @default("active")
   imageUrl                 String?
   /// Publication can intentionally show a labelled placeholder while the

@@ -29,7 +29,7 @@ beforeAll(async () => {
   await prisma.staffUser.create({ data: { id: authIds.managerStaff, name: "Catalog setup manager", phone: authIds.managerStaff, email: `${authIds.managerStaff}@test.invalid`, adminUserId: authIds.manager, roles: { create: { roleId: managerRole.id } } } });
   baseValues = { ...baseValues, prices: (await prisma.tier.findMany()).map(tier => ({ tierId: tier.id, rate: "4800", rateBasis: "quintal" as const })) };
   await prisma.product.create({ data: { id: ids.product, catalogKey: `local-product-${run}`, internalCode: `LOCAL-P-${run}`, name: "Local catalogue fixture", category: "test", catalogStatus: "published", sapMaterialId: `LOCAL-MAT-${run}` } });
-  for (const [index, id] of [ids.selected, ids.sibling].entries()) await prisma.variant.create({ data: { id, productId: ids.product, catalogKey: `local-variant-${id}`, internalCode: `LOCAL-V-${id}`, unitSize: index === 0 ? "5" : "10", unit: "kg", unitsPerCase: 4, unitWeightKg: index === 0 ? 5 : 10, catalogStatus: "published" } });
+  for (const [index, id] of [ids.selected, ids.sibling].entries()) await prisma.variant.create({ data: { id, productId: ids.product, catalogKey: `local-variant-${id}`, internalCode: `LOCAL-V-${id}`, unitSize: index === 0 ? "5" : "10", unit: "kg", unitsPerCase: 4, unitWeightKg: index === 0 ? 5 : 10, catalogStatus: "published", imageUrl: `https://example.test/${id}.jpg` } });
   await prisma.inventorySnapshot.create({ data: { productId: ids.product, variantId: ids.selected, sapMaterialId: `LOCAL-MAT-${run}`, warehouseCode: "WH-001", onHand: 25, committed: 5, available: 20, status: "available", source: "local_test", syncedAt: new Date() } });
 });
 

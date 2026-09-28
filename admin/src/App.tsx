@@ -32,101 +32,13 @@ import SalesOrganisation from "./pages/SalesOrganisation";
 import RetailerApprovals from "./pages/RetailerApprovals";
 import ImportCenter from "./pages/ImportCenter";
 import MarketSurveys from "./pages/MarketSurveys";
+import CommandPalette from "./components/CommandPalette";
+import { canAccess, permissionsFor } from "./adminSearch";
+import { ADMIN_NAV_GROUPS, type AdminDestination } from "./navigation";
 import { APP_ENVIRONMENT_LABEL } from "./environmentLabel";
 
-type NavItem = { to: string; label: string; permissions: string[] };
-type NavGroup = { id: string; label: string; items: NavItem[] };
-
-const NAV: NavGroup[] = [
-  {
-    id: "home",
-    label: "Home",
-    items: [
-      {
-        to: "/",
-        label: "Work",
-        permissions: [
-          "staff.manage",
-          "dashboard.view",
-          "approval.second_invoice",
-          "collection.confirm",
-          "credit.rating_confirm",
-          "route.manage",
-          "attendance.review",
-          "performance.view_team",
-          "retailer.proposal_review",
-          "expense.review",
-          "issue.review",
-          "kyc.view",
-          "recovery.view",
-          "financial.correct",
-          "org.view_all",
-          "location.view",
-          "visit.view",
-        ],
-      },
-    ],
-  },
-  {
-    id: "work",
-    label: "Work",
-    items: [
-      { to: "/approvals", label: "Approvals", permissions: ["approval.second_invoice", "approval.third_invoice", "legal.decide"] },
-      { to: "/collections", label: "Collections", permissions: ["collection.confirm"] },
-      { to: "/credit-reviews", label: "Credit reviews", permissions: ["credit.rating_confirm"] },
-      { to: "/market-surveys", label: "Market surveys", permissions: ["survey.manage"] },
-      { to: "/warehouse-orders", label: "Warehouse orders", permissions: ["order.warehouse_process"] },
-    ],
-  },
-  {
-    id: "sales",
-    label: "Sales",
-    items: [
-      { to: "/orders", label: "Orders", permissions: ["staff.manage"] },
-      { to: "/retailers", label: "Retailers", permissions: ["staff.manage"] },
-      { to: "/retailer-approvals", label: "New retailers", permissions: ["retailer.proposal_review"] },
-      { to: "/sales-organisation", label: "Organisation", permissions: ["org.view_all"] },
-      { to: "/sales-leader", label: "Sales leader", permissions: ["performance.view_team"] },
-      { to: "/catalog", label: "Catalog", permissions: ["staff.manage"] },
-      { to: "/commercial", label: "Commercial", permissions: ["staff.manage", "collection.confirm"] },
-    ],
-  },
-  {
-    id: "finance",
-    label: "Finance",
-    items: [
-      { to: "/ledger", label: "Ledger", permissions: ["staff.manage"] },
-      { to: "/corrections", label: "Corrections", permissions: ["financial.correct"] },
-      { to: "/recovery", label: "Recovery", permissions: ["recovery.view", "recovery.update"] },
-      { to: "/legal", label: "Legal", permissions: ["staff.manage", "legal.decide"] },
-      { to: "/kyc", label: "KYC", permissions: ["kyc.view", "kyc.review"] },
-    ],
-  },
-  {
-    id: "field",
-    label: "Field",
-    items: [
-      { to: "/field-team", label: "Team & leave", permissions: ["attendance.review"] },
-      { to: "/field-planning", label: "Routes & tasks", permissions: ["route.manage"] },
-      { to: "/field-expenses", label: "Expenses", permissions: ["expense.review"] },
-      { to: "/service-issues", label: "Issues", permissions: ["issue.review"] },
-      { to: "/salesperson-feedback", label: "Feedback", permissions: ["feedback.review"] },
-      { to: "/locations", label: "Store locations", permissions: ["location.view"] },
-      { to: "/visits", label: "Visits", permissions: ["visit.view"] },
-    ],
-  },
-  {
-    id: "system",
-    label: "System",
-    items: [
-      { to: "/staff", label: "Users & roles", permissions: ["staff.manage"] },
-      { to: "/sap", label: "SAP sync", permissions: ["staff.manage"] },
-      { to: "/imports", label: "Data import", permissions: ["data.import", "staff.manage"] },
-    ],
-  },
-];
-
-const FLAT = NAV.flatMap((group) => group.items);
+const NAV = ADMIN_NAV_GROUPS;
+const FLAT = NAV.flatMap((group) => group.destinations);
 
 const NAV_GLYPHS: Record<string, string> = {
   home: "⌂",
@@ -137,21 +49,17 @@ const NAV_GLYPHS: Record<string, string> = {
   system: "·",
 };
 
-function canSee(permissions: string[], needed: string[]) {
-  return needed.some((permission) => permissions.includes(permission));
-}
-
-function Guard({ anyOf, children }: { anyOf: string[]; children: ReactNode }) {
+function Guard({ anyOf, children }: { anyOf: readonly string[]; children: ReactNode }) {
   const { permissions } = useAuth();
-  const available = FLAT.filter((item) => canSee(permissions, item.permissions));
-  if (!canSee(permissions, anyOf)) {
-    return <Navigate to={available[0]?.to ?? "/no-access"} replace />;
+  const available = FLAT.filter((item) => item.route && canAccess(permissions, item.permissions));
+  if (!canAccess(permissions, anyOf)) {
+    return <Navigate to={available[0]?.route ?? "/no-access"} replace />;
   }
   return children;
 }
 
 function pageLabel(pathname: string) {
-  const route = FLAT.find((item) => item.to === pathname) ?? FLAT.find((item) => item.to !== "/" && pathname.startsWith(`${item.to}/`));
+  const route = FLAT.find((item) => item.route === pathname) ?? FLAT.find((item) => item.route && item.route !== "/" && pathname.startsWith(`${item.route}/`));
   return route?.label ?? "Admin";
 }
 
@@ -159,7 +67,7 @@ function TopBar() {
   const { admin } = useAuth();
   const location = useLocation();
   const initials = (admin?.name ?? "Ops Admin").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
-  return <header className="app-topbar"><div className="app-crumb"><strong>Gagan</strong><span>/</span><span>{pageLabel(location.pathname)}</span></div><div className="app-top-actions"><span className="environment-tag"><i /> {APP_ENVIRONMENT_LABEL}</span><span className="app-avatar" aria-label={admin?.name ?? "Admin"}>{initials}</span></div></header>;
+  return <header className="app-topbar"><div className="app-crumb"><strong>Gagan</strong><span>/</span><span>{pageLabel(location.pathname)}</span></div><div className="app-top-actions"><CommandPalette /><span className="environment-tag"><i /> {APP_ENVIRONMENT_LABEL}</span><span className="app-avatar" aria-label={admin?.name ?? "Admin"}>{initials}</span></div></header>;
 }
 
 function LoadingWorkspace() {
@@ -170,12 +78,12 @@ function Shell() {
   const { admin, permissions, logout } = useAuth();
   const groups = NAV.map((group) => ({
     ...group,
-    items: group.items.filter((item) => canSee(permissions, item.permissions)),
+    items: group.destinations.filter((item): item is AdminDestination & { route: string } => Boolean(item.route) && canAccess(permissions, item.permissions)),
   })).filter((group) => group.items.length > 0);
   // The base Admin URL is a deliberate product entry point: return operators
   // to Work/Home whenever they can see it, regardless of nav group ordering.
-  const home = FLAT.find((item) => item.to === "/");
-  const landingPath = home && canSee(permissions, home.permissions) ? "/" : groups[0]?.items[0]?.to ?? "/no-access";
+  const home = FLAT.find((item) => item.route === "/");
+  const landingPath = home && canAccess(permissions, home.permissions) ? "/" : groups[0]?.items[0]?.route ?? "/no-access";
 
   return (
     <div className="layout">
@@ -188,9 +96,9 @@ function Shell() {
               <div className="nav-group-label"><span className="nav-group-glyph" aria-hidden="true">{NAV_GLYPHS[group.id] ?? "·"}</span>{group.label}</div>
               {group.items.map((item) => (
                 <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.to === "/"}
+                  key={item.id}
+                  to={item.route}
+                  end={item.route === "/"}
                   className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
                 >
                   <span>{item.label}</span>
@@ -210,37 +118,37 @@ function Shell() {
       <main className="main">
         <TopBar />
         <div className="route-stage"><Routes>
-          <Route path="/" element={<Guard anyOf={FLAT.find((item) => item.to === "/")!.permissions}><Dashboard /></Guard>} />
+          <Route path="/" element={<Guard anyOf={permissionsFor("work")}><Dashboard /></Guard>} />
           <Route path="/warehouses" element={<Warehouses />} />
-          <Route path="/sap" element={<Guard anyOf={["staff.manage"]}><SapSync /></Guard>} />
-          <Route path="/imports" element={<Guard anyOf={["data.import", "staff.manage"]}><ImportCenter /></Guard>} />
-          <Route path="/approvals" element={<Guard anyOf={["approval.second_invoice", "approval.third_invoice", "legal.decide"]}><Approvals /></Guard>} />
-          <Route path="/collections" element={<Guard anyOf={["collection.confirm"]}><Collections /></Guard>} />
-          <Route path="/credit-reviews" element={<Guard anyOf={["credit.rating_confirm"]}><CreditReviews /></Guard>} />
-          <Route path="/market-surveys" element={<Guard anyOf={["survey.manage"]}><MarketSurveys /></Guard>} />
-          <Route path="/kyc" element={<Guard anyOf={["kyc.view", "kyc.review"]}><Kyc /></Guard>} />
-          <Route path="/recovery" element={<Guard anyOf={["recovery.view", "recovery.update"]}><Recovery /></Guard>} />
-          <Route path="/legal" element={<Guard anyOf={["staff.manage", "legal.decide"]}><Legal /></Guard>} />
-          <Route path="/orders" element={<Guard anyOf={["staff.manage"]}><Orders /></Guard>} />
-          <Route path="/warehouse-orders" element={<Guard anyOf={["order.warehouse_process"]}><Orders mode="warehouse" /></Guard>} />
-          <Route path="/retailers" element={<Guard anyOf={["staff.manage"]}><Retailers /></Guard>} />
-          <Route path="/ledger" element={<Guard anyOf={["staff.manage"]}><Ledger /></Guard>} />
-          <Route path="/ledger/:retailerId" element={<Guard anyOf={["staff.manage"]}><Ledger /></Guard>} />
-          <Route path="/catalog" element={<Guard anyOf={["staff.manage"]}><Catalog /></Guard>} />
-          <Route path="/commercial" element={<Guard anyOf={["staff.manage", "collection.confirm"]}><Commercial /></Guard>} />
-          <Route path="/staff" element={<Guard anyOf={["staff.manage"]}><Staff /></Guard>} />
-          <Route path="/staff/:staffId" element={<Guard anyOf={["staff.manage"]}><StaffDetail /></Guard>} />
-          <Route path="/corrections" element={<Guard anyOf={["financial.correct"]}><Corrections /></Guard>} />
-          <Route path="/locations" element={<Guard anyOf={["location.view"]}><Locations /></Guard>} />
-          <Route path="/visits" element={<Guard anyOf={["visit.view"]}><Visits /></Guard>} />
-          <Route path="/sales-leader" element={<Guard anyOf={["performance.view_team"]}><SalesLeader /></Guard>} />
-          <Route path="/sales-organisation" element={<Guard anyOf={["org.view_all"]}><SalesOrganisation /></Guard>} />
-          <Route path="/retailer-approvals" element={<Guard anyOf={["retailer.proposal_review"]}><RetailerApprovals /></Guard>} />
-          <Route path="/field-team" element={<Guard anyOf={["attendance.review"]}><FieldTeam /></Guard>} />
-          <Route path="/field-planning" element={<Guard anyOf={["route.manage"]}><FieldPlanning /></Guard>} />
-          <Route path="/field-expenses" element={<Guard anyOf={["expense.review"]}><FieldExpenses /></Guard>} />
-          <Route path="/service-issues" element={<Guard anyOf={["issue.review"]}><ServiceIssues /></Guard>} />
-          <Route path="/salesperson-feedback" element={<Guard anyOf={["feedback.review"]}><SalespersonFeedback /></Guard>} />
+          <Route path="/sap" element={<Guard anyOf={permissionsFor("sap")}><SapSync /></Guard>} />
+          <Route path="/imports" element={<Guard anyOf={permissionsFor("imports")}><ImportCenter /></Guard>} />
+          <Route path="/approvals" element={<Guard anyOf={permissionsFor("approvals")}><Approvals /></Guard>} />
+          <Route path="/collections" element={<Guard anyOf={permissionsFor("collections")}><Collections /></Guard>} />
+          <Route path="/credit-reviews" element={<Guard anyOf={permissionsFor("credit-reviews")}><CreditReviews /></Guard>} />
+          <Route path="/market-surveys" element={<Guard anyOf={permissionsFor("market-surveys")}><MarketSurveys /></Guard>} />
+          <Route path="/kyc" element={<Guard anyOf={permissionsFor("kyc")}><Kyc /></Guard>} />
+          <Route path="/recovery" element={<Guard anyOf={permissionsFor("recovery")}><Recovery /></Guard>} />
+          <Route path="/legal" element={<Guard anyOf={permissionsFor("legal")}><Legal /></Guard>} />
+          <Route path="/orders" element={<Guard anyOf={permissionsFor("orders")}><Orders /></Guard>} />
+          <Route path="/warehouse-orders" element={<Guard anyOf={permissionsFor("warehouse-orders")}><Orders mode="warehouse" /></Guard>} />
+          <Route path="/retailers" element={<Guard anyOf={permissionsFor("retailers")}><Retailers /></Guard>} />
+          <Route path="/ledger" element={<Guard anyOf={permissionsFor("ledger")}><Ledger /></Guard>} />
+          <Route path="/ledger/:retailerId" element={<Guard anyOf={permissionsFor("ledger")}><Ledger /></Guard>} />
+          <Route path="/catalog" element={<Guard anyOf={permissionsFor("catalog")}><Catalog /></Guard>} />
+          <Route path="/commercial" element={<Guard anyOf={permissionsFor("commercial")}><Commercial /></Guard>} />
+          <Route path="/staff" element={<Guard anyOf={permissionsFor("staff")}><Staff /></Guard>} />
+          <Route path="/staff/:staffId" element={<Guard anyOf={permissionsFor("staff")}><StaffDetail /></Guard>} />
+          <Route path="/corrections" element={<Guard anyOf={permissionsFor("corrections")}><Corrections /></Guard>} />
+          <Route path="/locations" element={<Guard anyOf={permissionsFor("locations")}><Locations /></Guard>} />
+          <Route path="/visits" element={<Guard anyOf={permissionsFor("visits")}><Visits /></Guard>} />
+          <Route path="/sales-leader" element={<Guard anyOf={permissionsFor("sales-leader")}><SalesLeader /></Guard>} />
+          <Route path="/sales-organisation" element={<Guard anyOf={permissionsFor("sales-organisation")}><SalesOrganisation /></Guard>} />
+          <Route path="/retailer-approvals" element={<Guard anyOf={permissionsFor("retailer-approvals")}><RetailerApprovals /></Guard>} />
+          <Route path="/field-team" element={<Guard anyOf={permissionsFor("field-team")}><FieldTeam /></Guard>} />
+          <Route path="/field-planning" element={<Guard anyOf={permissionsFor("field-planning")}><FieldPlanning /></Guard>} />
+          <Route path="/field-expenses" element={<Guard anyOf={permissionsFor("field-expenses")}><FieldExpenses /></Guard>} />
+          <Route path="/service-issues" element={<Guard anyOf={permissionsFor("service-issues")}><ServiceIssues /></Guard>} />
+          <Route path="/salesperson-feedback" element={<Guard anyOf={permissionsFor("salesperson-feedback")}><SalespersonFeedback /></Guard>} />
           <Route
             path="/no-access"
             element={<div className="empty-state">No portal permissions are assigned.</div>}

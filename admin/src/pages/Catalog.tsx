@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { api } from "../api";
+import { ApiError, api } from "../api";
+import { buildDraftPack, caseWeightKg, humanizePackFailure, massPreview, parseStoredPack, type DraftPackFields } from "../draftPackForm";
 import OrderingSetupPanel from "./OrderingSetupPanel";
 
 const inr = (value: number) => `₹${Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
@@ -17,6 +18,30 @@ export default function Catalog() {
   const [editor, setEditor] = useState<Editor | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
   const [setupVariantId, setSetupVariantId] = useState<string | null>(null);
+  const [publishing, setPublishing] = useState<any>(null);
+  const [semantic, setSemantic] = useState({ brandName: "", groupName: "", productLabel: "", skuName: "", packingSize: "", masterBagBoxSize: "" });
+  const [fieldErrors, setFieldErrors] = useState<DraftPackFields>({});
+  const editorKey = editor ? `${editor.kind}:${editor.product?.id ?? ""}:${editor.variant?.id ?? ""}` : "";
+  const [packDraft, setPackDraft] = useState({ key: "", packSize: "", unit: "kg", unitsPerCase: "", measuredWeightKg: "" });
+  if (editor && packDraft.key !== editorKey) {
+    const parsed = parseStoredPack(String(editor.variant?.unitSize ?? ""), String(editor.variant?.unit ?? ""));
+    setPackDraft({
+      key: editorKey,
+      packSize: parsed.packSize,
+      unit: parsed.unit,
+      unitsPerCase: editor.variant?.unitsPerCase != null ? String(editor.variant.unitsPerCase) : "",
+      measuredWeightKg: parsed.unit === "pcs" ? String(editor.variant?.unitWeightKg ?? "") : "",
+    });
+    setFieldErrors({});
+  }
+  const preview = massPreview(packDraft.packSize, packDraft.unit);
+  const caseUnits = Number(packDraft.unitsPerCase);
+  const pieceWeight = Number(packDraft.measuredWeightKg);
+  const derivedCase = preview && Number.isSafeInteger(caseUnits) && caseUnits > 0
+    ? caseWeightKg(preview.unitWeightKg, caseUnits)
+    : packDraft.unit === "pcs" && Number.isFinite(pieceWeight) && pieceWeight > 0 && Number.isSafeInteger(caseUnits) && caseUnits > 0
+      ? caseWeightKg(pieceWeight, caseUnits)
+      : null;
 
   const load = async () => {
     setLoading(true);
@@ -36,24 +61,32 @@ export default function Catalog() {
     event.preventDefault();
     if (!editor || savingDraft) return;
     const values = new FormData(event.currentTarget);
-    const pack = {
-      unitSize: String(values.get("unitSize") ?? "").trim(),
-      unit: String(values.get("unit") ?? "").trim(),
-      unitsPerCase: Number(values.get("unitsPerCase")),
-      unitWeightKg: Number(values.get("unitWeightKg")),
-    };
+    const built = editor.kind === "product" ? null : buildDraftPack(packDraft);
+    if (built && !built.ok) {
+      setFieldErrors(built.fields);
+      setError(null);
+      return;
+    }
+    const pack = built?.ok ? built.pack : null;
     setSavingDraft(true);
     setError(null);
+    setFieldErrors({});
     try {
-      if (editor.kind === "create") await api.createProduct({ name: String(values.get("name") ?? "").trim(), category: String(values.get("category") ?? "").trim(), variants: [pack] });
+      if (editor.kind === "create" && pack) await api.createProduct({ name: String(values.get("name") ?? "").trim(), category: String(values.get("category") ?? "").trim(), variants: [pack] });
       if (editor.kind === "product") await api.updateProduct(editor.product.id, { name: String(values.get("name") ?? "").trim(), category: String(values.get("category") ?? "").trim() });
-      if (editor.kind === "variant") await api.updateVariant(editor.variant.id, pack);
-      if (editor.kind === "add") await api.addVariant(editor.product.id, pack);
+      if (editor.kind === "variant" && pack) await api.updateVariant(editor.variant.id, pack);
+      if (editor.kind === "add" && pack) await api.addVariant(editor.product.id, pack);
       setEditor(null);
       setNotice("Draft saved. It is not visible for ordering.");
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save draft");
+      if (err instanceof ApiError) {
+        const readable = humanizePackFailure(err.body);
+        setFieldErrors(readable.fields);
+        setError(readable.message);
+      } else {
+        setError(err instanceof Error && err.message !== "invalid_pack" ? err.message : "Could not save draft");
+      }
     } finally {
       setSavingDraft(false);
     }
@@ -64,6 +97,31 @@ export default function Catalog() {
   }, []);
 
   const key = (variantId: string, tierId: string) => `${variantId}:${tierId}`;
+
+  const publicationMessage = (body: any) => {
+    if (body?.error === "canonical_pack_exists") return "A current catalogue pack already exists.";
+    if (body?.error === "canonical_product_exists") return "This product already has a catalogue identity. Add the pack to that product.";
+    if (body?.error === "catalogue_publication_ambiguous") return "Publication is blocked because the pack match is ambiguous.";
+    if (body?.error === "catalogue_semantics_pack_mismatch") return "The catalogue description does not match this pack.";
+    if (body?.error === "catalogue_identity_mismatch") return "That product description does not match the existing catalogue identity.";
+    if (body?.error === "semantic_identity_required") return "Enter the brand, group, label, SKU, packing size, and master pack.";
+    return "Could not publish this catalogue pack.";
+  };
+
+  const publishCatalogue = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!publishing) return;
+    setError(null);
+    try {
+      await api.publishCatalogue(publishing.variant.id, semantic);
+      setPublishing(null);
+      setNotice("Catalogue published. Ordering is not enabled.");
+      await load();
+    } catch (err) {
+      if (err instanceof ApiError) setError(publicationMessage(err.body));
+      else setError("Could not publish this catalogue pack.");
+    }
+  };
 
   const copyId = async (id: string) => {
     try {
@@ -103,20 +161,45 @@ export default function Catalog() {
         <a href="/imports">Bulk import</a>
       </div>
 
+      {publishing && <section aria-label="Publish catalogue" style={{ marginBottom: 20 }}>
+        <h2>Publish catalogue</h2>
+        <p>Publish {publishing.product.name} · {publishing.variant.unitSize} × {publishing.variant.unitsPerCase}?</p>
+        <p className="muted small">Publication will assign catalogue identity and make this pack available for commercial setup. It will not enable ordering.</p>
+        <form onSubmit={publishCatalogue}>
+          <div className="row">
+            <label>Brand<input value={semantic.brandName} onChange={(event) => setSemantic((current) => ({ ...current, brandName: event.target.value }))} /></label>
+            <label>Group<input value={semantic.groupName} onChange={(event) => setSemantic((current) => ({ ...current, groupName: event.target.value }))} /></label>
+            <label>Product label<input value={semantic.productLabel} onChange={(event) => setSemantic((current) => ({ ...current, productLabel: event.target.value }))} /></label>
+          </div>
+          <div className="row">
+            <label>SKU name<input value={semantic.skuName} onChange={(event) => setSemantic((current) => ({ ...current, skuName: event.target.value }))} /></label>
+            <label>Packing size<input value={semantic.packingSize} onChange={(event) => setSemantic((current) => ({ ...current, packingSize: event.target.value }))} /></label>
+            <label>Master pack<input value={semantic.masterBagBoxSize} onChange={(event) => setSemantic((current) => ({ ...current, masterBagBoxSize: event.target.value }))} /></label>
+          </div>
+          <div className="row"><button type="submit">Publish catalogue</button><button type="button" className="secondary" onClick={() => setPublishing(null)}>Cancel</button></div>
+        </form>
+      </section>}
+
       {editor && <section aria-label="Draft editor" style={{ marginBottom: 20 }}>
         <h2>{editor.kind === "create" ? "New product draft" : editor.kind === "product" ? "Edit product draft" : editor.kind === "add" ? "Add draft pack" : "Edit draft pack"}</h2>
-        <form key={`${editor.kind}:${editor.product?.id ?? ""}:${editor.variant?.id ?? ""}`} onSubmit={saveDraft}>
+        <form key={editorKey} noValidate onSubmit={saveDraft}>
           {(editor.kind === "create" || editor.kind === "product") && <div className="row">
             <label>Product name<input name="name" required defaultValue={editor.product?.name ?? ""} /></label>
             <label>Category<input name="category" required defaultValue={editor.product?.category ?? ""} /></label>
           </div>}
           {editor.kind !== "product" && <div className="row">
-            <label>Pack size<input name="unitSize" required placeholder="1 kg" defaultValue={editor.variant?.unitSize ?? ""} /></label>
-            <label>Unit<select name="unit" defaultValue={editor.variant?.unit ?? "kg"}><option value="kg">kg</option><option value="g">g</option><option value="quintal">quintal</option><option value="pcs">pcs</option></select></label>
-            <label>Units per case<input name="unitsPerCase" type="number" min="1" step="1" required defaultValue={editor.variant?.unitsPerCase ?? ""} /></label>
-            <label>Weight per unit (kg)<input name="unitWeightKg" type="number" min="0.001" step="0.001" required defaultValue={editor.variant?.unitWeightKg ?? ""} /></label>
+            <label>Pack size<input name="packSize" inputMode="decimal" aria-invalid={Boolean(fieldErrors.packSize)} value={packDraft.packSize} onChange={(event) => setPackDraft((current) => ({ ...current, packSize: event.target.value }))} /></label>
+            <label>Unit<select name="unit" aria-invalid={Boolean(fieldErrors.unit)} value={packDraft.unit} onChange={(event) => setPackDraft((current) => ({ ...current, unit: event.target.value }))}><option value="kg">kg</option><option value="g">g</option><option value="quintal">quintal</option><option value="pcs">pcs</option></select></label>
+            <label>Units per case<input name="unitsPerCase" inputMode="numeric" aria-invalid={Boolean(fieldErrors.unitsPerCase)} value={packDraft.unitsPerCase} onChange={(event) => setPackDraft((current) => ({ ...current, unitsPerCase: event.target.value }))} /></label>
+            {packDraft.unit === "pcs" && <label>Measured weight per piece (kg)<input name="measuredWeightKg" inputMode="decimal" aria-invalid={Boolean(fieldErrors.weight)} value={packDraft.measuredWeightKg} onChange={(event) => setPackDraft((current) => ({ ...current, measuredWeightKg: event.target.value }))} /></label>}
           </div>}
-          {editor.kind !== "product" && <p className="muted small">Pieces require an explicit measured weight and remain draft-only. Rates, GST, routing and stock are configured separately.</p>}
+          {editor.kind !== "product" && preview && <p>{preview.sentence}</p>}
+          {editor.kind !== "product" && derivedCase != null && <p>Case weight: {derivedCase} kg</p>}
+          {editor.kind !== "product" && fieldErrors.packSize && <p role="alert">{fieldErrors.packSize}</p>}
+          {editor.kind !== "product" && fieldErrors.unit && <p role="alert">{fieldErrors.unit}</p>}
+          {editor.kind !== "product" && fieldErrors.unitsPerCase && <p role="alert">{fieldErrors.unitsPerCase}</p>}
+          {editor.kind !== "product" && fieldErrors.weight && <p role="alert">{fieldErrors.weight}</p>}
+          {editor.kind !== "product" && <p className="muted small">Mass packs derive weight from the pack size. Pieces need a measured weight. A saved draft is not ready for ordering until catalogue identity is published.</p>}
           <div className="row"><button type="submit" disabled={savingDraft}>{editor.kind === "variant" || editor.kind === "add" ? "Save pack" : "Save draft"}</button><button type="button" className="secondary" onClick={() => setEditor(null)}>Cancel</button></div>
         </form>
       </section>}
@@ -153,14 +236,18 @@ export default function Catalog() {
                         <div style={{ fontWeight: 600 }}>{p.name}</div>
                         <div className="muted small">{p.category}</div>
                         <div className="muted small">Product ID: <code>{p.id}</code> <button type="button" className="ghost sm" onClick={() => copyId(p.id)}>Copy product ID</button></div>
-                        {p.catalogStatus === "pending_review" && <><div className="muted small">Draft</div><button className="ghost sm" onClick={() => setEditor({ kind: "product", product: p })}>Edit product</button><button className="ghost sm" onClick={() => setEditor({ kind: "add", product: p })}>Add pack</button></>}
+                        {p.catalogStatus === "pending_review" && <><div className="muted small">Draft</div><button className="ghost sm" onClick={() => setEditor({ kind: "product", product: p })}>Edit product</button></>}
+                        {["pending_review", "published", "active"].includes(p.catalogStatus) && <button className="ghost sm" onClick={() => setEditor({ kind: "add", product: p })}>Add pack</button>}
                       </td>
                       <td className="small">
                         {v.unitSize} × {v.unitsPerCase}
-                        <div className="muted small">{v.catalogStatus === "active" ? "Ordering enabled" : v.catalogStatus === "pending_review" ? "Draft" : "Setup needed"}</div>
+                        <div className="muted small">{v.catalogStatus === "active" ? "Ordering enabled" : v.catalogStatus === "pending_review" ? "Draft" : v.catalogStatus === "published" ? "Published" : "Setup needed"}</div>
+                        {v.catalogStatus === "published" && <div className="muted small">Ordering setup pending</div>}
                         <div className="muted small">{v.stock?.status === "in_stock" ? `In stock · ${v.stock.available} available` : v.stock?.status === "out_of_stock" ? "Out of stock" : "Stock needs verification"}</div>
                         <div className="muted small">{v.gstPercent != null ? `GST ${v.gstPercent}% configured` : v.gstPending ? "GST pending exception" : "GST pending"}</div>
-                        <button type="button" className="sm" onClick={() => setSetupVariantId(v.id)}>{v.catalogStatus === "active" ? "Manage setup" : v.catalogStatus === "pending_review" ? "Complete setup" : "Set up ordering"}</button>
+                        {v.catalogStatus === "pending_review" && !v.catalogKey
+                          ? <button type="button" className="sm" onClick={() => { setPublishing({ product: p, variant: v }); setSemantic({ brandName: "", groupName: "", productLabel: "", skuName: "", packingSize: v.unitSize, masterBagBoxSize: "" }); }}>Publish catalogue</button>
+                          : <button type="button" className="sm" onClick={() => setSetupVariantId(v.id)}>{v.catalogStatus === "active" ? "Manage setup" : "Set up ordering"}</button>}
                         <div className="muted small">Variant ID: <code>{v.id}</code> <button type="button" className="ghost sm" onClick={() => copyId(v.id)}>Copy variant ID</button></div>
                         {v.catalogStatus === "pending_review" && <div><button className="ghost sm" onClick={() => setEditor({ kind: "variant", product: p, variant: v })}>Edit draft</button></div>}
                       </td>

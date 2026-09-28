@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
+import { approvedCatalogueImage } from "./catalogueVisibility";
 import { DEFAULT_WAREHOUSE_CODE, inventoryForVariant } from "../inventory/inventoryService";
 
 const money = z.string().regex(/^\d+(?:\.\d{1,2})?$/);
@@ -51,7 +52,7 @@ function blockersFor(state: Awaited<ReturnType<typeof current>>, values: Orderin
   const { variant, inventory, tiers } = state;
   if (!["pending_review", "published", "active"].includes(variant.catalogStatus) || !["pending_review", "published", "active"].includes(variant.product.catalogStatus)) blockers.push("Pack is not in an editable catalogue state.");
   if (!variant.catalogKey || !variant.internalCode || !variant.product.catalogKey || !variant.product.internalCode) blockers.push("Approved catalogue identity is missing.");
-  if (variant.catalogImageStatus !== "exact" && variant.catalogImageStatus !== "placeholder") blockers.push("Approved pack image is missing.");
+  if (approvedCatalogueImage(variant) === "missing") blockers.push("Approved pack image is missing.");
   if (variant.unitsPerCase <= 0 || !variant.unitWeightKg.isPositive()) blockers.push("Approved pack conversion is missing.");
   if (values.gstPercent === null && !variant.gstPendingOrderAllowed) blockers.push("Select an approved GST rate.");
   if (values.routingClass && values.sellingEntity) blockers.push("Dynamic routing cannot also have a fixed selling company.");

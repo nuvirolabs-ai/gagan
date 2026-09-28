@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { ApiError, api } from "../api";
+import { INVENTORY_IMPORT_ROUTE, blockerSection, interpretOrderingBlocker, type OrderingBlockerView } from "../orderingBlockers";
 
 type Price = { tierId: string; rate: string; rateBasis: "case" | "quintal" };
 type Values = { gstPercent: string | null; sellingEntity: string | null; routingClass: string | null; routingBagEquivalent: string | null; prices: Price[] };
@@ -34,15 +36,24 @@ export default function OrderingSetupPanel({ variantId, onClose, onSaved }: { va
   const [error, setError] = useState("");
   const [confirm, setConfirm] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
+  const [opened, setOpened] = useState<Record<string, boolean>>({});
+  const reload = () => {
+    api.orderingSetup(variantId).then((data: Setup) => { setSetup(data); setValues(data.values); setError(""); }).catch((err: unknown) => setError(messageFor(err)));
+  };
   useEffect(() => {
     let mounted = true;
+    setOpened({});
     api.orderingSetup(variantId).then((data: Setup) => { if (mounted) { setSetup(data); setValues(data.values); } }).catch((err: unknown) => { if (mounted) setError(messageFor(err)); });
     panel.current?.focus();
     return () => { mounted = false; };
   }, [variantId]);
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { onClose(); return; }
+      if (event.key === "Escape") {
+        if (event.defaultPrevented) return;
+        onClose();
+        return;
+      }
       if (event.key !== "Tab" || !panel.current) return;
       const focusable = [...panel.current.querySelectorAll<HTMLElement>("button:not([disabled]), input:not([disabled]), select:not([disabled]), summary")].filter(element => element.getClientRects().length > 0);
       if (!focusable.length) return;
@@ -72,7 +83,11 @@ export default function OrderingSetupPanel({ variantId, onClose, onSaved }: { va
     const existing = current.prices.find(price => price.tierId === tierId);
     return { ...current, prices: [...current.prices.filter(price => price.tierId !== tierId), { tierId, rate: "", rateBasis: "case" as const, ...existing, ...change }] };
   });
-  const staticBlockers = setup?.blockers.filter(blocker => !blocker.startsWith("Select an approved GST") && !blocker.startsWith("Select the approved billing") && !blocker.startsWith("Set a positive rate") && !blocker.startsWith("Enter the approved bag") && !blocker.startsWith("Remove the bag") && !blocker.startsWith("Dynamic routing cannot")) ?? [];
+  const serverBlockers = setup?.blockers ?? [];
+  const staticBlockers = serverBlockers.filter((blocker) => {
+    const view = interpretOrderingBlocker(blocker);
+    return !(view.kind === "focus" && view.supersedeLive);
+  });
   const liveBlockers = [...staticBlockers];
   if (setup && values) {
     if (values.gstPercent === null && !setup.gstPendingException) liveBlockers.push("Select an approved GST rate.");
@@ -83,10 +98,14 @@ export default function OrderingSetupPanel({ variantId, onClose, onSaved }: { va
     if (!setup.tiers.length || setup.tiers.some(tier => !values.prices.some(price => price.tierId === tier.id && Number(price.rate) > 0))) liveBlockers.push("Set a positive rate for each applicable price tier.");
   }
   const missing = liveBlockers.length;
-  const focusBlocker = (blocker: string) => {
-    const section = blocker.includes("GST") ? "gst" : blocker.includes("rate") || blocker.includes("tier") ? "price" : blocker.includes("stock") || blocker.includes("Stock") || blocker.includes("warehouse") ? "stock" : blocker.includes("pack") || blocker.includes("conversion") || blocker.includes("identity") ? "packing" : "billing";
-    const details = panel.current?.querySelector<HTMLDetailsElement>(`#ordering-${section}`);
-    if (details) { details.open = true; details.querySelector<HTMLElement>("summary")?.focus(); }
+  const identity = serverBlockers.map((blocker) => interpretOrderingBlocker(blocker)).find((view) => view.kind === "unavailable");
+  const sectionOpen = (section: string) => opened[section] || serverBlockers.some((blocker) => blockerSection(blocker) === section);
+  const reveal = (view: Extract<OrderingBlockerView, { kind: "focus" }>) => {
+    setOpened((current) => ({ ...current, [view.section]: true }));
+    window.setTimeout(() => {
+      if (view.focus === "control" && view.controlId) document.getElementById(view.controlId)?.focus();
+      else document.getElementById(`ordering-${view.section}`)?.querySelector<HTMLElement>("summary")?.focus();
+    }, 0);
   };
 
   return <div className="ordering-setup-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
@@ -96,9 +115,18 @@ export default function OrderingSetupPanel({ variantId, onClose, onSaved }: { va
       {!setup || !values ? <p>Loading current setup…</p> : <>
         <div className="ordering-setup-scroll">
           <div className="banner">{missing ? `${missing} ${missing === 1 ? "thing" : "things"} to check before ordering can be enabled.` : "Current setup is ready to review."}</div>
-          {!!missing && <ul className="ordering-blockers">{liveBlockers.map(blocker => <li key={blocker}><button type="button" className="ghost" onClick={() => focusBlocker(blocker)}>{blocker}</button></li>)}</ul>}
-          <details id="ordering-packing" open={setup.pack.caseWeightKg <= 0 || setup.blockers.some(blocker => blocker.includes("catalogue identity"))}><summary>Packing <span>{setup.pack.caseWeightKg} kg / case</span></summary><p>{setup.pack.label} · {setup.pack.unitWeightKg} kg per unit · {setup.pack.unitsPerCase} units per case</p><p className="muted small">Approved pack conversions cannot be changed here.</p>{setup.blockers.some(blocker => blocker.includes("catalogue identity")) && <p role="status">This pack has no approved catalogue identity. The current Admin draft editor and product import cannot assign one; changing its ordering setup remains blocked until the controlled catalogue publication flow supports it.</p>}</details>
-          <details id="ordering-price" open={setup.blockers.some(blocker => blocker.startsWith("Set a positive rate") || blocker.startsWith("Price tier"))}><summary>Selling price <span>{setup.tiers.length} tiers</span></summary>
+          {!!missing && <ul className="ordering-blockers">{liveBlockers.map((blocker) => {
+            const view = interpretOrderingBlocker(blocker);
+            return <li key={blocker} className="ordering-blocker"><p>{blocker}</p>
+              {view.kind === "focus" && <button type="button" className="ordering-blocker-action" onClick={() => reveal(view)}>{view.label}</button>}
+              {view.kind === "navigate" && <Link className="ordering-blocker-action" to={view.to}>{view.label}</Link>}
+              {view.kind === "reload" && <button type="button" className="ordering-blocker-action" onClick={reload}>{view.label}</button>}
+              {view.kind === "unavailable" && <p className="ordering-blocker-status" role="status"><strong>{view.title}</strong><span>{view.detail}</span></p>}
+              {view.kind === "note" && <p className="ordering-blocker-status">{view.note}</p>}
+            </li>;
+          })}</ul>}
+          <details id="ordering-packing" open={setup.pack.caseWeightKg <= 0 || sectionOpen("packing")}><summary>Packing <span>{setup.pack.caseWeightKg} kg / case</span></summary><p>{setup.pack.label} · {setup.pack.unitWeightKg} kg per unit · {setup.pack.unitsPerCase} units per case</p><p className="muted small">Approved pack conversions cannot be changed here.</p>{identity?.kind === "unavailable" && <p className="ordering-blocker-status" role="status"><strong>{identity.title}</strong><span>{identity.detail}</span></p>}</details>
+          <details id="ordering-price" open={sectionOpen("price")}><summary>Selling price <span>{setup.tiers.length} tiers</span></summary>
             {setup.tiers.map(tier => {
               const price = priceFor(tier.id); const amount = Number(price.rate);
               const perKg = price.rate && setup.pack.caseWeightKg > 0 ? price.rateBasis === "quintal" ? amount / 100 : amount / setup.pack.caseWeightKg : null;
@@ -107,18 +135,17 @@ export default function OrderingSetupPanel({ variantId, onClose, onSaved }: { va
             })}
             <p className="muted small">Retailer-specific overrides remain unchanged. Final amounts are calculated by the server.</p>
           </details>
-          <details id="ordering-gst" open={setup.blockers.some(blocker => blocker.includes("GST"))}><summary>GST <span>{values.gstPercent === null ? "Pending" : `${values.gstPercent}%`}</span></summary>
-            <label>Approved GST rate (%)<input type="number" min="0" max="100" step="0.01" placeholder="Enter approved rate" value={values.gstPercent ?? ""} onChange={event => setValues({ ...values, gstPercent: event.target.value || null })} /></label>
+          <details id="ordering-gst" open={sectionOpen("gst")}><summary>GST <span>{values.gstPercent === null ? "Pending" : `${values.gstPercent}%`}</span></summary>
+            <label>Approved GST rate (%)<input id="ordering-gst-rate" type="number" min="0" max="100" step="0.01" placeholder="Enter approved rate" value={values.gstPercent ?? ""} onChange={event => setValues({ ...values, gstPercent: event.target.value || null })} /></label>
             {setup.gstPendingException && values.gstPercent === null && <p>Orders allowed; invoices blocked until GST is configured.</p>}
           </details>
-          <details id="ordering-stock" open={setup.blockers.some(blocker => blocker.includes("stock") || blocker.includes("Stock") || blocker.includes("warehouse"))}><summary>Stock <span>{setup.inventory ? `${setup.inventory.available} available` : "Needs verification"}</span></summary>
+          <details id="ordering-stock" open={sectionOpen("stock")}><summary>Stock <span>{setup.inventory ? `${setup.inventory.available} available` : "Needs verification"}</span></summary>
             {setup.inventory ? <p>Warehouse {setup.inventory.warehouseCode} · {setup.inventory.available} available · {setup.inventory.status} · {setup.inventory.source}<br />Last verified {new Date(setup.inventory.syncedAt).toLocaleString("en-IN")}</p> : <p>No authorised inventory link is available for this pack.</p>}
-            {setup.blockers.some(blocker => blocker.includes("catalogue identity")) && <p className="muted small">Approve the catalogue identity before linking inventory to this pack.</p>}
             {setup.inventory?.source === "staging_uat" && <p>Test stock — not physical inventory.</p>}
             <p className="muted small">Stock refresh uses the existing authorised inventory flow. This panel does not change physical stock or verification time.</p>
-            <a className="ordering-stock-link" href="/imports?type=inventory">Open inventory import</a>
+            <Link className="ordering-stock-link" to={INVENTORY_IMPORT_ROUTE}>Open inventory import</Link>
           </details>
-          <details id="ordering-billing" open={setup.blockers.some(blocker => blocker.includes("billing") || blocker.includes("routing") || blocker.includes("bag"))}><summary>Billing rule <span>{billingLabel(values)}</span></summary>
+          <details id="ordering-billing" open={sectionOpen("billing")}><summary>Billing rule <span>{billingLabel(values)}</span></summary>
             <label>Approved allocation rule<select value={values.routingClass ? `route:${values.routingClass}` : values.sellingEntity ? `company:${values.sellingEntity}` : ""} onChange={event => { const [kind, value] = event.target.value.split(":"); setValues({ ...values, routingClass: kind === "route" ? value : null, sellingEntity: kind === "company" ? value : null, routingBagEquivalent: kind === "route" && value === "OTHER" ? values.routingBagEquivalent : null }); }}><option value="">Select approved rule</option><option value="route:LAXMI_TOOR">Dynamic Jain/Padam — Laxmi Toor</option><option value="route:INSTANT_MIX">Dynamic Jain/Padam — Instant Mix</option><option value="route:OTHER">Dynamic Jain/Padam — Other approved product</option><option value="company:jain_traders">Fixed Jain Traders</option><option value="company:padam_international">Fixed Padam International</option></select></label>
             {values.routingClass === "OTHER" && <label>Approved bag equivalent per case<input type="number" min="0.001" step="0.001" value={values.routingBagEquivalent ?? ""} onChange={event => setValues({ ...values, routingBagEquivalent: event.target.value || null })} /></label>}
             <p className="muted small">Select only a rule already approved for this pack. Dynamic routing chooses the company at order time.</p>

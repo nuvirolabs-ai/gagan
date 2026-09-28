@@ -53,13 +53,13 @@ describe("admin catalogue drafts", () => {
     expect(mocks.variantUpdate).toHaveBeenCalledWith(expect.objectContaining({ data: pack }));
   });
 
-  it("adds a variant only beneath a draft product", async () => {
-    mocks.productFind.mockResolvedValueOnce({ id: "p1", catalogStatus: "active" }).mockResolvedValueOnce({ id: "p1", catalogStatus: "pending_review" });
+  it("adds a pending pack to a published or active product and refuses an archived product", async () => {
+    mocks.productFind.mockResolvedValueOnce({ id: "p1", catalogStatus: "archived" }).mockResolvedValueOnce({ id: "p1", catalogStatus: "active" });
     expect((await request(app).post("/products/p1/variants").send(pack)).status).toBe(409);
-    mocks.variantCreate.mockResolvedValue({ id: "v2", catalogStatus: "pending_review" });
+    mocks.variantCreate.mockResolvedValue({ id: "v2", catalogStatus: "pending_review", catalogKey: null, internalCode: null });
     const response = await request(app).post("/products/p1/variants").send({ ...pack, catalogStatus: "active" });
     expect(response.status).toBe(201);
-    expect(mocks.variantCreate).toHaveBeenCalledWith({ data: { ...pack, productId: "p1", catalogStatus: "pending_review" } });
+    expect(mocks.variantCreate).toHaveBeenCalledWith({ data: { ...pack, productId: "p1", catalogStatus: "pending_review", catalogKey: null, internalCode: null, catalogImageStatus: "pending", catalogImageLabel: "Image pending confirmation" } });
   });
 
   it("rejects duplicate packs and a duplicate product identity", async () => {

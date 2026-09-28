@@ -1,14 +1,28 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api, inr } from "../api";
 import { Breakdown } from "./Commercial";
 import { formatOrderRef } from "../orderRef";
 import PodModal from "../components/PodModal";
 import AssignModal from "../components/AssignModal";
+import OrderReviewModal, { OrderActionControls } from "../components/OrderReviewModal";
 import { AgeDistribution, Icon, SectionLabel } from "../components/OperationalPrimitives";
-import { ageHours, ageLabel, type VisualTone } from "../components/operationalUtils";
+import { ageHours, ageLabel } from "../components/operationalUtils";
 import { orderCreatedAtLabel, orderSourceLabel } from "../orderAttribution";
 import WarehouseOrdersPage from "./WarehouseOrders";
+import {
+  NEXT_ACTION,
+  ORDER_DEPARTURE_MS,
+  STATUS_LABEL,
+  dependencyCopy,
+  isSapSynced,
+  mergeCanonicalOrder,
+  orderHealth,
+  queueStatusLabel,
+  rowSurface,
+  storedLineValue,
+  toneFor,
+} from "../orderReviewModel";
 
 const TABS = [
   { key: "placed", label: "Awaiting approval" },
@@ -19,8 +33,6 @@ const TABS = [
   { key: "rejected", label: "Rejected" },
 ] as const;
 
-const STATUS_LABEL: Record<string, string> = { placed: "Placed", confirmed: "Confirmed", packed: "Packed", out_for_delivery: "Out for delivery", delivered: "Delivered", rejected: "Rejected" };
-const NEXT_ACTION: Record<string, string> = { placed: "Approve or reject this order.", confirmed: "Mark packed when the warehouse has picked it.", packed: "Assign a dispatch route.", out_for_delivery: "Capture proof of delivery.", delivered: "Complete. Invoice is on the ledger.", rejected: "Closed. No further fulfilment." };
 const INTERNAL_STATUS_FILTERS = [
   { key: "", label: "All internal status" },
   { key: "ACCOUNT_OPENED", label: "#️⃣ New Account" },
@@ -32,20 +44,11 @@ const INTERNAL_STATUS_FILTERS = [
   { key: "ADVANCE_PAYMENT_RECEIVED", label: "✍️ Advance Received" },
 ] as const;
 
+type PendingAction = "approve" | "reject" | "hold" | "release" | "pack" | null;
+
 function sapLabel(order: any) {
   const status = order.sapSyncStatus ?? "pending";
   return status === "synced" || status === "sent" ? "Synced" : status === "failed" ? "Failed" : "Pending";
-}
-
-function isSapSynced(order: any) {
-  return order.sapSyncStatus === "synced" || order.sapSyncStatus === "sent";
-}
-
-function toneFor(order: any): VisualTone {
-  if (order.status === "rejected" || order.sapSyncStatus === "failed") return "critical";
-  if (order.status === "placed") return "bottleneck";
-  if (order.status === "delivered") return "complete";
-  return "moving";
 }
 
 function ageCounts(orders: any[]) {
@@ -60,19 +63,12 @@ function ageCounts(orders: any[]) {
   }, [0, 0, 0, 0]);
 }
 
+function withInternalStatus(orders: any[], statusByOrderId: Map<string, any>) {
+  return orders.map((order) => ({ ...order, internalStatus: statusByOrderId.get(order.id) ?? order.internalStatus ?? null }));
+}
+
 function HealthMatrix({ order }: { order: any }) {
-  const commercial = order.status === "placed" ? ["Needs action", "bottleneck"] : ["Ready", "complete"];
-  const fulfilment = order.status === "confirmed" ? ["Ready to pack", "moving"] : order.status === "packed" ? ["Packed", "moving"] : order.status === "out_for_delivery" ? ["Out for delivery", "moving"] : order.status === "delivered" ? ["Delivered", "complete"] : ["Waiting", "neutral"];
-  const sap = order.sapSyncStatus === "failed" ? ["Sync failed", "critical"] : isSapSynced(order) ? ["Synced", "complete"] : ["Pending", "neutral"];
-  const cells: Array<{ label: string; value: string; tone: string; icon: "finance" | "stock" | "order" | "sap" }> = [
-    { label: "Commercial", value: commercial[0], tone: commercial[1], icon: "finance" },
-    { label: "Credit", value: order.status === "placed" ? "Review required" : "Clear", tone: order.status === "placed" ? "warning" : "complete", icon: "finance" },
-    { label: "Inventory", value: "Not exposed", tone: "neutral", icon: "stock" },
-    { label: "Fulfilment", value: fulfilment[0], tone: fulfilment[1], icon: "order" },
-    { label: "Delivery", value: order.delivery?.routeId ? `Route ${order.delivery.routeId}` : "Not assigned", tone: order.delivery?.routeId ? "moving" : "neutral", icon: "order" },
-    { label: "SAP", value: sap[0], tone: sap[1], icon: "sap" },
-  ];
-  return <div className="health-matrix">{cells.map((cell, index) => <div className={`health-cell ${cell.tone}`} key={cell.label}><span className="health-number">0{index + 1}</span><Icon name={cell.icon} /><span><b>{cell.label}</b><small>{cell.value}</small></span><span className="health-status">{cell.tone === "complete" ? <Icon name="check" size={14} /> : cell.tone === "critical" || cell.tone === "warning" || cell.tone === "bottleneck" ? <Icon name="alert" size={14} /> : "·"}</span></div>)}</div>;
+  return <div className="health-matrix">{orderHealth(order).map((cell, index) => <div className={`health-cell ${cell.tone}`} key={cell.label}><span className="health-number">0{index + 1}</span><Icon name={cell.icon} /><span><b>{cell.label}</b><small>{cell.value}</small></span><span className="health-status">{cell.tone === "complete" ? <Icon name="check" size={14} /> : cell.tone === "critical" || cell.tone === "warning" || cell.tone === "bottleneck" ? <Icon name="alert" size={14} /> : "·"}</span></div>)}</div>;
 }
 
 function Journey({ order }: { order: any }) {
@@ -88,80 +84,230 @@ function Journey({ order }: { order: any }) {
   return <div className="journey" aria-label="Order journey">{steps.map(([label, status], index) => <div className={`journey-step ${status}`} key={label}><span>{status === "done" ? <Icon name="check" size={13} /> : status === "blocked" ? <Icon name="alert" size={13} /> : index + 1}</span><b>{label}</b>{index < steps.length - 1 ? <i /> : null}</div>)}</div>;
 }
 
+function focusQueueElement(orderId: string | null) {
+  if (orderId) {
+    const row = document.querySelector<HTMLElement>(`[data-order-id="${CSS.escape(orderId)}"]`);
+    if (row) {
+      row.focus();
+      return;
+    }
+  }
+  document.querySelector<HTMLElement>('input[aria-label="Search order or retailer"]')?.focus();
+}
+
 function AdminOrders() {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("status");
   const [tab, setTab] = useState(TABS.some((item) => item.key === requestedTab) ? requestedTab! : "placed");
   const [orders, setOrders] = useState<any[]>([]);
   const [queueData, setQueueData] = useState<Record<string, any[]>>({});
+  const [statusByOrderId, setStatusByOrderId] = useState<Map<string, any>>(new Map());
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [reviewId, setReviewId] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [podOrder, setPodOrder] = useState<any | null>(null);
   const [assignOrder, setAssignOrder] = useState<any | null>(null);
   const [internalFilter, setInternalFilter] = useState("");
+  const [holdFor, setHoldFor] = useState<string | null>(null);
+  const [holdReason, setHoldReason] = useState("");
+  const [holdError, setHoldError] = useState<string | null>(null);
+  const inFlight = useRef(false);
+  const departureTimer = useRef<number | null>(null);
+
+  const clearDeparture = () => {
+    if (departureTimer.current != null) {
+      window.clearTimeout(departureTimer.current);
+      departureTimer.current = null;
+    }
+  };
+
+  const filterTab = useCallback((queues: Record<string, any[]>, statuses: Map<string, any>, stage = tab) => {
+    const current = withInternalStatus(queues[stage] ?? [], statuses);
+    return internalFilter ? current.filter((order) => order.internalStatus?.currentCode === internalFilter) : current;
+  }, [internalFilter, tab]);
+
+  const publishQueues = useCallback((queues: Record<string, any[]>, statuses: Map<string, any>, preserve?: any) => {
+    setQueueData(queues);
+    setStatusByOrderId(statuses);
+    const filtered = filterTab(queues, statuses);
+    const visible = !preserve
+      ? filtered
+      : filtered.some((order) => order.id === preserve.id)
+        ? filtered.map((order) => order.id === preserve.id
+          ? { ...order, ...preserve, internalStatus: preserve.internalStatus ?? order.internalStatus }
+          : order)
+        : [preserve, ...filtered];
+    setOrders(visible);
+    setSelectedId((current) => current && visible.some((order) => order.id === current) ? current : visible[0]?.id ?? null);
+    return filtered;
+  }, [filterTab]);
+
+  const fetchQueues = useCallback(async () => {
+    const [responses, commercial] = await Promise.all([
+      Promise.all(TABS.map(async (item) => ({ key: item.key, result: await api.orders(item.key) }))),
+      api.commercialStatuses(),
+    ]);
+    const queues: Record<string, any[]> = {};
+    responses.forEach(({ key, result }) => { queues[key] = Array.isArray(result?.orders) ? result.orders : []; });
+    const statuses = new Map<string, any>(((commercial?.orders ?? []) as any[]).map((order) => [order.id, order.internalStatus]));
+    return { queues, statuses };
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [responses, commercial] = await Promise.all([
-        Promise.all(TABS.map(async (item) => ({ key: item.key, result: await api.orders(item.key) }))),
-        api.commercialStatuses(),
-      ]);
-      const next: Record<string, any[]> = {};
-      responses.forEach(({ key, result }) => { next[key] = Array.isArray(result?.orders) ? result.orders : []; });
-      setQueueData(next);
-      const statusByOrderId = new Map((commercial?.orders ?? []).map((order: any) => [order.id, order.internalStatus]));
-      const current = (next[tab] ?? []).map((order: any) => ({ ...order, internalStatus: statusByOrderId.get(order.id) ?? null }));
-      const filtered = internalFilter ? current.filter((order: any) => order.internalStatus?.currentCode === internalFilter) : current;
-      setOrders(filtered);
-      setSelectedId((selected) => filtered.some((order: any) => order.id === selected) ? selected : filtered[0]?.id ?? null);
+      const { queues, statuses } = await fetchQueues();
+      publishQueues(queues, statuses);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load orders");
     } finally { setLoading(false); }
-  }, [internalFilter, tab]);
+  }, [fetchQueues, publishQueues]);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => () => clearDeparture(), []);
   useEffect(() => { if (requestedTab && TABS.some((item) => item.key === requestedTab) && requestedTab !== tab) setTab(requestedTab); }, [requestedTab, tab]);
 
-  const selected = orders.find((order) => order.id === selectedId) ?? null;
+  const reviewOrder = orders.find((order) => order.id === reviewId) ?? null;
+  const detailOrder = orders.find((order) => order.id === detailId) ?? null;
+  const selected = orders.find((order) => order.id === selectedId) ?? reviewOrder ?? detailOrder;
   const selectedTab = TABS.find((item) => item.key === tab)?.label ?? "Orders";
-  const queueValue = orders.reduce((sum, order) => sum + Number(order.orderTotal ?? 0), 0);
-  const ages = useMemo(() => ageCounts(orders), [orders]);
-  const oldest = useMemo(() => orders.slice().sort((a, b) => (ageHours(b.createdAt) ?? -1) - (ageHours(a.createdAt) ?? -1))[0], [orders]);
+  const metricOrders = useMemo(() => filterTab(queueData, statusByOrderId), [filterTab, queueData, statusByOrderId]);
+  const queueValue = metricOrders.reduce((sum, order) => sum + Number(order.orderTotal ?? 0), 0);
+  const ages = useMemo(() => ageCounts(metricOrders), [metricOrders]);
+  const oldest = useMemo(() => metricOrders.slice().sort((a, b) => (ageHours(b.createdAt) ?? -1) - (ageHours(a.createdAt) ?? -1))[0], [metricOrders]);
   const outsideSla = ages[3];
 
-  const act = async (id: string, fn: () => Promise<unknown>, message: string) => {
-    setBusyId(id); setError(null); setNotice(null);
-    try { await fn(); setNotice(message); await load(); }
-    catch (err) { setError(err instanceof Error ? err.message : "Action failed"); }
-    finally { setBusyId(null); }
+  const closeReview = (focusId = reviewId) => {
+    setReviewId(null);
+    setHoldFor(null);
+    setHoldError(null);
+    window.requestAnimationFrame(() => focusQueueElement(focusId));
   };
 
-  const setStage = (key: string) => { setTab(key); setSearchParams({ status: key }); };
-  const actions = (o: any, dock = false) => <div className={`row inspector-action-row ${dock ? "dock-actions" : ""}`}>
-    {o.status === "placed" && <><button className="button primary compact" disabled={busyId === o.id} onClick={() => void act(o.id, () => api.approve(o.id), "Order approved")}>Approve <Icon name="arrow" size={13} /></button><button className="button danger compact secondary-action" disabled={busyId === o.id} onClick={() => void act(o.id, () => api.reject(o.id), "Order rejected")}>Reject</button></>}
-    {o.status === "confirmed" && <button className="button primary compact" disabled={busyId === o.id} onClick={() => void act(o.id, () => api.pack(o.id), "Order marked packed")}>Mark packed <Icon name="arrow" size={13} /></button>}
-    {o.status === "packed" && <button className="button primary compact" disabled={busyId === o.id} onClick={() => setAssignOrder(o)}>Assign route <Icon name="arrow" size={13} /></button>}
-    {o.status === "out_for_delivery" && <button className="button primary compact" disabled={busyId === o.id} onClick={() => setPodOrder(o)}>Capture delivery <Icon name="arrow" size={13} /></button>}
-    {o.internalStatus?.isOnHold ? <button className="button secondary compact" disabled={busyId === o.id} onClick={() => void act(o.id, () => api.releaseOrderHold(o.id), "Order hold released")}>Release hold</button> : <button className="button secondary compact" disabled={busyId === o.id} onClick={() => { const reason = window.prompt("Reason for placing this order on hold:")?.trim(); if (reason) void act(o.id, () => api.holdOrder(o.id, reason), "Order placed on hold"); }}>Put on hold</button>}
-    {(o.status === "delivered" || o.status === "rejected") && <span className="muted small">No further action</span>}
-  </div>;
+  const openReview = (id: string) => {
+    clearDeparture();
+    setSelectedId(id);
+    setReviewId(id);
+    setHoldFor(null);
+    setHoldReason("");
+    setHoldError(null);
+    setError(null);
+  };
+
+  const openDetails = (order: any) => {
+    setDetailId(order.id);
+    setSelectedId(order.id);
+    setReviewId(null);
+    window.requestAnimationFrame(() => document.getElementById("order-workspace")?.scrollIntoView?.({ block: "start" }));
+  };
+
+  const scheduleDeparture = (orderId: string, remaining: any[]) => {
+    clearDeparture();
+    const index = orders.findIndex((order) => order.id === orderId);
+    const nextId = remaining[index]?.id ?? remaining[index - 1]?.id ?? remaining[0]?.id ?? null;
+    departureTimer.current = window.setTimeout(() => {
+      departureTimer.current = null;
+      setOrders(remaining);
+      setSelectedId((current) => current === orderId ? nextId : current);
+      setDetailId((current) => current === orderId ? null : current);
+      focusQueueElement(nextId);
+    }, ORDER_DEPARTURE_MS);
+  };
+
+  const act = async (id: string, action: Exclude<PendingAction, null>, fn: () => Promise<unknown>, message: string) => {
+    if (inFlight.current) return;
+    const previous = orders.find((order) => order.id === id);
+    if (!previous) return;
+    inFlight.current = true;
+    setBusyId(id);
+    setPendingAction(action);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await fn();
+      const updated = mergeCanonicalOrder(previous, result);
+      let remaining = metricOrders.filter((order) => order.id !== id);
+      try {
+        const { queues, statuses } = await fetchQueues();
+        const returnedStatus = statuses.get(id);
+        const overlaid = returnedStatus ? { ...updated, internalStatus: { ...(updated.internalStatus ?? {}), ...returnedStatus } } : updated;
+        const serverRows = filterTab(queues, statuses);
+        remaining = serverRows.filter((order) => order.id !== id);
+        const stillQueued = serverRows.some((order) => order.id === id);
+        publishQueues(queues, statuses, overlaid);
+        if (!stillQueued) scheduleDeparture(id, remaining);
+      } catch (refreshErr) {
+        setOrders((current) => current.map((order) => order.id === id ? updated : order));
+        setError(refreshErr instanceof Error ? refreshErr.message : "Order updated, but the queue could not refresh.");
+      }
+      setNotice(message);
+      setReviewId(null);
+      setHoldFor(null);
+      window.requestAnimationFrame(() => focusQueueElement(id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Action failed");
+    } finally {
+      inFlight.current = false;
+      setBusyId(null);
+      setPendingAction(null);
+    }
+  };
+
+  const confirmHold = (order: any) => {
+    const reason = holdReason.trim();
+    if (reason.length < 3) {
+      setHoldError("Reason must be at least 3 characters.");
+      return;
+    }
+    setHoldError(null);
+    void act(order.id, "hold", () => api.holdOrder(order.id, reason), "Order placed on hold");
+  };
+
+  const actionControls = (order: any, idSuffix: string) => <OrderActionControls
+    order={order}
+    idSuffix={idSuffix}
+    busy={busyId === order.id}
+    pendingAction={busyId === order.id ? pendingAction : null}
+    holdOpen={holdFor === order.id}
+    holdReason={holdReason}
+    holdError={holdFor === order.id ? holdError : null}
+    onHoldReason={(value) => { setHoldReason(value); setHoldError(null); }}
+    onStartHold={() => { setHoldFor(order.id); setHoldReason(""); setHoldError(null); }}
+    onCancelHold={() => { setHoldFor(null); setHoldError(null); }}
+    onConfirmHold={() => confirmHold(order)}
+    onApprove={() => void act(order.id, "approve", () => api.approve(order.id), "Order approved")}
+    onReject={() => void act(order.id, "reject", () => api.reject(order.id), "Order rejected")}
+    onRelease={() => void act(order.id, "release", () => api.releaseOrderHold(order.id), "Order hold released")}
+    onPack={() => void act(order.id, "pack", () => api.pack(order.id), "Order marked packed")}
+    onAssign={() => { setReviewId(null); setAssignOrder(order); }}
+    onCapture={() => { setReviewId(null); setPodOrder(order); }}
+  />;
+
+  const setStage = (key: string) => {
+    clearDeparture();
+    setReviewId(null);
+    setTab(key);
+    setSearchParams({ status: key });
+  };
 
   return <div className="page-shell orders-page operational-instrument">
-    <header className="page-header operating-header compact"><div><SectionLabel>Sales / Work queue</SectionLabel><h1 className="page-title">Orders</h1><p className="page-sub">Move each order through its next safe step. Select a row to inspect the work.</p></div><div className="header-context"><span className="live-indicator"><span className="live-dot" /> Live queue</span><button className="button secondary compact">Filters</button></div></header>
+    <header className="page-header operating-header compact"><div><SectionLabel>Sales / Work queue</SectionLabel><h1 className="page-title">Orders</h1><p className="page-sub">Open an order to review it here, then approve, reject, or hold without leaving the queue.</p></div><div className="header-context"><span className="live-indicator"><span className="live-dot" /> Live queue</span><button className="button secondary compact">Filters</button></div></header>
     {selected ? <div className="small muted" aria-label="Selected order attribution"><strong>{formatOrderRef(selected)}</strong> · {orderSourceLabel(selected)} · {orderCreatedAtLabel(selected)} · {selected.retailer?.name ?? "Retailer unavailable"}</div> : null}
     <section className="stage-rail" aria-label="Order lifecycle stages">{TABS.map((stage) => { const stageOrders = queueData[stage.key] ?? []; const stageValue = stageOrders.reduce((sum, order) => sum + Number(order.orderTotal ?? 0), 0); return <button key={stage.key} className={tab === stage.key ? "active" : ""} onClick={() => setStage(stage.key)}><span className="stage-count">{loading && !queueData[stage.key] ? "—" : stageOrders.length}</span><span>{stage.label}</span><small>{inr(stageValue)}</small></button>; })}</section>
     <div className="internal-status-rail" aria-label="Internal commercial status filters">{INTERNAL_STATUS_FILTERS.map((filter) => <button key={filter.key} className={internalFilter === filter.key ? "selected" : ""} onClick={() => setInternalFilter(filter.key)}>{filter.label}</button>)}</div>
     <section className="queue-summary" aria-label="Queue health"><div><span>active queue</span><strong>{selectedTab}</strong></div><div><span>oldest order</span><strong>{ageLabel(oldest?.createdAt)}</strong></div><div><span>outside SLA</span><strong className={outsideSla > 0 ? "red-text" : "green-text"}>{outsideSla} orders</strong></div><div><span>queue value</span><strong>{loading ? "—" : inr(queueValue)}</strong></div><AgeDistribution counts={ages} /></section>
-    {error && <div className="banner error" role="alert">{error}</div>}{notice && <div className="banner success" role="status">{notice}</div>}
-    <div className="orders-layout"><section className="order-table-zone"><div className="table-toolbar"><div><SectionLabel>Operational queue</SectionLabel><h2>{selectedTab} <em>{orders.length} orders</em></h2></div><label className="search"><span>⌕</span><input aria-label="Search order or retailer" placeholder="Search order or retailer" /></label></div><div className="order-table"><div className="order-table-header"><span>order / retailer</span><span>age</span><span>items</span><span>value</span><span>state</span><span>owner / next</span><span /></div>{loading ? <div className="table-loading"><div className="skeleton skeleton-row" /><div className="skeleton skeleton-row" /><div className="skeleton skeleton-row" /></div> : orders.length === 0 ? <div className="empty-state quiet">No orders are waiting in this state. The queue is clear.</div> : orders.map((o) => <div key={o.id} className={`order-table-row ${selectedId === o.id ? "selected" : ""}`} role="button" tabIndex={0} aria-pressed={selectedId === o.id} onClick={() => setSelectedId(o.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedId(o.id); } }}><span className="table-order"><i className={`status-rail ${toneFor(o)}`} /><b>{formatOrderRef(o)}</b><small>{o.retailer?.name ?? "Retailer unavailable"}</small></span><span className={`table-age ${(ageHours(o.createdAt) ?? 0) > 12 ? "critical" : ""}`}><Icon name="clock" size={13} />{ageLabel(o.createdAt)}</span><span className="tabular">{o.items?.length ?? 0} lines</span><strong className="tabular">{inr(Number(o.orderTotal ?? 0))}</strong><span className={`constraint ${toneFor(o)}`}>{o.internalStatus?.currentLabel ?? (o.sapSyncStatus === "failed" ? "SAP failed" : STATUS_LABEL[o.status] ?? o.status)}</span><span className="table-next"><b>{o.delivery?.routeId ?? "Operations"}</b><small>{NEXT_ACTION[o.status] ?? "Inspect order"} <Icon name="arrow" size={13} /></small></span><Icon name="chevron" size={15} /></div>)}</div></section>
-      <aside className="order-side-note"><SectionLabel>Queue read</SectionLabel><strong>{outsideSla > 0 ? `${outsideSla} orders have crossed the twelve-hour band.` : "No order has crossed the twelve-hour band."}</strong><p>{selected ? `Selected ${formatOrderRef(selected)} is ${ageLabel(selected.createdAt)} old. The inspector keeps its next safe action in view.` : "Select an order to see ownership, dependency, and the next safe action."}</p>{selected ? <button className="text-button" onClick={() => setSelectedId(null)}>clear selection <Icon name="arrow" size={14} /></button> : null}</aside>
+    {error && !reviewOrder && <div className="banner error" role="alert">{error}</div>}{notice && <div className="banner success" role="status">{notice}</div>}
+    <div className="orders-layout"><section className="order-table-zone"><div className="table-toolbar"><div><SectionLabel>Operational queue</SectionLabel><h2>{selectedTab} <em>{metricOrders.length} orders</em></h2></div><label className="search"><span>⌕</span><input aria-label="Search order or retailer" placeholder="Search order or retailer" /></label></div><div className="order-table"><div className="order-table-header"><span>order / retailer</span><span>age</span><span>items</span><span>value</span><span>state</span><span>owner / next</span><span /></div>{loading ? <div className="table-loading"><div className="skeleton skeleton-row" /><div className="skeleton skeleton-row" /><div className="skeleton skeleton-row" /></div> : orders.length === 0 ? <div className="empty-state quiet">No orders are waiting in this state. The queue is clear.</div> : orders.map((order) => <button type="button" key={order.id} data-order-id={order.id} className={`order-table-row row-${rowSurface(order)} ${selectedId === order.id ? "selected" : ""}`} aria-pressed={selectedId === order.id} aria-haspopup="dialog" onClick={(event) => { event.currentTarget.focus(); openReview(order.id); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.focus(); openReview(order.id); } }}><span className="table-order"><i className={`status-rail ${toneFor(order)}`} /><b>{formatOrderRef(order)}</b><small>{order.retailer?.name ?? "Retailer unavailable"}</small></span><span className={`table-age ${(ageHours(order.createdAt) ?? 0) > 12 ? "critical" : ""}`}><Icon name="clock" size={13} />{ageLabel(order.createdAt)}</span><span className="tabular">{order.items?.length ?? 0} lines</span><strong className="tabular">{inr(Number(order.orderTotal ?? 0))}</strong><span className={`constraint ${toneFor(order)}`}>{queueStatusLabel(order)}</span><span className="table-next"><b>{order.delivery?.routeId ?? "Operations"}</b><small>{NEXT_ACTION[order.status] ?? "Inspect order"} <Icon name="arrow" size={13} /></small></span><Icon name="chevron" size={15} /></button>)}</div></section>
+      <aside className="order-side-note"><SectionLabel>Queue read</SectionLabel><strong>{outsideSla > 0 ? `${outsideSla} orders have crossed the twelve-hour band.` : "No order has crossed the twelve-hour band."}</strong><p>{selected ? `${formatOrderRef(selected)} is ${ageLabel(selected.createdAt)} old. Review and act from the queue. Open the full workspace only for ledger, retailer, or SAP detail.` : "Open an order to review the next safe action without leaving this list."}</p>{selected ? <button className="text-button" onClick={() => { setSelectedId(null); setReviewId(null); setDetailId(null); }}>clear selection <Icon name="arrow" size={14} /></button> : null}</aside>
     </div>
-    {selected ? <section className="order-workspace" aria-label="Selected order workspace"><div className="workspace-heading"><div><SectionLabel>Order workspace / selected object</SectionLabel><h2>{formatOrderRef(selected)}</h2><p>{selected.retailer?.name ?? "Retailer unavailable"} · placed {ageLabel(selected.createdAt)} ago{selected.retailer?.phone ? ` · ${selected.retailer.phone}` : ""}</p></div><div className={`workspace-status ${toneFor(selected)}`}><span className="status-dot" />{STATUS_LABEL[selected.status] ?? selected.status}<strong>{inr(Number(selected.orderTotal ?? 0))}</strong></div></div><div className="workspace-hero"><div className="hero-value"><span>order value</span><strong>{inr(Number(selected.orderTotal ?? 0))}</strong><small>{selected.items?.length ?? 0} lines · {selected.delivery?.routeId ? `route ${selected.delivery.routeId}` : "route not assigned"}</small></div><div className={`hero-decision ${selected.status === "placed" || selected.sapSyncStatus === "failed" ? "critical" : ""}`}><span className="decision-kicker"><i className="status-dot" /> next safe action</span><strong>{NEXT_ACTION[selected.status] ?? "Inspect order"}</strong><p>{selected.status === "placed" ? "Commercial approval is the current dependency." : selected.sapSyncStatus === "failed" ? "SAP synchronization needs a retry." : "The next operational state is clear."}</p>{actions(selected, true)}</div></div><div className="workspace-columns"><main><section className="diagnostic-section"><div className="section-head"><div><SectionLabel>Diagnostic instrument</SectionLabel><h2>Order health</h2></div><span className="small-note">canonical fields only</span></div><HealthMatrix order={selected} /><Journey order={selected} /></section><section className="items-section"><div className="section-head"><div><SectionLabel>Commercial lines</SectionLabel><h2>Items <em>{selected.items?.length ?? 0} lines</em></h2></div><span className="small-note">unit prices from order</span></div>{selected.commercialSnapshot ? <Breakdown value={selected.commercialSnapshot}/> : null}<div className="item-ledger" hidden={!!selected.commercialSnapshot}><div><span>item</span><span>ordered</span><span>unit price</span><span>line value</span></div>{(selected.items ?? []).map((item: any) => <div key={item.id}><b>{item.variant?.product?.name ?? "Product unavailable"}</b><span>{item.qtyOrdered ?? 0}</span><span>{inr(Number(item.unitPrice ?? 0))}</span><strong>{inr(Number(item.unitPrice ?? 0) * Number(item.qtyOrdered ?? 0))}</strong></div>)}</div></section></main><aside className="inspector-context"><div className="context-block"><SectionLabel>Dependency</SectionLabel><h3>{selected.status === "placed" ? "This order cannot move yet." : selected.sapSyncStatus === "failed" ? "The ERP hand-off is blocked." : "This order has a clear next step."}</h3><p>{selected.status === "placed" ? "Approval is required before warehouse work can begin." : selected.sapSyncStatus === "failed" ? "The order remains in its current state until synchronization succeeds." : NEXT_ACTION[selected.status]}</p><dl><div><dt>owner</dt><dd>{selected.delivery?.routeId ?? "Operations"}</dd></div><div><dt>waiting</dt><dd>{ageLabel(selected.createdAt)}</dd></div><div><dt>state</dt><dd className={toneFor(selected) === "critical" ? "red-text" : "green-text"}>{STATUS_LABEL[selected.status] ?? selected.status}</dd></div></dl></div><div className="context-block related"><SectionLabel>Related context</SectionLabel><a href="/retailers">Retailer account <Icon name="arrow" size={13} /></a><a href="/ledger">Financial ledger <Icon name="arrow" size={13} /></a><a href="/sap">SAP state · {sapLabel(selected)} <Icon name="arrow" size={13} /></a></div><div className="context-block activity"><SectionLabel>Activity ledger</SectionLabel><p><time>{selected.createdAt ? new Date(selected.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</time> order received <small>{selected.retailer?.name ?? "Retailer unavailable"}</small></p><p><time>now</time> current state evaluated <small>Admin read model</small></p></div></aside></div><div className="action-dock"><span><i className="pulse" /> next safe action</span><strong>{NEXT_ACTION[selected.status] ?? "Inspect order"}</strong>{actions(selected, true)}</div></section> : null}
+    {detailOrder ? <section className="order-workspace" id="order-workspace" aria-label="Selected order workspace"><div className="workspace-heading"><div><SectionLabel>Order workspace / selected object</SectionLabel><h2>{formatOrderRef(detailOrder)}</h2><p>{detailOrder.retailer?.name ?? "Retailer unavailable"} · placed {ageLabel(detailOrder.createdAt)} ago{detailOrder.retailer?.phone ? ` · ${detailOrder.retailer.phone}` : ""}</p></div><div className={`workspace-status ${toneFor(detailOrder)}`}><span className="status-dot" />{STATUS_LABEL[detailOrder.status] ?? detailOrder.status}<strong>{inr(Number(detailOrder.orderTotal ?? 0))}</strong></div></div><div className="workspace-hero"><div className="hero-value"><span>order value</span><strong>{inr(Number(detailOrder.orderTotal ?? 0))}</strong><small>{detailOrder.items?.length ?? 0} lines · {detailOrder.delivery?.routeId ? `route ${detailOrder.delivery.routeId}` : "route not assigned"}</small></div><div className={`hero-decision ${detailOrder.status === "placed" || detailOrder.sapSyncStatus === "failed" ? "critical" : ""}`}><span className="decision-kicker"><i className="status-dot" /> next safe action</span><strong>{NEXT_ACTION[detailOrder.status] ?? "Inspect order"}</strong><p>{dependencyCopy(detailOrder)}</p>{actionControls(detailOrder, "workspace")}</div></div><div className="workspace-columns"><main><section className="diagnostic-section"><div className="section-head"><div><SectionLabel>Diagnostic instrument</SectionLabel><h2>Order health</h2></div><span className="small-note">canonical fields only</span></div><HealthMatrix order={detailOrder} /><Journey order={detailOrder} /></section><section className="items-section"><div className="section-head"><div><SectionLabel>Commercial lines</SectionLabel><h2>Items <em>{detailOrder.items?.length ?? 0} lines</em></h2></div><span className="small-note">unit prices from order</span></div>{detailOrder.commercialSnapshot ? <Breakdown value={detailOrder.commercialSnapshot}/> : null}<div className="item-ledger" hidden={!!detailOrder.commercialSnapshot}><div><span>item</span><span>ordered</span><span>unit price</span><span>line value</span></div>{(detailOrder.items ?? []).map((item: any) => <div key={item.id}><b>{item.variant?.product?.name ?? "Product unavailable"}</b><span>{item.qtyOrdered ?? 0}</span><span>{inr(Number(item.unitPrice ?? 0))}</span><strong>{inr(storedLineValue(detailOrder, item))}</strong></div>)}</div></section></main><aside className="inspector-context"><div className="context-block"><SectionLabel>Dependency</SectionLabel><h3>{detailOrder.status === "placed" ? "This order cannot move yet." : detailOrder.sapSyncStatus === "failed" ? "The ERP hand-off is blocked." : "This order has a clear next step."}</h3><p>{detailOrder.status === "placed" ? "Approval is required before warehouse work can begin." : detailOrder.sapSyncStatus === "failed" ? "The order remains in its current state until synchronization succeeds." : NEXT_ACTION[detailOrder.status]}</p><dl><div><dt>owner</dt><dd>{detailOrder.delivery?.routeId ?? "Operations"}</dd></div><div><dt>waiting</dt><dd>{ageLabel(detailOrder.createdAt)}</dd></div><div><dt>state</dt><dd className={toneFor(detailOrder) === "critical" ? "red-text" : "green-text"}>{STATUS_LABEL[detailOrder.status] ?? detailOrder.status}</dd></div></dl></div><div className="context-block related"><SectionLabel>Related context</SectionLabel><a href="/retailers">Retailer account <Icon name="arrow" size={13} /></a><a href="/ledger">Financial ledger <Icon name="arrow" size={13} /></a><a href="/sap">SAP state · {sapLabel(detailOrder)} <Icon name="arrow" size={13} /></a></div><div className="context-block activity"><SectionLabel>Activity ledger</SectionLabel><p><time>{detailOrder.createdAt ? new Date(detailOrder.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</time> order received <small>{detailOrder.retailer?.name ?? "Retailer unavailable"}</small></p><p><time>now</time> current state evaluated <small>Admin read model</small></p></div></aside></div><div className="action-dock"><span><i className="pulse" /> next safe action</span><strong>{NEXT_ACTION[detailOrder.status] ?? "Inspect order"}</strong>{actionControls(detailOrder, "dock")}</div></section> : null}
+    {reviewOrder ? <OrderReviewModal order={reviewOrder} busy={busyId === reviewOrder.id} error={error} onClose={() => closeReview(reviewOrder.id)} onOpenDetails={() => openDetails(reviewOrder)} actions={actionControls(reviewOrder, "review")} /> : null}
     {assignOrder && <AssignModal order={assignOrder} onClose={() => setAssignOrder(null)} onDone={(msg) => { setAssignOrder(null); setNotice(msg); void load(); }} />}{podOrder && <PodModal order={podOrder} onClose={() => setPodOrder(null)} onDone={(msg) => { setPodOrder(null); setNotice(msg); void load(); }} />}
   </div>;
 }

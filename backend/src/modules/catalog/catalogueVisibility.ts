@@ -18,6 +18,12 @@ export function catalogueOrderingState(
     : { orderable: true, orderingStatus: "ready", orderingReason: null, gstPending: false, taxStatus: "READY" as const };
 }
 
+export function approvedCatalogueImage(variant: { catalogImageStatus?: string | null; imageUrl?: string | null }) {
+  if (variant.catalogImageStatus === "placeholder") return "placeholder" as const;
+  if (variant.catalogImageStatus === "exact" && variant.imageUrl) return "exact" as const;
+  return "missing" as const;
+}
+
 export function catalogueImageState(variant: {
   catalogImageStatus?: string | null;
   catalogImageLabel?: string | null;

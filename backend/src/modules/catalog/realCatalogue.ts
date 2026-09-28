@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { catalogueDigest as digest, normalizeCatalogueText as identity, productCatalogueIdentity, variantCatalogueIdentity } from "./catalogueIdentity";
 import fs from "node:fs";
 import * as XLSX from "xlsx";
 import { Prisma, type PrismaClient } from "@prisma/client";
@@ -260,17 +261,6 @@ function clean(value: unknown) {
   return String(value ?? "").trim().replace(/\s+/g, " ");
 }
 
-/** Comparison normalization only; this never changes the stored source text. */
-function identity(value: unknown) {
-  return clean(value)
-    .toUpperCase()
-    .replace(/(\d)\s+(KG|KGS|GM|G)\b/g, "$1$2");
-}
-
-function digest(value: string) {
-  return crypto.createHash("sha256").update(value).digest("hex");
-}
-
 function titleCase(value: string) {
   return value
     .toLowerCase()
@@ -416,10 +406,14 @@ function deriveRecord(source: RealCatalogueRecord["source"], sourceRows: number[
   const parsed = deriveConversion(source);
   const master = parseMaster(source.masterBagBoxSize);
   const label = parsed?.label || clean(source.skuName);
-  const productIdentity = [source.brandName, source.groupName, label].map(identity).join("|");
-  const variantIdentity = [source.brandName, source.groupName, source.skuName, source.packingSize, source.masterBagBoxSize].map(identity).join("|");
-  const productKey = `real-catalogue:product:${digest(productIdentity)}`;
-  const variantKey = `real-catalogue:variant:${digest(variantIdentity)}`;
+  const productKey = productCatalogueIdentity({ brandName: source.brandName, groupName: source.groupName, productLabel: label }).catalogKey;
+  const variantKey = variantCatalogueIdentity({
+    brandName: source.brandName,
+    groupName: source.groupName,
+    skuName: source.skuName,
+    packingSize: source.packingSize,
+    masterBagBoxSize: source.masterBagBoxSize,
+  }).catalogKey;
   const type = identity(source.typeOfItem);
   const brand = identity(source.brandName);
   const routingClass = brand === "LAXMI"

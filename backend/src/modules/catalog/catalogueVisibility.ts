@@ -18,6 +18,25 @@ export function catalogueOrderingState(
     : { orderable: true, orderingStatus: "ready", orderingReason: null, gstPending: false, taxStatus: "READY" as const };
 }
 
+export type CatalogueStockView = { available: number | null; status: string };
+
+/** Active is commercial readiness. Stock decides whether that active SKU can be ordered. */
+export function withInventoryOrderability<T extends { orderable: boolean; orderingStatus: string; orderingReason: string | null }>(state: T, stock: CatalogueStockView): T {
+  if (!state.orderable) return state;
+  if (stock.status === "stale" || stock.status === "unknown" || stock.available == null) {
+    return { ...state, orderable: false, orderingStatus: "stock_unavailable", orderingReason: "Stock unavailable" };
+  }
+  if (stock.available <= 0 || stock.status === "unavailable" || stock.status === "out_of_stock") {
+    return { ...state, orderable: false, orderingStatus: "out_of_stock", orderingReason: "Out of stock" };
+  }
+  return state;
+}
+
+/** Commercial fields safe for retailer and salesperson apps. Purchase cost stays in Admin. */
+export function retailerCommercialFields(variant: { gstPercent?: unknown; sellingEntity?: string | null }) {
+  return { sellingEntity: variant.sellingEntity ?? null, gstPercent: variant.gstPercent ?? null };
+}
+
 export function approvedCatalogueImage(variant: { catalogImageStatus?: string | null; imageUrl?: string | null }) {
   if (variant.catalogImageStatus === "placeholder") return "placeholder" as const;
   if (variant.catalogImageStatus === "exact" && variant.imageUrl) return "exact" as const;

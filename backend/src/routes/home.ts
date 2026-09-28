@@ -5,7 +5,8 @@ import { financialSummaryFor } from "../modules/finance/financialSummary";
 import { publicMediaUrl } from "../lib/media";
 import { groupCatalog } from "../modules/catalog/catalogGrouping";
 import { presentLastOrder } from "../modules/catalog/lastOrder";
-import { catalogueImageState, catalogueOrderingState, catalogueStatusWhere } from "../modules/catalog/catalogueVisibility";
+import { catalogueImageState, catalogueOrderingState, catalogueStatusWhere, withInventoryOrderability } from "../modules/catalog/catalogueVisibility";
+import { DEFAULT_WAREHOUSE_CODE, INVENTORY_STALE_AFTER_MS, selectInventorySnapshot } from "../modules/inventory/inventoryService";
 
 const router = Router();
 
@@ -30,7 +31,7 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
   const financialSummary = await financialSummaryFor(prisma, retailer.id, now);
   if (!financialSummary) return res.status(404).json({ error: "Retailer not found" });
 
-  const [config, featuredScheme, activeSchemeCount, unreadCount, activeOrder, lastDeliveredOrder, priceList, products] =
+  const [config, featuredScheme, activeSchemeCount, unreadCount, activeOrder, lastDeliveredOrder, priceList, products, inventory] =
     await Promise.all([
       prisma.appConfig.findUnique({ where: { id: "singleton" } }),
       prisma.scheme.findFirst({
@@ -56,7 +57,13 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
         include: { variants: { where: { catalogStatus: catalogueStatusWhere() } } },
         orderBy: { createdAt: "asc" },
       }),
+      prisma.inventorySnapshot.findMany({ where: { warehouseCode: DEFAULT_WAREHOUSE_CODE } }),
     ]);
+  const stockFor = (product: (typeof products)[number], variant: (typeof products)[number]["variants"][number]) => {
+    const snapshot = selectInventorySnapshot(product, variant, inventory);
+    if (!snapshot) return { available: null, status: "unknown" };
+    return { available: Number(snapshot.available), status: Date.now() - snapshot.syncedAt.getTime() > INVENTORY_STALE_AFTER_MS ? "stale" : snapshot.status };
+  };
 
   const overrides = await prisma.priceOverride.findMany({ where: { retailerId: retailer.id } });
   const priceByVariant = new Map(priceList.map((p) => [p.variantId, p.price]));
@@ -86,7 +93,7 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
       rateBasis: overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case",
       rateLabel: (overrideByVariant.get(v.id) ?? priceByVariant.get(v.id)) != null ? `${(overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case") === "quintal" ? "per quintal" : "per case"} · Excluding GST` : null,
       catalogStatus: v.catalogStatus,
-      ...catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed),
+      ...withInventoryOrderability(catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed), stockFor(product, v)),
       ...catalogueImageState(v),
     }))
   );
@@ -114,7 +121,7 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
         rateBasis: overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case",
         rateLabel: (overrideByVariant.get(v.id) ?? priceByVariant.get(v.id)) != null ? `${(overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case") === "quintal" ? "per quintal" : "per case"} · Excluding GST` : null,
         catalogStatus: v.catalogStatus,
-        ...catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed),
+        ...withInventoryOrderability(catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed), stockFor(product, v)),
         ...catalogueImageState(v),
         isOverride: overrideByVariant.get(v.id) != null,
       })),

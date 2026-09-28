@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { ApiError, api } from "../api";
 import { buildDraftPack, caseWeightKg, humanizePackFailure, massPreview, parseStoredPack, type DraftPackFields } from "../draftPackForm";
 import OrderingSetupPanel from "./OrderingSetupPanel";
+import CatalogueSkuForm, { billingLabel } from "../components/CatalogueSkuForm";
 
 const inr = (value: number) => `₹${Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
-const visibleStatus = (status?: string) => !status || ["active", "published", "pending_review"].includes(status);
-type Editor = { kind: "create" | "product" | "variant" | "add"; product?: any; variant?: any };
+const visibleStatus = (status?: string) => !status || ["active", "published", "pending_review", "inactive"].includes(status);
+type Editor = { kind: "create" | "product" | "variant" | "add" | "sku"; product?: any; variant?: any };
 
 export default function Catalog() {
   const [products, setProducts] = useState<any[]>([]);
@@ -203,7 +204,7 @@ export default function Catalog() {
       </p>
 
       <div className="row" style={{ marginBottom: 16 }}>
-        <button onClick={() => setEditor({ kind: "create" })}>Add product</button>
+        <button onClick={() => setEditor({ kind: "sku" })}>Add product</button>
         <a href="/imports">Bulk import</a>
       </div>
 
@@ -219,7 +220,9 @@ export default function Catalog() {
         </form>
       </section>}
 
-      {editor && <section aria-label="Draft editor" style={{ marginBottom: 20 }}>
+      {editor?.kind === "sku" && <CatalogueSkuForm tiers={tiers} product={editor.product} variant={editor.variant} onCancel={() => setEditor(null)} onSaved={async (message) => { setEditor(null); setNotice(message); await load(); }} />}
+
+      {editor && editor.kind !== "sku" && <section aria-label="Draft editor" style={{ marginBottom: 20 }}>
         <h2>{editor.kind === "create" ? "New product draft" : editor.kind === "product" ? "Edit product draft" : editor.kind === "add" ? "Add draft pack" : "Edit draft pack"}</h2>
         <form key={editorKey} noValidate onSubmit={saveDraft}>
           {(editor.kind === "create" || editor.kind === "product") && <div className="row">
@@ -279,6 +282,7 @@ export default function Catalog() {
               {products.flatMap((p) =>
                 p.variants.map((v: any) => {
                   const caseWeight = v.unitWeightKg * v.unitsPerCase;
+                  const complete = v.purchaseRate != null;
                   return (
                     <tr key={v.id}>
                       <td>
@@ -286,10 +290,19 @@ export default function Catalog() {
                         <div className="muted small">{p.category}</div>
                         <div className="muted small">Product ID: <code>{p.id}</code> <button type="button" className="ghost sm" onClick={() => copyId(p.id)}>Copy product ID</button></div>
                         {p.catalogStatus === "pending_review" && <><div className="muted small">Draft</div><button className="ghost sm" onClick={() => setEditor({ kind: "product", product: p })}>Edit product</button></>}
-                        {["pending_review", "published", "active"].includes(p.catalogStatus) && <button className="ghost sm" onClick={() => setEditor({ kind: "add", product: p })}>Add pack</button>}
+                        {["pending_review", "published", "active", "inactive"].includes(p.catalogStatus) && <button className="ghost sm" onClick={() => setEditor({ kind: "sku", product: p })}>Add pack</button>}
                       </td>
                       <td className="small">
                         {v.unitSize} × {v.unitsPerCase}
+                        {complete ? <>
+                          <div className="muted small">{v.catalogStatus === "active" ? "Active" : "Inactive"}</div>
+                          <div className="muted small">{v.stock?.available == null ? "Stock unavailable" : `Stock: ${v.stock.available} cases`}</div>
+                          <div className="muted small">Purchase: {inr(v.purchaseRate)}/{v.purchaseRateBasis ?? "case"}</div>
+                          {v.prices.map((pr: any) => <div key={pr.tierId} className="muted small">{pr.tierName}: {pr.price == null ? "Not set" : `${inr(pr.price)}/${pr.rateBasis ?? "case"}`}</div>)}
+                          <div className="muted small">GST: {v.gstPercent}%</div>
+                          <div className="muted small">Billing: {billingLabel(v.routingClass)}</div>
+                          <button type="button" className="sm" onClick={() => setEditor({ kind: "sku", product: p, variant: v })}>Edit</button>
+                        </> : <>
                         <div className="muted small">{v.catalogStatus === "active" ? "Ordering enabled" : v.catalogStatus === "pending_review" ? "Draft" : v.catalogStatus === "published" ? "Published" : "Setup needed"}</div>
                         {v.catalogStatus === "published" && <div className="muted small">Ordering setup pending</div>}
                         <div className="muted small">{v.stock?.status === "in_stock" ? `In stock · ${v.stock.available} available` : v.stock?.status === "out_of_stock" ? "Out of stock" : "Stock needs verification"}</div>
@@ -297,6 +310,7 @@ export default function Catalog() {
                         {v.catalogStatus === "pending_review" && !v.catalogKey
                           ? <button type="button" className="sm" onClick={() => { setPublishing({ product: p, variant: v }); setOuterPack("Bag"); }}>Publish catalogue</button>
                           : <button type="button" className="sm" onClick={() => setSetupVariantId(v.id)}>{v.catalogStatus === "active" ? "Manage setup" : "Set up ordering"}</button>}
+                        </>}
                         <div className="muted small">Variant ID: <code>{v.id}</code> <button type="button" className="ghost sm" onClick={() => copyId(v.id)}>Copy variant ID</button></div>
                         {v.catalogStatus === "pending_review" && <div><button className="ghost sm" onClick={() => setEditor({ kind: "variant", product: p, variant: v })}>Edit draft</button></div>}
                       </td>

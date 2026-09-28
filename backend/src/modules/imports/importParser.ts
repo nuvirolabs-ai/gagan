@@ -60,8 +60,10 @@ export function parseImportFile(buffer: Buffer, fileName: string, type: ImportTy
   const rawHeaders = rawRows.length ? Object.keys(rawRows[0]) : [];
   const headers = rawHeaders.map(normalizeHeader);
   const duplicateHeaders = headers.filter((header, index) => headers.indexOf(header) !== index);
-  const unknownHeaders = headers.filter((header) => header && !expected.has(header));
-  const missingHeaders = IMPORT_DEFINITIONS[type].required.filter((header) => !headers.includes(header));
+  const tierColumn = /^[a-z0-9_]+_(price|discount)$/;
+  const unknownHeaders = headers.filter((header) => header && !expected.has(header) && !(type === "products" && tierColumn.test(header)));
+  const legacySatisfiedByBrand = new Set(["unit_size", "unit_weight_kg"]);
+  const missingHeaders = IMPORT_DEFINITIONS[type].required.filter((header) => !headers.includes(header) && !(type === "products" && headers.includes("brand") && legacySatisfiedByBrand.has(header)));
   if (duplicateHeaders.length || unknownHeaders.length || missingHeaders.length) {
     throw new ImportParseError("invalid_headers", {
       duplicateHeaders: [...new Set(duplicateHeaders)],

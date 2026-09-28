@@ -4,7 +4,7 @@ import { requireAuth, AuthedRequest } from "../lib/auth";
 import { DEFAULT_WAREHOUSE_CODE, INVENTORY_STALE_AFTER_MS, selectInventorySnapshot } from "../modules/inventory/inventoryService";
 import { publicMediaUrl } from "../lib/media";
 import { groupCatalog } from "../modules/catalog/catalogGrouping";
-import { catalogueImageState, catalogueOrderingState, catalogueStatusWhere } from "../modules/catalog/catalogueVisibility";
+import { catalogueImageState, catalogueOrderingState, catalogueStatusWhere, retailerCommercialFields, withInventoryOrderability } from "../modules/catalog/catalogueVisibility";
 
 const router = Router();
 
@@ -29,6 +29,17 @@ function shapeVariant(v: any, resolve: ReturnType<typeof priceResolver>, invento
   const { price:rate, isOverride,rateBasis } = resolve(v.id);
   const caseWeightKg = Number(v.unitWeightKg) * v.unitsPerCase;
   const price=rate===null?null:rateBasis==="quintal"?Math.round(rate*caseWeightKg)/100:rate;
+  const availability = inventory
+    ? {
+        available: Number(inventory.available),
+        warehouseCode: inventory.warehouseCode,
+        status:
+          Date.now() - new Date(inventory.syncedAt).getTime() > INVENTORY_STALE_AFTER_MS
+            ? "stale"
+            : inventory.status,
+        syncedAt: inventory.syncedAt,
+      }
+    : { available: null, warehouseCode: DEFAULT_WAREHOUSE_CODE, status: "unknown", syncedAt: null };
   return {
     id: v.id,
     imageUrl: req ? publicMediaUrl(req, v.imageUrl) : v.imageUrl,
@@ -36,27 +47,15 @@ function shapeVariant(v: any, resolve: ReturnType<typeof priceResolver>, invento
     unit: v.unit,
     unitsPerCase: v.unitsPerCase,
     caseWeightKg,
-    commercialRate:rate,rateBasis,sellingEntity:v.sellingEntity,gstPercent:v.gstPercent,
+    commercialRate:rate,rateBasis,...retailerCommercialFields(v),
     price,
     isOverride,
     catalogStatus: v.catalogStatus,
-    ...catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed),
+    ...withInventoryOrderability(catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed), availability),
     ...catalogueImageState(v),
     rateLabel: rate !== null ? `${rateBasis === "quintal" ? "per quintal" : "per case"} · Excluding GST` : null,
-    // Retailers compare commodities on rate per kg, and it's what the invoice
-    // is priced on, so send it rather than making each client re-derive it.
     pricePerKg: price != null && caseWeightKg > 0 ? Math.round((price / caseWeightKg) * 100) / 100 : null,
-    availability: inventory
-      ? {
-          available: Number(inventory.available),
-          warehouseCode: inventory.warehouseCode,
-          status:
-            Date.now() - new Date(inventory.syncedAt).getTime() > INVENTORY_STALE_AFTER_MS
-              ? "stale"
-              : inventory.status,
-          syncedAt: inventory.syncedAt,
-        }
-      : { available: null, warehouseCode: DEFAULT_WAREHOUSE_CODE, status: "unknown", syncedAt: null },
+    availability,
   };
 }
 

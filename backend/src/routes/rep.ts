@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { publicMediaUrl } from "../lib/media";
 import { groupCatalog } from "../modules/catalog/catalogGrouping";
-import { catalogueImageState, catalogueOrderingState, catalogueStatusWhere } from "../modules/catalog/catalogueVisibility";
+import { catalogueImageState, catalogueOrderingState, catalogueStatusWhere, retailerCommercialFields, withInventoryOrderability } from "../modules/catalog/catalogueVisibility";
 import { financialLedgerFor } from "../modules/finance/financialQueries";
 import { financialSummaryFor } from "../modules/finance/financialSummary";
 import { DEFAULT_WAREHOUSE_CODE, INVENTORY_STALE_AFTER_MS, selectInventorySnapshot } from "../modules/inventory/inventoryService";
@@ -295,6 +295,14 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
       const caseWeightKg = Number(v.unitWeightKg) * v.unitsPerCase;
       const rateBasis=(overrides.find(p=>p.variantId===v.id) ?? priceList.find(p=>p.variantId===v.id))?.rateBasis ?? "case";
       const price=rate===null?null:rateBasis==="quintal"?Math.round(rate*caseWeightKg)/100:rate;
+      const availability = inventorySnapshot
+        ? {
+            available: Number(inventorySnapshot.available),
+            warehouseCode: inventorySnapshot.warehouseCode,
+            status: Date.now() - inventorySnapshot.syncedAt.getTime() > INVENTORY_STALE_AFTER_MS ? "stale" : inventorySnapshot.status,
+            syncedAt: inventorySnapshot.syncedAt,
+          }
+        : { available: null, warehouseCode: DEFAULT_WAREHOUSE_CODE, status: "unknown", syncedAt: null };
       return {
         id: v.id,
         imageUrl: publicMediaUrl(req, v.imageUrl ?? product.imageUrl),
@@ -302,26 +310,16 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
         unit: v.unit,
         unitsPerCase: v.unitsPerCase,
         caseWeightKg,
-        commercialRate:rate,rateBasis,sellingEntity:v.sellingEntity,gstPercent:v.gstPercent,
+        commercialRate:rate,rateBasis,...retailerCommercialFields(v),
         price,
         catalogStatus: v.catalogStatus,
-        ...catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed),
+        ...withInventoryOrderability(catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed), availability),
         ...catalogueImageState(v),
         rateLabel: rate !== null ? `${rateBasis === "quintal" ? "per quintal" : "per case"} · Excluding GST` : null,
         isOverride: override != null,
         pricePerKg:
           price != null && caseWeightKg > 0 ? Math.round((price / caseWeightKg) * 100) / 100 : null,
-        availability: inventorySnapshot
-          ? (() => {
-              const snapshot = inventorySnapshot;
-              return {
-                available: Number(snapshot.available),
-                warehouseCode: snapshot.warehouseCode,
-                status: Date.now() - snapshot.syncedAt.getTime() > INVENTORY_STALE_AFTER_MS ? "stale" : snapshot.status,
-                syncedAt: snapshot.syncedAt,
-              };
-            })()
-          : { available: null, warehouseCode: DEFAULT_WAREHOUSE_CODE, status: "unknown", syncedAt: null },
+        availability,
       };
     }),
   }));

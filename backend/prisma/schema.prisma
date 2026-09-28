@@ -1170,6 +1170,11 @@ model Variant {
   // Numeric weight of a single unit. Needed to invoice off delivered weight
   // (spec §5.6): price/kg = casePrice / (unitWeightKg * unitsPerCase).
   unitWeightKg             Decimal                           @default(1) @db.Decimal(10, 3)
+  /// Internal cost. Never returned by retailer or salesperson catalogue APIs.
+  purchaseRate             Decimal?                          @db.Decimal(12, 2)
+  purchaseRateBasis        String?
+  listRate                 Decimal?                          @db.Decimal(12, 2)
+  listRateBasis            String?
   priceList                PriceList[]
   orderItems               OrderItem[]
   priceOverrides           PriceOverride[]

@@ -9,6 +9,7 @@ import { Prisma } from "@prisma/client";
 import { DEFAULT_WAREHOUSE_CODE, INVENTORY_STALE_AFTER_MS, selectInventorySnapshot } from "../../modules/inventory/inventoryService";
 import { CataloguePublicationError, deriveCataloguePublicationInput, publishDraftCatalogue, publishDraftCatalogueFromBusinessInput, publishExistingDraftCatalogueFromBusinessInput } from "../../modules/catalog/draftCataloguePublication";
 import { enableOrdering, getOrderingSetup, OrderingSetupError, saveOrderingDraft } from "../../modules/catalog/orderingSetup";
+import { CatalogueSkuError, saveCatalogueSku, type CatalogueSkuInput } from "../../modules/catalog/saveCatalogueSku";
 import { normalizeCatalogueText } from "../../modules/catalog/catalogueIdentity";
 import type { AdminRequest } from "../../lib/adminAuth";
 
@@ -16,6 +17,7 @@ const router = Router();
 router.use(requireAdmin);
 
 function setupFailure(error: unknown, res: import("express").Response) {
+  if (error instanceof CatalogueSkuError) return res.status(error.status).json({ error: error.code });
   if (error instanceof CataloguePublicationError) return res.status(error.status).json({ error: error.code });
   if (error instanceof OrderingSetupError) return res.status(error.status).json({ error: error.code, blockers: error.blockers });
   if (error instanceof z.ZodError) return res.status(400).json({ error: "Review the price, GST and billing values before saving." });
@@ -77,6 +79,45 @@ router.post("/variants/:id/enable-ordering", async (req: AdminRequest, res) => {
   catch (error) { return setupFailure(error, res); }
 });
 
+const catalogueSkuRequest = z.object({
+  productName: z.string().trim().min(1),
+  brandName: z.string().trim().min(1),
+  groupName: z.string().trim().min(1),
+  category: z.string().trim().min(1),
+  imageUrl: z.string().trim().url().nullable().optional(),
+  packSize: z.string().trim().min(1),
+  unit: z.string().trim().min(1),
+  unitsPerCase: z.number().int().positive(),
+  measuredWeightKg: z.number().positive().nullable().optional(),
+  outerPack: z.enum(["Bag", "Box"]),
+  purchaseRate: z.number().min(0),
+  purchaseRateBasis: z.enum(["case", "quintal"]),
+  listRate: z.number().positive(),
+  sellingRateBasis: z.enum(["case", "quintal"]),
+  tiers: z.array(z.object({ tierId: z.string().min(1), price: z.number().min(0).nullable().optional(), discountPercent: z.number().nullable().optional() })).min(1),
+  gstPercent: z.number().min(0),
+  routingClass: z.enum(["LAXMI_TOOR", "INSTANT_MIX", "OTHER"]),
+  routingBagEquivalent: z.number().positive().nullable().optional(),
+  openingStockCases: z.number().min(0).nullable().optional(),
+  warehouseCode: z.string().trim().min(1).optional(),
+  active: z.boolean(),
+  productId: z.string().min(1).nullable().optional(),
+});
+
+router.post("/catalogue-skus", async (req: AdminRequest, res) => {
+  const parsed = catalogueSkuRequest.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid_catalogue_sku", details: parsed.error.flatten() });
+  try { res.status(201).json(await saveCatalogueSku(parsed.data as CatalogueSkuInput, req.staffAuth!.staffId)); }
+  catch (error) { return setupFailure(error, res); }
+});
+
+router.put("/catalogue-skus/:variantId", async (req: AdminRequest, res) => {
+  const parsed = catalogueSkuRequest.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid_catalogue_sku", details: parsed.error.flatten() });
+  try { res.json(await saveCatalogueSku({ ...(parsed.data as CatalogueSkuInput), variantId: req.params.variantId }, req.staffAuth!.staffId)); }
+  catch (error) { return setupFailure(error, res); }
+});
+
 router.get("/products", async (req, res) => {
   const includeInactive = req.query.view === "all";
   const [products, tiers, priceList] = await Promise.all([
@@ -129,7 +170,13 @@ router.get("/products", async (req, res) => {
         unitsPerCase: v.unitsPerCase,
         unitWeightKg: Number(v.unitWeightKg),
         hsnCode: v.hsnCode,
-        sellingEntity:v.sellingEntity,gstPercent:v.gstPercent,
+        sellingEntity:v.sellingEntity,gstPercent:v.gstPercent == null ? null : Number(v.gstPercent),
+        purchaseRate: v.purchaseRate == null ? null : Number(v.purchaseRate),
+        purchaseRateBasis: v.purchaseRateBasis,
+        listRate: v.listRate == null ? null : Number(v.listRate),
+        listRateBasis: v.listRateBasis,
+        routingClass: v.routingClass,
+        routingBagEquivalent: v.routingBagEquivalent == null ? null : Number(v.routingBagEquivalent),
         prices: tiers.map((t) => ({
           tierId: t.id,
           tierName: t.name,

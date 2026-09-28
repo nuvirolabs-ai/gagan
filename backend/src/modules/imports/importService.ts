@@ -9,6 +9,8 @@ import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, parseImportFile, rowsToCsv, type Raw
 import { CommercialStatusCode } from "@prisma/client";
 import { recordCommercialStatusEvent } from "../commercialStatus/statusService";
 import { validateDraftPack } from "../catalog/draftPack";
+import { resolveTierPrice } from "../catalog/cataloguePricing";
+import { CatalogueSkuError, saveCatalogueSku, type CatalogueSkuInput } from "../catalog/saveCatalogueSku";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 type JsonObject = Record<string, unknown>;
@@ -137,6 +139,60 @@ export async function validateRows(db: Db, type: ImportType, rawRows: RawImportR
         break;
       }
       case "products": {
+        if (text(values, "brand")) {
+          addRequired(row, ["product_name", "brand", "product_group", "category", "pack_size", "unit", "units_per_case", "outer_pack", "purchase_rate", "purchase_rate_basis", "list_rate", "selling_rate_basis", "gst_percent", "opening_stock", "billing_rule", "active"]);
+          const basis = (value: string) => ["case", "quintal"].includes(lower(value));
+          if (text(values, "purchase_rate_basis") && !basis(text(values, "purchase_rate_basis"))) row.errors.push("purchase_rate_basis must be case or quintal.");
+          if (text(values, "selling_rate_basis") && !basis(text(values, "selling_rate_basis"))) row.errors.push("selling_rate_basis must be case or quintal.");
+          if (text(values, "outer_pack") && !["bag", "box"].includes(lower(text(values, "outer_pack")))) row.errors.push("outer_pack must be Bag or Box.");
+          if (text(values, "billing_rule") && !["LAXMI_TOOR", "INSTANT_MIX", "OTHER"].includes(text(values, "billing_rule"))) row.errors.push("billing_rule must be an approved routing class.");
+          const listRate = numberValue(values, "list_rate");
+          const tiers = ctx.tiers.map((tier) => {
+            const column = `${tier.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_")}_price`;
+            const discountColumn = `${tier.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_")}_discount`;
+            const price = text(values, column) ? numberValue(values, column) : null;
+            const discount = text(values, discountColumn) ? numberValue(values, discountColumn) : null;
+            if (price == null && discount == null) row.errors.push(`${column} is required.`);
+            if (listRate != null && price != null && discount != null && !resolveTierPrice(listRate, price, discount).ok) row.errors.push(`${column} does not match ${discountColumn}.`);
+            return { tierId: tier.id, price, discountPercent: discount };
+          });
+          for (const key of ["purchase_rate", "list_rate", "gst_percent", "units_per_case", "opening_stock"]) {
+            if (text(values, key) && numberValue(values, key) == null) row.errors.push(`${key} must be a number.`);
+          }
+          const activeText = lower(text(values, "active"));
+          if (text(values, "active") && !["true", "false", "yes", "no", "1", "0", "active", "inactive"].includes(activeText)) row.errors.push("active must be true or false.");
+          if (text(values, "image_url")) {
+            try { const url = new URL(text(values, "image_url")); if (!/^https?:$/.test(url.protocol)) throw new Error(); } catch { row.errors.push("image_url must be an http(s) URL."); }
+          }
+          row.action = text(values, "variant_id") ? "update" : "create";
+          if (!row.errors.length && listRate != null) {
+            row.resolved = { catalogueSku: {
+              productName: text(values, "product_name"),
+              brandName: text(values, "brand"),
+              groupName: text(values, "product_group"),
+              category: text(values, "category"),
+              imageUrl: text(values, "image_url") || null,
+              packSize: text(values, "pack_size"),
+              unit: text(values, "unit"),
+              unitsPerCase: numberValue(values, "units_per_case"),
+              outerPack: lower(text(values, "outer_pack")) === "box" ? "Box" : "Bag",
+              purchaseRate: numberValue(values, "purchase_rate"),
+              purchaseRateBasis: lower(text(values, "purchase_rate_basis")),
+              listRate,
+              sellingRateBasis: lower(text(values, "selling_rate_basis")),
+              tiers,
+              gstPercent: numberValue(values, "gst_percent"),
+              routingClass: text(values, "billing_rule"),
+              routingBagEquivalent: text(values, "routing_bag_equivalent") ? numberValue(values, "routing_bag_equivalent") : null,
+              openingStockCases: numberValue(values, "opening_stock"),
+              warehouseCode: text(values, "warehouse_code") || "WH-001",
+              active: ["true", "yes", "1", "active"].includes(activeText),
+              productId: text(values, "product_id") || null,
+              variantId: text(values, "variant_id") || null,
+            } };
+          }
+          break;
+        }
         addRequired(row, IMPORT_DEFINITIONS[type].required);
         const unitsPerCase = numberValue(values, "units_per_case");
         const unitWeightKg = numberValue(values, "unit_weight_kg");
@@ -349,6 +405,17 @@ async function applyRow(db: Db, type: ImportType, row: PreparedRow, mode: Import
     });
     await audit(db, actorStaffId, jobId, "Retailer", result.row.id, "import.retailer_applied", mode);
     return { action: result.action, subjectType: "Retailer", subjectId: result.row.id };
+  }
+  if (type === "products" && resolved.catalogueSku) {
+    try {
+      const result = await inTransaction(db, (tx) => saveCatalogueSku(resolved.catalogueSku as CatalogueSkuInput, actorStaffId, tx));
+      await audit(db, actorStaffId, jobId, "Variant", result.variantId, "import.product_applied", mode);
+      const action = (resolved.catalogueSku as { variantId?: string | null }).variantId ? "updated" as const : "created" as const;
+      return { action, subjectType: "Variant", subjectId: result.variantId };
+    } catch (error) {
+      if (error instanceof CatalogueSkuError) throw new ImportServiceError(error.code, error.status);
+      throw error;
+    }
   }
   if (type === "products") {
     const result = await inTransaction(db, async (tx) => {

@@ -35,9 +35,9 @@ export const IMPORT_DEFINITIONS: Record<ImportType, {
   },
   products: {
     label: "Products / SKUs",
-    description: "Product master rows. Each row represents one sellable variant.",
+    description: "Product master rows. A row with brand is one complete sellable SKU. A row without brand remains a legacy draft.",
     required: ["product_name", "category", "unit_size", "unit", "units_per_case", "unit_weight_kg"],
-    optional: ["product_id", "variant_id", "description", "image_url", "sap_material_id"],
+    optional: ["product_id", "variant_id", "description", "image_url", "sap_material_id", "brand", "product_group", "pack_size", "outer_pack", "purchase_rate", "purchase_rate_basis", "list_rate", "selling_rate_basis", "gst_percent", "opening_stock", "warehouse_code", "billing_rule", "active"],
     example: {
       product_name: "Gagan Toor Dal",
       category: "Daal",

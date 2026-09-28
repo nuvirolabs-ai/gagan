@@ -95,6 +95,19 @@ describe("Admin Import Center PostgreSQL/API workflow", () => {
       "description",
       "image_url",
       "sap_material_id",
+      "brand",
+      "product_group",
+      "pack_size",
+      "outer_pack",
+      "purchase_rate",
+      "purchase_rate_basis",
+      "list_rate",
+      "selling_rate_basis",
+      "gst_percent",
+      "opening_stock",
+      "warehouse_code",
+      "billing_rule",
+      "active",
     ]);
 
     const csv = [

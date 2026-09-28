@@ -26,7 +26,9 @@
     "seed:sales-visual-uat": "ts-node --transpile-only scripts/seedSalesVisualUat.ts",
     "seed:founder-uat": "ts-node --transpile-only scripts/seedFounderUat.ts",
     "catalogue:real": "ts-node --transpile-only scripts/realCatalogueImport.ts",
-    "catalogue:seed-gst-pending-inventory": "ts-node --transpile-only scripts/seedApprovedStagingInventory.ts"
+    "catalogue:seed-gst-pending-inventory": "ts-node --transpile-only scripts/seedApprovedStagingInventory.ts",
+    "seed:client-uat": "ts-node --transpile-only scripts/seedClientUat.ts",
+    "verify:client-uat": "ts-node --transpile-only scripts/verifyClientUat.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1115.0",

@@ -96,6 +96,21 @@ export async function upsertInventorySnapshot(db: Db = prisma, input: InventoryI
   });
 }
 
+/**
+ * Client UAT inventory is synthetic and intentionally has no SAP identity.
+ * Keep its quantities authoritative within the isolated database while moving
+ * only the freshness timestamp forward so the normal stale-stock gate remains
+ * active for the full UAT window.
+ */
+export async function refreshStagingUatInventory(db: Db = prisma, syncedAt = new Date()) {
+  if (!internalStagingInventoryEnabled()) return { refreshed: 0, skipped: true as const };
+  const result = await db.inventorySnapshot.updateMany({
+    where: { source: "staging_uat" },
+    data: { syncedAt },
+  });
+  return { refreshed: result.count, skipped: false as const, syncedAt };
+}
+
 export async function inventoryForVariant(
   db: Db,
   variantId: string,

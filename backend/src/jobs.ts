@@ -7,6 +7,7 @@ import { processApprovalEscalations } from "./worker/processors/approvalEscalati
 import { processDisputeEscalations } from "./worker/processors/disputeEscalation";
 import { processRatingReviews } from "./worker/processors/ratingReview";
 import { processRecoveryScheduler } from "./worker/processors/recoveryScheduler";
+import { internalStagingInventoryEnabled, refreshStagingUatInventory } from "./modules/inventory/inventoryService";
 
 const MINUTE = 60_000;
 
@@ -92,6 +93,13 @@ export function startScheduledJobs() {
     )
   );
   void safely("recovery scheduler (startup)", processRecoveryScheduler);
+
+  if (internalStagingInventoryEnabled()) {
+    const uatInventoryMins = minutesFromEnv("CLIENT_UAT_INVENTORY_REFRESH_INTERVAL_MINUTES", 30);
+    void safely("client UAT inventory refresh (startup)", refreshStagingUatInventory);
+    timers.push(setInterval(() => void safely("client UAT inventory refresh", refreshStagingUatInventory), uatInventoryMins * MINUTE));
+    console.log(`[job] client UAT inventory freshness refresh every ${uatInventoryMins}m`);
+  }
 
   const connector = getSapConnector();
   if (!connector.enabled) {

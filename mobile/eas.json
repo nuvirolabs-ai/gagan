@@ -20,6 +20,18 @@
         "GAGAN_REVIEW_VERSION_NAME": "1.0.16",
         "GAGAN_REVIEW_VERSION_CODE": "17"
       }
+    },
+    "client-uat": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://gagan-client-uat-api.onrender.com",
+        "GAGAN_CLIENT_UAT": "1",
+        "GAGAN_CLIENT_UAT_VERSION_NAME": "1.0.0-client-uat",
+        "GAGAN_CLIENT_UAT_VERSION_CODE": "100"
+      }
     }
   }
 }

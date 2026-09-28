@@ -4,6 +4,7 @@ import { prisma } from "../../../lib/prisma";
 import {
   DEFAULT_WAREHOUSE_CODE,
   inventoryForVariant,
+  refreshStagingUatInventory,
   upsertInventorySnapshot,
   validateOrderInventory,
 } from "../inventoryService";
@@ -49,5 +50,28 @@ describe("inventory availability", () => {
     await upsertInventorySnapshot(prisma, { productId: ids.product, variantId: ids.variant, sapMaterialId: `MAT-${run}`, warehouseCode: "WH-002", onHand: 2, committed: 0, syncedAt: new Date() });
     const snapshot = await inventoryForVariant(prisma, ids.variant, new Date(), "WH-002");
     expect(snapshot).toMatchObject({ warehouseCode: "WH-002", available: 2, status: "low" });
+  });
+
+  it("refreshes only Client UAT timestamps and never rewrites quantities", async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalSapMode = process.env.SAP_MODE;
+    process.env.NODE_ENV = "staging";
+    process.env.SAP_MODE = "mock";
+    const calls: unknown[] = [];
+    const syncedAt = new Date("2026-09-29T00:00:00.000Z");
+    const fakeDb = {
+      inventorySnapshot: {
+        updateMany: async (input: unknown) => {
+          calls.push(input);
+          return { count: 87 };
+        },
+      },
+    } as any;
+    await expect(refreshStagingUatInventory(fakeDb, syncedAt)).resolves.toMatchObject({ refreshed: 87, skipped: false, syncedAt });
+    expect(calls).toEqual([{ where: { source: "staging_uat" }, data: { syncedAt } }]);
+    if (originalNodeEnv == null) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalNodeEnv;
+    if (originalSapMode == null) delete process.env.SAP_MODE;
+    else process.env.SAP_MODE = originalSapMode;
   });
 });

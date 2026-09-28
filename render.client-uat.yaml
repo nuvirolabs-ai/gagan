@@ -1,0 +1,76 @@
+# Isolated Client UAT only. Do not merge this into the normal staging
+# Blueprint and do not point it at the normal staging database.
+services:
+  - type: web
+    name: gagan-client-uat-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && npm start
+    healthCheckPath: /health/ready
+    envVars:
+      - key: NODE_ENV
+        value: staging
+      - key: CLIENT_UAT_TARGET
+        value: client-uat
+      - key: CLIENT_UAT_DATABASE_IDENTITY
+        value: gagan_client_uat
+      - key: CLIENT_UAT_ADMIN_URL
+        value: https://gagan-client-uat.vercel.app
+      - key: DATABASE_URL
+        fromDatabase:
+          name: gagan-client-uat-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: REFRESH_TOKEN_SECRET
+        generateValue: true
+      - key: PORT
+        value: "10000"
+      - key: CORS_ORIGINS
+        value: https://gagan-client-uat.vercel.app
+      - key: SMS_PROVIDER
+        value: mock
+      - key: PAYMENT_PROVIDER
+        value: mock
+      - key: SAP_MODE
+        value: mock
+      - key: MOCK_OTP
+        value: "123456"
+      - key: MOCK_PAYMENT_SECRET
+        generateValue: true
+      - key: PII_ENCRYPTION_KEY
+        generateValue: true
+      - key: STORAGE_PROVIDER
+        value: local
+      - key: OBJECT_STORAGE_ROOT
+        value: .data/client-uat-evidence
+      - key: DISABLE_JOBS
+        value: "false"
+      - key: STAGING_RUN_JOBS_IN_API
+        value: "true"
+      - key: CLIENT_UAT_INVENTORY_REFRESH_INTERVAL_MINUTES
+        value: "30"
+      - key: AGEING_INTERVAL_MINUTES
+        value: "60"
+      - key: RECOVERY_INTERVAL_MINUTES
+        value: "60"
+      - key: SAP_SYNC_INTERVAL_MINUTES
+        value: "30"
+      - key: SAP_OUTBOX_INTERVAL_MINUTES
+        value: "5"
+      - key: STORE_LOCATION_MAX_ACCURACY_METERS
+        value: "50"
+      - key: VISIT_VERIFIED_RADIUS_METERS
+        value: "150"
+      - key: VISIT_REVIEW_RADIUS_METERS
+        value: "500"
+      - key: LOGISTICS_SERVICE_TOKEN
+        generateValue: true
+
+databases:
+  - name: gagan-client-uat-db
+    plan: free
+    databaseName: gagan_client_uat
+    user: gagan_client_uat

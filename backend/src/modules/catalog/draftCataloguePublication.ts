@@ -271,6 +271,7 @@ export async function publishDraftCatalogueFromBusinessInput(input: BusinessCata
   ]);
   if (variantByKey) return { outcome: "blocked" as const, code: "canonical_pack_exists", productId: variantByKey.productId, variantId: variantByKey.id };
   if (productByKey) return { outcome: "blocked" as const, code: "canonical_product_exists", productId: productByKey.id, variantId: "" };
+  const hasImage = Boolean(input.product.imageUrl);
   const product = await prisma.product.create({
     data: {
       name: productName,
@@ -288,8 +289,9 @@ export async function publishDraftCatalogueFromBusinessInput(input: BusinessCata
           unitsPerCase: input.pack.unitsPerCase,
           unitWeightKg: input.pack.unitWeightKg,
           catalogStatus: "pending_review",
-          catalogImageStatus: "pending",
-          catalogImageLabel: "Image pending confirmation",
+          imageUrl: input.product.imageUrl,
+          catalogImageStatus: hasImage ? "exact" : "placeholder",
+          catalogImageLabel: hasImage ? "Approved pack image" : "Image coming soon",
         }],
       },
     },

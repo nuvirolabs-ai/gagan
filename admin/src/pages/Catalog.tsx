@@ -228,7 +228,7 @@ export default function Catalog() {
             <datalist id="catalog-brand-options"><option value="Gagan" /><option value="Laxmi" /></datalist>
             <label>Product group<input name="groupName" required defaultValue={editor.product?.catalogIdentityGroup ?? ""} /></label>
             <label>Category<input name="category" required defaultValue={editor.product?.category ?? ""} /></label>
-            <label>Image URL<input name="imageUrl" type="url" defaultValue={editor.product?.imageUrl ?? ""} /></label>
+            <label>Image URL<input name="imageUrl" type="url" aria-invalid={Boolean(fieldErrors.imageUrl)} defaultValue={editor.product?.imageUrl ?? ""} /></label>
           </div>}
           {editor.kind !== "product" && <div className="row">
             <label>Pack size<input name="packSize" inputMode="decimal" aria-invalid={Boolean(fieldErrors.packSize)} value={packDraft.packSize} onChange={(event) => setPackDraft((current) => ({ ...current, packSize: event.target.value }))} /></label>
@@ -243,6 +243,7 @@ export default function Catalog() {
           {editor.kind !== "product" && fieldErrors.unit && <p role="alert">{fieldErrors.unit}</p>}
           {editor.kind !== "product" && fieldErrors.unitsPerCase && <p role="alert">{fieldErrors.unitsPerCase}</p>}
           {editor.kind !== "product" && fieldErrors.weight && <p role="alert">{fieldErrors.weight}</p>}
+          {(editor.kind === "create" || editor.kind === "product") && fieldErrors.imageUrl && <p role="alert">{fieldErrors.imageUrl}</p>}
           {editor.kind !== "product" && <p className="muted small">Mass packs derive weight from the pack size. Pieces need a measured weight. A saved draft is not ready for ordering until catalogue identity is published.</p>}
           <div className="row">
             <button type="submit" disabled={savingDraft}>{editor.kind === "variant" || editor.kind === "add" ? "Save pack" : "Save draft"}</button>

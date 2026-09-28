@@ -30,6 +30,13 @@ describe("Catalog ordering panel", () => {
     expect(mocks.orderingSetup).toHaveBeenCalledWith("pack-one");
   });
 
+  it("does not duplicate the pack unit in the setup heading", async () => {
+    mocks.orderingSetup.mockResolvedValueOnce({ ...setup, pack: { ...setup.pack, label: "1 kg × 30", unitWeightKg: 1, unitsPerCase: 30, caseWeightKg: 30 } });
+    renderPanel();
+    expect(await screen.findByText(/Gagan Excellent — 1 kg × 30/)).toBeInTheDocument();
+    expect(screen.queryByText(/1 kg kg/)).not.toBeInTheDocument();
+  });
+
   it("saves an incomplete draft without enabling ordering", async () => {
     renderPanel();
     fireEvent.click(await screen.findByRole("button", { name: "Save draft" }));

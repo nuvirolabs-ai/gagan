@@ -153,6 +153,10 @@ describe("per-pack ordering setup", () => {
     await prisma.inventorySnapshot.deleteMany({ where: { productId: ids.product } });
     const state = await getOrderingSetup(ids.selected);
     expect(state.inventory).toBeNull();
-    await expect(enableOrdering(ids.selected, state.revision, baseValues, actor)).rejects.toMatchObject({ code: "setup_blocked" });
+    expect(state.blockers).toContain("Waiting for inventory. Use the authorised inventory import or refresh.");
+    const saved = await saveOrderingDraft(ids.selected, state.revision, baseValues, actor);
+    expect(saved.hasDraft).toBe(true);
+    expect(saved.blockers).toContain("Waiting for inventory. Use the authorised inventory import or refresh.");
+    await expect(enableOrdering(ids.selected, saved.revision, baseValues, actor)).rejects.toMatchObject({ code: "setup_blocked" });
   });
 });

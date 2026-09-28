@@ -63,10 +63,17 @@ function blockersFor(state: Awaited<ReturnType<typeof current>>, values: Orderin
   const priceIds = values.prices.map(price => price.tierId);
   if (new Set(priceIds).size !== priceIds.length || priceIds.some(id => !tierIds.has(id))) blockers.push("Price tier selection changed. Reload setup.");
   if (!tiers.length || tiers.some(tier => !values.prices.some(price => price.tierId === tier.id && Number(price.rate) > 0))) blockers.push("Set a positive rate for each applicable price tier.");
-  if (!inventory) blockers.push("Linked warehouse stock is unavailable. Use the authorised inventory import or refresh.");
+  if (!inventory) blockers.push("Waiting for inventory. Use the authorised inventory import or refresh.");
   else if (inventory.status === "stale") blockers.push("Stock verification has expired. Refresh stock through the authorised inventory flow.");
   else if (inventory.status === "unavailable" || inventory.available <= 0) blockers.push("This pack is out of stock.");
   return blockers;
+}
+
+function packLabel(variant: { unitSize: string; unit: string; unitsPerCase: number }) {
+  const unitSize = variant.unitSize.trim().replace(/\s+/g, " ");
+  const unit = variant.unit.trim();
+  const unitAlreadyIncluded = unit && new RegExp(`\\b${unit.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b$`, "i").test(unitSize);
+  return `${unitAlreadyIncluded ? unitSize : `${unitSize} ${unit}`} × ${variant.unitsPerCase}`;
 }
 
 export async function getOrderingSetup(variantId: string) {
@@ -80,7 +87,7 @@ function present(state: Awaited<ReturnType<typeof current>>, values: OrderingSet
   return {
     revision,
     product: { id: variant.product.id, name: variant.product.name, status: variant.product.catalogStatus },
-    pack: { id: variant.id, label: `${variant.unitSize} ${variant.unit} × ${variant.unitsPerCase}`, unitSize: variant.unitSize, unit: variant.unit, unitsPerCase: variant.unitsPerCase, unitWeightKg: Number(variant.unitWeightKg), caseWeightKg: Number(variant.unitWeightKg) * variant.unitsPerCase, status: variant.catalogStatus },
+    pack: { id: variant.id, label: packLabel(variant), unitSize: variant.unitSize, unit: variant.unit, unitsPerCase: variant.unitsPerCase, unitWeightKg: Number(variant.unitWeightKg), caseWeightKg: Number(variant.unitWeightKg) * variant.unitsPerCase, status: variant.catalogStatus },
     tiers: tiers.map(tier => ({ id: tier.id, name: tier.name })), inventory, values, effective,
     hasDraft: !!state.draft,
     gstPendingException: variant.gstPendingOrderAllowed,

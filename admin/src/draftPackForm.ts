@@ -10,6 +10,7 @@ export type DraftPackFields = {
   unit?: string;
   unitsPerCase?: string;
   weight?: string;
+  imageUrl?: string;
 };
 
 const CANONICAL: Record<string, string> = {
@@ -127,7 +128,10 @@ export function humanizePackFailure(body: { error?: string; details?: unknown } 
       ? Object.entries((details as { fieldErrors?: Record<string, string[]> }).fieldErrors ?? {}).flatMap(([field, errors]) => errors.map((error) => `${field} ${error}`))
       : [];
   for (const detail of raw.filter(Boolean)) {
-    const message = detail.includes("unitsPerCase")
+    const lower = detail.toLowerCase();
+    const message = lower.includes("imageurl") || lower.includes("image url") || lower.includes("product.imageurl")
+      ? "Enter a valid Image URL or leave it blank."
+      : detail.includes("unitsPerCase")
       ? "Units per case must be a whole number."
       : detail.includes("Piece count")
         ? "Piece count must be a whole number."
@@ -141,7 +145,8 @@ export function humanizePackFailure(body: { error?: string; details?: unknown } 
                 ? "Enter a pack size greater than zero."
                 : "Check the pack size, unit, and units per case.";
     messages.push(message);
-    if (detail.includes("unitsPerCase")) fields.unitsPerCase = message;
+    if (lower.includes("imageurl") || lower.includes("image url") || lower.includes("product.imageurl")) fields.imageUrl = message;
+    else if (detail.includes("unitsPerCase")) fields.unitsPerCase = message;
     else if (detail.includes("unitWeight") || detail.includes("explicitly positive") || detail.includes("three decimal")) fields.weight = message;
     else if (detail.includes("Piece count") || detail.includes("unitSize")) fields.packSize = message;
     else if (detail.toLowerCase().includes("unit")) fields.unit = message;

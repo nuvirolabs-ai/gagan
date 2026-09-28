@@ -71,6 +71,9 @@ describe("draft catalogue publication", () => {
     });
     const saved = await prisma.variant.findUniqueOrThrow({ where: { id: result.variant.id }, include: { product: true } });
     expect(saved.product.imageUrl).toBe("https://example.test/daal.png");
+    expect(saved.imageUrl).toBe("https://example.test/daal.png");
+    expect(saved.catalogImageStatus).toBe("exact");
+    expect(saved.catalogImageLabel).toBe("Approved pack image");
     expect(saved.gstPercent).toBeNull();
     expect(saved.sellingEntity).toBeNull();
     expect(saved.routingClass).toBeNull();
@@ -78,6 +81,26 @@ describe("draft catalogue publication", () => {
     expect(await prisma.priceList.count({ where: { variantId: result.variant.id } })).toBe(0);
     expect(await prisma.inventorySnapshot.count({ where: { variantId: result.variant.id } })).toBe(0);
     expect((await getOrderingSetup(result.variant.id)).blockers).not.toContain("Approved catalogue identity is missing.");
+    expect((await getOrderingSetup(result.variant.id)).blockers).not.toContain("Approved pack image is missing.");
+  });
+
+  it("approves an explicit placeholder when a new published product has no image", async () => {
+    const name = `Gagan Placeholder Daal ${randomUUID()}`;
+    const result = await publishDraftCatalogueFromBusinessInput({
+      product: { name, brandName: "Gagan", groupName: "Gagan Daal", category: "Daal" },
+      pack: { unitSize: "1 kg", unit: "kg", unitsPerCase: 30, unitWeightKg: 1, outerPack: "Bag" },
+    }, actor);
+    expect(result.outcome).toBe("published");
+    if (result.outcome !== "published") throw new Error("expected published result");
+    productIds.push(result.product.id);
+    variantIds.push(result.variant.id);
+
+    const saved = await prisma.variant.findUniqueOrThrow({ where: { id: result.variant.id } });
+    expect(saved.imageUrl).toBeNull();
+    expect(saved.catalogImageStatus).toBe("placeholder");
+    expect(saved.catalogImageLabel).toBe("Image coming soon");
+    const setup = await getOrderingSetup(result.variant.id);
+    expect(setup.blockers).not.toContain("Approved pack image is missing.");
   });
 
   it("publishes a new draft without inventing commercial, inventory, or SAP data", async () => {

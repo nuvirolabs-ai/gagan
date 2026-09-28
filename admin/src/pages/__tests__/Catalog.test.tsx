@@ -150,6 +150,22 @@ describe("Catalog commercial rate display", () => {
     expect(screen.queryByText("invalid_pack")).not.toBeInTheDocument();
   });
 
+  it("shows a field-specific message for an invalid image URL", async () => {
+    mocks.createAndPublishProduct.mockRejectedValue(new ApiError(400, { error: "Invalid input", details: { fieldErrors: { "product.imageUrl": ["Invalid url"] } } }));
+    render(<Catalog />);
+    fireEvent.click(await screen.findByRole("button", { name: "Add product" }));
+    fireEvent.change(screen.getByLabelText("Product name"), { target: { value: "Testing Daal" } });
+    fireEvent.change(screen.getByLabelText("Product group"), { target: { value: "Gagan Daal" } });
+    fireEvent.change(screen.getByLabelText("Category"), { target: { value: "Daal" } });
+    fireEvent.change(screen.getByLabelText("Pack size"), { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText("Unit"), { target: { value: "kg" } });
+    fireEvent.change(screen.getByLabelText("Units per case"), { target: { value: "30" } });
+    fireEvent.change(screen.getByLabelText("Image URL"), { target: { value: "bad-url" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save & publish" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Enter a valid Image URL or leave it blank.");
+    expect(screen.queryByText("Enter a pack size greater than zero.")).not.toBeInTheDocument();
+  });
+
   it("offers metadata and pack editing only on pending-review rows", async () => {
     mocks.products.mockResolvedValue({ tiers: [], products: [{ id: "draft", name: "Sample", category: "Food", catalogStatus: "pending_review", variants: [{ id: "v", catalogStatus: "pending_review", unitSize: "1 kg", unit: "kg", unitsPerCase: 1, unitWeightKg: 1, prices: [] }] }, { id: "live", name: "Live", category: "Food", catalogStatus: "active", variants: [{ id: "active-v", catalogStatus: "active", unitSize: "1 kg", unit: "kg", unitsPerCase: 1, unitWeightKg: 1, prices: [] }] }] });
     render(<Catalog />);

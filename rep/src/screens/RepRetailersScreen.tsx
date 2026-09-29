@@ -273,7 +273,7 @@ export default function RepRetailersScreen({ navigation }: any) {
                 dueLabel={reviewRequired ? t("finance.reviewTitle") : overdue ? t("retailers.overdueAmount", { amount: inr(item.overdue) }) : t("retailers.due", { amount: inr(item.outstanding) })}
                 dueTone={reviewRequired || overdue ? "danger" : "ink"}
                 creditLabel={reviewRequired ? t("finance.creditUnderReview") : t("retailers.credit", { amount: inr(item.available) })}
-                onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: item.id })}
+                onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: item.id, retailerPreview: item, openedAt: Date.now() })}
               />
             );
           }}

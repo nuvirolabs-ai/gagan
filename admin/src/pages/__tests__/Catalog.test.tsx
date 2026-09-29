@@ -25,6 +25,25 @@ function fillCommercial(goldPrice = "3120") {
 }
 
 describe("Catalog commercial rate display", () => {
+  it("searches loaded SKUs by product, category, pack and code without refetching", async () => {
+    mocks.products.mockResolvedValue({ tiers: [], products: [
+      { id: "a", name: "Classic Toor", category: "Daal", internalCode: "GAGAN-PRODUCT", variants: [{ id: "a1", unitSize: "30 kg", unitsPerCase: 1, unitWeightKg: 30, internalCode: "GAGAN-INT-30", catalogIdentitySkuName: "Classic large case", prices: [] }] },
+      { id: "b", name: "Basmati Rice", category: "Rice", variants: [{ id: "b1", unitSize: "1 kg", unitsPerCase: 12, unitWeightKg: 1, catalogKey: "RICE-12", prices: [] }] },
+    ] });
+    render(<Catalog />);
+    expect(await screen.findByText("2 of 2 SKUs")).toBeInTheDocument();
+    for (const term of ["classic", "daal", "30 kg", "GAGAN-INT", "int-30", "gagan-product", "large case"]) {
+      fireEvent.change(screen.getByRole("searchbox", { name: "Search catalogue" }), { target: { value: term } });
+      expect(screen.getByText("1 of 2 SKUs")).toBeInTheDocument();
+      expect(screen.getByText("Classic Toor")).toBeInTheDocument();
+      expect(screen.queryByText("Basmati Rice")).not.toBeInTheDocument();
+    }
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search catalogue" }), { target: { value: "xyz" } });
+    expect(screen.getByText("No products match ‘xyz’")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    expect(screen.getByText("2 of 2 SKUs")).toBeInTheDocument();
+    expect(mocks.products).toHaveBeenCalledTimes(1);
+  });
   it("labels the unchanged quintal rate and derives kg and case equivalents", async () => {
     render(<Catalog />);
     expect(await screen.findByText("₹5,400 / quintal")).toBeInTheDocument();

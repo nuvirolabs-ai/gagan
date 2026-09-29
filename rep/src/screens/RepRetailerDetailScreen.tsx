@@ -7,6 +7,7 @@ import {
   Alert,
   Linking,
   Pressable,
+  RefreshControl,
   ScrollView,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -16,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { repApi } from "../api/repClient";
 import { captureForegroundLocation } from "../location/deviceLocation";
 import { useRep } from "../context/RepContext";
+import { useField } from "../context/FieldContext";
 import { staffCapabilities } from "../auth/staffCapabilities";
 import { colors, inr, spacing } from "../theme";
 import { formatOrderRef } from "../lib/orderRef";
@@ -49,13 +51,47 @@ const LEDGER_LABELS: Record<string, string> = {
   payment_reversal: "Payment reversed",
 };
 
+const DETAIL_CACHE_MS = 45_000;
+const detailCache = new Map<string, { data: any; at: number; complete: boolean }>();
+
+function saveDetailCache(key: string, data: any, complete: boolean) {
+  const now = Date.now();
+  for (const [cachedKey, entry] of detailCache) {
+    if (now - entry.at >= DETAIL_CACHE_MS) detailCache.delete(cachedKey);
+  }
+  detailCache.delete(key);
+  detailCache.set(key, { data, at: now, complete });
+  if (detailCache.size > 30) detailCache.delete(detailCache.keys().next().value!);
+}
+
+function previewDetail(preview: any, retailerId: string) {
+  if (!preview || preview.id !== retailerId) return null;
+  return {
+    retailer: {
+      id: retailerId, name: preview.name, phone: preview.phone,
+      shopAddress: preview.shopAddress, tier: preview.tier,
+      internalSegment: preview.internalSegment, lifecycle: null,
+    },
+    credit: {
+      outstanding: preview.outstanding, overdue: preview.overdue,
+      available: preview.available, creditLimit: preview.creditLimit,
+    },
+    financialSummary: { reconciliationRequired: preview.financialSummary?.reconciliationRequired === true },
+    kyc: null, recentOrders: [], recentLedger: [],
+  };
+}
+
 export default function RepRetailerDetailScreen({ route, navigation }: any) {
   const insets = useSafeAreaInsets();
   const { retailerId } = route.params;
   const { setActiveRetailer, staff } = useRep();
+  const { today } = useField();
+  const cacheKey = `${staff?.id ?? ""}:${retailerId}`;
+  const stored = detailCache.get(cacheKey);
+  const cached = stored && Date.now() - stored.at < DETAIL_CACHE_MS ? stored : null;
   const { t } = useLanguage();
   const capabilities = staffCapabilities(staff?.permissions ?? []);
-  const [data, setData] = useState<any | null>(null);
+  const [data, setData] = useState<any | null>(() => cached?.data ?? previewDetail(route.params?.retailerPreview, retailerId));
   const [location, setLocation] = useState<any | null>(null);
   const [activeVisit, setActiveVisit] = useState<any | null>(null);
   const [activeVisitElsewhere, setActiveVisitElsewhere] = useState<any | null>(null);
@@ -77,40 +113,89 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   const [todayField, setTodayField] = useState<any | null>(null);
   const [schemes, setSchemes] = useState<any[]>([]);
   const [composing, setComposing] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cached && !route.params?.retailerPreview);
   const autoStartAttempted = useRef(false);
   const checkInPending = useRef(false);
   const [checkingIn, setCheckingIn] = useState(false);
+  const requestId = useRef(0);
+  const fullDetailRequest = useRef(0);
+  const [criticalReady, setCriticalReady] = useState(Boolean(cached));
+  const [visitReady, setVisitReady] = useState(false);
+  const [locationReady, setLocationReady] = useState(false);
+  const [historyReady, setHistoryReady] = useState(Boolean(cached?.complete));
+  const [historyFailed, setHistoryFailed] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const firstUsefulLogged = useRef(false);
+  const criticalLogged = useRef(false);
+  const openedAt = useRef(typeof route.params?.openedAt === "number" ? route.params.openedAt : Date.now());
+  const trackedRetailerId = useRef(retailerId);
+  const logOpenTiming = (phase: string) => {
+    if (process.env.EXPO_PUBLIC_BUILD_CHANNEL === "gagan-staging-review") {
+      console.info(`retailer_detail_${phase}_ms=${Date.now() - openedAt.current}`);
+    }
+  };
 
   const load = useCallback(async () => {
-    const [retailerData, locationData, visitData, activityData, baselineData, opportunityData, todayData, schemeData, taskData] = await Promise.all([
-      repApi.retailer(retailerId),
-      repApi.getLocation(retailerId),
-      repApi.visits(),
-      capabilities.canLogActivity
-        ? repApi.customerActivities(retailerId).catch(() => ({ activities: [] }))
-        : Promise.resolve({ activities: [] }),
-      repApi.retailerBaseline(retailerId).catch(() => ({ baseline: null })),
-      repApi.opportunities(50).catch(() => ({ actions: [] })),
-      repApi.today().catch(() => null),
-      repApi.schemes(retailerId).catch(() => ({ schemes: [] })),
-      capabilities.canCompleteTasks ? repApi.tasks(retailerId).catch(() => ({ tasks: [] })) : Promise.resolve({ tasks: [] }),
-    ]);
-    const allVisits = visitData.visits ?? [];
-    const visits = allVisits.filter((visit: any) => visit.retailerId === retailerId);
-    const activeVisits = activeRetailerVisit(allVisits, retailerId);
-    setData(retailerData);
-    setLocation(locationData.location);
-    setActiveVisit(activeVisits.activeVisit);
-    setActiveVisitElsewhere(activeVisits.activeVisitElsewhere);
-    setRecentVisits(visits.slice(0, 5));
-    setActivities(activityData.activities ?? []);
-    setBaseline(baselineData.baseline ?? null);
-    setOpportunities((opportunityData.actions ?? []).filter((item: any) => item.retailerId === retailerId));
-    setTodayField(todayData);
-    setSchemes(schemeData.schemes ?? []);
-    setStoreTasks((taskData.tasks ?? []).filter((task: any) => task.retailerId === retailerId && task.status !== "cancelled"));
-  }, [retailerId, capabilities.canLogActivity, capabilities.canCompleteTasks]);
+    const currentRequest = ++requestId.current;
+    const isCurrent = () => requestId.current === currentRequest;
+    const critical = repApi.retailerSummary(retailerId).then((summary) => {
+      if (!isCurrent() || fullDetailRequest.current === currentRequest) return;
+      setData((existing: any) => ({ ...summary, recentOrders: existing?.recentOrders ?? [], recentLedger: existing?.recentLedger ?? [] }));
+      saveDetailCache(cacheKey, summary, false);
+      setCriticalReady(true);
+      if (!criticalLogged.current) { criticalLogged.current = true; logOpenTiming("critical_ready"); }
+      setLoading(false);
+    }).catch(() => undefined);
+    const visits = repApi.retailerVisits(retailerId).then((result) => {
+      if (!isCurrent()) return;
+      const selected = result.visits ?? [];
+      const active = activeRetailerVisit(selected, retailerId);
+      setActiveVisit(active.activeVisit);
+      setActiveVisitElsewhere(result.activeVisitElsewhere ?? null);
+      setRecentVisits(selected);
+      setVisitReady(true);
+    }).catch(() => { if (isCurrent()) setVisitReady(false); });
+    const secondary = [
+      repApi.retailer(retailerId).then((result) => {
+        if (!isCurrent()) return;
+        fullDetailRequest.current = currentRequest;
+        setData(result);
+        saveDetailCache(cacheKey, result, true);
+        setCriticalReady(true);
+        setHistoryReady(true);
+        setHistoryFailed(false);
+        setLoading(false);
+      }).catch(() => { if (isCurrent()) setHistoryFailed(true); }),
+      repApi.getLocation(retailerId).then((result) => { if (isCurrent()) { setLocation(result.location); setLocationReady(true); } }),
+      repApi.retailerBaseline(retailerId).then((result) => { if (isCurrent()) setBaseline(result.baseline ?? null); }),
+      repApi.schemes(retailerId).then((result) => { if (isCurrent()) setSchemes(result.schemes ?? []); }),
+      ...(capabilities.canLogActivity ? [repApi.customerActivities(retailerId).then((result) => { if (isCurrent()) setActivities(result.activities ?? []); })] : []),
+      ...(capabilities.canCompleteTasks ? [repApi.tasks(retailerId).then((result) => { if (isCurrent()) setStoreTasks((result.tasks ?? []).filter((task: any) => task.retailerId === retailerId && task.status !== "cancelled")); })] : []),
+    ];
+    await Promise.allSettled([critical, visits, ...secondary]);
+    if (isCurrent()) { setLoading(false); logOpenTiming("secondary_ready"); }
+  }, [retailerId, cacheKey, capabilities.canLogActivity, capabilities.canCompleteTasks]);
+
+  useEffect(() => {
+    const entry = detailCache.get(cacheKey);
+    const saved = entry && Date.now() - entry.at < DETAIL_CACHE_MS ? entry : null;
+    if (trackedRetailerId.current !== retailerId) {
+      trackedRetailerId.current = retailerId;
+      openedAt.current = typeof route.params?.openedAt === "number" ? route.params.openedAt : Date.now();
+      firstUsefulLogged.current = false;
+      criticalLogged.current = Boolean(saved);
+    }
+    setData(saved?.data ?? previewDetail(route.params?.retailerPreview, retailerId));
+    setCriticalReady(Boolean(saved));
+    setVisitReady(false);
+    setLocationReady(false);
+    setHistoryReady(Boolean(saved?.complete));
+    setHistoryFailed(false);
+    setActiveVisit(null);
+    setActiveVisitElsewhere(null);
+    setLocation(null);
+    setLoading(!saved && !route.params?.retailerPreview);
+  }, [retailerId, cacheKey]);
 
   useEffect(() => {
     marketingHistoryRequest.current += 1;
@@ -163,15 +248,22 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
-      load()
-        .catch(() => {
-          setData(null);
-          setLocation(null);
-        })
-        .finally(() => setLoading(false));
-    }, [load])
+      const entry = detailCache.get(cacheKey);
+      const saved = entry && Date.now() - entry.at < DETAIL_CACHE_MS ? entry : null;
+      if (saved && Date.now() - saved.at < DETAIL_CACHE_MS) {
+        setData(saved.data);
+        setCriticalReady(true);
+        setLoading(false);
+      }
+      void load();
+      return () => { requestId.current += 1; };
+    }, [load, cacheKey])
   );
+
+  useEffect(() => {
+    setTodayField(today);
+    setOpportunities((today?.opportunities?.actions ?? []).filter((item: any) => item.retailerId === retailerId));
+  }, [today, retailerId]);
 
   // Home's next-visit action can take the salesperson straight into the
   // existing, location-verified check-in flow. If the store still needs a
@@ -179,6 +271,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   useEffect(() => {
     if (
       !route.params?.startVisit ||
+      !visitReady ||
       !data ||
       location?.status !== "VERIFIED" ||
       activeVisit ||
@@ -213,7 +306,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
         checkInPending.current = false;
         setCheckingIn(false);
       });
-  }, [activeVisit, activeVisitElsewhere, data, load, location?.status, navigation, retailerId, route.params?.startVisit, t]);
+  }, [activeVisit, activeVisitElsewhere, data, load, location?.status, navigation, retailerId, route.params?.startVisit, t, visitReady]);
 
   if (loading) {
     return (
@@ -237,9 +330,9 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   const { retailer, credit, recentOrders, recentLedger, kyc, financialSummary } = data;
   const reviewRequired = financialSummary?.reconciliationRequired === true;
   const kycApproved = retailer.lifecycle === "active" && (kyc?.status === "approved" || kyc?.legacyVerified === true);
-  const blocked = credit.available <= 0 || !kycApproved;
+  const blocked = !criticalReady || !visitReady || credit.available <= 0 || !kycApproved;
   const visiting = Boolean(activeVisit && !activeVisit.checkedOutAt);
-  const lastOrder = recentOrders[0];
+  const lastOrder = recentOrders[0] ?? data.lastOrderSummary;
   const todayStop = todayField?.route?.stops?.find((stop: any) => stop.retailer?.id === retailer.id);
 
   const startKyc = async () => {
@@ -247,7 +340,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   };
 
   const startOrder = () => {
-    if (activeVisitElsewhere) return;
+    if (blocked || activeVisitElsewhere) return;
     setActiveRetailer(retailer.id);
     navigation.navigate("RepCatalog", { retailerId: retailer.id, retailerName: retailer.name, visitId: activeVisit?.id });
   };
@@ -350,12 +443,14 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
         ? "Location captured"
         : location?.status === "NEEDS_REVIEW"
           ? "Location needs review"
-          : "Location needed";
+      : locationReady ? "Location needed" : "Checking location";
 
   return (
     <AppScreen>
-      <KeyboardSafeScrollView contentContainerStyle={[styles.content, { paddingBottom: 140 + insets.bottom }]}>
-        <View style={styles.head}>
+      <KeyboardSafeScrollView contentContainerStyle={[styles.content, { paddingBottom: 140 + insets.bottom }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load().finally(() => setRefreshing(false)); }} />}>
+        <View style={styles.head} onLayout={() => {
+          if (!firstUsefulLogged.current) { firstUsefulLogged.current = true; logOpenTiming("first_useful"); }
+        }}>
           <InitialsBadge name={retailer.name} size={56} tone={reviewRequired || credit.overdue > 0 ? "danger" : "green"} />
           <View style={{ flex: 1 }}>
             <Text style={styles.name}>{retailer.name}</Text>
@@ -426,8 +521,8 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
           </FocusCard>
         ) : (
           <View style={{ gap: spacing.sm }}>
-            {location?.status === "VERIFIED" ? (
-              <PrimaryButton label={checkingIn ? "Checking in…" : t("retailer.checkIn")} disabled={checkingIn} icon="locate-outline" onPress={() => void checkIn()} />
+            {!locationReady ? <PrimaryButton label="Checking location…" icon="location-outline" disabled onPress={() => undefined} /> : location?.status === "VERIFIED" ? (
+              <PrimaryButton label={!visitReady ? "Checking visit…" : checkingIn ? "Checking in…" : t("retailer.checkIn")} disabled={checkingIn || !visitReady} icon="locate-outline" onPress={() => void checkIn()} />
             ) : (
               <PrimaryButton
                 label={location?.status === "CAPTURED" ? t("retailer.verifyStore") : t("retailer.setStore")}
@@ -537,7 +632,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
           </Text>
         ) : null}
 
-        {kyc?.status !== "approved" ? (
+        {criticalReady && kyc?.status !== "approved" ? (
           <Surface>
             <SectionHeader title={t("retailer.kycVerification")} />
             <Text style={styles.muted}>{kyc?.status ? `Case ${kyc.status.replace("_", " ")}` : t("kyc.title")}</Text>
@@ -712,7 +807,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
 
         <View>
           <SectionHeader title={t("retailer.recentOrders")} />
-          {recentOrders.length === 0 ? (
+          {historyFailed && !historyReady ? <Text style={styles.muted}>Could not load recent history. Pull down to retry.</Text> : !historyReady ? <Skeleton height={66} radius={8} /> : recentOrders.length === 0 ? (
             <Text style={styles.muted}>{t("retailer.noOrders")}</Text>
           ) : (
             recentOrders.map((o: any, index: number) => (
@@ -739,7 +834,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
 
         <View>
           <SectionHeader title={t("retailer.recentLedger")} />
-          {recentLedger.length === 0 ? (
+          {historyFailed && !historyReady ? <Text style={styles.muted}>Recent transactions unavailable.</Text> : !historyReady ? <Skeleton height={66} radius={8} /> : recentLedger.length === 0 ? (
             <Text style={styles.muted}>{t("retailer.noTransactions")}</Text>
           ) : (
             recentLedger.map((e: any) => (

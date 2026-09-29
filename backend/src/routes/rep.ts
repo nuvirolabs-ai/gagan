@@ -19,7 +19,7 @@ import {
   createRequireSession,
   type IdentityAuthedRequest,
 } from "../modules/identity/sessionAuth";
-import { internalStatusForOrder } from "../modules/commercialStatus/statusService";
+import { internalStatusForOrder, statusFromOrderWithEvents } from "../modules/commercialStatus/statusService";
 import { CommercialStatusCode } from "@prisma/client";
 import { attributeOrders } from "../modules/orders/orderAttribution";
 import { staffWorkspaceState } from "../modules/identity/staffAppAccess";
@@ -181,6 +181,64 @@ router.get("/retailers", requireRep, async (req: RepRequest, res) => {
   });
 });
 
+router.get("/retailers/:id/summary", requireRep, async (req: RepRequest, res) => {
+  const retailer = await prisma.retailer.findFirst({
+    where: { id: req.params.id, salesRepId: req.repId },
+    select: {
+      id: true, name: true, phone: true, shopAddress: true, status: true,
+      internalSegment: true, creditLimit: true, currentBalance: true, overdueAmount: true,
+      tier: { select: { name: true } },
+    },
+  });
+  if (!retailer) return res.status(404).json({ error: "Retailer not found" });
+  const [financialSummary, kycCase, creditProfile, lastOrder] = await Promise.all([
+    financialSummaryFor(prisma, retailer.id),
+    prisma.kycCase.findUnique({ where: { retailerId: retailer.id }, select: { status: true } }),
+    prisma.creditProfile.findUnique({ where: { retailerId: retailer.id }, select: { kycVerifiedAt: true } }),
+    prisma.order.findFirst({ where: { retailerId: retailer.id }, orderBy: { createdAt: "desc" }, select: { id: true, createdAt: true, orderTotal: true } }),
+  ]);
+  const limit = financialSummary?.creditLimit ?? Number(retailer.creditLimit);
+  const balance = financialSummary?.creditUsed ?? Number(retailer.currentBalance);
+  res.json({
+    retailer: {
+      id: retailer.id, name: retailer.name, phone: retailer.phone,
+      shopAddress: retailer.shopAddress, tier: retailer.tier.name,
+      internalSegment: retailer.internalSegment, lifecycle: retailer.status,
+    },
+    kyc: { status: kycCase?.status ?? null, legacyVerified: creditProfile?.kycVerifiedAt != null },
+    credit: {
+      creditLimit: limit, outstanding: balance,
+      overdue: financialSummary?.overdue ?? Number(retailer.overdueAmount),
+      available: financialSummary?.availableCredit ?? Math.max(limit - balance, 0),
+      utilisationPct: limit > 0 ? Math.round((balance / limit) * 100) : 0,
+    },
+    financialSummary: financialSummary ? {
+      reconciliationRequired: financialSummary.reconciliationRequired,
+      entityBalances: financialSummary.entityBalances,
+    } : null,
+    lastOrderSummary: lastOrder,
+    recentOrders: [],
+    recentLedger: [],
+  });
+});
+
+router.get("/retailers/:id/visits", requireRep, async (req: RepRequest, res) => {
+  const retailer = await assignedRetailer(req.repId!, req.params.id);
+  if (!retailer) return res.status(404).json({ error: "Retailer not found" });
+  const [visits, activeVisitElsewhere] = await Promise.all([
+    prisma.salesVisit.findMany({
+      where: { retailerId: retailer.id, salespersonId: req.staffId },
+      orderBy: { checkedInAt: "desc" }, take: 5,
+    }),
+    prisma.salesVisit.findFirst({
+      where: { salespersonId: req.staffId, checkedOutAt: null, retailerId: { not: retailer.id } },
+      orderBy: { checkedInAt: "desc" },
+      include: { retailer: { select: { id: true, name: true } } },
+    }),
+  ]);
+  res.json({ visits, activeVisitElsewhere });
+});
+
 router.get("/retailers/:id", requireRep, async (req: RepRequest, res) => {
   const retailer = await assignedRetailer(req.repId!, req.params.id);
   if (!retailer) return res.status(404).json({ error: "Retailer not found" });
@@ -193,9 +251,10 @@ router.get("/retailers/:id", requireRep, async (req: RepRequest, res) => {
       take: 5,
       include: {
         items: { include: { variant: { include: { product: true } } } },
+        heldBy: { select: { id: true, name: true } },
         commercialStatusEvents: {
-          where: { code: CommercialStatusCode.SALES_ORDER_PUNCHED },
-          select: { code: true, actorStaff: { select: { name: true } } },
+          orderBy: { createdAt: "desc" },
+          include: { actorStaff: { select: { id: true, name: true } } },
         },
       },
     }),
@@ -208,10 +267,10 @@ router.get("/retailers/:id", requireRep, async (req: RepRequest, res) => {
   const limit = financialSummary?.creditLimit ?? Number(retailer.creditLimit);
   const balance = financialSummary?.creditUsed ?? Number(retailer.currentBalance);
   const attributedRecentOrders = await attributeOrders(orders);
-  const recentOrders = await Promise.all(attributedRecentOrders.map(async (order) => ({
-    ...order,
-    commercialStatus: await internalStatusForOrder(order.id),
-  })));
+  const recentOrders = attributedRecentOrders.map((order, index) => {
+    const { heldBy: _heldBy, ...publicOrder } = order;
+    return { ...publicOrder, commercialStatus: statusFromOrderWithEvents(orders[index]) };
+  });
 
   res.json({
     retailer: {

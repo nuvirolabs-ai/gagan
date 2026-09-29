@@ -1008,6 +1008,24 @@ describe("today reads real work, not placeholders", () => {
 });
 
 describe("a salesperson without a planned beat can still sell", () => {
+  it("limits the fast retailer summary and visits to the assigned salesperson", async () => {
+    const summary = await request(app)
+      .get(`/rep/retailers/${ids.retailerB}/summary`)
+      .set("Authorization", `Bearer ${tokenB}`)
+      .expect(200);
+    expect(summary.body).toMatchObject({
+      retailer: { id: ids.retailerB, name: "Field Store B" },
+      credit: { outstanding: expect.any(Number), available: expect.any(Number) },
+      recentOrders: [], recentLedger: [],
+    });
+    expect(summary.body.retailer).not.toHaveProperty("salesRepId");
+    expect(summary.body.financialSummary).not.toHaveProperty("reviewBalance");
+    await request(app).get(`/rep/retailers/${ids.retailerB}/summary`).set("Authorization", `Bearer ${tokenA}`).expect(404);
+    await request(app).get(`/rep/retailers/${ids.retailerB}/visits`).set("Authorization", `Bearer ${tokenA}`).expect(404);
+    const visits = await request(app).get(`/rep/retailers/${ids.retailerB}/visits`).set("Authorization", `Bearer ${tokenB}`).expect(200);
+    expect(visits.body.visits).toEqual(expect.any(Array));
+  });
+
   it("lists an assigned retailer, loads its catalogue, and places an order with no route", async () => {
     const routeBefore = await request(app)
       .get("/rep/field/route")

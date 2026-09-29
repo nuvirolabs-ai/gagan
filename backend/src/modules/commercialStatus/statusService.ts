@@ -219,6 +219,16 @@ export async function internalStatusForOrder(orderId: string, db: StatusDb = pri
     },
   });
   if (!order) throw new CommercialStatusError("order_not_found", 404);
+  return statusFromOrderWithEvents(order);
+}
+
+export function statusFromOrderWithEvents(order: {
+  isOnHold: boolean;
+  holdReason: string | null;
+  heldAt: Date | null;
+  heldBy: { id: string; name: string } | null;
+  commercialStatusEvents: any[];
+}) {
   const events = order.commercialStatusEvents;
   const currentCode = deriveCurrentCommercialStatus(events, order.isOnHold);
   const advance = events.find((event) => event.code === CommercialStatusCode.ADVANCE_PAYMENT_RECEIVED) ?? null;

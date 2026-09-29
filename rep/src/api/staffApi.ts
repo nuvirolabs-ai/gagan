@@ -51,6 +51,8 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
       post(`/rep/credit/rating-proposals/${id}/confirm`, { reason }),
     retailers: () => request("/rep/retailers"),
     retailer: (id: string) => request(`/rep/retailers/${id}`),
+    retailerSummary: (id: string) => request(`/rep/retailers/${id}/summary`),
+    retailerVisits: (id: string) => request(`/rep/retailers/${id}/visits`),
     retailerLedger: (id: string, beforeSequence?: string) =>
       request(`/rep/retailers/${id}/ledger${beforeSequence ? `?beforeSequence=${encodeURIComponent(beforeSequence)}` : ""}`),
     startKyc: (retailerId: string) => post("/rep/kyc", { retailerId }),

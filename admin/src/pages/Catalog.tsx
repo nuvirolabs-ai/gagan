@@ -10,6 +10,7 @@ type Editor = { kind: "create" | "product" | "variant" | "add" | "sku"; product?
 
 export default function Catalog() {
   const [products, setProducts] = useState<any[]>([]);
+  const [search, setSearch] = useState("");
   const [tiers, setTiers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -142,6 +143,15 @@ export default function Catalog() {
   }, []);
 
   const key = (variantId: string, tierId: string) => `${variantId}:${tierId}`;
+  const query = search.trim().toLocaleLowerCase().replace(/\s+/g, " ");
+  const rows = products.flatMap((product) => product.variants.map((variant: any) => ({ product, variant })));
+  const matchingRows = query ? rows.filter(({ product, variant }) => {
+    const fields = [product.name, product.category, product.internalCode, product.catalogKey,
+      variant.unitSize, variant.unit,
+      variant.unitsPerCase, `${variant.unitSize ?? ""} x ${variant.unitsPerCase ?? ""}`,
+      variant.internalCode, variant.catalogKey, variant.catalogIdentitySkuName];
+    return fields.some((value) => String(value ?? "").toLocaleLowerCase().replace(/\s+/g, " ").includes(query));
+  }) : rows;
 
   const publicationMessage = (body: any) => {
     if (body?.error === "canonical_pack_exists") return "A current catalogue pack already exists.";
@@ -206,6 +216,14 @@ export default function Catalog() {
       <div className="row" style={{ marginBottom: 16 }}>
         <button onClick={() => setEditor({ kind: "sku" })}>Add product</button>
         <a href="/imports">Bulk import</a>
+      </div>
+
+      <div className="row" style={{ marginBottom: 16, alignItems: "end" }}>
+        <label style={{ flex: 1 }}>Search catalogue
+          <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search product, pack or code…" />
+        </label>
+        {search && <button type="button" className="secondary" onClick={() => setSearch("")}>Clear search</button>}
+        <span role="status" className="muted small">{matchingRows.length} of {rows.length} SKUs</span>
       </div>
 
       {publishing && <section aria-label="Publish catalogue" style={{ marginBottom: 20 }}>
@@ -279,8 +297,8 @@ export default function Catalog() {
               </tr>
             </thead>
             <tbody>
-              {products.flatMap((p) =>
-                p.variants.map((v: any) => {
+              {matchingRows.length === 0 && <tr><td colSpan={3 + tiers.length}>No products match ‘{search.trim()}’</td></tr>}
+              {matchingRows.map(({ product: p, variant: v }) => {
                   const caseWeight = v.unitWeightKg * v.unitsPerCase;
                   const complete = v.purchaseRate != null;
                   return (
@@ -363,8 +381,7 @@ export default function Catalog() {
                       })}
                     </tr>
                   );
-                })
-              )}
+                })}
             </tbody>
           </table>
         )}

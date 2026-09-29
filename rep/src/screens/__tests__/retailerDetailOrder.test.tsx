@@ -9,7 +9,7 @@ vi.mock("react", async (importOriginal) => {
     ...actual,
     useState: (initial: unknown) => {
       const index = state.index++;
-      return [state.values.has(index) ? state.values.get(index) : initial, vi.fn()];
+      return [state.values.has(index) ? state.values.get(index) : typeof initial === "function" ? (initial as () => unknown)() : initial, vi.fn()];
     },
     useRef: (initial: unknown) => ({ current: initial }),
     useEffect: () => {},
@@ -17,7 +17,7 @@ vi.mock("react", async (importOriginal) => {
   };
 });
 vi.mock("react-native", () => ({
-  Image: "Image", View: "View", Text: "Text", Pressable: "Pressable", ScrollView: "ScrollView",
+  Image: "Image", View: "View", Text: "Text", Pressable: "Pressable", ScrollView: "ScrollView", RefreshControl: "RefreshControl",
   StyleSheet: { create: (styles: unknown) => styles }, Alert: { alert: vi.fn() }, Linking: { openURL: vi.fn() },
 }));
 vi.mock("@expo/vector-icons", () => ({ MaterialCommunityIcons: "Icon" }));
@@ -26,6 +26,7 @@ vi.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ b
 vi.mock("../../api/repClient", () => ({ repApi: {} }));
 vi.mock("../../location/deviceLocation", () => ({ captureForegroundLocation: vi.fn() }));
 vi.mock("../../context/RepContext", () => ({ useRep: () => ({ staff: { permissions: [] }, setActiveRetailer: vi.fn() }) }));
+vi.mock("../../context/FieldContext", () => ({ useField: () => ({ today: null }) }));
 vi.mock("../../auth/staffCapabilities", () => ({ staffCapabilities: () => ({}) }));
 vi.mock("../../theme", () => ({ colors: { primary: "#000", ink: "#000" }, spacing: { sm: 8, md: 12, lg: 16, xl: 20, section: 24 }, inr: (value: number) => `INR ${value}` }));
 vi.mock("../../components/ui", () => Object.fromEntries([
@@ -55,6 +56,20 @@ describe("Salesperson retailer detail order", () => {
     state.values.clear();
   });
 
+  it("shows an assigned list preview on the first render while fresh data is pending", () => {
+    const screen = RepRetailerDetailScreen({
+      route: { params: { retailerId: "store-1", retailerPreview: {
+        id: "store-1", name: "Preview Store", shopAddress: "Market Road", phone: "9999999999",
+        tier: "Silver", outstanding: 120, overdue: 0, available: 500,
+      } } }, navigation: {},
+    });
+    const rendered = content(screen);
+    expect(rendered).toContain("Preview Store");
+    expect(rendered).toContain("Market Road");
+    expect(rendered).toContain("Checking location");
+    expect(rendered).not.toContain("errors.generic");
+  });
+
   it("renders name, check-in, intelligence, outstanding, then schemes before other content", () => {
     state.values.set(0, {
       retailer: { id: "store-1", name: "Test Store", shopAddress: "Main Road", lifecycle: "active" },
@@ -65,6 +80,9 @@ describe("Salesperson retailer detail order", () => {
     state.values.set(15, { trend: "unknown", regularCategories: [] });
     state.values.set(18, [{ id: "scheme-1", name: "Test Scheme", headline: "Offer", discountAmount: 10 }]);
     state.values.set(20, false);
+    state.values.set(22, true);
+    state.values.set(23, true);
+    state.values.set(24, true);
 
     const screen = RepRetailerDetailScreen({ route: { params: { retailerId: "store-1" } }, navigation: {} });
     const scroll = Children.toArray(screen.props.children)[0] as React.ReactElement<{ children: ReactNode }>;
@@ -90,6 +108,9 @@ describe("Salesperson retailer detail order", () => {
     state.values.set(15, { trend: "unknown", regularCategories: [] });
     state.values.set(18, []);
     state.values.set(20, false);
+    state.values.set(22, true);
+    state.values.set(23, true);
+    state.values.set(24, true);
     const screen = RepRetailerDetailScreen({ route: { params: { retailerId: "store-1" } }, navigation: {} });
     const scroll = Children.toArray(screen.props.children)[0] as React.ReactElement<{ children: ReactNode }>;
     const rendered = Children.toArray(scroll.props.children).map(content).join(" ");

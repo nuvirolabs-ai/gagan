@@ -24,6 +24,7 @@ const createdCatalog: { role: boolean; permission: boolean; warehouseGrant: bool
   adminGrant: false,
 };
 let warehouseToken = "";
+let dispatchToken = "";
 let salespersonToken = "";
 let adminToken = "";
 let warehouseStaffId = "";
@@ -121,6 +122,7 @@ describe("warehouse order API on local PostgreSQL", () => {
     const warehouse = await tokenFor("warehouse_operator");
     warehouseToken = warehouse.token;
     warehouseStaffId = warehouse.staffId;
+    dispatchToken = (await tokenFor("dispatch")).token;
     salespersonToken = (await tokenFor("salesperson")).token;
     adminToken = (await tokenFor("platform_admin")).token;
   });
@@ -190,10 +192,22 @@ describe("warehouse order API on local PostgreSQL", () => {
     await request(app)
       .get("/admin/orders")
       .set("Authorization", `Bearer ${warehouseToken}`)
+      .expect(200);
+    await request(app)
+      .get("/admin/orders")
+      .set("Authorization", `Bearer ${dispatchToken}`)
+      .expect(200);
+    await request(app)
+      .get("/admin/orders")
+      .set("Authorization", `Bearer ${salespersonToken}`)
       .expect(403);
     await request(app)
       .post(`/admin/orders/${ids.confirmed}/approve`)
       .set("Authorization", `Bearer ${warehouseToken}`)
+      .expect(409);
+    await request(app)
+      .get("/admin/warehouse-orders")
+      .set("Authorization", `Bearer ${dispatchToken}`)
       .expect(403);
   });
 

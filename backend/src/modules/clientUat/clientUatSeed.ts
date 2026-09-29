@@ -32,6 +32,21 @@ export const CLIENT_UAT_DEFAULTS = {
   outerPack: "Bag" as const,
 };
 
+const CLIENT_UAT_OPERATIONAL_USERS = {
+  ops: {
+    name: "Client UAT Ops",
+    phone: "9000000003",
+    email: "client-uat-ops@gagan.test",
+    employeeRef: "OPS-CLIENT-UAT",
+  },
+  accounts: {
+    name: "Client UAT Accounts",
+    phone: "9000000004",
+    email: "client-uat-accounts@gagan.test",
+    employeeRef: "ACCOUNTS-CLIENT-UAT",
+  },
+} as const;
+
 export type ClientUatSeedOptions = {
   source: ClientUatSource;
   effectiveFrom?: Date;
@@ -147,6 +162,41 @@ async function seedPlatformData() {
     await prisma.staffRole.upsert({ where: { staffId_roleId: { staffId: adminStaff.id, roleId: roleIds.get(roleName)! } }, update: {}, create: { staffId: adminStaff.id, roleId: roleIds.get(roleName)! } });
   }
 
+  const opsPassword = process.env.CLIENT_UAT_OPS_PASSWORD;
+  const accountsPassword = process.env.CLIENT_UAT_ACCOUNTS_PASSWORD;
+  if (opsPassword || accountsPassword) {
+    if (!opsPassword || !accountsPassword) throw new Error("CLIENT_UAT_OPS_AND_ACCOUNTS_PASSWORDS_REQUIRED_TO_PROVISION_OPERATIONAL_USERS");
+    for (const [kind, user, password, roleNames] of [
+      ["ops", CLIENT_UAT_OPERATIONAL_USERS.ops, opsPassword, ["client_uat_ops"]],
+      ["accounts", CLIENT_UAT_OPERATIONAL_USERS.accounts, accountsPassword, ["accounts"]],
+    ] as const) {
+      const admin = await prisma.adminUser.upsert({
+        where: { email: user.email },
+        update: { name: user.name, passwordHash: await bcrypt.hash(password, 10) },
+        create: { email: user.email, name: user.name, passwordHash: await bcrypt.hash(password, 10) },
+      });
+      const staff = await prisma.staffUser.upsert({
+        where: { employeeRef: user.employeeRef },
+        update: { name: user.name, phone: user.phone, email: user.email, adminUserId: admin.id, status: "active" },
+        create: { name: user.name, phone: user.phone, email: user.email, employeeRef: user.employeeRef, adminUserId: admin.id, status: "active" },
+      });
+      const roleIdsForUser = roleNames.map((roleName) => roleIds.get(roleName)!);
+      await prisma.staffRole.deleteMany({ where: { staffId: staff.id, roleId: { notIn: roleIdsForUser } } });
+      for (const roleId of roleIdsForUser) {
+        await prisma.staffRole.upsert({ where: { staffId_roleId: { staffId: staff.id, roleId } }, update: {}, create: { staffId: staff.id, roleId } });
+      }
+      await prisma.auditEvent.create({
+        data: {
+          actorStaffId: adminStaff.id,
+          action: "staging.client_uat_operational_identity_upserted",
+          subjectType: "StaffUser",
+          subjectId: staff.id,
+          metadata: json({ kind, roles: roleNames }),
+        },
+      });
+    }
+  }
+
   const [gold, silver] = await Promise.all([
     prisma.tier.upsert({ where: { name: "Gold" }, update: { description: "Client UAT compatibility tier", paymentTermDays: 15 }, create: { name: "Gold", description: "Client UAT compatibility tier", paymentTermDays: 15 } }),
     prisma.tier.upsert({ where: { name: "Silver" }, update: { description: "Client UAT compatibility tier", paymentTermDays: 15 }, create: { name: "Silver", description: "Client UAT compatibility tier", paymentTermDays: 15 } }),
@@ -171,7 +221,9 @@ async function seedPlatformData() {
     update: { name: CLIENT_UAT_DEFAULTS.salespersonName, phone: CLIENT_UAT_DEFAULTS.salespersonPhone, email: CLIENT_UAT_DEFAULTS.salespersonEmail, salesRepId: salesRep.id, status: "active" },
     create: { name: CLIENT_UAT_DEFAULTS.salespersonName, phone: CLIENT_UAT_DEFAULTS.salespersonPhone, email: CLIENT_UAT_DEFAULTS.salespersonEmail, employeeRef: CLIENT_UAT_DEFAULTS.salespersonEmployeeRef, salesRepId: salesRep.id, status: "active" },
   });
-  await prisma.staffRole.upsert({ where: { staffId_roleId: { staffId: salesperson.id, roleId: roleIds.get("salesperson")! } }, update: {}, create: { staffId: salesperson.id, roleId: roleIds.get("salesperson")! } });
+  for (const roleName of ["salesperson", "field_collector"]) {
+    await prisma.staffRole.upsert({ where: { staffId_roleId: { staffId: salesperson.id, roleId: roleIds.get(roleName)! } }, update: {}, create: { staffId: salesperson.id, roleId: roleIds.get(roleName)! } });
+  }
   return { adminStaff, salesperson, salesRep, tiers: [gold, silver] };
 }
 
@@ -306,6 +358,11 @@ export async function seedClientUat(options: ClientUatSeedOptions, db: PrismaCli
   for (const retailer of retailers) {
     const assignment = options.source.assignments.find((item) => item.retailerPhone === retailer.phone);
     if (!assignment || assignment.salespersonEmployeeRef !== CLIENT_UAT_DEFAULTS.salespersonEmployeeRef) throw new Error(`client_uat_assignment_missing_${retailer.phone}`);
+    await prisma.collectionAssignment.upsert({
+      where: { collectorStaffId_retailerId: { collectorStaffId: platform.salesperson.id, retailerId: retailer.id } },
+      update: { active: true, endedAt: null },
+      create: { collectorStaffId: platform.salesperson.id, retailerId: retailer.id, active: true },
+    });
   }
   await prisma.retailer.updateMany({ where: { phone: { notIn: [...sourcePhones] } }, data: { status: "suspended", sapCustomerId: null } });
   const counts = { products: new Set([...catalogue.variantByKey.values()].map((variant) => variant.productId)).size, variants: sourceVariantIds.length, priceRows: sourceVariantIds.length * (await prisma.tier.count()), inventoryRows: sourceVariantIds.length, retailers: retailers.length, assignments: options.source.assignments.length, placeholders: options.source.products.filter((row) => !row.imageUrl).length, imagesReused: catalogue.imagesReused };

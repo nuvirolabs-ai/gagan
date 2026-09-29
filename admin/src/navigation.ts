@@ -26,6 +26,7 @@ const COLLECTIONS = ["collection.confirm"] as const;
 const CREDIT = ["credit.rating_confirm"] as const;
 const SURVEYS = ["survey.manage"] as const;
 const WAREHOUSE = ["order.warehouse_process"] as const;
+const OPS_ORDERS = ["order.warehouse_process", "dispatch.execute"] as const;
 const RETAILER_REVIEW = ["retailer.proposal_review"] as const;
 const ORG = ["org.view_all"] as const;
 const TEAM_PERFORMANCE = ["performance.view_team"] as const;
@@ -146,7 +147,7 @@ export const ADMIN_NAV_GROUPS: { id: AdminGroupId; label: string; destinations: 
         route: "/orders",
         description: "Review and approve orders",
         keywords: ["order", "approve order", "order approval"],
-        permissions: STAFF,
+        permissions: OPS_ORDERS,
         relatedTo: ["/orders", "/approvals", "/warehouse-orders"],
       },
       {

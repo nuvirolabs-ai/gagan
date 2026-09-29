@@ -285,13 +285,13 @@ describe("order review authorization", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("does not open admin order actions for a role without staff.manage", async () => {
-    auth.permissions = ["order.warehouse_process"];
+  it("opens order actions for Client UAT Ops without staff.manage", async () => {
+    auth.permissions = ["order.warehouse_process", "dispatch.execute", "commercial.status.view"];
     window.history.replaceState({}, "", "/orders");
     render(<App />);
-    expect(await screen.findByRole("heading", { name: "Warehouse orders" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^Approve$/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^Reject$/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^Put on hold$/ })).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Orders" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: /GGN-00000114/ }));
+    expect(await screen.findByRole("button", { name: /^Approve$/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Reject$/ })).toBeInTheDocument();
   });
 });

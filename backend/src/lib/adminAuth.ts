@@ -13,7 +13,7 @@ async function authenticateAdmin(
   req: AdminRequest,
   res: Response,
   next: NextFunction,
-  requiredPermission?: string
+  requiredPermission?: string | string[]
 ) {
   const header = req.headers.authorization;
   if (!header?.startsWith("Bearer ")) {
@@ -25,10 +25,13 @@ async function authenticateAdmin(
       header.slice(7),
       "admin"
     );
-    if (requiredPermission && !claims.permissions.includes(requiredPermission)) {
+    const requiredPermissions = requiredPermission
+      ? Array.isArray(requiredPermission) ? requiredPermission : [requiredPermission]
+      : [];
+    if (requiredPermissions.length > 0 && !requiredPermissions.some((permission) => claims.permissions.includes(permission))) {
       return res.status(403).json({
         error: "permission_required",
-        permission: requiredPermission,
+        permission: requiredPermissions.length === 1 ? requiredPermissions[0] : requiredPermissions,
       });
     }
     const staff = await prisma.staffUser.findUnique({
@@ -70,4 +73,10 @@ export async function requireAdmin(req: AdminRequest, res: Response, next: NextF
 export function requireAdminPermission(permission: string) {
   return (req: AdminRequest, res: Response, next: NextFunction) =>
     authenticateAdmin(req, res, next, permission);
+}
+
+/** Allow an operational route when the identity holds any one of its narrow capabilities. */
+export function requireAnyAdminPermission(permissions: string[]) {
+  return (req: AdminRequest, res: Response, next: NextFunction) =>
+    authenticateAdmin(req, res, next, permissions);
 }

@@ -215,4 +215,13 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     description: "Processes confirmed orders through the existing warehouse packing step.",
     permissions: [Permissions.ORDER_WAREHOUSE_PROCESS],
   },
+  {
+    name: "client_uat_ops",
+    description: "Client UAT operations: reviews orders, processes warehouse steps and dispatches deliveries.",
+    permissions: [
+      Permissions.ORDER_WAREHOUSE_PROCESS,
+      Permissions.DISPATCH_EXECUTE,
+      Permissions.COMMERCIAL_STATUS_VIEW,
+    ],
+  },
 ];

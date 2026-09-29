@@ -2,7 +2,12 @@ import { Router } from "express";
 import { z } from "zod";
 import { CommercialStatusCode, OrderStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
-import { AdminRequest, requireAdmin } from "../../lib/adminAuth";
+import {
+  AdminRequest,
+  requireAdminPermission,
+  requireAnyAdminPermission,
+} from "../../lib/adminAuth";
+import { Permissions } from "../../modules/identity/roleCatalog";
 import {
   createInvoiceForDelivery,
   InvoiceCreationError,
@@ -11,7 +16,6 @@ import { ensureKycApprovedForDispatch, KycGateError } from "../../modules/kyc/ky
 import { attributeOrders } from "../../modules/orders/orderAttribution";
 
 const router = Router();
-router.use(requireAdmin);
 class OrderTransitionConflict extends Error {}
 
 // Orders move forward only, one step at a time. Anything else is a bad request
@@ -51,7 +55,13 @@ function jsonSafe<T>(value: T): T {
   ) as T;
 }
 
-router.get("/orders", async (req, res) => {
+router.get(
+  "/orders",
+  requireAnyAdminPermission([
+    Permissions.ORDER_WAREHOUSE_PROCESS,
+    Permissions.DISPATCH_EXECUTE,
+  ]),
+  async (req, res) => {
   const status = typeof req.query.status === "string" ? req.query.status : undefined;
   const valid = status && (Object.keys(ALLOWED_NEXT) as string[]).includes(status);
 
@@ -62,14 +72,22 @@ router.get("/orders", async (req, res) => {
     take: 200,
   });
   res.json({ orders: await attributeOrders(orders) });
-});
+  }
+);
 
-router.get("/orders/:id", async (req, res) => {
+router.get(
+  "/orders/:id",
+  requireAnyAdminPermission([
+    Permissions.ORDER_WAREHOUSE_PROCESS,
+    Permissions.DISPATCH_EXECUTE,
+  ]),
+  async (req, res) => {
   const order = await prisma.order.findUnique({ where: { id: req.params.id }, include: orderInclude });
   if (!order) return res.status(404).json({ error: "Order not found" });
   const [attributedOrder] = await attributeOrders([order]);
   res.json({ order: attributedOrder });
-});
+  }
+);
 
 /** Generic forward transition used by approve / reject / pack. */
 export async function transitionOrder(
@@ -116,16 +134,31 @@ export async function transitionOrder(
   res.json({ order: projectOrder(attributedOrder) });
 }
 
-router.post("/orders/:id/approve", (req: AdminRequest, res) => transitionOrder(req.params.id, "confirmed", res, req.staffAuth?.staffId ?? null));
-router.post("/orders/:id/reject", (req: AdminRequest, res) => transitionOrder(req.params.id, "rejected", res, req.staffAuth?.staffId ?? null));
-router.post("/orders/:id/pack", (req: AdminRequest, res) => transitionOrder(req.params.id, "packed", res, req.staffAuth?.staffId ?? null));
+router.post(
+  "/orders/:id/approve",
+  requireAdminPermission(Permissions.ORDER_WAREHOUSE_PROCESS),
+  (req: AdminRequest, res) => transitionOrder(req.params.id, "confirmed", res, req.staffAuth?.staffId ?? null)
+);
+router.post(
+  "/orders/:id/reject",
+  requireAdminPermission(Permissions.ORDER_WAREHOUSE_PROCESS),
+  (req: AdminRequest, res) => transitionOrder(req.params.id, "rejected", res, req.staffAuth?.staffId ?? null)
+);
+router.post(
+  "/orders/:id/pack",
+  requireAdminPermission(Permissions.ORDER_WAREHOUSE_PROCESS),
+  (req: AdminRequest, res) => transitionOrder(req.params.id, "packed", res, req.staffAuth?.staffId ?? null)
+);
 
 const assignSchema = z.object({
   routeId: z.string().min(1),
   deliverySlot: z.string().datetime().optional(),
 });
 
-router.post("/dispatch/:orderId/assign", async (req: AdminRequest, res) => {
+router.post(
+  "/dispatch/:orderId/assign",
+  requireAdminPermission(Permissions.DISPATCH_EXECUTE),
+  async (req: AdminRequest, res) => {
   const parsed = assignSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
 
@@ -185,7 +218,8 @@ router.post("/dispatch/:orderId/assign", async (req: AdminRequest, res) => {
 
   const [attributedOrder] = await attributeOrders([updated]);
   res.json({ order: attributedOrder });
-});
+  }
+);
 
 const podSchema = z.object({
   podType: z.enum(["photo", "otp", "signature"]),
@@ -206,7 +240,10 @@ const podSchema = z.object({
  * entry and moves the retailer's balance. All of it in one transaction so a
  * failure can't leave an invoice without a balance change, or vice versa.
  */
-router.post("/dispatch/:orderId/pod", async (req: AdminRequest, res) => {
+router.post(
+  "/dispatch/:orderId/pod",
+  requireAdminPermission(Permissions.DISPATCH_EXECUTE),
+  async (req: AdminRequest, res) => {
   const parsed = podSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
@@ -272,6 +309,7 @@ router.post("/dispatch/:orderId/pod", async (req: AdminRequest, res) => {
     }
     throw error;
   }
-});
+  }
+);
 
 export default router;

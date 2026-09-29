@@ -15,6 +15,7 @@ describe("identity role catalog", () => {
       "field_manager",
       "platform_admin",
       "warehouse_operator",
+      "client_uat_ops",
     ]);
   });
 
@@ -25,6 +26,18 @@ describe("identity role catalog", () => {
     expect(warehouse?.permissions).not.toContain(Permissions.STAFF_MANAGE);
     expect(warehouse?.permissions).not.toContain(Permissions.DISPATCH_EXECUTE);
     expect(warehouse?.permissions).not.toContain(Permissions.ORDER_CREATE_FOR_RETAILER);
+  });
+
+  it("gives Client UAT Ops only the existing order-processing capabilities", () => {
+    const ops = ROLE_DEFINITIONS.find((role) => role.name === "client_uat_ops");
+
+    expect(ops?.permissions).toEqual([
+      Permissions.ORDER_WAREHOUSE_PROCESS,
+      Permissions.DISPATCH_EXECUTE,
+      Permissions.COMMERCIAL_STATUS_VIEW,
+    ]);
+    expect(ops?.permissions).not.toContain(Permissions.STAFF_MANAGE);
+    expect(ops?.permissions).not.toContain(Permissions.COLLECTION_CONFIRM);
   });
 
   it("separates running your own field day from reviewing someone else's", () => {

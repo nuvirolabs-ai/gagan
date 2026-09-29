@@ -1,10 +1,10 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, Image, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { colors, radius } from "../theme";
+import { CLIENT_UAT_IMAGE_HOST, clientUatImageFor } from "../catalog/clientUatImages";
 
-// Product photography comes from the catalog record when available. The
-// category fallback keeps offline/older SAP rows visually usable.
+// Product photography comes from the catalog record or the isolated UAT map.
+// The category fallback keeps offline/older SAP rows visually usable.
 const CATEGORY_TINT: Record<string, { bg: string; band: string }> = {
   Pulses: { bg: "#F5D98E", band: "#D9A62B" },
   Daal: { bg: "#F5D98E", band: "#D9A62B" },
@@ -19,36 +19,44 @@ export default function ProductThumb({
   category,
   imageUrl,
   imageStatus,
-  imageLabel,
+  unitSize,
+  unitsPerCase,
   size = 92,
 }: {
   name: string;
   category: string;
   imageUrl?: string | null;
   imageStatus?: "exact" | "placeholder" | "pending";
-  imageLabel?: string | null;
+  unitSize?: string;
+  unitsPerCase?: number;
   size?: number;
 }) {
-  if (imageUrl) {
-    return (
-      <Image
-        source={{ uri: imageUrl }}
-        resizeMode="contain"
-        style={{ width: size, height: size, borderRadius: radius.sm, backgroundColor: colors.surfaceAlt }}
-      />
-    );
-  }
+  const apiImage = imageStatus === "placeholder" || imageStatus === "pending"
+    ? null
+    : isUsableImageUrl(imageUrl)
+      ? imageUrl
+      : null;
+  const isClientUat = (process.env.EXPO_PUBLIC_API_URL ?? "").replace(/\/$/, "") === CLIENT_UAT_IMAGE_HOST;
+  const mappedImage = isClientUat && unitSize && unitsPerCase != null
+    ? clientUatImageFor(name, unitSize, unitsPerCase)
+    : null;
+  const [failedImages, setFailedImages] = useState<string[]>([]);
 
+  useEffect(() => {
+    setFailedImages([]);
+  }, [apiImage, mappedImage, name, unitSize, unitsPerCase]);
+
+  const imageUri = [apiImage, mappedImage].find((candidate) => candidate && !failedImages.includes(candidate)) ?? null;
   const tint = CATEGORY_TINT[category] ?? { bg: colors.surfaceAlt, band: colors.green };
 
-  if (imageStatus === "placeholder" || imageStatus === "pending") {
+  if (imageUri) {
     return (
-      <View style={[styles.missing, { width: size, height: size, backgroundColor: tint.bg }]}>
-        <Ionicons name="image-outline" size={Math.max(20, size * 0.28)} color={tint.band} />
-        <Text style={[styles.missingLabel, { color: tint.band }]} numberOfLines={3}>
-          {imageLabel ?? (imageStatus === "placeholder" ? "Image coming soon" : "Image pending confirmation")}
-        </Text>
-      </View>
+      <Image
+        source={{ uri: imageUri }}
+        resizeMode="contain"
+        style={{ width: size, height: size, borderRadius: radius.sm, backgroundColor: colors.surfaceAlt }}
+        onError={() => setFailedImages((current) => current.includes(imageUri) ? current : [...current, imageUri])}
+      />
     );
   }
 
@@ -64,6 +72,10 @@ export default function ProductThumb({
   );
 }
 
+function isUsableImageUrl(value: string | null | undefined) {
+  return typeof value === "string" && /^https?:\/\//i.test(value.trim());
+}
+
 const styles = StyleSheet.create({
   pack: {
     borderRadius: radius.sm,
@@ -71,8 +83,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "flex-start",
   },
-  missing: { borderRadius: radius.sm, alignItems: "center", justifyContent: "center", paddingHorizontal: 6, gap: 5 },
-  missingLabel: { fontSize: 10, fontWeight: "800", textAlign: "center", lineHeight: 13 },
   band: {
     width: "100%",
     paddingVertical: 4,

@@ -186,7 +186,8 @@ export default function RepCatalogScreen({ route, navigation }: any) {
                   category={product.category}
                   imageUrl={variant.imageStatus === "placeholder" || variant.imageStatus === "pending" ? null : variant.imageUrl ?? product.imageUrl}
                   imageStatus={variant.imageStatus}
-                  imageLabel={variant.imageLabel}
+                  unitSize={variant.unitSize}
+                  unitsPerCase={variant.unitsPerCase}
                   size={72}
                 />
                 <View style={{ flex: 1, minWidth: 0 }}>

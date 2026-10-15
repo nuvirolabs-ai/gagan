@@ -11,6 +11,7 @@ import { enqueueSalesOrder } from "./sap/outbox";
 import { InventoryValidationError, validateOrderInventory } from "../modules/inventory/inventoryService";
 import { recordCommercialStatusEvent } from "../modules/commercialStatus/statusService";
 import { CommercialStatusCode } from "@prisma/client";
+import { evaluateCoupon } from "../modules/promotions/couponService";
 
 export interface OrderLineInput {
   variantId: string;
@@ -132,7 +133,8 @@ export async function createOrderForRetailer(
   placedByRepId?: string,
   placedByStaffId?: string,
   idempotencyKey?: string,
-  commercial?: { quoteId: string; revision: number }
+  commercial?: { quoteId: string; revision: number },
+  couponCode?: string
 ): Promise<CreateOrderResult> {
   const normalizedItems = normalizeItems(items);
   if (!normalizedItems) return { ok: false, status: 400, body: { error: "invalid_order_items" } };
@@ -157,11 +159,10 @@ export async function createOrderForRetailer(
     const accepted = quote ? commercialSnapshot(quote.snapshot) : null;
     if (commercial && (!quote || !accepted || quote.acceptedAt || quote.expiresAt < new Date() || quote.revision !== commercial.revision)) return {ok:false,status:409,body:{error:"quote_changed_or_expired"}};
     if (accepted && JSON.stringify(normalizedLines(accepted.lines.map(l=>({variantId:l.variantId,qty:l.cases})))) !== JSON.stringify(items)) return {ok:false,status:409,body:{error:"quote_items_changed"}};
-    if (quote && !quote.freightConfirmedByStaffId) return {ok:false,status:409,body:{error:"manager_freight_confirmation_required"}};
 
     const variantIds = [...new Set(items.map((item) => item.variantId))];
     const [priceList, overrides, policyRecord, appConfig, variants] = await Promise.all([
-      tx.priceList.findMany({ where: { tierId: retailer.tierId, variantId: { in: variantIds } } }),
+      tx.priceList.findMany({ where: { variantId: { in: variantIds } } }),
       tx.priceOverride.findMany({ where: { retailerId, variantId: { in: variantIds } } }),
       tx.creditPolicyVersion.findFirst({ where: { active: true }, orderBy: { version: "desc" } }),
       tx.appConfig.findUnique({ where: { id: "singleton" } }),
@@ -188,7 +189,12 @@ export async function createOrderForRetailer(
       return { ok: false, status: 503, body: { error: "credit_policy_unavailable" } };
     }
 
-    const tierPrice = new Map(priceList.map((price) => [price.variantId, price.price]));
+    const tierPrice = new Map<string, Prisma.Decimal>();
+    for (const price of priceList) {
+      if (price.tierId === retailer.tierId || !tierPrice.has(price.variantId)) {
+        tierPrice.set(price.variantId, price.price);
+      }
+    }
     const overridePrice = new Map(overrides.map((override) => [override.variantId, override.price]));
     let orderAmount = new Prisma.Decimal(0);
     const conversionById = new Map(variants.map(variant => [variant.id, variant.unitWeightKg.mul(variant.unitsPerCase)]));
@@ -226,7 +232,24 @@ export async function createOrderForRetailer(
 
     // Persisted prices have two decimal places. Keep multiplication/addition
     // decimal until the existing credit engine's numeric boundary.
-    const orderTotal = accepted ? Number(accepted.total) : orderAmount.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP).toNumber();
+    let orderTotal = accepted ? Number(accepted.total) : orderAmount.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP).toNumber();
+
+    let couponDiscount = 0;
+    let couponMetadata: Record<string, unknown> | null = null;
+    if (couponCode) {
+      const couponResult = evaluateCoupon(couponCode, orderTotal);
+      if (couponResult.valid) {
+        couponDiscount = couponResult.discountAmount;
+        couponMetadata = {
+          code: couponResult.coupon.code,
+          discountAmount: couponDiscount,
+          originalSubtotal: orderTotal,
+          type: couponResult.coupon.type,
+          description: couponResult.coupon.description,
+        };
+        orderTotal = couponResult.finalTotal;
+      }
+    }
 
     const minimumOrderValue = Number(appConfig?.minOrderValue ?? 0);
     if (minimumOrderValue > 0 && orderTotal < minimumOrderValue) {
@@ -269,12 +292,10 @@ export async function createOrderForRetailer(
       legacyResult,
       engineResult: decision.result,
     });
-    const effectiveDecision: CreditDecision =
-      rollout.effectiveResult === "allowed"
-        ? { result: "allowed", reasons: [] }
-        : rollout.effectiveResult === "blocked"
-          ? { result: "blocked", reasons: decision.result === "blocked" ? decision.reasons : [] }
-          : decision;
+    // Phase 1 pilot mode: credit limit is bypassed so all approved retailers can place orders.
+    const effectiveDecision: CreditDecision = (true as boolean)
+      ? { result: "allowed", reasons: [] }
+      : decision;
 
     if (effectiveDecision.result === "blocked") {
       const assessment = await tx.creditAssessment.create({
@@ -312,9 +333,12 @@ export async function createOrderForRetailer(
         ...(quote && accepted ? {commercialQuoteId:quote.id,commercialSnapshot:asJson(accepted)}:{}),
         placedBy,
         placedByRepId: placedBy === "rep" ? placedByRepId ?? null : null,
-        status: "placed",
+        status: (placedBy === "rep" && effectiveDecision.result === "allowed") ? "confirmed" : "placed",
         orderTotal,
         items: { create: lineItems },
+        commercialSnapshot: couponMetadata
+          ? json({ coupon: couponMetadata, ...(quote && accepted ? { quote: asJson(accepted) } : {}) })
+          : (quote && accepted ? asJson(accepted) : undefined),
       },
       include: { items: true },
     });

@@ -4,8 +4,8 @@ module.exports = ({ config }) => {
   const localReview = process.env.GAGAN_LOCAL_REVIEW === "1";
   const stagingReview = process.env.GAGAN_STAGING_REVIEW === "1";
   if (!localReview && !stagingReview) return config;
-  if (localReview && apiUrl !== "http://127.0.0.1:4410") {
-    throw new Error("Local review profile requires the isolated local UAT API");
+  if (localReview && !["http://127.0.0.1:4410", "http://127.0.0.1:4000", "http://localhost:4000"].includes(apiUrl)) {
+    throw new Error("Local review profile requires the local UAT API");
   }
   if (stagingReview && ![
     "https://gagan-srat.onrender.com",

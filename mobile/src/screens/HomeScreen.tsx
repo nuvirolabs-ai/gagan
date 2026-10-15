@@ -217,16 +217,6 @@ export default function HomeScreen({ navigation }: any) {
         }}
       />
 
-      {/* Account finance */}
-      <View style={styles.sectionSpace}>
-        <AccountStrip
-          account={account}
-          onPay={() => navigation.navigate("Pay")}
-          onLedger={() => navigation.navigate("Ledger")}
-        />
-        {financeStale ? <Text style={styles.financeStale}>Account totals may be out of date. Pull to refresh.</Text> : null}
-      </View>
-
       {/* Shop by category */}
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>{t("home.shopByCategory")}</Text>

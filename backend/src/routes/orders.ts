@@ -62,11 +62,24 @@ const retailerLifecycleEvents = {
   select: { code: true, actorStaff: { select: { name: true } } },
 };
 
+import { evaluateCoupon } from "../modules/promotions/couponService";
+
 const createOrderSchema = z.object({
   commercial: z.object({quoteId:z.string(),revision:z.number().int().positive()}).optional(),
+  couponCode: z.string().trim().max(30).optional(),
   items: z
     .array(z.object({ variantId: z.string(), qty: z.number().int().positive() }))
     .min(1),
+});
+
+router.post("/orders/validate-coupon", requireAuth, (req: AuthedRequest, res) => {
+  const parsed = z.object({
+    code: z.string().trim().min(1),
+    subtotal: z.number().min(0),
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+  const result = evaluateCoupon(parsed.data.code, parsed.data.subtotal);
+  res.json(result);
 });
 
 router.post("/orders", requireAuth, createRateLimiter({ name: "retailer-order", limit: 20, windowMs: 60_000 }), async (req: AuthedRequest, res) => {
@@ -77,7 +90,7 @@ router.post("/orders", requireAuth, createRateLimiter({ name: "retailer-order", 
   const parsed = createOrderSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
 
-  const result = await createOrderForRetailer(req.retailerId!, parsed.data.items, "retailer", undefined, undefined, idempotencyKey,parsed.data.commercial);
+  const result = await createOrderForRetailer(req.retailerId!, parsed.data.items, "retailer", undefined, undefined, idempotencyKey, parsed.data.commercial, parsed.data.couponCode);
   if (!result.ok) return res.status(result.status).json(result.body);
 
   res.status(201).json(retailerOrderCreatedResponse(result));

@@ -1,0 +1,1529 @@
+{
+  "products": [
+    {
+      "name": "Gagan Broken",
+      "category": "Rice",
+      "description": "Premium quality Gagan Broken packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/02231e3b302d337360ec2267a0651f8b3592c8c5a2374ca06f1b8521c3d5f84b.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 54.0,
+          "casePrice": 1620.0,
+          "imageUrl": "/catalog-images/real/02231e3b302d337360ec2267a0651f8b3592c8c5a2374ca06f1b8521c3d5f84b.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Gagan Choice",
+      "category": "Rice",
+      "description": "Premium quality Gagan Choice packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/6986bb1ebc542536524718be661a0a6a2fce3362cd7d5de3494298f74ce1e820.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 81.0,
+          "casePrice": 2430.0,
+          "imageUrl": "/catalog-images/real/6986bb1ebc542536524718be661a0a6a2fce3362cd7d5de3494298f74ce1e820.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Gagan Classic",
+      "category": "Rice",
+      "description": "Premium quality Gagan Classic packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/a667124b440dc8dbda60a6e6a6b39902bdf280c0c1e08b1f2fbf02a365a38302.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 95.5,
+          "casePrice": 2865.0,
+          "imageUrl": "/catalog-images/real/a667124b440dc8dbda60a6e6a6b39902bdf280c0c1e08b1f2fbf02a365a38302.jpg"
+        },
+        {
+          "unitSize": "1 KG",
+          "unit": "kg",
+          "unitsPerCase": 20,
+          "unitWeightKg": 1.0,
+          "ratePerKg": 99.5,
+          "casePrice": 1990.0,
+          "imageUrl": "/catalog-images/real/5384545e9b77a863445d7e860b611a9017fc3e9705a6024e035688d2a0f5727e.jpg"
+        },
+        {
+          "unitSize": "5 KG",
+          "unit": "kg",
+          "unitsPerCase": 4,
+          "unitWeightKg": 5.0,
+          "ratePerKg": 99.5,
+          "casePrice": 1990.0,
+          "imageUrl": "/catalog-images/real/32f10132475d9334a9348831bdd6581692b2e8c6efe66f06aea4cfadcae95e72.jpg"
+        },
+        {
+          "unitSize": "10 KG",
+          "unit": "kg",
+          "unitsPerCase": 4,
+          "unitWeightKg": 10.0,
+          "ratePerKg": 97.5,
+          "casePrice": 3900.0,
+          "imageUrl": "/catalog-images/real/f682c314a576296a64b08cfda50d2dfad0b4805e65432324652f4fb9289d58f1.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Gagan Excellent",
+      "category": "Rice",
+      "description": "Premium quality Gagan Excellent packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/f200ae837c0369ea38d9144aabf5f6f9509ea1a2c6ec5322e5dac940bc797b91.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 102.0,
+          "casePrice": 3060.0,
+          "imageUrl": "/catalog-images/real/f200ae837c0369ea38d9144aabf5f6f9509ea1a2c6ec5322e5dac940bc797b91.jpg"
+        },
+        {
+          "unitSize": "5 KG",
+          "unit": "kg",
+          "unitsPerCase": 4,
+          "unitWeightKg": 5.0,
+          "ratePerKg": 106.0,
+          "casePrice": 2120.0,
+          "imageUrl": "/catalog-images/real/fb415e8a10496c88d0cab5d1c2bccef15245eaa93fbbbacc9e2fcf78394e7696.jpg"
+        },
+        {
+          "unitSize": "10 KG",
+          "unit": "kg",
+          "unitsPerCase": 4,
+          "unitWeightKg": 10.0,
+          "ratePerKg": 104.0,
+          "casePrice": 4160.0,
+          "imageUrl": "/catalog-images/real/e6a5be6d1aeb00c9feb3e792984f4baed74fcc81f2683d4ec4717e85a5afa893.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Gagan Premium",
+      "category": "Rice",
+      "description": "Premium quality Gagan Premium packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/ba454310e612a4b8b761e28f18afdbf087966e693b76b3f5a301723fbd2afb72.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 126.0,
+          "casePrice": 3780.0,
+          "imageUrl": "/catalog-images/real/ba454310e612a4b8b761e28f18afdbf087966e693b76b3f5a301723fbd2afb72.jpg"
+        },
+        {
+          "unitSize": "5 KG",
+          "unit": "kg",
+          "unitsPerCase": 4,
+          "unitWeightKg": 5.0,
+          "ratePerKg": 130.0,
+          "casePrice": 2600.0,
+          "imageUrl": "/catalog-images/real/ba454310e612a4b8b761e28f18afdbf087966e693b76b3f5a301723fbd2afb72.jpg"
+        },
+        {
+          "unitSize": "1 KG",
+          "unit": "kg",
+          "unitsPerCase": 20,
+          "unitWeightKg": 1.0,
+          "ratePerKg": 130.0,
+          "casePrice": 2600.0,
+          "imageUrl": "/catalog-images/real/ac48b15265e81a4261e9727851db7849bbdddc21e33c7b86a76ebdd90e6e9d27.jpg"
+        },
+        {
+          "unitSize": "10 KG",
+          "unit": "kg",
+          "unitsPerCase": 4,
+          "unitWeightKg": 10.0,
+          "ratePerKg": 128.0,
+          "casePrice": 5120.0,
+          "imageUrl": "/catalog-images/real/ba454310e612a4b8b761e28f18afdbf087966e693b76b3f5a301723fbd2afb72.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Gagan Regular",
+      "category": "Rice",
+      "description": "Premium quality Gagan Regular packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/9431426f81359e45af2a791956b83e82c1f7f05680e441bd484617fd5843707b.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 63.5,
+          "casePrice": 1905.0,
+          "imageUrl": "/catalog-images/real/9431426f81359e45af2a791956b83e82c1f7f05680e441bd484617fd5843707b.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Gagan Rozana",
+      "category": "Rice",
+      "description": "Premium quality Gagan Rozana packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/9160161df7d963295aac224961a4dcfb685dc0cdedc0a39be2a63d15bca731f4.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 89.5,
+          "casePrice": 2685.0,
+          "imageUrl": "/catalog-images/real/9160161df7d963295aac224961a4dcfb685dc0cdedc0a39be2a63d15bca731f4.jpg"
+        },
+        {
+          "unitSize": "1 KG",
+          "unit": "kg",
+          "unitsPerCase": 20,
+          "unitWeightKg": 1.0,
+          "ratePerKg": 93.5,
+          "casePrice": 1870.0,
+          "imageUrl": "/catalog-images/real/2cd971929e1cacecddd274b692af8534da5cf017a222861511a8af45443bad1e.jpg"
+        },
+        {
+          "unitSize": "5 KG",
+          "unit": "kg",
+          "unitsPerCase": 4,
+          "unitWeightKg": 5.0,
+          "ratePerKg": 93.5,
+          "casePrice": 1870.0,
+          "imageUrl": "/catalog-images/real/66427feb81cd4a9cdb2c69f9e096344cf415547f576f6d2973929727bb6ae230.jpg"
+        },
+        {
+          "unitSize": "10 KG",
+          "unit": "kg",
+          "unitsPerCase": 4,
+          "unitWeightKg": 10.0,
+          "ratePerKg": 91.5,
+          "casePrice": 3660.0,
+          "imageUrl": "/catalog-images/real/5276199c619107ea86179da2e297fc290e29f1e6251cd7d3a44a4f9106884fb6.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Gagan Select",
+      "category": "Rice",
+      "description": "Premium quality Gagan Select packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/562de73d616384b084b22bc68f7bd0bcee03c9dd389b8aad78dce3d2cd7c3154.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 72.5,
+          "casePrice": 2175.0,
+          "imageUrl": "/catalog-images/real/562de73d616384b084b22bc68f7bd0bcee03c9dd389b8aad78dce3d2cd7c3154.jpg"
+        },
+        {
+          "unitSize": "1 KG",
+          "unit": "kg",
+          "unitsPerCase": 20,
+          "unitWeightKg": 1.0,
+          "ratePerKg": 76.5,
+          "casePrice": 1530.0,
+          "imageUrl": "/catalog-images/real/6f2c8d8ab5a027d7d9a96b1cd2076aefb49ca2dc44911d84a90e5529fcf750ca.jpg"
+        },
+        {
+          "unitSize": "5 KG",
+          "unit": "kg",
+          "unitsPerCase": 4,
+          "unitWeightKg": 5.0,
+          "ratePerKg": 76.5,
+          "casePrice": 1530.0,
+          "imageUrl": "/catalog-images/real/7fc553f8d04897225035690e6a955e3c17cc5d29f89e470b5ccc4cfec5503312.jpg"
+        },
+        {
+          "unitSize": "10 KG",
+          "unit": "kg",
+          "unitsPerCase": 4,
+          "unitWeightKg": 10.0,
+          "ratePerKg": 74.5,
+          "casePrice": 2980.0,
+          "imageUrl": "/catalog-images/real/a8d791dc48e1de04e289e18a168b7573f75f01f9b59193d6d280af177fc09611.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Gagan Super",
+      "category": "Rice",
+      "description": "Premium quality Gagan Super packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/b333abec0be1339d3a5568003a29a5645ce1566e525233c8069583df7c717e77.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 106.0,
+          "casePrice": 3180.0,
+          "imageUrl": "/catalog-images/real/b333abec0be1339d3a5568003a29a5645ce1566e525233c8069583df7c717e77.jpg"
+        },
+        {
+          "unitSize": "1 KG",
+          "unit": "kg",
+          "unitsPerCase": 20,
+          "unitWeightKg": 1.0,
+          "ratePerKg": 110.0,
+          "casePrice": 2200.0,
+          "imageUrl": "/catalog-images/real/6b5e5c560082615e81ab69edb1045ce7f90a9859121635bd20c9c98ef22dd1e4.jpg"
+        },
+        {
+          "unitSize": "5 KG",
+          "unit": "kg",
+          "unitsPerCase": 4,
+          "unitWeightKg": 5.0,
+          "ratePerKg": 110.0,
+          "casePrice": 2200.0,
+          "imageUrl": "/catalog-images/real/b333abec0be1339d3a5568003a29a5645ce1566e525233c8069583df7c717e77.jpg"
+        },
+        {
+          "unitSize": "10 KG",
+          "unit": "kg",
+          "unitsPerCase": 4,
+          "unitWeightKg": 10.0,
+          "ratePerKg": 108.0,
+          "casePrice": 4320.0,
+          "imageUrl": "/catalog-images/real/b333abec0be1339d3a5568003a29a5645ce1566e525233c8069583df7c717e77.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Gagan Supreme",
+      "category": "Rice",
+      "description": "Premium quality Gagan Supreme packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/5852d46bbfef7e77ecbf1adebdf1cdbbef47497c6e0d557f0dde71df56b6f2a1.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 121.0,
+          "casePrice": 3630.0,
+          "imageUrl": "/catalog-images/real/5852d46bbfef7e77ecbf1adebdf1cdbbef47497c6e0d557f0dde71df56b6f2a1.jpg"
+        },
+        {
+          "unitSize": "5 KG",
+          "unit": "kg",
+          "unitsPerCase": 4,
+          "unitWeightKg": 5.0,
+          "ratePerKg": 125.0,
+          "casePrice": 2500.0,
+          "imageUrl": "/catalog-images/real/3d450edb9dd9c87ccbe85ce183366c594ea5b8af02782cab3b273d1854427b46.jpg"
+        },
+        {
+          "unitSize": "10 KG",
+          "unit": "kg",
+          "unitsPerCase": 4,
+          "unitWeightKg": 10.0,
+          "ratePerKg": 123.0,
+          "casePrice": 4920.0,
+          "imageUrl": "/catalog-images/real/de3389cdcad81d7438de03f4fc7678d389a6ef581b940f602956edd31569390b.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Sehmat G 11",
+      "category": "Rice",
+      "description": "Premium quality Sehmat G 11 packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/de19f250eb9d5c96ba3ae973e5c6f609f7be2901a388cf7ec4bd0ab14ef48a8f.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 93.0,
+          "casePrice": 2790.0,
+          "imageUrl": "/catalog-images/real/de19f250eb9d5c96ba3ae973e5c6f609f7be2901a388cf7ec4bd0ab14ef48a8f.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Sehmat G 21",
+      "category": "Rice",
+      "description": "Premium quality Sehmat G 21 packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/6d206958c53ff8fb010afe096fe2b4b06552e965b3b221b15d8a70877a05534c.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 70.0,
+          "casePrice": 2100.0,
+          "imageUrl": "/catalog-images/real/6d206958c53ff8fb010afe096fe2b4b06552e965b3b221b15d8a70877a05534c.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Sehmat G 31",
+      "category": "Rice",
+      "description": "Premium quality Sehmat G 31 packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/568b4bdca50e981478ef6151ecd95f88ac0d2d312c04687915603852dd305b26.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 59.5,
+          "casePrice": 1785.0,
+          "imageUrl": "/catalog-images/real/568b4bdca50e981478ef6151ecd95f88ac0d2d312c04687915603852dd305b26.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Sehmat G 41",
+      "category": "Rice",
+      "description": "Premium quality Sehmat G 41 packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/b660ebaa5399a7c55f842630ce7ed878911a2aded6338f97d481f92df06a98ae.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 56.5,
+          "casePrice": 1695.0,
+          "imageUrl": "/catalog-images/real/b660ebaa5399a7c55f842630ce7ed878911a2aded6338f97d481f92df06a98ae.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Sehmat G 51",
+      "category": "Rice",
+      "description": "Premium quality Sehmat G 51 packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/f429cca02881590b7b4c639f0136be955b6ff72f6e374ddc2e70bd76042361da.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 43.5,
+          "casePrice": 1305.0,
+          "imageUrl": "/catalog-images/real/f429cca02881590b7b4c639f0136be955b6ff72f6e374ddc2e70bd76042361da.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Sehmat G 61",
+      "category": "Rice",
+      "description": "Premium quality Sehmat G 61 packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/6813b24c7629a6e9c18ad9eba36654c9c0c9ac633af5e3a3ecf992bb69dcad29.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 38.5,
+          "casePrice": 1155.0,
+          "imageUrl": "/catalog-images/real/6813b24c7629a6e9c18ad9eba36654c9c0c9ac633af5e3a3ecf992bb69dcad29.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Gagan Toor Dal",
+      "category": "Daal",
+      "description": "Premium quality Gagan Toor Dal packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/6a41827096499accb29beb4d9dfe78daee0abeb9710099e6077089bf09607b97.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 131.5,
+          "casePrice": 3945.0,
+          "imageUrl": "/catalog-images/real/6a41827096499accb29beb4d9dfe78daee0abeb9710099e6077089bf09607b97.jpg"
+        },
+        {
+          "unitSize": "5 KG",
+          "unit": "kg",
+          "unitsPerCase": 6,
+          "unitWeightKg": 5.0,
+          "ratePerKg": 135.0,
+          "casePrice": 4050.0,
+          "imageUrl": "/catalog-images/real/0e4bbca5e1e21210f914a589fccdc2d888c060985e1d2e2b2b67108b73504192.jpg"
+        },
+        {
+          "unitSize": "1 KG",
+          "unit": "kg",
+          "unitsPerCase": 30,
+          "unitWeightKg": 1.0,
+          "ratePerKg": 135.5,
+          "casePrice": 4065.0,
+          "imageUrl": "/catalog-images/real/9c31a2091770a1c75ef53d180ed7426fcf79b7cca832973c888ae5915bb761a9.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Laxmi LPP Toor Dal",
+      "category": "Daal",
+      "description": "Premium quality Laxmi LPP Toor Dal packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/47c6b982b6a1218c6ddb266333ce677950ff1bca15fb740fe6db107f610ab406.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 139.0,
+          "casePrice": 4170.0,
+          "imageUrl": "/catalog-images/real/47c6b982b6a1218c6ddb266333ce677950ff1bca15fb740fe6db107f610ab406.jpg"
+        },
+        {
+          "unitSize": "1 KG",
+          "unit": "kg",
+          "unitsPerCase": 30,
+          "unitWeightKg": 1.0,
+          "ratePerKg": 143.0,
+          "casePrice": 4290.0,
+          "imageUrl": "/catalog-images/real/915fbc612b0b708b9b729583ed176d0b1eda61b982ff3412adeef4a490b3b6a8.jpg"
+        },
+        {
+          "unitSize": "5 KG",
+          "unit": "kg",
+          "unitsPerCase": 10,
+          "unitWeightKg": 5.0,
+          "ratePerKg": 143.0,
+          "casePrice": 7150.0,
+          "imageUrl": "/catalog-images/real/47c6b982b6a1218c6ddb266333ce677950ff1bca15fb740fe6db107f610ab406.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Sehmat Gold Poha",
+      "category": "Breakfast",
+      "description": "Premium quality Sehmat Gold Poha packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/f6860bdd651fdb8af3479af70abb9dc5002f190d864c1d234127126e02f80112.jpg",
+      "variants": [
+        {
+          "unitSize": "35 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 35.0,
+          "ratePerKg": 57.5,
+          "casePrice": 2012.5,
+          "imageUrl": "/catalog-images/real/f6860bdd651fdb8af3479af70abb9dc5002f190d864c1d234127126e02f80112.jpg"
+        },
+        {
+          "unitSize": "1 KG",
+          "unit": "kg",
+          "unitsPerCase": 30,
+          "unitWeightKg": 1.0,
+          "ratePerKg": 61.5,
+          "casePrice": 1845.0,
+          "imageUrl": "/catalog-images/real/f6860bdd651fdb8af3479af70abb9dc5002f190d864c1d234127126e02f80112.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 60,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 62.5,
+          "casePrice": 1875.0,
+          "imageUrl": "/catalog-images/real/45eabfdce8b7cf4b20634fa0f25cf87131924822728fed0d0b6009ed62a9f7cc.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Sehmat Poha",
+      "category": "Breakfast",
+      "description": "Premium quality Sehmat Poha packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/e5665b9329870f9a8717c348600a79a6c8cec024ee204d9ee00e2f1d6f64dbac.jpg",
+      "variants": [
+        {
+          "unitSize": "1 KG",
+          "unit": "kg",
+          "unitsPerCase": 30,
+          "unitWeightKg": 1.0,
+          "ratePerKg": 56.0,
+          "casePrice": 1680.0,
+          "imageUrl": "/catalog-images/real/e5665b9329870f9a8717c348600a79a6c8cec024ee204d9ee00e2f1d6f64dbac.jpg"
+        },
+        {
+          "unitSize": "35 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 35.0,
+          "ratePerKg": 52.0,
+          "casePrice": 1820.0,
+          "imageUrl": "/catalog-images/real/e5665b9329870f9a8717c348600a79a6c8cec024ee204d9ee00e2f1d6f64dbac.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 60,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 57.0,
+          "casePrice": 1710.0,
+          "imageUrl": "/catalog-images/real/e5665b9329870f9a8717c348600a79a6c8cec024ee204d9ee00e2f1d6f64dbac.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Sehmat Sabudana",
+      "category": "Breakfast",
+      "description": "Premium quality Sehmat Sabudana packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/bdb0c714b53031a5713393da605846d8c5a2f1586d67428667c73839d0dc1cb1.jpg",
+      "variants": [
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 60,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 82.6,
+          "casePrice": 2478.0,
+          "imageUrl": "/catalog-images/real/bdb0c714b53031a5713393da605846d8c5a2f1586d67428667c73839d0dc1cb1.jpg"
+        },
+        {
+          "unitSize": "1 KG",
+          "unit": "kg",
+          "unitsPerCase": 30,
+          "unitWeightKg": 1.0,
+          "ratePerKg": 82.0,
+          "casePrice": 2460.0,
+          "imageUrl": "/catalog-images/real/194ea2534b58dfb4f2b19b9d5c3a525ba90d7ebff2f5a230fb5bd9cccf45ad97.jpg"
+        },
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 78.0,
+          "casePrice": 2340.0,
+          "imageUrl": "/catalog-images/real/e31a28a29799bb1c161fe12f15b39e88a46de7c17badc144b223b8c2039c4934.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Neel Gagan Chana Dal",
+      "category": "Daal",
+      "description": "Premium quality Neel Gagan Chana Dal packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/e2fe23c7040a0dde1f9eac5e28788b4469ee9a907b7f56f87a54f9ad1dee6daa.jpg",
+      "variants": [
+        {
+          "unitSize": "1 KG",
+          "unit": "kg",
+          "unitsPerCase": 30,
+          "unitWeightKg": 1.0,
+          "ratePerKg": 101.0,
+          "casePrice": 3030.0,
+          "imageUrl": "/catalog-images/real/e2fe23c7040a0dde1f9eac5e28788b4469ee9a907b7f56f87a54f9ad1dee6daa.jpg"
+        },
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 97.0,
+          "casePrice": 2910.0,
+          "imageUrl": "/catalog-images/real/f37c4388f7b9f9504465fb10fdb80cc0a5cda791edb4d0ac055e07d2da2d3f89.jpg"
+        },
+        {
+          "unitSize": "1 KG",
+          "unit": "kg",
+          "unitsPerCase": 10,
+          "unitWeightKg": 1.0,
+          "ratePerKg": 101.0,
+          "casePrice": 1010.0,
+          "imageUrl": "/catalog-images/real/a2e1eda543dac53bdc28cba4923a8e921dd8e358a7e68e4c8ee3c3ffe7eca8ab.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Neel Gagan Masoor Dal",
+      "category": "Daal",
+      "description": "Premium quality Neel Gagan Masoor Dal packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/9116b615447e3932b3749ace2c4db8ac77ca6a98382546db989e64776891a15a.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 86.0,
+          "casePrice": 2580.0,
+          "imageUrl": "/catalog-images/real/9116b615447e3932b3749ace2c4db8ac77ca6a98382546db989e64776891a15a.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 60,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 93.5,
+          "casePrice": 2805.0,
+          "imageUrl": "/catalog-images/real/27bd998d310536154a1198575554caeb7d36909feb81d550aeb3c25ffb3a0b14.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 20,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 93.5,
+          "casePrice": 935.0,
+          "imageUrl": "/catalog-images/real/f38f2d5b6bf7e83c53e2d80c8f12de4601b53bed50d2e1cdd4073b477862aa22.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Neel Gagan Moong Chilka",
+      "category": "Daal",
+      "description": "Premium quality Neel Gagan Moong Chilka packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/7be120a2436e0c5443db6e0577364b89af20440707acbc262807fd5ce0dba5ad.jpg",
+      "variants": [
+        {
+          "unitSize": "1 KG",
+          "unit": "kg",
+          "unitsPerCase": 30,
+          "unitWeightKg": 1.0,
+          "ratePerKg": 109.0,
+          "casePrice": 3270.0,
+          "imageUrl": "/catalog-images/real/7be120a2436e0c5443db6e0577364b89af20440707acbc262807fd5ce0dba5ad.jpg"
+        },
+        {
+          "unitSize": "1 KG",
+          "unit": "kg",
+          "unitsPerCase": 10,
+          "unitWeightKg": 1.0,
+          "ratePerKg": 109.0,
+          "casePrice": 1090.0,
+          "imageUrl": "/catalog-images/real/1c0513775d214034371c8a805f84f9e70fe14ff6f9a22dc8e10286e7b6180db5.jpg"
+        },
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 105.0,
+          "casePrice": 3150.0,
+          "imageUrl": "/catalog-images/real/e1c3acce4d0e4e4bcf313adf455a1a532f1e8d7cf2bceae025b7c562ca89a875.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Neel Gagan Moong Mogar",
+      "category": "Daal",
+      "description": "Premium quality Neel Gagan Moong Mogar packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/e7b7e9d68e498933ae261b7b1a96eea25929f7ca82fd2994d82465ed76ed1888.jpg",
+      "variants": [
+        {
+          "unitSize": "1 KG",
+          "unit": "kg",
+          "unitsPerCase": 30,
+          "unitWeightKg": 1.0,
+          "ratePerKg": 124.0,
+          "casePrice": 3720.0,
+          "imageUrl": "/catalog-images/real/e7b7e9d68e498933ae261b7b1a96eea25929f7ca82fd2994d82465ed76ed1888.jpg"
+        },
+        {
+          "unitSize": "1 KG",
+          "unit": "kg",
+          "unitsPerCase": 10,
+          "unitWeightKg": 1.0,
+          "ratePerKg": 124.0,
+          "casePrice": 1240.0,
+          "imageUrl": "/catalog-images/real/e7b7e9d68e498933ae261b7b1a96eea25929f7ca82fd2994d82465ed76ed1888.jpg"
+        },
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 120.0,
+          "casePrice": 3600.0,
+          "imageUrl": "/catalog-images/real/e7b7e9d68e498933ae261b7b1a96eea25929f7ca82fd2994d82465ed76ed1888.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Neel Gagan Urad Chilka",
+      "category": "Daal",
+      "description": "Premium quality Neel Gagan Urad Chilka packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/17ec761e26a7b2dd77e063a9b73469483d239a3fc01b3bfc549cefa352b56fd5.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 124.0,
+          "casePrice": 3720.0,
+          "imageUrl": "/catalog-images/real/17ec761e26a7b2dd77e063a9b73469483d239a3fc01b3bfc549cefa352b56fd5.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 60,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 128.5,
+          "casePrice": 3855.0,
+          "imageUrl": "/catalog-images/real/2040a65ae112a76240b46c17d25e901a3c2bc8bbfdde6b1c6f2bcbf86ea0bffe.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 20,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 128.5,
+          "casePrice": 1285.0,
+          "imageUrl": "/catalog-images/real/0b0400883e8aa4ba6de01fc31bd61f3d9c927ddfb73bc4f207ee8261fe90ea60.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Neel Gagan Urad Mogar",
+      "category": "Daal",
+      "description": "Premium quality Neel Gagan Urad Mogar packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/0a8307b2c0031235850351e866cdec67d8089e3117b3e51861d1bae82e3ab669.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 142.0,
+          "casePrice": 4260.0,
+          "imageUrl": "/catalog-images/real/0a8307b2c0031235850351e866cdec67d8089e3117b3e51861d1bae82e3ab669.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 60,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 146.5,
+          "casePrice": 4395.0,
+          "imageUrl": "/catalog-images/real/e326ef4b062adb7b6bcc6f8c0d9d020c89b7d42e40d009c1696b0e099d2ced10.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 20,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 146.5,
+          "casePrice": 1465.0,
+          "imageUrl": "/catalog-images/real/680ea6d6c0a89653cb0d4bbadd6a88706c451a8fd18868c6e27c902d30c64d44.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Neel Gagan Chawali",
+      "category": "Daal",
+      "description": "Premium quality Neel Gagan Chawali packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/6ebd153a78f9777065491a58a8b5ac75baf07319f2fd1389d0556f4c2f213566.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 99.0,
+          "casePrice": 2970.0,
+          "imageUrl": "/catalog-images/real/6ebd153a78f9777065491a58a8b5ac75baf07319f2fd1389d0556f4c2f213566.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 60,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 103.5,
+          "casePrice": 3105.0,
+          "imageUrl": "/catalog-images/real/6ebd153a78f9777065491a58a8b5ac75baf07319f2fd1389d0556f4c2f213566.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 20,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 103.5,
+          "casePrice": 1035.0,
+          "imageUrl": "/catalog-images/real/7e4b829737c7ff0177bb72d66b4a26fecacd9c05b4eeeb452c7d4cf7668b8e46.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Neel Gagan Kabuli Chana",
+      "category": "Daal",
+      "description": "Premium quality Neel Gagan Kabuli Chana packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/e286b520df0de2692f1d71691d5f13859d347fa920f87f3574df7c812c575a5d.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 107.0,
+          "casePrice": 3210.0,
+          "imageUrl": "/catalog-images/real/e286b520df0de2692f1d71691d5f13859d347fa920f87f3574df7c812c575a5d.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 60,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 111.5,
+          "casePrice": 3345.0,
+          "imageUrl": "/catalog-images/real/a19e7e942ed062cd56192d9e467e5f5615aab4578693274f7b81efbf24fb4f61.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 20,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 111.5,
+          "casePrice": 1115.0,
+          "imageUrl": "/catalog-images/real/9f517f5e06b12883efbb33d1e2192e143d19b5db155573cbf0c4539cc9601097.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Neel Gagan Masoor Whole",
+      "category": "Daal",
+      "description": "Premium quality Neel Gagan Masoor Whole packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/6010fa8e5743e2dd2fca1103434eb6674eb9bca5787b9ec7e0daf66013badfbd.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 81.0,
+          "casePrice": 2430.0,
+          "imageUrl": "/catalog-images/real/6010fa8e5743e2dd2fca1103434eb6674eb9bca5787b9ec7e0daf66013badfbd.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 60,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 85.5,
+          "casePrice": 2565.0,
+          "imageUrl": "/catalog-images/real/f00f4d4bb554801e6eb3aef5854d7670ebe84210a42a2801d619eca5b057b446.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 20,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 87.0,
+          "casePrice": 870.0,
+          "imageUrl": "/catalog-images/real/e55b88c7e690b2f818dc1538005acd2960a32d4464ab64febc878f902e2cdcdc.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Neel Gagan Moong Whole",
+      "category": "Daal",
+      "description": "Premium quality Neel Gagan Moong Whole packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/7cffa46a3cec5bba30e45fd02cfc5a45a1c6f4fa7120bed1f3cce7303e315ce0.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 108.0,
+          "casePrice": 3240.0,
+          "imageUrl": "/catalog-images/real/7cffa46a3cec5bba30e45fd02cfc5a45a1c6f4fa7120bed1f3cce7303e315ce0.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 60,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 112.5,
+          "casePrice": 3375.0,
+          "imageUrl": "/catalog-images/real/5f437d090adde8bdc51c65fb9c94752b2f19aa45a60c537389e63e4e96ac8f6a.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 20,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 112.5,
+          "casePrice": 1125.0,
+          "imageUrl": "/catalog-images/real/c7e7409800cfd7478ca5b440a2d14a2f44b7460694f84bfa3bfd85c1cc27cd23.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Neel Gagan Moth",
+      "category": "Daal",
+      "description": "Premium quality Neel Gagan Moth packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/e07b690239af24ab3366632ce47d47d69d0e761984a8ce9d0a9bae3abd9ef2db.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 98.0,
+          "casePrice": 2940.0,
+          "imageUrl": "/catalog-images/real/e07b690239af24ab3366632ce47d47d69d0e761984a8ce9d0a9bae3abd9ef2db.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 60,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 102.5,
+          "casePrice": 3075.0,
+          "imageUrl": "/catalog-images/real/e6b3a1db092de8897ae66185c99e9908fa4d21ff9c786f04c2b55719578edcff.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 20,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 102.5,
+          "casePrice": 1025.0,
+          "imageUrl": "/catalog-images/real/8eb6927c2d12ecc7e108366787ec83e8555a359ac4dbc466c0b40362dedd2c8b.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Neel Gagan Rajma Chitra",
+      "category": "Daal",
+      "description": "Premium quality Neel Gagan Rajma Chitra packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/fc7b151e5e427e6bed2fa2c5b603c9aa6f6c4fc349848b83e2e043a531590b0d.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 134.0,
+          "casePrice": 4020.0,
+          "imageUrl": "/catalog-images/real/fc7b151e5e427e6bed2fa2c5b603c9aa6f6c4fc349848b83e2e043a531590b0d.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 60,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 138.5,
+          "casePrice": 4155.0,
+          "imageUrl": "/catalog-images/real/ecca51fc7db600b244f642c03a0d28ffb02b40f0513cc12e3fba46402fa4ec16.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 20,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 138.5,
+          "casePrice": 1385.0,
+          "imageUrl": "/catalog-images/real/0d6ee8ae7ce4c66b7dde886989f7fb274af4081b5f06bc19b9934d74a728b691.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Neel Gagan Rajma Kashmiri",
+      "category": "Daal",
+      "description": "Premium quality Neel Gagan Rajma Kashmiri packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/807e8ceb38a85431cef557c7cc131cfb0e20b02ab0fd7ab54c1eea12634e1ac8.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 142.0,
+          "casePrice": 4260.0,
+          "imageUrl": "/catalog-images/real/807e8ceb38a85431cef557c7cc131cfb0e20b02ab0fd7ab54c1eea12634e1ac8.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 60,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 146.5,
+          "casePrice": 4395.0,
+          "imageUrl": "/catalog-images/real/d6e3080a8d0cd0e1083ee075014b78f16ad75968bb3bdd6fe298dbd7524f6d66.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 20,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 146.5,
+          "casePrice": 1465.0,
+          "imageUrl": "/catalog-images/real/25a7a74513b8757b00911c1ffe89eaafbc73a3bda0df034bfde33f576ecd7c7a.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Neel Gagan Red Chana",
+      "category": "Daal",
+      "description": "Premium quality Neel Gagan Red Chana packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/fd2a21905018938355fa25eb46c78fa771af2e92f0971c4e56189561cce7b24b.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 94.0,
+          "casePrice": 2820.0,
+          "imageUrl": "/catalog-images/real/fd2a21905018938355fa25eb46c78fa771af2e92f0971c4e56189561cce7b24b.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 60,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 98.5,
+          "casePrice": 2955.0,
+          "imageUrl": "/catalog-images/real/907505f5f07be16d097b437af10ac8a046b8f656fcfb38f03d05a6e27633436a.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 20,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 98.5,
+          "casePrice": 985.0,
+          "imageUrl": "/catalog-images/real/4bcef6423115851a638c141e9bd93fce632a304d757162366194592b59a3bbcd.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Neel Gagan Urad Whole",
+      "category": "Daal",
+      "description": "Premium quality Neel Gagan Urad Whole packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/0a8307b2c0031235850351e866cdec67d8089e3117b3e51861d1bae82e3ab669.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 125.0,
+          "casePrice": 3750.0,
+          "imageUrl": "/catalog-images/real/0a8307b2c0031235850351e866cdec67d8089e3117b3e51861d1bae82e3ab669.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 60,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 129.5,
+          "casePrice": 3885.0,
+          "imageUrl": "/catalog-images/real/0a8307b2c0031235850351e866cdec67d8089e3117b3e51861d1bae82e3ab669.jpg"
+        },
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 20,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 129.5,
+          "casePrice": 1295.0,
+          "imageUrl": "/catalog-images/real/0a8307b2c0031235850351e866cdec67d8089e3117b3e51861d1bae82e3ab669.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Gagan Lite Chana Dal 30 Kg",
+      "category": "Daal",
+      "description": "Premium quality Gagan Lite Chana Dal 30 Kg packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/5142dbc86fef7844410565e2de5fbd59bc90751c634c243a5e5d653781f62cb1.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 88.0,
+          "casePrice": 2640.0,
+          "imageUrl": "/catalog-images/real/5142dbc86fef7844410565e2de5fbd59bc90751c634c243a5e5d653781f62cb1.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Gagan Lite Moong Chilka 30 Kg",
+      "category": "Daal",
+      "description": "Premium quality Gagan Lite Moong Chilka 30 Kg packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/73c08c829a9fa6a347e548cd39e7ee279f0cdc32571cabdf1dfa35062b29dce6.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 90.0,
+          "casePrice": 2700.0,
+          "imageUrl": "/catalog-images/real/73c08c829a9fa6a347e548cd39e7ee279f0cdc32571cabdf1dfa35062b29dce6.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Gagan Lite Moong Mogar 30 Kg",
+      "category": "Daal",
+      "description": "Premium quality Gagan Lite Moong Mogar 30 Kg packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/4d7f7f212ee8e5630b0b5554e485d3d14c6d87a5676c447f95852f2c164b5c5f.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 106.0,
+          "casePrice": 3180.0,
+          "imageUrl": "/catalog-images/real/4d7f7f212ee8e5630b0b5554e485d3d14c6d87a5676c447f95852f2c164b5c5f.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Gagan Lite Urad Mogar 30 Kg",
+      "category": "Daal",
+      "description": "Premium quality Gagan Lite Urad Mogar 30 Kg packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/e66d43225b783f94417cdbea41719e6561bac4bb04b8095ab7e98bea3d9a2f1d.jpg",
+      "variants": [
+        {
+          "unitSize": "30 KG",
+          "unit": "kg",
+          "unitsPerCase": 1,
+          "unitWeightKg": 30.0,
+          "ratePerKg": 131.0,
+          "casePrice": 3930.0,
+          "imageUrl": "/catalog-images/real/e66d43225b783f94417cdbea41719e6561bac4bb04b8095ab7e98bea3d9a2f1d.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Sehmat Dahi Vada",
+      "category": "Breakfast",
+      "description": "Premium quality Sehmat Dahi Vada packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/24819208c37690e1f89f76027f035d250653522b00e9e0c0ae9cc6303abff43a.jpg",
+      "variants": [
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 60,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 160.0,
+          "casePrice": 4800.0,
+          "imageUrl": "/catalog-images/real/24819208c37690e1f89f76027f035d250653522b00e9e0c0ae9cc6303abff43a.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Sehmat Dosa",
+      "category": "Breakfast",
+      "description": "Premium quality Sehmat Dosa packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/6cc465117077ec7230914f7fd55945c42fb3852ac914ff47dbb421612c20e679.jpg",
+      "variants": [
+        {
+          "unitSize": "400 GM",
+          "unit": "kg",
+          "unitsPerCase": 75,
+          "unitWeightKg": 0.4,
+          "ratePerKg": 123.0,
+          "casePrice": 3690.0,
+          "imageUrl": "/catalog-images/real/6cc465117077ec7230914f7fd55945c42fb3852ac914ff47dbb421612c20e679.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Sehmat Idli",
+      "category": "Breakfast",
+      "description": "Premium quality Sehmat Idli packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/414f571010614e17a37e56f7b1e1369f081a33489c1bdf092e37da3b35b957e7.jpg",
+      "variants": [
+        {
+          "unitSize": "400 GM",
+          "unit": "kg",
+          "unitsPerCase": 75,
+          "unitWeightKg": 0.4,
+          "ratePerKg": 127.0,
+          "casePrice": 3810.0,
+          "imageUrl": "/catalog-images/real/414f571010614e17a37e56f7b1e1369f081a33489c1bdf092e37da3b35b957e7.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Sehmat Khaman",
+      "category": "Breakfast",
+      "description": "Premium quality Sehmat Khaman packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/8bad6ed3fc837ee549b59bd5f3a50787becb019a0c545d4c2824d94e10be1f24.jpg",
+      "variants": [
+        {
+          "unitSize": "400 GM",
+          "unit": "kg",
+          "unitsPerCase": 75,
+          "unitWeightKg": 0.4,
+          "ratePerKg": 145.0,
+          "casePrice": 4350.0,
+          "imageUrl": "/catalog-images/real/8bad6ed3fc837ee549b59bd5f3a50787becb019a0c545d4c2824d94e10be1f24.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Sehmat Moong Bhajiya",
+      "category": "Breakfast",
+      "description": "Premium quality Sehmat Moong Bhajiya packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/a343893ab6ef05ca8f035487f501a27e118264796c7626e71166c49ed210e2e8.jpg",
+      "variants": [
+        {
+          "unitSize": "500 GM",
+          "unit": "kg",
+          "unitsPerCase": 60,
+          "unitWeightKg": 0.5,
+          "ratePerKg": 164.0,
+          "casePrice": 4920.0,
+          "imageUrl": "/catalog-images/real/a343893ab6ef05ca8f035487f501a27e118264796c7626e71166c49ed210e2e8.jpg"
+        }
+      ]
+    },
+    {
+      "name": "Sehmat Uttapam",
+      "category": "Breakfast",
+      "description": "Premium quality Sehmat Uttapam packaged for fresh grocery retail and commercial bulk kitchens.",
+      "imageUrl": "/catalog-images/real/6eb1709651c3c1e0ae35b7095c1744c04a13ebe400d477c5aed4b8d006935035.jpg",
+      "variants": [
+        {
+          "unitSize": "400 GM",
+          "unit": "kg",
+          "unitsPerCase": 75,
+          "unitWeightKg": 0.4,
+          "ratePerKg": 116.0,
+          "casePrice": 3480.0,
+          "imageUrl": "/catalog-images/real/6eb1709651c3c1e0ae35b7095c1744c04a13ebe400d477c5aed4b8d006935035.jpg"
+        }
+      ]
+    }
+  ],
+  "retailers": [
+    {
+      "name": "JAIN KIRANA MALVIYA NAGAR INDORE",
+      "phone": "9424007765",
+      "shopAddress": "111/2 MALVIYA NAGAR KHATU SHYAM MANDIR KE PASS--",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "A.K. TRADERS PATNIPURA INDORE",
+      "phone": "9827012111",
+      "shopAddress": "74/12 Patnipura--",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "HARSH TRADERS VIJAY NAGAR INDORE",
+      "phone": "9753000581",
+      "shopAddress": "1/20 VIJAY NAGAR-KRISHNA DOODH DAIRY WALI GALI HOTEL SAYANI KE SAMN",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "JAINAM TRADERS PATNIPURA INDORE",
+      "phone": "9300775064",
+      "shopAddress": "Patnipura--",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "KISHOR PROVISION STORE NEAR WATER TANK LIG INDORE",
+      "phone": "9827788355",
+      "shopAddress": "LIG-Near water tank",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "NAHAR KIRANA SCHEME NO 74 INDORE",
+      "phone": "9753000110",
+      "shopAddress": "187 DH SCHM NO 74 APOLLO HOSPITAL KE PICHE-POWER HOUSE, VIJAY NAGAR",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "PAWAN G TRADERS MAIN ROAD PATNIPURA INDORE",
+      "phone": "8085631123",
+      "shopAddress": "Patnipura-Main road",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "R.M. SONS SCHEME 78 INDORE",
+      "phone": "8889824698",
+      "shopAddress": "51, DB S/1, SCHEME 78,-VIJAY NAGAR",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "SHIVAM TRADERS PATNIPURA INDORE",
+      "phone": "9584508095",
+      "shopAddress": "Patnipura--",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "VIJAY TRADERS KARASDEV NAGAR INDORE",
+      "phone": "9893601947",
+      "shopAddress": "119 KARASDEV NAGAR-SUKHLIYA MAIN ROAD",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "VIJAYWARGIYA TRADING COMPANY MALWA MILL INDORE",
+      "phone": "9425312693",
+      "shopAddress": "222/12 Patnipura--",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "SAI GENERAL STORE PATNIPURA INDORE",
+      "phone": "7000218215",
+      "shopAddress": "139 Nanda Nagar Patnipura--",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "SHRI JAIN KIRANA & DEPARTMENT STORE VIJAY NAGAR INDORE",
+      "phone": "8889107882",
+      "shopAddress": "VIJAY NAGAR GOLD JYM WALI GALI ME VIJAY NAGAR GATE--",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "KUSHWHA TRADERS PATNIPURA INDORE",
+      "phone": "9826652202",
+      "shopAddress": "PATNIPURA SQUARE--",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "SAHU KIRANA LIG INDORE",
+      "phone": "7869995725",
+      "shopAddress": "(MIG THANA)-KISHORE KIRANA K PAS",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "OSWAL FOOD VENTURE SCHEME NO. 54 INDORE",
+      "phone": "9826003131",
+      "shopAddress": "F/H-228, SCHEME NO. 54, VIJAY NAGAR,--",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "NAMITA TRADERS 78 ROAD VIJAY NAGAR INDORE",
+      "phone": "9754018472",
+      "shopAddress": "78 ROAD, VIJAY NAGAR--",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "N.N TRADERS NEHRU NAGAR INDORE",
+      "phone": "9926771113",
+      "shopAddress": "NEHRU NAGAR PATNIPURA--",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "SHRI RADHE KRISHNA KIRANA BHAGYA SHRI COLONY INDORE",
+      "phone": "9713400501",
+      "shopAddress": "BHAGYA SHRI COLONY VIJAY NAGAR--",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "SUN FOOD RESTURANT VIJAY NAGAR INDORE",
+      "phone": "9755547070",
+      "shopAddress": "VIJAY NAGAR MARRIOTT HOTEL KE SAMNE--",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "AAYUSH KIRANA MALWAMILL RAJARAM DHABA INDORE",
+      "phone": "9826067311",
+      "shopAddress": "MALWAMILL RAJARAM DHABE KE PASSKE WALIGALI ME-HANUMAN MANDIR KE SAMNE",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "NIDHI KIRANA VIJAY NAGAR INDORE",
+      "phone": "9752176433",
+      "shopAddress": "VIJAY NAGAR HOTEL SAYAJI KE SAMNE-KRISHNA DOODH DAIRY WALI GALI",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "SWASTIK MART KALANDI GOLD INDORE",
+      "phone": "9993910204",
+      "shopAddress": "NEW VIJAY NAGAR SQR KALANDI GOLD--",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "GUPTA TRADERS VIJAY NAGAR INDORE",
+      "phone": "9425350387",
+      "shopAddress": "VIJAY NAGAR NIDHI KIRANA KE SAMNE--",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "SAI KRIPA KIRANA VIJAY NAGAR INDORE",
+      "phone": "8319617395",
+      "shopAddress": "VIJAY NAGAR--",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "JAISWAL KIRANA KRISAN BAGH COLONY INDORE",
+      "phone": "9303635573",
+      "shopAddress": "109, KRISAN BAGH COLONY BARFANI DHAM KE PEECHE--",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "SHIDDESWAR KIRANA LIG COLONY INDORE",
+      "phone": "9826035554",
+      "shopAddress": "26 LIG COLONY UNNATY KIDS SCHOOL KE SAMNE PANI KI--",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "JAISWAL KIRANA PATNIPURA INDORE",
+      "phone": "9425347317",
+      "shopAddress": "397/1, BAKRI GALI, PATNIPURA, MAHADEV MANDIR KE PA--",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "GAYATRI TRADERS PATNIPURA INDORE",
+      "phone": "9826055569",
+      "shopAddress": "202/12 , PATNIPURA MAIN ROAD (NEAR BHERAV--",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    },
+    {
+      "name": "VEER KIRANA SCHEME NO. 78 INDORE",
+      "phone": "9752522816",
+      "shopAddress": "SCHEME NO. 78 CHINMAY SHARAN WALI GALI ME--",
+      "salespersonRef": "SALES-001",
+      "deliveryCity": "Indore"
+    }
+  ]
+}

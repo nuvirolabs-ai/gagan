@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { checkoutCommercialReference, openCreatedOrder } from "./sellingFlow";
-import { Alert, AppState, AppStateStatus, ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, AppState, AppStateStatus, ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
 import { ApiError, repApi } from "../api/repClient";
@@ -13,6 +13,8 @@ import { canSubmitQuote, classifyQuoteRefresh } from "../lib/commercialQuoteStat
 import { catalogGroups } from "../lib/catalogSelection";
 import { colors, inr, spacing } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
+import { friendlyErrorMessage } from "../lib/friendlyErrors";
+import { evaluateCoupon, type CouponDefinition } from "../lib/couponEngine";
 
 /**
  * The explicit review checkpoint for salesperson orders. Pricing, GST,
@@ -34,6 +36,10 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
   const [refreshingQuote, setRefreshingQuote] = useState(false);
   const [rateApprovalSubmitting, setRateApprovalSubmitting] = useState(false);
   const [placing, setPlacing] = useState(false);
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<CouponDefinition | null>(null);
+  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [couponError, setCouponError] = useState("");
   const quoteRef = useRef<any>(null);
   const refreshInFlight = useRef(false);
   const checkoutKey = useRef<string | null>(null);
@@ -58,6 +64,42 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
   const displayTotal = proposalDemandMode
     ? displayLines.reduce((total: number, line: any) => total + line.unitPrice * line.qty, 0)
     : cartTotal;
+  const quoteTotal = quote ? Number(quote.snapshot?.total) : undefined;
+  const rawTotal = quoteTotal ?? displayTotal;
+  const finalTotal = Math.max(0, rawTotal - couponDiscount);
+
+  const applyCouponCode = () => {
+    setCouponError("");
+    const trimmed = couponInput.trim();
+    if (!trimmed) return;
+    const res = evaluateCoupon(trimmed, rawTotal);
+    if (!res.valid) {
+      setCouponError(res.friendlyMessage || "Invalid coupon code");
+      return;
+    }
+    setAppliedCoupon(res.coupon!);
+    setCouponDiscount(res.discountAmount);
+    setCouponError("");
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponDiscount(0);
+    setCouponInput("");
+    setCouponError("");
+  };
+
+  useEffect(() => {
+    if (appliedCoupon) {
+      const res = evaluateCoupon(appliedCoupon.code, rawTotal);
+      if (res.valid) {
+        setCouponDiscount(res.discountAmount);
+      } else {
+        removeCoupon();
+      }
+    }
+  }, [rawTotal, appliedCoupon?.code]);
+
   const demandPricesReady = !proposalDemandMode || displayLines.every((line: any) => Number.isFinite(line.unitPrice) && line.unitPrice > 0);
   const basket = JSON.stringify(activeLines.map((line: any) => ({ variantId: line.variantId, qty: line.qty })));
   const basketRef = useRef(basket);
@@ -131,7 +173,7 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
     const currentQuote = quoteRef.current;
     if (!currentQuote || refreshInFlight.current) return "noop";
     refreshInFlight.current = true;
-    setRefreshingQuote(true);
+    if (!silent) setRefreshingQuote(true);
     try {
       const result = await repApi.refreshCommercialQuote(currentQuote.id);
       if (quoteRef.current?.id !== currentQuote.id) return "stale";
@@ -154,22 +196,22 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
       return "failed";
     } finally {
       refreshInFlight.current = false;
-      setRefreshingQuote(false);
+      if (!silent) setRefreshingQuote(false);
     }
   }, [applyQuote, proposalDemandMode, requestQuote]);
 
   useFocusEffect(useCallback(() => {
-    if (quote) void refreshQuote({ silent: true });
-  }, [quote, refreshQuote]));
+    if (quoteRef.current) void refreshQuote({ silent: true });
+  }, [refreshQuote]));
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
       const wasAway = appState.current === "background" || appState.current === "inactive";
       appState.current = nextState;
-      if (wasAway && nextState === "active" && quote) void refreshQuote({ silent: true });
+      if (wasAway && nextState === "active" && quoteRef.current) void refreshQuote({ silent: true });
     });
     return () => subscription.remove();
-  }, [quote, refreshQuote]);
+  }, [refreshQuote]);
 
   const sendRateForApproval = useCallback(async () => {
     if (!quote?.id || rateApprovalSubmitting) return;
@@ -211,6 +253,7 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
           activeLines.map((line: any) => ({ variantId: line.variantId, qty: line.qty })),
           checkoutKey.current,
           checkoutCommercialReference(quote),
+          appliedCoupon?.code,
         );
       }
       if (!result.order?.id) throw new Error("order_response_missing_id");
@@ -229,14 +272,15 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
       } else if (error instanceof ApiError && (error.status === 402 || error.body?.error === "credit_blocked")) {
         Alert.alert("Order needs review", `Please review ${retailerName}'s outstanding dues and commercial eligibility before placing this order.`);
       } else {
-        Alert.alert(t("errors.generic"), error instanceof ApiError ? error.message : t("errors.generic"));
+        const friendly = friendlyErrorMessage(error, "en");
+        Alert.alert(friendly.title, friendly.message);
       }
       if (error instanceof ApiError && error.status >= 400 && error.status < 500 && error.body?.error !== "idempotency_key_conflict") checkoutKey.current = null;
     } finally {
       submitLock.current = false;
       setPlacing(false);
     }
-  }, [activeLines, clearCart, intentId, navigation, proposalDemandMode, proposalIntent, quote, quoteError, quoteReady, refreshQuote, retailerId, retailerName, t, placing]);
+  }, [activeLines, appliedCoupon, clearCart, intentId, navigation, proposalDemandMode, proposalIntent, quote, quoteError, quoteReady, refreshQuote, retailerId, retailerName, t, placing]);
 
   if (proposalDemandMode && intentLoading) {
     return <AppScreen><View style={styles.empty}><ActivityIndicator color={colors.blue} /></View></AppScreen>;
@@ -263,7 +307,7 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
           <Text style={styles.kicker}>REVIEW ORDER</Text>
           <Text style={styles.title}>{retailerName ?? "Retailer"}</Text>
           <Text style={styles.muted}>{proposalDemandMode
-            ? "This demand was punched before retailer approval. Confirm the current tier pricing and continue through the normal order checks."
+            ? "This demand was punched before retailer approval. Confirm the current pricing and continue through the normal order checks."
             : "Check quantities and the manager-confirmed commercial quote before placing."}</Text>
         </View>
 
@@ -299,9 +343,78 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
           {quote ? <TouchableOpacity accessibilityRole="button" style={styles.rateButton} disabled={rateApprovalSubmitting || !!quote.acceptedAt} onPress={() => void sendRateForApproval()}><Text style={styles.rateButtonText}>{rateApprovalSubmitting ? "Sending…" : "Send rate for approval"}</Text></TouchableOpacity> : null}
         </Surface>
 
+        <Surface style={styles.couponSurface}>
+          <SectionHeader title="Coupon Discount" subtitle="Apply a retailer discount voucher" />
+          {appliedCoupon ? (
+            <View style={styles.couponAppliedRow}>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={styles.couponAppliedCode}>{appliedCoupon.code}</Text>
+                  <Text style={styles.couponAppliedBadge}>APPLIED</Text>
+                </View>
+                <Text style={styles.couponAppliedDesc}>{appliedCoupon.description}</Text>
+              </View>
+              <TouchableOpacity onPress={removeCoupon} style={styles.removeCouponBtn}>
+                <Text style={styles.removeCouponText}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View>
+              <View style={styles.couponInputRow}>
+                <TextInput
+                  style={styles.couponInput}
+                  placeholder="Enter code (e.g. WELCOME500)"
+                  placeholderTextColor={colors.inkMuted}
+                  value={couponInput}
+                  onChangeText={(val) => {
+                    setCouponInput(val.toUpperCase());
+                    if (couponError) setCouponError("");
+                  }}
+                  autoCapitalize="characters"
+                  editable={!placing}
+                />
+                <TouchableOpacity
+                  style={[styles.applyBtn, !couponInput.trim() && styles.applyBtnDisabled]}
+                  disabled={!couponInput.trim() || placing}
+                  onPress={applyCouponCode}
+                >
+                  <Text style={styles.applyBtnText}>Apply</Text>
+                </TouchableOpacity>
+              </View>
+              {couponError ? <Text style={styles.couponErrorText}>{couponError}</Text> : null}
+            </View>
+          )}
+
+          {appliedCoupon && couponDiscount > 0 ? (
+            <View style={styles.couponSummary}>
+              <View style={styles.couponRow}>
+                <Text style={styles.couponLabel}>Subtotal:</Text>
+                <Text style={styles.couponVal}>{inr(rawTotal)}</Text>
+              </View>
+              <View style={styles.couponRow}>
+                <Text style={[styles.couponLabel, { color: colors.greenDeep, fontWeight: "700" }]}>Discount ({appliedCoupon.code}):</Text>
+                <Text style={[styles.couponVal, { color: colors.greenDeep, fontWeight: "700" }]}>-{inr(couponDiscount)}</Text>
+              </View>
+              <View style={[styles.couponRow, styles.couponTotalRow]}>
+                <Text style={styles.couponTotalLabel}>Final Total:</Text>
+                <Text style={styles.couponTotalVal}>{inr(finalTotal)}</Text>
+              </View>
+            </View>
+          ) : null}
+        </Surface>
+
+        <View style={styles.freightNoticeCard}>
+          <Text style={styles.freightNoticeText}>* Note: Freight will be charged extra at the time of delivery.</Text>
+        </View>
+
         <View style={styles.actions}>
           <SecondaryButton label="Back to products" onPress={() => navigation.goBack()} disabled={placing} />
-          <PrimaryButton label={placing ? "Placing…" : proposalDemandMode ? "Complete order" : "Place order"} icon={placing ? undefined : "checkmark-circle-outline"} disabled={placing || !demandPricesReady || !(proposalDemandMode && proposalIntent?.conversionCommercialQuoteId && quote?.acceptedAt) && !canSubmitQuote({ lineCount: activeLines.length, quoteReady, placing, quote })} onPress={() => void submit()} />
+          <PrimaryButton
+            label={placing ? "Placing…" : proposalDemandMode ? "Complete order" : appliedCoupon ? `Place order (${inr(finalTotal)})` : "Place order"}
+            icon={placing ? undefined : "checkmark-circle-outline"}
+            disabled={placing || !demandPricesReady || !(proposalDemandMode && proposalIntent?.conversionCommercialQuoteId && quote?.acceptedAt) && !canSubmitQuote({ lineCount: activeLines.length, quoteReady, placing, quote })}
+            onPress={() => void submit()}
+          />
         </View>
       </KeyboardSafeScrollView>
     </AppScreen>
@@ -310,6 +423,8 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
 
 const styles = StyleSheet.create({
   content: { padding: spacing.xl, gap: spacing.section, paddingBottom: spacing.xxl },
+  freightNoticeCard: { padding: spacing.md, backgroundColor: "#FFF8E1", borderRadius: spacing.sm, borderWidth: 1, borderColor: "#FFE082" },
+  freightNoticeText: { color: "#8D6E63", fontSize: 13, fontWeight: "600", textAlign: "center" },
   back: { minHeight: 40, justifyContent: "center" },
   backText: { color: colors.blueInk, fontSize: 14, fontWeight: "700" },
   context: { gap: spacing.xs },
@@ -336,4 +451,51 @@ const styles = StyleSheet.create({
   actions: { gap: spacing.sm },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md },
   emptyTitle: { color: colors.ink, fontSize: 18, fontWeight: "700" },
+  couponSurface: { gap: spacing.sm },
+  couponInputRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs },
+  couponInput: {
+    flex: 1,
+    minHeight: 44,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.separator,
+    paddingHorizontal: spacing.md,
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.ink,
+  },
+  applyBtn: {
+    minHeight: 44,
+    paddingHorizontal: spacing.lg,
+    borderRadius: spacing.sm,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  applyBtnDisabled: { opacity: 0.5 },
+  applyBtnText: { color: colors.onDark, fontSize: 13, fontWeight: "700" },
+  couponAppliedRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+    borderRadius: spacing.sm,
+    padding: spacing.md,
+    marginTop: spacing.xs,
+  },
+  couponAppliedCode: { fontSize: 14, fontWeight: "700", color: "#166534", letterSpacing: 0.5 },
+  couponAppliedBadge: { fontSize: 10, fontWeight: "800", backgroundColor: "#DCFCE7", color: "#15803D", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  couponAppliedDesc: { fontSize: 12, color: "#15803D", marginTop: 2 },
+  removeCouponBtn: { paddingHorizontal: 8, paddingVertical: 4 },
+  removeCouponText: { fontSize: 12, fontWeight: "700", color: colors.danger },
+  couponSummary: { marginTop: spacing.md, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.separator, gap: spacing.xs },
+  couponRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  couponLabel: { color: colors.inkMuted, fontSize: 13 },
+  couponVal: { color: colors.ink, fontSize: 13, fontWeight: "600" },
+  couponTotalRow: { marginTop: spacing.xs, paddingTop: spacing.xs, borderTopWidth: 1, borderTopColor: colors.separator },
+  couponTotalLabel: { color: colors.ink, fontSize: 15, fontWeight: "700" },
+  couponTotalVal: { color: colors.ink, fontSize: 16, fontWeight: "800" },
 });

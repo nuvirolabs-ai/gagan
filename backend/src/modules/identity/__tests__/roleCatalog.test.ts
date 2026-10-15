@@ -15,7 +15,20 @@ describe("identity role catalog", () => {
       "field_manager",
       "platform_admin",
       "warehouse_operator",
+      "warehouse_manager",
+      "catalog_manager",
     ]);
+  });
+
+  it("authorizes catalog managers for product master inspection with zero administrative access", () => {
+    const manager = ROLE_DEFINITIONS.find((role) => role.name === "catalog_manager");
+
+    expect(manager?.permissions).toEqual([
+      Permissions.CATALOG_MANAGE,
+    ]);
+    expect(manager?.permissions).not.toContain(Permissions.STAFF_MANAGE);
+    expect(manager?.permissions).not.toContain(Permissions.ORDER_CREATE_FOR_RETAILER);
+    expect(manager?.permissions).not.toContain(Permissions.ORDER_WAREHOUSE_PROCESS);
   });
 
   it("limits warehouse operators to the existing order packing workflow", () => {
@@ -25,6 +38,17 @@ describe("identity role catalog", () => {
     expect(warehouse?.permissions).not.toContain(Permissions.STAFF_MANAGE);
     expect(warehouse?.permissions).not.toContain(Permissions.DISPATCH_EXECUTE);
     expect(warehouse?.permissions).not.toContain(Permissions.ORDER_CREATE_FOR_RETAILER);
+  });
+
+  it("authorizes warehouse managers for packing and dispatch execution with zero administrative access", () => {
+    const manager = ROLE_DEFINITIONS.find((role) => role.name === "warehouse_manager");
+
+    expect(manager?.permissions).toEqual([
+      Permissions.ORDER_WAREHOUSE_PROCESS,
+      Permissions.DISPATCH_EXECUTE,
+    ]);
+    expect(manager?.permissions).not.toContain(Permissions.STAFF_MANAGE);
+    expect(manager?.permissions).not.toContain(Permissions.ORDER_CREATE_FOR_RETAILER);
   });
 
   it("separates running your own field day from reviewing someone else's", () => {

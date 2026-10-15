@@ -219,10 +219,17 @@ export const api = {
 
   orders: (status?: string) => request(`/admin/orders${status ? `?status=${status}` : ""}`),
   order: (id: string) => request(`/admin/orders/${id}`),
-  warehouseOrders: (status?: "confirmed" | "packed") =>
+  warehouseOrders: (status?: string) =>
     request(`/admin/warehouse-orders${status ? `?status=${status}` : ""}`),
   warehouseOrder: (id: string) => request(`/admin/warehouse-orders/${id}`),
   packWarehouseOrder: (id: string) => post(`/admin/warehouse-orders/${id}/pack`),
+  dispatchWarehouseOrder: (id: string, routeId: string, deliverySlot?: string) =>
+    post(`/admin/warehouse-orders/${id}/dispatch`, { routeId, deliverySlot }),
+  deliverWarehouseOrder: (
+    id: string,
+    podType: string,
+    items: { orderItemId: string; qtyDelivered: number; weightDeliveredKg?: number }[]
+  ) => post(`/admin/warehouse-orders/${id}/deliver`, { podType, items }),
   approve: (id: string) => post(`/admin/orders/${id}/approve`),
   reject: (id: string) => post(`/admin/orders/${id}/reject`),
   pack: (id: string) => post(`/admin/orders/${id}/pack`),
@@ -297,6 +304,10 @@ export const api = {
   publishCatalogueFromBusiness: (variantId: string, body: unknown) => post(`/admin/variants/${variantId}/publish-catalogue-business`, body),
   setPrice: (tierId: string, variantId: string, price: number) =>
     post("/admin/price-list", { tierId, variantId, price }),
+  quickEditVariant: (id: string, body: unknown) =>
+    request(`/admin/variants/${id}/quick-edit`, { method: "PUT", body: JSON.stringify(body) }),
+  quickEditProduct: (id: string, body: unknown) =>
+    request(`/admin/products/${id}/quick-edit`, { method: "PUT", body: JSON.stringify(body) }),
   locations: () => request("/admin/locations"),
   location: (retailerId: string) => request(`/admin/locations/${retailerId}`),
   locationHistory: (retailerId: string) => request(`/admin/locations/${retailerId}/history`),
@@ -428,8 +439,13 @@ export const api = {
   setOrgManager: (staffId: string, managerId: string | null, reason?: string) =>
     post(`/admin/org/staff/${staffId}/manager`, { managerId, reason }),
 
-  retailerProposals: (status?: string) =>
-    request(`/admin/retailer-proposals${status ? `?status=${status}` : ""}`),
+  retailerProposals: (status?: string, salespersonId?: string) => {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    if (salespersonId) params.set("salespersonId", salespersonId);
+    const qs = params.toString();
+    return request(`/admin/retailer-proposals${qs ? `?${qs}` : ""}`);
+  },
   approveRetailerProposal: (id: string, tierId?: string) =>
     post(`/admin/retailer-proposals/${id}/approve`, tierId ? { tierId } : {}),
   rejectRetailerProposal: (id: string, reason: string) =>

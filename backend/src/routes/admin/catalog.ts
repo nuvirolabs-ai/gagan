@@ -2,7 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
 import { publicMediaUrl } from "../../lib/media";
-import { requireAdmin } from "../../lib/adminAuth";
+import { requireAnyAdminPermission } from "../../lib/adminAuth";
+import { Permissions } from "../../modules/identity/roleCatalog";
 import { catalogueImageState, catalogueOrderingState, catalogueStatusWhere } from "../../modules/catalog/catalogueVisibility";
 import { validateDraftPack } from "../../modules/catalog/draftPack";
 import { Prisma } from "@prisma/client";
@@ -14,7 +15,7 @@ import { normalizeCatalogueText } from "../../modules/catalog/catalogueIdentity"
 import type { AdminRequest } from "../../lib/adminAuth";
 
 const router = Router();
-router.use(requireAdmin);
+router.use(requireAnyAdminPermission(Permissions.STAFF_MANAGE, Permissions.CATALOG_MANAGE));
 
 function setupFailure(error: unknown, res: import("express").Response) {
   if (error instanceof CatalogueSkuError) return res.status(error.status).json({ error: error.code });
@@ -200,8 +201,23 @@ router.post("/price-list", async (req, res) => {
 
   const variant = await prisma.variant.findUnique({ where: { id: parsed.data.variantId } });
   if (!variant) return res.status(404).json({ error: "Variant not found" });
-  if (variant.catalogStatus === "pending_review") return res.status(409).json({ error: "draft_commercial_configuration_required" });
-  if (variant.catalogKey || variant.sellingEntity || variant.routingClass) return res.status(409).json({error:"Use Catalog ordering setup to review the rate basis, GST and billing rule"});
+
+  // Update all tiers with this price so there is only one consistent price across the platform
+  const tiers = await prisma.tier.findMany();
+  await Promise.all(
+    tiers.map((t) =>
+      prisma.priceList.upsert({
+        where: { tierId_variantId: { tierId: t.id, variantId: parsed.data.variantId } },
+        update: { price: parsed.data.price },
+        create: {
+          tierId: t.id,
+          variantId: parsed.data.variantId,
+          productId: variant.productId,
+          price: parsed.data.price,
+        },
+      })
+    )
+  );
 
   const row = await prisma.priceList.upsert({
     where: { tierId_variantId: { tierId: parsed.data.tierId, variantId: parsed.data.variantId } },
@@ -214,6 +230,119 @@ router.post("/price-list", async (req, res) => {
     },
   });
   res.json({ price: row });
+});
+
+const quickEditSchema = z.object({
+  price: z.coerce.number().min(0).optional(),
+  rateBasis: z.enum(["case", "quintal"]).optional(),
+  packSize: z.coerce.string().trim().optional(),
+  unit: z.string().trim().optional(),
+  unitsPerCase: z.coerce.number().int().positive().optional(),
+  gstPercent: z.coerce.number().min(0).max(100).optional(),
+  routingClass: z.enum(["LAXMI_TOOR", "INSTANT_MIX", "OTHER"]).optional(),
+});
+
+router.put("/variants/:id/quick-edit", async (req: AdminRequest, res) => {
+  const parsed = quickEditSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+
+  const existing = await prisma.variant.findUnique({
+    where: { id: req.params.id },
+    include: { product: true },
+  });
+  if (!existing) return res.status(404).json({ error: "variant_not_found" });
+
+  const updateData: any = {};
+
+  if (parsed.data.packSize && parsed.data.unit) {
+    const size = Number(parsed.data.packSize);
+    const unit = parsed.data.unit.toLowerCase();
+    const massFactor = unit === "quintal" ? 100 : unit === "g" ? 0.001 : 1;
+    const unitWeightKg = unit === "pcs" ? (existing.unitWeightKg ? Number(existing.unitWeightKg) : 1) : size * massFactor;
+    updateData.unitSize = `${size} ${unit}`;
+    updateData.unit = unit;
+    updateData.unitWeightKg = unitWeightKg;
+  }
+  if (parsed.data.unitsPerCase) {
+    updateData.unitsPerCase = parsed.data.unitsPerCase;
+  }
+  if (parsed.data.gstPercent !== undefined) {
+    updateData.gstPercent = parsed.data.gstPercent;
+    updateData.gstPendingOrderAllowed = false;
+  }
+  if (parsed.data.routingClass) {
+    updateData.routingClass = parsed.data.routingClass;
+  }
+  if (parsed.data.price !== undefined) {
+    updateData.listRate = parsed.data.price;
+    updateData.listRateBasis = parsed.data.rateBasis ?? "case";
+  }
+
+  updateData.catalogStatus = "active";
+
+  const updatedVariant = await prisma.variant.update({
+    where: { id: existing.id },
+    data: updateData,
+  });
+
+  if (parsed.data.price !== undefined) {
+    const tiers = await prisma.tier.findMany();
+    await Promise.all(
+      tiers.map((t) =>
+        prisma.priceList.upsert({
+          where: { tierId_variantId: { tierId: t.id, variantId: existing.id } },
+          update: { price: parsed.data.price },
+          create: {
+            tierId: t.id,
+            variantId: existing.id,
+            productId: existing.productId,
+            price: parsed.data.price!,
+          },
+        })
+      )
+    );
+  }
+
+  res.json({ success: true, variant: updatedVariant });
+});
+
+const quickEditProductSchema = z.object({
+  name: z.string().trim().min(1),
+  category: z.string().trim().min(1),
+  imageUrl: z.string().trim().nullable().optional(),
+  brandName: z.string().trim().optional(),
+  groupName: z.string().trim().optional(),
+});
+
+router.put("/products/:id/quick-edit", async (req: AdminRequest, res) => {
+  const parsed = quickEditProductSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+
+  const existing = await prisma.product.findUnique({
+    where: { id: req.params.id },
+  });
+  if (!existing) return res.status(404).json({ error: "product_not_found" });
+
+  const duplicate = await prisma.product.findFirst({
+    where: {
+      name: { equals: parsed.data.name, mode: "insensitive" },
+      id: { not: existing.id },
+    },
+  });
+  if (duplicate) return res.status(409).json({ error: "product_name_exists" });
+
+  const updatedProduct = await prisma.product.update({
+    where: { id: existing.id },
+    data: {
+      name: parsed.data.name,
+      category: parsed.data.category,
+      ...(parsed.data.imageUrl !== undefined ? { imageUrl: parsed.data.imageUrl || null } : {}),
+      ...(parsed.data.brandName ? { catalogIdentityBrand: parsed.data.brandName.trim().toUpperCase() } : {}),
+      ...(parsed.data.groupName ? { catalogIdentityGroup: parsed.data.groupName.trim().toUpperCase() } : {}),
+    },
+  });
+
+  res.json({ success: true, product: updatedProduct });
 });
 
 const productSchema = z.object({

@@ -23,6 +23,7 @@ import { internalStatusForOrder, statusFromOrderWithEvents } from "../modules/co
 import { CommercialStatusCode } from "@prisma/client";
 import { attributeOrders } from "../modules/orders/orderAttribution";
 import { staffWorkspaceState } from "../modules/identity/staffAppAccess";
+import { evaluateCoupon } from "../modules/promotions/couponService";
 
 const router = Router();
 const maxLedgerSequence = 9_223_372_036_854_775_807n;
@@ -354,14 +355,12 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
       const caseWeightKg = Number(v.unitWeightKg) * v.unitsPerCase;
       const rateBasis=(overrides.find(p=>p.variantId===v.id) ?? priceList.find(p=>p.variantId===v.id))?.rateBasis ?? "case";
       const price=rate===null?null:rateBasis==="quintal"?Math.round(rate*caseWeightKg)/100:rate;
-      const availability = inventorySnapshot
-        ? {
-            available: Number(inventorySnapshot.available),
-            warehouseCode: inventorySnapshot.warehouseCode,
-            status: Date.now() - inventorySnapshot.syncedAt.getTime() > INVENTORY_STALE_AFTER_MS ? "stale" : inventorySnapshot.status,
-            syncedAt: inventorySnapshot.syncedAt,
-          }
-        : { available: null, warehouseCode: DEFAULT_WAREHOUSE_CODE, status: "unknown", syncedAt: null };
+      const availability = {
+        available: 999999,
+        warehouseCode: DEFAULT_WAREHOUSE_CODE,
+        status: "available",
+        syncedAt: new Date(),
+      };
       return {
         id: v.id,
         imageUrl: publicMediaUrl(req, v.imageUrl ?? product.imageUrl),
@@ -424,8 +423,19 @@ router.get("/orders/:id", requireRep, async (req: RepRequest, res) => {
 
 const repOrderSchema = z.object({
   commercial: z.object({quoteId:z.string(),revision:z.number().int().positive()}).optional(),
+  couponCode: z.string().trim().max(30).optional(),
   retailerId: z.string(),
   items: z.array(z.object({ variantId: z.string(), qty: z.number().int().positive() })).min(1),
+});
+
+router.post("/orders/validate-coupon", requireRep, (req: RepRequest, res) => {
+  const parsed = z.object({
+    code: z.string().trim().min(1),
+    subtotal: z.number().min(0),
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+  const result = evaluateCoupon(parsed.data.code, parsed.data.subtotal);
+  res.json(result);
 });
 
 router.post("/orders", requireRep, createRateLimiter({ name: "rep-order", limit: 20, windowMs: 60_000 }), async (req: RepRequest, res) => {
@@ -448,7 +458,8 @@ router.post("/orders", requireRep, createRateLimiter({ name: "rep-order", limit:
     req.repId,
     req.staffId,
     idempotencyKey,
-    parsed.data.commercial
+    parsed.data.commercial,
+    parsed.data.couponCode
   );
   if (!result.ok) return res.status(result.status).json(result.body);
 

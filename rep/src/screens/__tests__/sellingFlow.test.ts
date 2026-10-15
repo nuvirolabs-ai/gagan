@@ -74,11 +74,11 @@ describe("screen integration contracts", () => {
     expect(home).toContain("const completion = Math.max(0, safeCount(target?.completionPct));");
     expect(home).not.toContain("Math.min(100, safeCount(target?.completionPct))");
   });
-  it("removes profile credit presentation but preserves the credit approval guard", () => {
+  it("removes profile credit presentation and unblocks orders in pilot phase", () => {
     const profile = source("RepRetailerDetailScreen.tsx");
     expect(profile).not.toContain('t("profile.availableCredit")');
     expect(profile).not.toContain("inr(credit.available)");
-    expect(profile).toContain("credit.available <= 0");
+    expect(profile).not.toContain('label="No credit available"');
   });
   it("keeps only calendar and leave, without the vertical attendance list", () => {
     const day = source("MyDayScreen.tsx");

@@ -137,7 +137,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
       );
       punchKey.current = null;
       setProposalLines({});
-      Alert.alert("Demand recorded", "The displayed Silver prices were estimates. Final pricing is confirmed after retailer approval.", [
+      Alert.alert("Demand recorded", "Your order demand has been recorded. Final billing will be confirmed upon dispatch.", [
         { text: "Done", onPress: () => navigation.goBack() },
       ], { cancelable: false });
     } catch (error) {
@@ -201,8 +201,8 @@ export default function RepCatalogScreen({ route, navigation }: any) {
                       ? `${inr(variant.indicativePrice)} / case`
                       : "Price not configured"}</Text>
                     <Text style={styles.rateLabel}>{variant.indicativePrice != null
-                      ? `${variant.indicativeTierName} indicative price · final price after approval`
-                      : "Ask Admin to configure the standard tier price"}</Text>
+                      ? "Indicative price · final invoice confirmed upon dispatch"
+                      : "Ask Admin to configure the product price"}</Text>
                   </View> : <View style={styles.priceStack}>
                     <View style={styles.priceRow}>
                       <Text style={styles.price}>

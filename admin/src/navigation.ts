@@ -21,6 +21,7 @@ export type AdminDestination = {
 };
 
 const STAFF = ["staff.manage"] as const;
+const CATALOG = ["staff.manage", "catalog.manage"] as const;
 const APPROVALS = ["approval.second_invoice", "approval.third_invoice", "legal.decide"] as const;
 const COLLECTIONS = ["collection.confirm"] as const;
 const CREDIT = ["credit.rating_confirm"] as const;
@@ -194,9 +195,9 @@ export const ADMIN_NAV_GROUPS: { id: AdminGroupId; label: string; destinations: 
         group: "sales",
         label: "Catalog",
         route: "/catalog",
-        description: "Catalogue, pricing, and ordering setup",
-        keywords: ["catalog", "catalogue", "product", "gst", "tax", "price", "stock", "inventory"],
-        permissions: STAFF,
+        description: "Catalogue, product master, SKU images, and pricing",
+        keywords: ["catalog", "catalogue", "product master", "product", "sku", "image", "gst", "tax", "price", "stock", "inventory"],
+        permissions: CATALOG,
         relatedTo: ["/catalog", "/commercial", "/imports"],
       },
       {

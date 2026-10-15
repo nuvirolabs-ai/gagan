@@ -101,6 +101,9 @@ export function createApp(options: CreateAppOptions = {}) {
     "/catalog-images",
     express.static(path.resolve(__dirname, "../assets/catalog"), {
       maxAge: "1d",
+      setHeaders: (res) => {
+        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+      },
     })
   );
 

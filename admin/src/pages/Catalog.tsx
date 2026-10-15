@@ -1,8 +1,37 @@
 import { useEffect, useState } from "react";
 import { ApiError, api } from "../api";
-import { buildDraftPack, caseWeightKg, humanizePackFailure, massPreview, parseStoredPack, type DraftPackFields } from "../draftPackForm";
-import OrderingSetupPanel from "./OrderingSetupPanel";
+import { buildDraftPack, canonicalUnit, caseWeightKg, humanizePackFailure, massPreview, parseStoredPack, type DraftPackFields } from "../draftPackForm";
 import CatalogueSkuForm, { billingLabel } from "../components/CatalogueSkuForm";
+
+interface RowEditState {
+  variantId: string;
+  packSize: string;
+  unit: string;
+  unitsPerCase: string;
+  gstPercent: string;
+  routingClass: string;
+  price: string;
+  rateBasis: "case" | "quintal";
+  ratePerKg: number;
+}
+
+function getCaseWeightKg(packSize: string, unit: string, unitsPerCase: string, measuredWeightKg?: number): number {
+  const preview = massPreview(packSize, unit);
+  const units = Number(unitsPerCase);
+  if (preview && Number.isSafeInteger(units) && units > 0) {
+    return caseWeightKg(preview.unitWeightKg, units);
+  }
+  if (canonicalUnit(unit) === "pcs" && measuredWeightKg && measuredWeightKg > 0 && Number.isSafeInteger(units) && units > 0) {
+    return caseWeightKg(measuredWeightKg, units);
+  }
+  const s = Number(packSize);
+  const u = canonicalUnit(unit) ?? "kg";
+  const factor = u === "quintal" ? 100 : u === "g" ? 0.001 : 1;
+  if (Number.isFinite(s) && s > 0 && Number.isSafeInteger(units) && units > 0) {
+    return Math.round(s * factor * units * 1000) / 1000;
+  }
+  return 0;
+}
 
 const inr = (value: number) => `₹${Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 const visibleStatus = (status?: string) => !status || ["active", "published", "pending_review", "inactive"].includes(status);
@@ -15,11 +44,12 @@ export default function Catalog() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [editing, setEditing] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
   const [editor, setEditor] = useState<Editor | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
-  const [setupVariantId, setSetupVariantId] = useState<string | null>(null);
+  const [rowEdit, setRowEdit] = useState<RowEditState | null>(null);
+  const [savingRow, setSavingRow] = useState(false);
+  const [productModal, setProductModal] = useState<{ id: string; name: string; category: string; imageUrl: string } | null>(null);
+  const [savingProductModal, setSavingProductModal] = useState(false);
   const [publishing, setPublishing] = useState<any>(null);
   const [outerPack, setOuterPack] = useState<"Bag" | "Box">("Bag");
   const [fieldErrors, setFieldErrors] = useState<DraftPackFields>({});
@@ -142,16 +172,25 @@ export default function Catalog() {
     load();
   }, []);
 
-  const key = (variantId: string, tierId: string) => `${variantId}:${tierId}`;
   const query = search.trim().toLocaleLowerCase().replace(/\s+/g, " ");
   const rows = products.flatMap((product) => product.variants.map((variant: any) => ({ product, variant })));
   const matchingRows = query ? rows.filter(({ product, variant }) => {
     const fields = [product.name, product.category, product.internalCode, product.catalogKey,
       variant.unitSize, variant.unit,
       variant.unitsPerCase, `${variant.unitSize ?? ""} x ${variant.unitsPerCase ?? ""}`,
-      variant.internalCode, variant.catalogKey, variant.catalogIdentitySkuName];
+      `${variant.unitSize ?? ""} × ${variant.unitsPerCase ?? ""}`,
+      variant.internalCode, variant.catalogKey, variant.catalogIdentitySkuName, variant.id, product.id];
     return fields.some((value) => String(value ?? "").toLocaleLowerCase().replace(/\s+/g, " ").includes(query));
   }) : rows;
+
+  const matchingProducts = products
+    .map((product) => ({
+      ...product,
+      matchingVariants: product.variants.filter((variant: any) =>
+        matchingRows.some((r) => r.variant.id === variant.id)
+      ),
+    }))
+    .filter((product) => product.matchingVariants.length > 0);
 
   const publicationMessage = (body: any) => {
     if (body?.error === "canonical_pack_exists") return "A current catalogue pack already exists.";
@@ -189,21 +228,171 @@ export default function Catalog() {
     }
   };
 
-  const save = async (variantId: string, tierId: string) => {
-    const value = Number(draft);
-    if (!Number.isFinite(value) || value < 0) {
+  const startEditingRow = (_p: any, v: any) => {
+    const parsed = parseStoredPack(String(v.unitSize ?? ""), String(v.unit ?? "kg"));
+    const packSize = parsed.packSize || String(v.packSize ?? "1");
+    const unit = parsed.unit || v.unit || "kg";
+    const unitsPerCase = v.unitsPerCase != null ? String(v.unitsPerCase) : "1";
+    const primaryPrice = v.prices?.[0];
+    const currentPrice = primaryPrice?.price != null ? primaryPrice.price : v.listRate != null ? v.listRate : "";
+    const currentBasis: "case" | "quintal" = (primaryPrice?.rateBasis ?? v.listRateBasis ?? "case") === "quintal" ? "quintal" : "case";
+
+    const initialWeight = getCaseWeightKg(packSize, unit, unitsPerCase, v.unitWeightKg);
+    let initialRatePerKg = 0;
+    if (currentPrice !== "" && Number(currentPrice) > 0) {
+      const numPrice = Number(currentPrice);
+      if (currentBasis === "quintal") {
+        initialRatePerKg = numPrice / 100;
+      } else if (initialWeight > 0) {
+        initialRatePerKg = Math.round((numPrice / initialWeight) * 10000) / 10000;
+      }
+    }
+
+    setRowEdit({
+      variantId: v.id,
+      packSize,
+      unit,
+      unitsPerCase,
+      gstPercent: v.gstPercent != null ? String(v.gstPercent) : "5",
+      routingClass: v.routingClass ?? "LAXMI_TOOR",
+      price: currentPrice !== "" ? String(currentPrice) : "",
+      rateBasis: currentBasis,
+      ratePerKg: initialRatePerKg,
+    });
+  };
+
+  const updatePackOrUnits = (partial: { packSize?: string; unit?: string; unitsPerCase?: string }) => {
+    setRowEdit((curr) => {
+      if (!curr) return null;
+      const newPackSize = partial.packSize !== undefined ? partial.packSize : curr.packSize;
+      const newUnit = partial.unit !== undefined ? partial.unit : curr.unit;
+      const newUnitsPerCase = partial.unitsPerCase !== undefined ? partial.unitsPerCase : curr.unitsPerCase;
+
+      const newWeight = getCaseWeightKg(newPackSize, newUnit, newUnitsPerCase);
+
+      let newPrice = curr.price;
+      // If we have a ratePerKg and newWeight > 0, simultaneously update the case price!
+      if (curr.ratePerKg > 0 && newWeight > 0) {
+        if (curr.rateBasis === "case") {
+          const calcPrice = Math.round(curr.ratePerKg * newWeight * 100) / 100;
+          newPrice = String(calcPrice);
+        } else if (curr.rateBasis === "quintal") {
+          newPrice = String(Math.round(curr.ratePerKg * 100 * 100) / 100);
+        }
+      }
+
+      return {
+        ...curr,
+        ...partial,
+        price: newPrice,
+      };
+    });
+  };
+
+  const handlePriceChange = (newPriceStr: string) => {
+    setRowEdit((curr) => {
+      if (!curr) return null;
+      const numPrice = Number(newPriceStr);
+      let newRatePerKg = curr.ratePerKg;
+      const currentWeight = getCaseWeightKg(curr.packSize, curr.unit, curr.unitsPerCase);
+      if (Number.isFinite(numPrice) && numPrice > 0) {
+        if (curr.rateBasis === "quintal") {
+          newRatePerKg = Math.round((numPrice / 100) * 10000) / 10000;
+        } else if (currentWeight > 0) {
+          newRatePerKg = Math.round((numPrice / currentWeight) * 10000) / 10000;
+        }
+      }
+      return {
+        ...curr,
+        price: newPriceStr,
+        ratePerKg: newRatePerKg,
+      };
+    });
+  };
+
+  const handleRatePerKgChange = (newRateStr: string) => {
+    setRowEdit((curr) => {
+      if (!curr) return null;
+      const numRate = Number(newRateStr);
+      const currentWeight = getCaseWeightKg(curr.packSize, curr.unit, curr.unitsPerCase);
+      let newPrice = curr.price;
+      if (Number.isFinite(numRate) && numRate > 0) {
+        if (curr.rateBasis === "quintal") {
+          newPrice = String(Math.round(numRate * 100 * 100) / 100);
+        } else if (currentWeight > 0) {
+          newPrice = String(Math.round(numRate * currentWeight * 100) / 100);
+        }
+      }
+      return {
+        ...curr,
+        price: newPrice,
+        ratePerKg: Number.isFinite(numRate) && numRate >= 0 ? numRate : curr.ratePerKg,
+      };
+    });
+  };
+
+  const handleRateBasisChange = (newBasis: "case" | "quintal") => {
+    setRowEdit((curr) => {
+      if (!curr) return null;
+      const currentWeight = getCaseWeightKg(curr.packSize, curr.unit, curr.unitsPerCase);
+      let newPrice = curr.price;
+      if (curr.ratePerKg > 0) {
+        if (newBasis === "quintal") {
+          newPrice = String(Math.round(curr.ratePerKg * 100 * 100) / 100);
+        } else if (currentWeight > 0) {
+          newPrice = String(Math.round(curr.ratePerKg * currentWeight * 100) / 100);
+        }
+      }
+      return {
+        ...curr,
+        rateBasis: newBasis,
+        price: newPrice,
+      };
+    });
+  };
+
+  const saveRow = async (variantId: string) => {
+    if (!rowEdit || rowEdit.variantId !== variantId || savingRow) return;
+    const priceVal = Number(rowEdit.price);
+    if (!Number.isFinite(priceVal) || priceVal < 0) {
       setError("Price must be a positive number");
       return;
     }
-    try {
-      await api.setPrice(tierId, variantId, value);
-      setNotice("Price updated — retailers on this tier see it on next catalog load");
-      setEditing(null);
-      setError(null);
-      load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not update price");
+    const packSizeVal = Number(rowEdit.packSize);
+    if (!Number.isFinite(packSizeVal) || packSizeVal <= 0) {
+      setError("Pack size must be greater than zero");
+      return;
     }
+    const unitsPerCaseVal = Number(rowEdit.unitsPerCase);
+    if (!Number.isSafeInteger(unitsPerCaseVal) || unitsPerCaseVal <= 0) {
+      setError("Units per case must be a positive whole number");
+      return;
+    }
+
+    setSavingRow(true);
+    setError(null);
+    try {
+      await api.quickEditVariant(variantId, {
+        price: priceVal,
+        rateBasis: rowEdit.rateBasis,
+        packSize: rowEdit.packSize,
+        unit: rowEdit.unit,
+        unitsPerCase: unitsPerCaseVal,
+        gstPercent: Number(rowEdit.gstPercent),
+        routingClass: rowEdit.routingClass,
+      });
+      setRowEdit(null);
+      setNotice("Product SKU, price, GST and billing rule updated");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save changes");
+    } finally {
+      setSavingRow(false);
+    }
+  };
+
+  const updateRowEdit = (partial: Partial<RowEditState>) => {
+    setRowEdit((curr) => (curr ? { ...curr, ...partial } : null));
   };
 
   return (
@@ -286,107 +475,511 @@ export default function Catalog() {
           <table>
             <thead>
               <tr>
-                <th>Product</th>
-                <th>Case</th>
-                <th className="right">Case weight</th>
-                {tiers.map((t) => (
-                  <th key={t.id} className="right">
-                    {t.name}
-                  </th>
-                ))}
+                <th style={{ minWidth: 200 }}>Product</th>
+                <th style={{ minWidth: 170 }}>SKU / Pack</th>
+                <th style={{ minWidth: 80 }}>GST %</th>
+                <th style={{ minWidth: 130 }}>Billing Rule</th>
+                <th className="right" style={{ minWidth: 160 }}>Price (₹)</th>
+                <th className="right" style={{ width: 120 }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {matchingRows.length === 0 && <tr><td colSpan={3 + tiers.length}>No products match ‘{search.trim()}’</td></tr>}
-              {matchingRows.map(({ product: p, variant: v }) => {
+              {matchingProducts.length === 0 && <tr><td colSpan={6}>No products match ‘{search.trim()}’</td></tr>}
+              {matchingProducts.map((p) => {
+                const variants = p.matchingVariants;
+                const variantCount = variants.length;
+                return variants.map((v: any, index: number) => {
                   const caseWeight = v.unitWeightKg * v.unitsPerCase;
-                  const complete = v.purchaseRate != null;
+                  const activeEdit = rowEdit?.variantId === v.id ? rowEdit : null;
+                  const primaryPrice = v.prices?.[0] ?? { price: v.listRate, rateBasis: v.listRateBasis ?? "case", tierId: tiers[0]?.id ?? "default" };
+                  const basis = primaryPrice.rateBasis ?? "case";
+                  const perKg = primaryPrice.price == null ? null : basis === "quintal" ? primaryPrice.price / 100 : caseWeight > 0 ? primaryPrice.price / caseWeight : null;
+                  const equivalent = primaryPrice.price != null && caseWeight > 0 && basis === "quintal" ? Math.round(primaryPrice.price * caseWeight) / 100 : null;
+                  const isFirst = index === 0;
+
                   return (
-                    <tr key={v.id}>
-                      <td>
-                        <div style={{ fontWeight: 600 }}>{p.name}</div>
-                        <div className="muted small">{p.category}</div>
-                        <div className="muted small">Product ID: <code>{p.id}</code> <button type="button" className="ghost sm" onClick={() => copyId(p.id)}>Copy product ID</button></div>
-                        {p.catalogStatus === "pending_review" && <><div className="muted small">Draft</div><button className="ghost sm" onClick={() => setEditor({ kind: "product", product: p })}>Edit product</button></>}
-                        {["pending_review", "published", "active", "inactive"].includes(p.catalogStatus) && <button className="ghost sm" onClick={() => setEditor({ kind: "sku", product: p })}>Add pack</button>}
-                      </td>
-                      <td className="small">
-                        {v.unitSize} × {v.unitsPerCase}
-                        {complete ? <>
-                          <div className="muted small">{v.catalogStatus === "active" ? "Active" : "Inactive"}</div>
-                          <div className="muted small">{v.stock?.available == null ? "Stock unavailable" : `Stock: ${v.stock.available} cases`}</div>
-                          <div className="muted small">Purchase: {inr(v.purchaseRate)}/{v.purchaseRateBasis ?? "case"}</div>
-                          {v.prices.map((pr: any) => <div key={pr.tierId} className="muted small">{pr.tierName}: {pr.price == null ? "Not set" : `${inr(pr.price)}/${pr.rateBasis ?? "case"}`}</div>)}
-                          <div className="muted small">GST: {v.gstPercent}%</div>
-                          <div className="muted small">Billing: {billingLabel(v.routingClass)}</div>
-                          <button type="button" className="sm" onClick={() => setEditor({ kind: "sku", product: p, variant: v })}>Edit</button>
-                        </> : <>
-                        <div className="muted small">{v.catalogStatus === "active" ? "Ordering enabled" : v.catalogStatus === "pending_review" ? "Draft" : v.catalogStatus === "published" ? "Published" : "Setup needed"}</div>
-                        {v.catalogStatus === "published" && <div className="muted small">Ordering setup pending</div>}
-                        <div className="muted small">{v.stock?.status === "in_stock" ? `In stock · ${v.stock.available} available` : v.stock?.status === "out_of_stock" ? "Out of stock" : "Stock needs verification"}</div>
-                        <div className="muted small">{v.gstPercent != null ? `GST ${v.gstPercent}% configured` : v.gstPending ? "GST pending exception" : "GST pending"}</div>
-                        {v.catalogStatus === "pending_review" && !v.catalogKey
-                          ? <button type="button" className="sm" onClick={() => { setPublishing({ product: p, variant: v }); setOuterPack("Bag"); }}>Publish catalogue</button>
-                          : <button type="button" className="sm" onClick={() => setSetupVariantId(v.id)}>{v.catalogStatus === "active" ? "Manage setup" : "Set up ordering"}</button>}
-                        </>}
-                        <div className="muted small">Variant ID: <code>{v.id}</code> <button type="button" className="ghost sm" onClick={() => copyId(v.id)}>Copy variant ID</button></div>
-                        {v.catalogStatus === "pending_review" && <div><button className="ghost sm" onClick={() => setEditor({ kind: "variant", product: p, variant: v })}>Edit draft</button></div>}
-                      </td>
-                      <td className="right small muted">{caseWeight} kg</td>
-                      {v.prices.map((pr: any) => {
-                        const basis = pr.rateBasis ?? "case";
-                        const perKg = pr.price == null ? null : basis === "quintal" ? pr.price / 100 : caseWeight > 0 ? pr.price / caseWeight : null;
-                        const equivalent = pr.price != null && caseWeight > 0 && basis === "quintal" ? Math.round(pr.price * caseWeight) / 100 : null;
-                        const cellKey = key(v.id, pr.tierId);
-                        const isEditing = editing === cellKey;
-                        return (
-                          <td key={pr.tierId} className="right">
-                            {p.catalogStatus === "pending_review" || v.catalogStatus === "pending_review" || v.catalogKey ? (
-                              <span className="small">{pr.price == null ? "Not configured" : `${inr(pr.price)} / ${basis}`}{perKg != null && <span className="muted small" style={{ display: "block" }}>{inr(perKg)} / kg</span>}{equivalent != null && <span className="muted small" style={{ display: "block" }}>{inr(equivalent)} / {caseWeight} KG case</span>}</span>
-                            ) : isEditing ? (
-                              <div className="row" style={{ justifyContent: "flex-end" }}>
-                                <span className="small">INR / {basis}</span>
-                                <input
-                                  type="number"
-                                  min={0}
-                                  value={draft}
-                                  autoFocus
-                                  style={{ width: 96 }}
-                                  onChange={(e) => setDraft(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") save(v.id, pr.tierId);
-                                    if (e.key === "Escape") setEditing(null);
-                                  }}
-                                />
-                                <button className="sm" onClick={() => save(v.id, pr.tierId)}>
-                                  Save
-                                </button>
-                              </div>
+                    <tr
+                      key={v.id}
+                      style={{
+                        borderTop: isFirst ? "2px solid var(--border, #cbd5e1)" : "1px solid var(--border-light, #f1f5f9)",
+                        background: activeEdit ? "var(--bg-subtle, #f8fafc)" : undefined,
+                      }}
+                    >
+                      {isFirst && (
+                        <td
+                          rowSpan={variantCount}
+                          style={{
+                            verticalAlign: "top",
+                            borderRight: "1px solid var(--border, #e2e8f0)",
+                            background: "var(--card, #fff)",
+                            padding: "16px 14px",
+                          }}
+                        >
+                          <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                            {(p.imageUrl || v.imageUrl) ? (
+                              <img
+                                src={p.imageUrl || v.imageUrl}
+                                alt={p.name}
+                                style={{
+                                  width: 44,
+                                  height: 44,
+                                  objectFit: "cover",
+                                  borderRadius: 6,
+                                  border: "1px solid var(--border, #e2e8f0)",
+                                  background: "#fff",
+                                  flexShrink: 0,
+                                }}
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLElement).style.display = "none";
+                                }}
+                              />
                             ) : (
-                              <button
-                                className="ghost sm"
-                                style={{ color: "var(--ink)", fontWeight: 600 }}
-                                onClick={() => {
-                                  setEditing(cellKey);
-                                  setDraft(pr.price == null ? "" : String(pr.price));
+                              <div
+                                style={{
+                                  width: 44,
+                                  height: 44,
+                                  borderRadius: 6,
+                                  background: "var(--bg-subtle, #f1f5f9)",
+                                  border: "1px dashed var(--border, #cbd5e1)",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  color: "var(--muted, #94a3b8)",
+                                  fontSize: 10,
+                                  flexShrink: 0,
                                 }}
                               >
-                                <span>{pr.price == null ? "Set price" : `${inr(pr.price)} / ${basis}`}</span>
-                                {perKg != null && <span className="muted small" style={{ display: "block" }}>{inr(perKg)} / kg</span>}
-                                {equivalent != null && <span className="muted small" style={{ display: "block" }}>{inr(equivalent)} / {caseWeight} KG case</span>}
-                              </button>
+                                No img
+                              </div>
                             )}
-                          </td>
-                        );
-                      })}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 600 }}>{p.name}</div>
+                              <div className="muted small" style={{ marginTop: 2 }}>
+                                <span>{p.category}</span>
+                                {" · "}
+                                <span style={{ fontWeight: 600 }}>{p.variants.length} {p.variants.length === 1 ? "SKU" : "SKUs"}</span>
+                              </div>
+                              <div className="muted small" style={{ marginTop: 4 }}>
+                                Product ID: <code>{p.id}</code>{" "}
+                                <button type="button" className="ghost sm" onClick={() => copyId(p.id)}>
+                                  Copy product ID
+                                </button>
+                              </div>
+                              <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                                <button
+                                  type="button"
+                                  className="ghost sm"
+                                  style={{ color: "var(--primary, #2563eb)", fontWeight: 500, padding: "2px 6px" }}
+                                  onClick={() => setProductModal({
+                                    id: p.id,
+                                    name: p.name,
+                                    category: p.category,
+                                    imageUrl: p.imageUrl || "",
+                                  })}
+                                >
+                                  ✎ Edit product
+                                </button>
+                                {["pending_review", "published", "active", "inactive"].includes(p.catalogStatus) && (
+                                  <button
+                                    type="button"
+                                    className="ghost sm"
+                                    style={{ padding: "2px 6px" }}
+                                    onClick={() => setEditor({ kind: "sku", product: p })}
+                                  >
+                                    Add pack
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      )}
+                      <td className="small" style={{ verticalAlign: "middle" }}>
+                        {activeEdit ? (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                              <input
+                                aria-label="Pack size"
+                                type="number"
+                                role="textbox"
+                                step="any"
+                                min="0.01"
+                                value={activeEdit.packSize}
+                                onChange={(e) => updatePackOrUnits({ packSize: e.target.value })}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") saveRow(v.id);
+                                  if (e.key === "Escape") setRowEdit(null);
+                                }}
+                                style={{ width: 65, padding: "4px 6px" }}
+                                placeholder="Size"
+                              />
+                              <select
+                                aria-label="Unit"
+                                value={activeEdit.unit}
+                                onChange={(e) => updatePackOrUnits({ unit: e.target.value })}
+                                style={{ padding: "4px 6px" }}
+                              >
+                                <option value="kg">kg</option>
+                                <option value="g">g</option>
+                                <option value="quintal">quintal</option>
+                                <option value="pcs">pcs</option>
+                              </select>
+                              <span style={{ fontWeight: 600 }}>×</span>
+                              <input
+                                aria-label="Units per case"
+                                type="number"
+                                role="textbox"
+                                min="1"
+                                step="1"
+                                value={activeEdit.unitsPerCase}
+                                onChange={(e) => updatePackOrUnits({ unitsPerCase: e.target.value })}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") saveRow(v.id);
+                                  if (e.key === "Escape") setRowEdit(null);
+                                }}
+                                style={{ width: 55, padding: "4px 6px" }}
+                                placeholder="Units"
+                              />
+                            </div>
+                            {(() => {
+                              const w = getCaseWeightKg(activeEdit.packSize, activeEdit.unit, activeEdit.unitsPerCase);
+                              return w > 0 ? (
+                                <span className="muted small" style={{ fontWeight: 500 }}>
+                                  Case: ~{w} kg
+                                </span>
+                              ) : null;
+                            })()}
+                          </div>
+                        ) : (
+                          <>
+                            <div>
+                              <button
+                                type="button"
+                                className="ghost"
+                                style={{
+                                  fontWeight: 600,
+                                  fontSize: 14,
+                                  padding: "2px 4px",
+                                  marginLeft: "-4px",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 6,
+                                  color: "var(--ink, #0f172a)",
+                                  cursor: "pointer",
+                                }}
+                                title="Click to edit pack and price"
+                                onClick={() => startEditingRow(p, v)}
+                              >
+                                <span>{v.unitSize} × {v.unitsPerCase}</span>
+                                <span style={{ fontSize: 11, color: "var(--primary, #2563eb)", fontWeight: 500 }}>✎ Edit</span>
+                              </button>
+                            </div>
+                            <div className="muted small">{caseWeight} kg case</div>
+                            <div className="muted small">{v.catalogStatus === "active" ? "Active" : v.catalogStatus === "pending_review" ? "Draft" : "Setup needed"}</div>
+                            <div className="muted small">Variant ID: <code>{v.id}</code> <button type="button" className="ghost sm" onClick={() => copyId(v.id)}>Copy variant ID</button></div>
+                            {v.catalogStatus === "pending_review" && <div><button className="ghost sm" onClick={() => setEditor({ kind: "variant", product: p, variant: v })}>Edit draft</button></div>}
+                            {v.catalogStatus === "pending_review" && !v.catalogKey && (
+                              <div><button type="button" className="sm" onClick={() => { setPublishing({ product: p, variant: v }); setOuterPack("Bag"); }}>Publish catalogue</button></div>
+                            )}
+                          </>
+                        )}
+                      </td>
+                      <td style={{ verticalAlign: "middle" }}>
+                        {activeEdit ? (
+                          <select
+                            aria-label="GST %"
+                            value={activeEdit.gstPercent}
+                            onChange={(e) => updateRowEdit({ gstPercent: e.target.value })}
+                            style={{ padding: "4px 6px", width: 75 }}
+                          >
+                            <option value="0">0%</option>
+                            <option value="5">5%</option>
+                            <option value="12">12%</option>
+                            <option value="18">18%</option>
+                            <option value="28">28%</option>
+                          </select>
+                        ) : (
+                          <span style={{ fontWeight: 500 }}>GST: {v.gstPercent ?? 5}%</span>
+                        )}
+                      </td>
+                      <td style={{ verticalAlign: "middle" }}>
+                        {activeEdit ? (
+                          <select
+                            aria-label="Billing rule"
+                            value={activeEdit.routingClass}
+                            onChange={(e) => updateRowEdit({ routingClass: e.target.value })}
+                            style={{ padding: "4px 6px" }}
+                          >
+                            <option value="LAXMI_TOOR">Laxmi toor</option>
+                            <option value="INSTANT_MIX">Instant mix</option>
+                            <option value="OTHER">Other</option>
+                          </select>
+                        ) : (
+                          <span>Billing: {billingLabel(v.routingClass)}</span>
+                        )}
+                      </td>
+                      <td className="right" style={{ verticalAlign: "middle" }}>
+                        {activeEdit ? (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+                            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                              <span className="small">INR / {activeEdit.rateBasis}</span>
+                              <input
+                                aria-label="Selling price"
+                                type="number"
+                                role="spinbutton"
+                                min="0"
+                                step="any"
+                                value={activeEdit.price}
+                                onChange={(e) => handlePriceChange(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") saveRow(v.id);
+                                  if (e.key === "Escape") setRowEdit(null);
+                                }}
+                                style={{ width: 85, padding: "4px 6px", textAlign: "right" }}
+                                placeholder="Price"
+                              />
+                            </div>
+                            <div style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 12 }}>
+                              <span className="muted">Rate: ₹</span>
+                              <input
+                                aria-label="Rate per kg"
+                                type="text"
+                                inputMode="decimal"
+                                value={activeEdit.ratePerKg > 0 ? Math.round(activeEdit.ratePerKg * 100) / 100 : ""}
+                                onChange={(e) => handleRatePerKgChange(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") saveRow(v.id);
+                                  if (e.key === "Escape") setRowEdit(null);
+                                }}
+                                style={{ width: 65, padding: "2px 4px", fontSize: 12, textAlign: "right" }}
+                                placeholder="kg rate"
+                              />
+                              <span className="muted">/ kg</span>
+                            </div>
+                            <select
+                              aria-label="Rate basis"
+                              value={activeEdit.rateBasis}
+                              onChange={(e) => handleRateBasisChange(e.target.value as "case" | "quintal")}
+                              style={{ padding: "2px 6px", fontSize: 11 }}
+                            >
+                              <option value="case">per case</option>
+                              <option value="quintal">per quintal</option>
+                            </select>
+                          </div>
+                        ) : p.catalogStatus === "pending_review" || v.catalogStatus === "pending_review" ? (
+                          <span className="small">
+                            {primaryPrice.price == null ? "Not configured" : `${inr(primaryPrice.price)} / ${basis}`}
+                            {perKg != null && <span className="muted small" style={{ display: "block" }}>{inr(perKg)} / kg</span>}
+                            {equivalent != null && <span className="muted small" style={{ display: "block" }}>{inr(equivalent)} / {caseWeight} KG case</span>}
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            className="ghost sm"
+                            style={{ color: "var(--ink)", fontWeight: 600, textAlign: "right", cursor: "pointer" }}
+                            title="Click to edit pack and price"
+                            onClick={() => startEditingRow(p, v)}
+                          >
+                            <span>{primaryPrice.price == null ? "Set price" : `${inr(primaryPrice.price)} / ${basis}`}</span>
+                            {perKg != null && <span className="muted small" style={{ display: "block" }}>{inr(perKg)} / kg</span>}
+                            {equivalent != null && <span className="muted small" style={{ display: "block" }}>{inr(equivalent)} / {caseWeight} KG case</span>}
+                          </button>
+                        )}
+                      </td>
+                      <td className="right" style={{ verticalAlign: "middle" }}>
+                        {activeEdit ? (
+                          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                            <button
+                              type="button"
+                              className="sm primary"
+                              disabled={savingRow}
+                              onClick={() => saveRow(v.id)}
+                            >
+                              {savingRow ? "Saving…" : "Save"}
+                            </button>
+                            <button
+                              type="button"
+                              className="sm secondary"
+                              disabled={savingRow}
+                              onClick={() => setRowEdit(null)}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                            <button
+                              type="button"
+                              className="sm"
+                              onClick={() => startEditingRow(p, v)}
+                            >
+                              Edit
+                            </button>
+                          </div>
+                        )}
+                      </td>
                     </tr>
                   );
-                })}
+                });
+              })}
             </tbody>
           </table>
         )}
       </div>
-      {setupVariantId && <OrderingSetupPanel variantId={setupVariantId} onClose={() => setSetupVariantId(null)} onSaved={async (enabled, alreadyEnabled, label) => { await load(); setNotice(enabled ? `${alreadyEnabled ? "Changes saved" : "Ordering enabled"} for ${label}. Retailer eligibility, applicable price and current stock still apply.` : `Setup draft saved for ${label}. Ordering remains unchanged.`); }} />}
+
+      {productModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.6)",
+            backdropFilter: "blur(2px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: 16,
+          }}
+          onClick={() => !savingProductModal && setProductModal(null)}
+        >
+          <div
+            className="card"
+            style={{
+              width: "100%",
+              maxWidth: 520,
+              background: "#fff",
+              borderRadius: 12,
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+              padding: 24,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Edit Product Details</h3>
+              <button
+                type="button"
+                className="ghost sm"
+                disabled={savingProductModal}
+                onClick={() => setProductModal(null)}
+                style={{ fontSize: 16, padding: "2px 8px" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!productModal.name.trim()) {
+                  setError("Product name is required");
+                  return;
+                }
+                if (!productModal.category.trim()) {
+                  setError("Category is required");
+                  return;
+                }
+                setSavingProductModal(true);
+                setError(null);
+                try {
+                  await api.quickEditProduct(productModal.id, {
+                    name: productModal.name.trim(),
+                    category: productModal.category.trim(),
+                    imageUrl: productModal.imageUrl.trim() || null,
+                  });
+                  setNotice("Product details updated successfully");
+                  setProductModal(null);
+                  await load();
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Failed to update product");
+                } finally {
+                  setSavingProductModal(false);
+                }
+              }}
+            >
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, fontWeight: 600 }}>
+                  <span>Product name <span style={{ color: "var(--danger, #ef4444)" }}>*</span></span>
+                  <input
+                    required
+                    aria-label="Edit product name"
+                    value={productModal.name}
+                    onChange={(e) => setProductModal({ ...productModal, name: e.target.value })}
+                    placeholder="e.g. Gagan Daily Fresh Toor Dal"
+                    style={{ padding: "8px 12px", borderRadius: 6 }}
+                  />
+                </label>
+
+                <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, fontWeight: 600 }}>
+                  <span>Category <span style={{ color: "var(--danger, #ef4444)" }}>*</span></span>
+                  <input
+                    required
+                    aria-label="Edit category"
+                    value={productModal.category}
+                    list="category-suggestions-modal"
+                    onChange={(e) => setProductModal({ ...productModal, category: e.target.value })}
+                    placeholder="e.g. Pulses & Grains"
+                    style={{ padding: "8px 12px", borderRadius: 6 }}
+                  />
+                  <datalist id="category-suggestions-modal">
+                    <option value="Pulses & Grains" />
+                    <option value="Rice & Grains" />
+                    <option value="Sugar & Sweeteners" />
+                    <option value="Spices & Masala" />
+                    <option value="Instant Mix" />
+                    <option value="Flour & Sooji" />
+                    <option value="Oil & Ghee" />
+                  </datalist>
+                </label>
+
+                <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, fontWeight: 600 }}>
+                  <span>Image URL (optional)</span>
+                  <input
+                    type="url"
+                    aria-label="Edit image URL"
+                    value={productModal.imageUrl}
+                    onChange={(e) => setProductModal({ ...productModal, imageUrl: e.target.value })}
+                    placeholder="http://localhost:4000/catalog-images/..."
+                    style={{ padding: "8px 12px", borderRadius: 6 }}
+                  />
+                </label>
+
+                {productModal.imageUrl && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, background: "var(--bg-subtle, #f8fafc)", borderRadius: 6 }}>
+                    <img
+                      src={productModal.imageUrl}
+                      alt="Preview"
+                      style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 4, border: "1px solid #e2e8f0" }}
+                      onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none"; }}
+                    />
+                    <span className="muted small">Image Preview</span>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={savingProductModal}
+                  onClick={() => setProductModal(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="primary"
+                  disabled={savingProductModal}
+                >
+                  {savingProductModal ? "Saving…" : "Save Product"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

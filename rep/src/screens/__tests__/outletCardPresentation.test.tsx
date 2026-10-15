@@ -42,17 +42,17 @@ describe("outlet card financial presentation", () => {
     expect(rendered).not.toContain("Credit under review");
   });
 
-  it("retains due and available credit for a normal account", () => {
+  it("hides credit and due amounts for normal accounts in pilot phase", () => {
     const rendered = content(OutletCard({
-      item: { name: "Annapurna Foods", shopAddress: "Pune" },
+      item: { name: "Annapurna Foods", shopAddress: "Pune", deliveryCity: "Pune East" },
       reviewRequired: false,
       dueLabel: "Rs 3,120 overdue",
       dueTone: "danger",
       creditLabel: "Rs 79,889 credit",
-      chip: { label: "Overdue", tone: "danger" },
+      chip: { label: "Active", tone: "green" },
       onPress: vi.fn(),
     }));
-    expect(rendered).toContain("Rs 3,120 overdue");
-    expect(rendered).toContain("Rs 79,889 credit");
+    expect(rendered).toContain("Pune East");
+    expect(rendered).not.toContain("Rs 79,889 credit");
   });
 });

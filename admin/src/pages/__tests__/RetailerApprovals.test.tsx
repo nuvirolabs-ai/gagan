@@ -103,4 +103,38 @@ describe("New retailer approvals", () => {
       )
     );
   });
+
+  it("renders the self-tutorial guide and allows toggling it", async () => {
+    render(<RetailerApprovals />);
+    expect(await screen.findByText(/Self-Tutorial: How to approve field stores/)).toBeInTheDocument();
+    expect(screen.getByText(/1. Inspect Proposal/)).toBeInTheDocument();
+    expect(screen.getByText(/3. Approve or Batch Approve/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide Tutorial" }));
+    expect(screen.queryByText(/Self-Tutorial: How to approve field stores/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /How It Works/ }));
+    expect(await screen.findByText(/Self-Tutorial: How to approve field stores/)).toBeInTheDocument();
+  });
+
+  it("filters proposals by salesperson pill", async () => {
+    render(<RetailerApprovals />);
+    const raviPill = await screen.findByRole("button", { name: /Ravi Kumar/ });
+    expect(raviPill).toBeInTheDocument();
+    fireEvent.click(raviPill);
+    expect(await screen.findByText("New Bharat Kirana")).toBeInTheDocument();
+  });
+
+  it("supports one-click batch approval for all visible pending stores", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<RetailerApprovals />);
+    const batchButton = await screen.findByRole("button", { name: /Batch Approve All Visible/ });
+    expect(batchButton).toBeInTheDocument();
+    fireEvent.click(batchButton);
+
+    await waitFor(() =>
+      expect(approveRetailerProposal).toHaveBeenCalledWith("proposal-1", undefined)
+    );
+    expect(await screen.findByText(/Successfully approved all 1 stores/)).toBeInTheDocument();
+  });
 });

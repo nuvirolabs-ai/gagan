@@ -17,6 +17,7 @@ export const Permissions = {
   LEGAL_DECIDE: "legal.decide",
   STAFF_MANAGE: "staff.manage",
   DATA_IMPORT: "data.import",
+  CATALOG_MANAGE: "catalog.manage",
   LOCATION_VIEW: "location.view",
   LOCATION_CAPTURE: "location.capture",
   LOCATION_VERIFY: "location.verify",
@@ -214,5 +215,20 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: "warehouse_operator",
     description: "Processes confirmed orders through the existing warehouse packing step.",
     permissions: [Permissions.ORDER_WAREHOUSE_PROCESS],
+  },
+  {
+    name: "warehouse_manager",
+    description: "Manages warehouse fulfillment: picks, packs, dispatches routes, and records delivery proofs.",
+    permissions: [
+      Permissions.ORDER_WAREHOUSE_PROCESS,
+      Permissions.DISPATCH_EXECUTE,
+    ],
+  },
+  {
+    name: "catalog_manager",
+    description: "Manages catalog, product master, SKU images, and pricing.",
+    permissions: [
+      Permissions.CATALOG_MANAGE,
+    ],
   },
 ];

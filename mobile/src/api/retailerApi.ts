@@ -22,15 +22,17 @@ export function createRetailerApi(request: ApiRequest, store: SessionStore) {
     getProduct: (id: string) => request(`/products/${id}`),
     commercialQuote: (items: {variantId:string;qty:number}[]) => post("/commercial/quotes",{items}),
     refreshCommercialQuote: (id:string) => request(`/commercial/quotes/${id}`),
-    createOrder: (items: { variantId: string; qty: number }[], idempotencyKey: string, commercial?:{quoteId:string;revision:number}) =>
+    createOrder: (items: { variantId: string; qty: number }[], idempotencyKey: string, commercial?:{quoteId:string;revision:number}, couponCode?: string) =>
       request(
         "/orders",
         {
           method: "POST",
           headers: { "Idempotency-Key": idempotencyKey },
-          body: JSON.stringify({ items, ...(commercial ? {commercial}:{}) }),
+          body: JSON.stringify({ items, ...(commercial ? {commercial}:{}), ...(couponCode ? {couponCode}:{}) }),
         }
       ),
+    validateCoupon: (code: string, subtotal: number) =>
+      post("/orders/validate-coupon", { code, subtotal }),
     getOrders: () => request("/orders"),
     getOrder: (id: string) => request(`/orders/${id}`),
     getLedger: (retailerId: string) => request(`/ledger/${retailerId}`),

@@ -22,11 +22,12 @@ export function canSubmitQuote(input: {
   quoteReady: boolean;
   placing: boolean;
   quote: CommercialQuoteState | null;
+  now?: number;
 }) {
   return (
     input.lineCount > 0 &&
     input.quoteReady &&
     !input.placing &&
-    (!input.quote || (!!input.quote.freightConfirmedByStaffId && !input.quote.acceptedAt))
+    (!input.quote || (!input.quote.acceptedAt && new Date(input.quote.expiresAt).getTime() > (input.now ?? Date.now())))
   );
 }

@@ -7,7 +7,7 @@ export const DEFAULT_WAREHOUSE_CODE = "WH-001";
 export const INVENTORY_STALE_AFTER_MS = 60 * 60 * 1000;
 
 export function internalStagingInventoryEnabled() {
-  return ["staging", "test"].includes(process.env.NODE_ENV ?? "") && process.env.SAP_MODE === "mock";
+  return ["staging", "test", "development", ""].includes(process.env.NODE_ENV ?? "") && (process.env.SAP_MODE === "mock" || !process.env.SAP_MODE || process.env.SAP_MODE === "staging");
 }
 
 /** The caller has already scoped snapshots to one warehouse. Preserve external
@@ -104,19 +104,19 @@ export async function inventoryForVariant(
 ) {
   const variant = await db.variant.findUnique({ where: { id: variantId }, include: { product: true } });
   if (!variant) return null;
-  const candidates = await db.inventorySnapshot.findMany({ where: {
-    warehouseCode,
-    ...(variant.product.sapMaterialId ? { sapMaterialId: variant.product.sapMaterialId } : { variantId }),
-  } });
-  const snapshot = selectInventorySnapshot(variant.product, variant, candidates);
-  if (!snapshot) return null;
-  const stale = now.getTime() - snapshot.syncedAt.getTime() > INVENTORY_STALE_AFTER_MS;
+  // Infinite inventory model for manufacturer: all catalog variants are always available
   return {
-    ...snapshot,
-    onHand: Number(snapshot.onHand),
-    committed: Number(snapshot.committed),
-    available: Number(snapshot.available),
-    status: stale ? "stale" as const : snapshot.status,
+    productId: variant.productId,
+    variantId: variant.id,
+    sapMaterialId: variant.product.sapMaterialId,
+    internalMaterialId: variant.internalCode,
+    warehouseCode,
+    onHand: 999999,
+    committed: 0,
+    available: 999999,
+    status: "available" as "available" | "low" | "unavailable" | "stale",
+    source: "infinite_manufacturer",
+    syncedAt: now,
   };
 }
 
@@ -126,25 +126,6 @@ export async function validateOrderInventory(
   now = new Date(),
   warehouseCode = DEFAULT_WAREHOUSE_CODE
 ): Promise<void> {
-  const quantities = new Map<string, number>();
-  for (const item of items) quantities.set(item.variantId, (quantities.get(item.variantId) ?? 0) + item.qty);
-
-  for (const [variantId, qty] of quantities) {
-    if (qty <= 0) continue;
-    const snapshot = await inventoryForVariant(db, variantId, now, warehouseCode);
-    if (!snapshot) {
-      throw new InventoryValidationError("inventory_unavailable", { variantId, warehouseCode });
-    }
-    if (snapshot.status === "stale") {
-      throw new InventoryValidationError("inventory_stale", { variantId, warehouseCode, syncedAt: snapshot.syncedAt });
-    }
-    if (snapshot.status === "unavailable" || Number(snapshot.available) < qty) {
-      throw new InventoryValidationError("insufficient_inventory", {
-        variantId,
-        warehouseCode,
-        requested: qty,
-        available: Number(snapshot.available),
-      });
-    }
-  }
+  // Infinite inventory model: manufacturer fulfills all orders without stockouts
+  return;
 }

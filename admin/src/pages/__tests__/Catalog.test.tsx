@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import Catalog from "../Catalog";
 import { ApiError } from "../../api";
 
-const mocks = vi.hoisted(() => ({ products: vi.fn(), setPrice: vi.fn(), createProduct: vi.fn(), createAndPublishProduct: vi.fn(), saveCatalogueSku: vi.fn(), updateCatalogueSku: vi.fn(), updateProduct: vi.fn(), updateVariant: vi.fn(), addVariant: vi.fn(), publishCatalogue: vi.fn() }));
+const mocks = vi.hoisted(() => ({ products: vi.fn(), setPrice: vi.fn(), createProduct: vi.fn(), createAndPublishProduct: vi.fn(), saveCatalogueSku: vi.fn(), updateCatalogueSku: vi.fn(), updateProduct: vi.fn(), updateVariant: vi.fn(), addVariant: vi.fn(), publishCatalogue: vi.fn(), quickEditVariant: vi.fn(), quickEditProduct: vi.fn() }));
 vi.mock("../../api", async (original) => ({ ...await original<typeof import("../../api")>(), api: mocks }));
 
 beforeEach(() => {
@@ -16,10 +16,8 @@ beforeEach(() => {
   }] });
 });
 
-function fillCommercial(goldPrice = "3120") {
-  fireEvent.change(screen.getByLabelText("Purchase price"), { target: { value: "3000" } });
-  fireEvent.change(screen.getByLabelText("Base selling price"), { target: { value: "3300" } });
-  fireEvent.change(screen.getByLabelText("Gold price"), { target: { value: goldPrice } });
+function fillCommercial(price = "3120") {
+  fireEvent.change(screen.getByLabelText("Selling price"), { target: { value: price } });
   fireEvent.change(screen.getByLabelText("GST %"), { target: { value: "5" } });
   fireEvent.change(screen.getByLabelText("Opening stock (cases)"), { target: { value: "100" } });
 }
@@ -91,7 +89,7 @@ describe("Catalog commercial rate display", () => {
     await waitFor(() => expect(mocks.saveCatalogueSku).toHaveBeenCalledWith(expect.objectContaining({
       productName: "Sample dal", brandName: "Gagan", groupName: "Gagan Daal", category: "Daal",
       packSize: "500", unit: "g", unitsPerCase: 12, outerPack: "Bag",
-      purchaseRate: 3000, listRate: 3300, gstPercent: 5, active: true,
+      purchaseRate: 450, listRate: 450, gstPercent: 5, active: true,
       tiers: [{ tierId: "gold", price: 450 }],
       openingStockCases: 100, warehouseCode: "WH-001", routingClass: "LAXMI_TOOR",
     })));
@@ -99,7 +97,7 @@ describe("Catalog commercial rate display", () => {
     expect(mocks.createAndPublishProduct).not.toHaveBeenCalled();
   });
 
-  it("saves 1 kg × 30 and links tier discount to the entered price", async () => {
+  it("saves 1 kg × 30 with single pricing across all tiers", async () => {
     mocks.saveCatalogueSku.mockResolvedValue({ productId: "daal", variantId: "pack" });
     render(<Catalog />);
     fireEvent.click(await screen.findByRole("button", { name: "Add product" }));
@@ -111,17 +109,17 @@ describe("Catalog commercial rate display", () => {
     fireEvent.change(screen.getByLabelText("Units per case"), { target: { value: "30" } });
     expect(screen.getByText("For a 1 kg pack, weight per unit is 1 kg.")).toBeInTheDocument();
     expect(screen.getByText("Case weight: 30 kg")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Base selling price"), { target: { value: "500" } });
-    fireEvent.change(screen.getByLabelText("Gold price"), { target: { value: "450" } });
-    expect(screen.getByLabelText("Gold discount %")).toHaveValue("10");
-    fireEvent.change(screen.getByLabelText("Gold discount %"), { target: { value: "12" } });
-    expect(screen.getByLabelText("Gold price")).toHaveValue("440");
+    fireEvent.change(screen.getByLabelText("Selling price"), { target: { value: "440" } });
+    expect(screen.getByText("₹14.67 / kg")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Purchase price"), { target: { value: "3000" } });
     fireEvent.change(screen.getByLabelText("GST %"), { target: { value: "5" } });
     fireEvent.change(screen.getByLabelText("Opening stock (cases)"), { target: { value: "30" } });
     expect(screen.getByText("30 cases · 900 units · 900 kg")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(mocks.saveCatalogueSku).toHaveBeenCalledWith(expect.objectContaining({ tiers: [{ tierId: "gold", price: 440 }] })));
+    await waitFor(() => expect(mocks.saveCatalogueSku).toHaveBeenCalledWith(expect.objectContaining({
+      listRate: 440,
+      tiers: [{ tierId: "gold", price: 440 }],
+    })));
     expect(await screen.findByText("Product saved.")).toBeInTheDocument();
     expect(screen.queryByText("Catalogue published. Ordering setup is still separate.")).not.toBeInTheDocument();
   });
@@ -248,43 +246,39 @@ describe("Catalog commercial rate display", () => {
     expect(screen.queryByRole("button", { name: "Set price" })).not.toBeInTheDocument();
   });
 
-  it("reloads the stored list rate and derives each tier discount from it", async () => {
-    mocks.updateCatalogueSku.mockResolvedValue({ productId: "ready", variantId: "ready-pack" });
-    mocks.products.mockResolvedValue({ tiers: [{ id: "gold", name: "Gold" }, { id: "silver", name: "Silver" }], products: [{
+  it("edits price, sku, gst and billing rule in the same row and saves changes", async () => {
+    mocks.quickEditVariant.mockResolvedValue({ ok: true });
+    mocks.products.mockResolvedValue({ tiers: [{ id: "gold", name: "Gold" }], products: [{
       id: "ready", name: "Gagan Final Single Row Test", category: "Daal", catalogStatus: "active",
-      catalogIdentityBrand: "GAGAN", catalogIdentityGroup: "TOOR DAL",
       variants: [{
-        id: "ready-pack", catalogStatus: "active", catalogKey: "real-catalogue:variant:abc",
-        unitSize: "1 kg", unit: "kg", unitsPerCase: 30, unitWeightKg: 1, catalogIdentityMasterPack: "30KG BAG",
+        id: "ready-pack", catalogStatus: "active",
+        unitSize: "1 kg", unit: "kg", unitsPerCase: 30, unitWeightKg: 1,
         purchaseRate: 3000, purchaseRateBasis: "case", listRate: 3300, listRateBasis: "case", gstPercent: 5, routingClass: "LAXMI_TOOR",
-        stock: { available: 100, status: "in_stock" },
-        prices: [
-          { tierId: "gold", tierName: "Gold", price: 3120, rateBasis: "case" },
-          { tierId: "silver", tierName: "Silver", price: 3240, rateBasis: "case" },
-        ],
+        prices: [{ tierId: "gold", tierName: "Gold", price: 3120, rateBasis: "case" }],
       }],
     }] });
     render(<Catalog />);
     fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
-    expect(screen.getByLabelText("Base selling price")).toHaveValue("3300");
-    expect(screen.getByLabelText("Selling price basis")).toHaveValue("case");
-    expect(screen.getByLabelText("Gold price")).toHaveValue("3120");
-    expect(screen.getByLabelText("Gold discount %")).toHaveValue("5.45");
-    expect(screen.getByLabelText("Silver price")).toHaveValue("3240");
-    expect(screen.getByLabelText("Silver discount %")).toHaveValue("1.82");
-    fireEvent.change(screen.getByLabelText("Gold discount %"), { target: { value: "10" } });
-    expect(screen.getByLabelText("Gold price")).toHaveValue("2970");
+    expect(screen.getByLabelText("Pack size")).toHaveValue(1);
+    expect(screen.getByLabelText("Units per case")).toHaveValue(30);
+    expect(screen.getByLabelText("GST %")).toHaveValue("5");
+    expect(screen.getByLabelText("Billing rule")).toHaveValue("LAXMI_TOOR");
+    expect(screen.getByLabelText("Selling price")).toHaveValue(3120);
+    fireEvent.change(screen.getByLabelText("Selling price"), { target: { value: "3400" } });
+    fireEvent.change(screen.getByLabelText("GST %"), { target: { value: "12" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(mocks.updateCatalogueSku).toHaveBeenCalledWith("ready-pack", expect.objectContaining({
-      listRate: 3300,
-      sellingRateBasis: "case",
-      tiers: [{ tierId: "gold", price: 2970 }, { tierId: "silver", price: 3240 }],
+    await waitFor(() => expect(mocks.quickEditVariant).toHaveBeenCalledWith("ready-pack", expect.objectContaining({
+      price: 3400,
+      gstPercent: 12,
+      routingClass: "LAXMI_TOOR",
+      packSize: "1",
+      unit: "kg",
+      unitsPerCase: 30,
+      rateBasis: "case",
     })));
-    const saved = mocks.updateCatalogueSku.mock.calls[0][1] as { tiers: Array<Record<string, unknown>> };
-    expect(saved.tiers.every((tier) => !("discountPercent" in tier))).toBe(true);
   });
 
-  it("shows a complete row without a publish or ordering-setup step", async () => {
+  it("shows a complete row with single pricing without ordering-setup or multiple tier columns", async () => {
     mocks.products.mockResolvedValue({ tiers: [{ id: "gold", name: "Gold" }, { id: "silver", name: "Silver" }], products: [{
       id: "ready", name: "Gagan Toor Dal", category: "Daal", catalogStatus: "active",
       variants: [{
@@ -296,16 +290,116 @@ describe("Catalog commercial rate display", () => {
     }] });
     render(<Catalog />);
     expect(await screen.findByText("Active")).toBeInTheDocument();
-    expect(screen.getByText("Stock: 240 cases")).toBeInTheDocument();
-    expect(screen.getByText("Purchase: ₹3,000/case")).toBeInTheDocument();
-    expect(screen.getByText("Gold: ₹3,120/case")).toBeInTheDocument();
-    expect(screen.getByText("Silver: ₹3,240/case")).toBeInTheDocument();
+    expect(screen.getByText("1 kg × 30")).toBeInTheDocument();
+    expect(screen.getByText("30 kg case")).toBeInTheDocument();
     expect(screen.getByText("GST: 5%")).toBeInTheDocument();
     expect(screen.getByText("Billing: Laxmi toor")).toBeInTheDocument();
+    expect(screen.getByText("₹3,120 / case")).toBeInTheDocument();
+    expect(screen.getByText("₹104 / kg")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Publish catalogue" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Set up ordering" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Manage setup" })).not.toBeInTheDocument();
     expect(screen.queryByText("Ordering setup pending")).not.toBeInTheDocument();
+    expect(screen.queryByText("Gold: ₹3,120/case")).not.toBeInTheDocument();
+    expect(screen.queryByText("Silver: ₹3,240/case")).not.toBeInTheDocument();
+  });
+
+  it("automatically updates price of case simultaneously when pack size or units per case is edited", async () => {
+    mocks.quickEditVariant.mockResolvedValue({ ok: true });
+    mocks.products.mockResolvedValue({ tiers: [{ id: "gold", name: "Gold" }], products: [{
+      id: "toor", name: "Gagan Toor Dal", category: "Daal", catalogStatus: "active",
+      variants: [{
+        id: "toor-5-6", catalogStatus: "active",
+        unitSize: "5 kg", unit: "kg", unitsPerCase: 6, unitWeightKg: 5,
+        purchaseRate: 2800, listRate: 3150, listRateBasis: "case", gstPercent: 5, routingClass: "LAXMI_TOOR",
+        prices: [{ tierId: "gold", tierName: "Gold", price: 3150, rateBasis: "case" }],
+      }],
+    }] });
+    render(<Catalog />);
+    // User clicks the pack size directly or clicks Edit
+    fireEvent.click(await screen.findByRole("button", { name: /5 kg × 6/ }));
+    expect(screen.getByLabelText("Pack size")).toHaveValue(5);
+    expect(screen.getByLabelText("Units per case")).toHaveValue(6);
+    expect(screen.getByLabelText("Selling price")).toHaveValue(3150);
+    expect(screen.getByLabelText("Rate per kg")).toHaveValue("105");
+
+    // User updates units per case from 6 to 5 (25 kg case)
+    // 25 kg * 105 / kg = 2625
+    fireEvent.change(screen.getByLabelText("Units per case"), { target: { value: "5" } });
+    expect(screen.getByLabelText("Selling price")).toHaveValue(2625);
+    expect(screen.getByText("Case: ~25 kg")).toBeInTheDocument();
+
+    // User updates pack size from 5 to 10 (10 kg * 5 = 50 kg case)
+    // 50 kg * 105 / kg = 5250
+    fireEvent.change(screen.getByLabelText("Pack size"), { target: { value: "10" } });
+    expect(screen.getByLabelText("Selling price")).toHaveValue(5250);
+    expect(screen.getByText("Case: ~50 kg")).toBeInTheDocument();
+
+    // User clicks save
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(mocks.quickEditVariant).toHaveBeenCalledWith("toor-5-6", expect.objectContaining({
+      packSize: "10",
+      unit: "kg",
+      unitsPerCase: 5,
+      price: 5250,
+      rateBasis: "case",
+    })));
+  });
+
+  it("allows editing product name, category, and image URL for an already listed product via Edit product modal", async () => {
+    mocks.quickEditProduct.mockResolvedValue({ ok: true });
+    mocks.products.mockResolvedValue({ tiers: [{ id: "gold", name: "Gold" }], products: [{
+      id: "toor-prod", name: "Gagan Toor Dal", category: "Daal", catalogStatus: "active", imageUrl: "http://example.com/toor.jpg",
+      variants: [{
+        id: "toor-1", catalogStatus: "active", unitSize: "1 kg", unit: "kg", unitsPerCase: 30, unitWeightKg: 1,
+        prices: [{ tierId: "gold", price: 3120, rateBasis: "case" }],
+      }],
+    }] });
+    render(<Catalog />);
+    fireEvent.click(await screen.findByRole("button", { name: "✎ Edit product" }));
+    expect(screen.getByLabelText("Edit product name")).toHaveValue("Gagan Toor Dal");
+    expect(screen.getByLabelText("Edit category")).toHaveValue("Daal");
+    expect(screen.getByLabelText("Edit image URL")).toHaveValue("http://example.com/toor.jpg");
+
+    fireEvent.change(screen.getByLabelText("Edit product name"), { target: { value: "Gagan Premium Toor Dal" } });
+    fireEvent.change(screen.getByLabelText("Edit category"), { target: { value: "Pulses & Grains" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Product" }));
+
+    await waitFor(() => expect(mocks.quickEditProduct).toHaveBeenCalledWith("toor-prod", {
+      name: "Gagan Premium Toor Dal",
+      category: "Pulses & Grains",
+      imageUrl: "http://example.com/toor.jpg",
+    }));
+  });
+
+  it("allows editing product name and category in CatalogueSkuForm when adding a pack to an existing product", async () => {
+    mocks.saveCatalogueSku.mockResolvedValue({ productId: "toor-prod", variantId: "new-pack" });
+    mocks.products.mockResolvedValue({ tiers: [{ id: "gold", name: "Gold" }], products: [{
+      id: "toor-prod", name: "Gagan Toor Dal", category: "Daal", catalogStatus: "active",
+      variants: [{
+        id: "toor-1", catalogStatus: "active", unitSize: "1 kg", unit: "kg", unitsPerCase: 30, unitWeightKg: 1,
+        prices: [{ tierId: "gold", price: 3120, rateBasis: "case" }],
+      }],
+    }] });
+    render(<Catalog />);
+    fireEvent.click(await screen.findByRole("button", { name: "Add pack" }));
+    const nameInput = screen.getByLabelText("Product name");
+    const categoryInput = screen.getByLabelText("Category");
+    expect(nameInput).not.toHaveAttribute("readonly");
+    expect(categoryInput).not.toHaveAttribute("readonly");
+
+    fireEvent.change(nameInput, { target: { value: "Gagan Daily Toor Dal" } });
+    fireEvent.change(categoryInput, { target: { value: "Pulses" } });
+    fireEvent.change(screen.getByLabelText("Selling price"), { target: { value: "3200" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(mocks.saveCatalogueSku).toHaveBeenCalledWith(expect.objectContaining({
+      productId: "toor-prod",
+      productName: "Gagan Daily Toor Dal",
+      category: "Pulses",
+      listRate: 3200,
+    })));
   });
 
   it("does not surface archived rows when loading drafts", async () => {

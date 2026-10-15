@@ -61,7 +61,6 @@ describe("approved retailer commerce polish", () => {
   it("keeps Home shopping-first and reserves the full floating-footer inset", () => {
     const markers = [
       "<RetailerPromoCarousel",
-      "{/* Account finance */}",
       "{/* Shop by category */}",
       "{/* Products */}",
       "{/* Latest order */}",
@@ -79,10 +78,8 @@ describe("approved retailer commerce polish", () => {
     expect(homeScreenSource).toContain("useScrollToTop(scrollRef)");
     expect(catalog).toContain("useScrollToTop(listRef)");
   });
-  it("marks retained account totals as possibly stale when Home refresh fails", () => {
-    expect(homeScreenSource).toContain('setFinanceStale(true)');
-    expect(homeScreenSource).toContain('setFinanceStale(false)');
-    expect(homeScreenSource).toContain('Account totals may be out of date');
+  it("keeps account finance hidden on Home in pilot phase", () => {
+    expect(homeScreenSource).not.toContain('<AccountStrip');
   });
   it("explains a fully dropped saved cart even when its line list is empty", () => {
     const cart = readFileSync(fileURLToPath(new URL("../../screens/CartScreen.tsx", import.meta.url)), "utf8");

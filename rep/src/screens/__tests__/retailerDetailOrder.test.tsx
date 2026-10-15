@@ -70,7 +70,7 @@ describe("Salesperson retailer detail order", () => {
     expect(rendered).not.toContain("errors.generic");
   });
 
-  it("renders name, check-in, intelligence, outstanding, then schemes before other content", () => {
+  it("renders name, check-in, intelligence, then schemes before other content", () => {
     state.values.set(0, {
       retailer: { id: "store-1", name: "Test Store", shopAddress: "Main Road", lifecycle: "active" },
       credit: { outstanding: 120, overdue: 0, available: 500 },
@@ -87,17 +87,17 @@ describe("Salesperson retailer detail order", () => {
     const screen = RepRetailerDetailScreen({ route: { params: { retailerId: "store-1" } }, navigation: {} });
     const scroll = Children.toArray(screen.props.children)[0] as React.ReactElement<{ children: ReactNode }>;
     const blocks = Children.toArray(scroll.props.children).map(content);
-    const markers = ["Test Store", "retailer.checkIn", "Store intelligence", "profile.outstanding", "Schemes for this store"];
+    const markers = ["Test Store", "retailer.checkIn", "Store intelligence", "Schemes for this store"];
 
     expect(markers.map((marker) => blocks.findIndex((block) => block.includes(marker))))
-      .toEqual([0, 1, 2, 3, 4]);
+      .toEqual([0, 1, 2, 3]);
     for (const marker of markers) {
       expect(blocks.filter((block) => block.includes(marker))).toHaveLength(1);
     }
-    expect(blocks.slice(5).join(" ")).toContain("retailer.recentOrders");
+    expect(blocks.slice(4).join(" ")).toContain("retailer.recentOrders");
   });
 
-  it("does not show a payable number for an account needing reconciliation", () => {
+  it("does not show credit numbers in pilot phase", () => {
     state.values.set(0, {
       retailer: { id: "store-1", name: "Test Store", shopAddress: "Main Road", lifecycle: "active" },
       credit: { outstanding: 0, overdue: 0, available: 500 },
@@ -114,7 +114,7 @@ describe("Salesperson retailer detail order", () => {
     const screen = RepRetailerDetailScreen({ route: { params: { retailerId: "store-1" } }, navigation: {} });
     const scroll = Children.toArray(screen.props.children)[0] as React.ReactElement<{ children: ReactNode }>;
     const rendered = Children.toArray(scroll.props.children).map(content).join(" ");
-    expect(rendered).toContain("finance.reviewTitle");
-    expect(rendered).not.toContain("INR 0");
+    expect(rendered).not.toContain("profile.outstanding");
+    expect(rendered).not.toContain("INR 500");
   });
 });

@@ -5,6 +5,7 @@ import {
   AppStateStatus,
   View,
   Text,
+  TextInput,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
@@ -12,7 +13,7 @@ import {
   Alert,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { Ionicons, Feather } from "@expo/vector-icons";
+import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useCart } from "../context/CartContext";
@@ -22,17 +23,23 @@ import { ScreenHeader, QtyStepper, EmptyState, SectionTitle } from "../component
 import { useLanguage } from "../i18n/LanguageContext";
 import { canSubmitQuote, classifyQuoteRefresh } from "../lib/commercialQuoteState";
 import { commercialTaxPresentation } from "../lib/commercialTaxPresentation";
+import { friendlyErrorMessage } from "../lib/friendlyErrors";
+import { evaluateCoupon, type CouponDefinition } from "../lib/couponEngine";
 
 export default function CartScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const { lines, updateQty, clear, total, reconcile, staleNotice, dismissStaleNotice } = useCart();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [placing, setPlacing] = useState(false);
   const [quote,setQuote]=useState<any>(null);
   const [quoteReady,setQuoteReady]=useState(false);
   const [quoteError,setQuoteError]=useState("");
   const [quoteAttempt,setQuoteAttempt]=useState(0);
   const [refreshingQuote,setRefreshingQuote]=useState(false);
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<CouponDefinition | null>(null);
+  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [couponError, setCouponError] = useState("");
   const quoteRef=useRef<any>(null);
   const refreshInFlight=useRef(false);
   const appState=useRef<AppStateStatus>(AppState.currentState);
@@ -113,8 +120,41 @@ export default function CartScreen({ navigation }: any) {
   const cartCount = lines.reduce((count, line) => count + line.qty, 0);
   const tabBarSpace = tabBarContentSpace(0, insets.bottom);
   const belowMin = payable > 0 && payable < (config.minOrderValue ?? 0);
-  const overCredit = credit != null && payable > credit.available;
-  const canCheckout = canSubmitQuote({lineCount:lines.length,quoteReady,placing,belowMinimum:belowMin,overCredit,quote});
+  const canCheckout = canSubmitQuote({lineCount:lines.length,quoteReady,placing,belowMinimum:belowMin,quote});
+
+  const applyCouponCode = () => {
+    setCouponError("");
+    const trimmed = couponInput.trim();
+    if (!trimmed) return;
+    const res = evaluateCoupon(trimmed, payable);
+    if (!res.valid) {
+      setCouponError(res.friendlyMessage || "Invalid coupon code");
+      return;
+    }
+    setAppliedCoupon(res.coupon!);
+    setCouponDiscount(res.discountAmount);
+    setCouponError("");
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponDiscount(0);
+    setCouponInput("");
+    setCouponError("");
+  };
+
+  useEffect(() => {
+    if (appliedCoupon) {
+      const res = evaluateCoupon(appliedCoupon.code, payable);
+      if (res.valid) {
+        setCouponDiscount(res.discountAmount);
+      } else {
+        removeCoupon();
+      }
+    }
+  }, [payable, appliedCoupon?.code]);
+
+  const finalPayable = Math.max(0, payable - couponDiscount);
 
   const handleCheckout = async () => {
     if (submitting.current || !canCheckout) return;
@@ -144,7 +184,8 @@ export default function CartScreen({ navigation }: any) {
       const res = await api.createOrder(
         freshLines.map((l) => ({ variantId: l.variantId, qty: l.qty })),
         checkoutKey.current,
-        quote ? {quoteId:quote.id,revision:quote.revision}:undefined
+        quote ? {quoteId:quote.id,revision:quote.revision}:undefined,
+        appliedCoupon?.code
       );
       clear();
       checkoutKey.current = null;
@@ -162,7 +203,8 @@ export default function CartScreen({ navigation }: any) {
           "Please clear outstanding dues or contact your salesperson before placing this order."
         );
       } else {
-        Alert.alert(t("errors.order"), e instanceof ApiError ? e.message : t("errors.generic"));
+        const friendly = friendlyErrorMessage(e, language);
+        Alert.alert(friendly.title, friendly.message);
       }
       // An explicit validation rejection permits a corrected request. Unknown
       // outcomes retain their key so a lost response cannot create two orders.
@@ -259,21 +301,79 @@ export default function CartScreen({ navigation }: any) {
           </View>
         ))}
 
+        {/* Coupon Card */}
+        <View style={styles.couponCard}>
+          <View style={styles.couponHeader}>
+            <MaterialCommunityIcons name="ticket-percent-outline" size={18} color={colors.accentStrong} />
+            <Text style={styles.couponTitle}>Have a coupon code?</Text>
+          </View>
+
+          {appliedCoupon ? (
+            <View style={styles.couponAppliedRow}>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={styles.couponAppliedCode}>{appliedCoupon.code}</Text>
+                  <Text style={styles.couponAppliedBadge}>APPLIED</Text>
+                </View>
+                <Text style={styles.couponAppliedDesc}>{appliedCoupon.description}</Text>
+              </View>
+              <TouchableOpacity onPress={removeCoupon} style={styles.removeCouponBtn}>
+                <Text style={styles.removeCouponText}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View>
+              <View style={styles.couponInputRow}>
+                <TextInput
+                  style={styles.couponInput}
+                  placeholder="Enter code (e.g. WELCOME500)"
+                  placeholderTextColor={colors.inkMuted}
+                  value={couponInput}
+                  onChangeText={(val) => {
+                    setCouponInput(val.toUpperCase());
+                    if (couponError) setCouponError("");
+                  }}
+                  autoCapitalize="characters"
+                  editable={!placing}
+                />
+                <TouchableOpacity
+                  style={[styles.applyBtn, !couponInput.trim() && styles.applyBtnDisabled]}
+                  disabled={!couponInput.trim() || placing}
+                  onPress={applyCouponCode}
+                >
+                  <Text style={styles.applyBtnText}>Apply</Text>
+                </TouchableOpacity>
+              </View>
+              {couponError ? <Text style={styles.couponErrorText}>{couponError}</Text> : null}
+            </View>
+          )}
+        </View>
+
         {!quote && <SectionTitle>{t("cart.summary")}</SectionTitle>}
         {!quote && <View style={styles.summary}>
           <View style={styles.sumRow}>
             <Text style={styles.sumLabel}>{t("cart.subtotal")}</Text>
             <Text style={styles.sumValue}>{inr(total)}</Text>
           </View>
+          {couponDiscount > 0 && appliedCoupon && (
+            <View style={styles.sumRow}>
+              <Text style={[styles.sumLabel, { color: colors.greenDeep, fontWeight: "600" }]}>
+                Coupon ({appliedCoupon.code})
+              </Text>
+              <Text style={[styles.sumValue, { color: colors.greenDeep, fontWeight: "700" }]}>
+                -{inr(couponDiscount)}
+              </Text>
+            </View>
+          )}
           <View style={styles.sumRow}>
-            <Text style={styles.totalLabel}>{quote ? quoteTax.totalLabel : "Catalogue subtotal"}</Text>
+            <Text style={styles.totalLabel}>Final Payable</Text>
             <Text
               style={styles.totalValue}
               numberOfLines={1}
               adjustsFontSizeToFit
               minimumFontScale={0.7}
             >
-              {inr(payable)}
+              {inr(finalPayable)}
             </Text>
           </View>
 
@@ -297,20 +397,19 @@ export default function CartScreen({ navigation }: any) {
             </Text>
           </View>
         )}
-        {overCredit && (
-          <View style={styles.warn}>
-            <Ionicons name="alert-circle" size={15} color={colors.danger} />
-            <Text style={styles.warnText}>
-              Please clear outstanding dues or contact your salesperson before placing this order.
-            </Text>
-          </View>
-        )}
+
+        <View style={styles.freightNotice}>
+          <Feather name="info" size={14} color="#8D6E63" />
+          <Text style={styles.freightNoticeText}>
+            Note: Freight will be charged extra at the time of delivery.
+          </Text>
+        </View>
       </ScrollView>
 
       <View style={[styles.bar, { paddingBottom: tabBarSpace }]}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.barLabel}>{quote ? quoteTax.totalLabel : "Catalogue subtotal"}</Text>
-          <Text style={styles.barValue}>{inr(payable)}</Text>
+          <Text style={styles.barLabel}>{quote ? quoteTax.totalLabel : "Final Payable"}</Text>
+          <Text style={styles.barValue}>{inr(finalPayable)}</Text>
         </View>
         <TouchableOpacity
           style={[styles.checkout, !canCheckout && styles.checkoutDisabled]}
@@ -434,6 +533,19 @@ const styles = StyleSheet.create({
   },
   warnText: { flex: 1, fontSize: 12, color: colors.danger, lineHeight: 17, fontWeight: "600" },
 
+  freightNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FFF8E1",
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: "#FFE082",
+    padding: spacing.md,
+    marginTop: spacing.md,
+  },
+  freightNoticeText: { flex: 1, fontSize: 12.5, color: "#8D6E63", fontWeight: "600", lineHeight: 17 },
+
   bar: {
     position: "absolute",
     left: 0,
@@ -461,4 +573,100 @@ const styles = StyleSheet.create({
   },
   checkoutDisabled: { opacity: 0.4 },
   checkoutText: { color: colors.onDark, fontWeight: "700", fontSize: 14.5 },
+  couponCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  couponHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: spacing.sm,
+  },
+  couponTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.ink,
+  },
+  couponInputRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  couponInput: {
+    flex: 1,
+    height: 40,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.ink,
+  },
+  applyBtn: {
+    backgroundColor: colors.greenDeep,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.lg,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  applyBtnDisabled: {
+    opacity: 0.5,
+  },
+  applyBtnText: {
+    color: colors.onDark,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  couponAppliedRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+    borderRadius: radius.sm,
+    padding: spacing.sm + 2,
+  },
+  couponAppliedCode: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#166534",
+    letterSpacing: 0.5,
+  },
+  couponAppliedBadge: {
+    fontSize: 10,
+    fontWeight: "800",
+    backgroundColor: "#DCFCE7",
+    color: "#15803D",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  couponAppliedDesc: {
+    fontSize: 11.5,
+    color: "#15803D",
+    marginTop: 2,
+  },
+  removeCouponBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  removeCouponText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.danger,
+  },
+  couponErrorText: {
+    fontSize: 11.5,
+    color: colors.danger,
+    marginTop: 4,
+    marginLeft: 2,
+  },
 });

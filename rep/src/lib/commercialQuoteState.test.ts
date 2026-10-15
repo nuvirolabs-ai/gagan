@@ -9,8 +9,8 @@ const base: CommercialQuoteState = {
 };
 
 describe("salesperson commercial quote reconciliation policy", () => {
-  it("keeps Place order disabled while freight is awaiting manager confirmation", () => {
-    expect(canSubmitQuote({ lineCount: 2, quoteReady: true, placing: false, quote: base })).toBe(false);
+  it("allows Place order without awaiting freight confirmation", () => {
+    expect(canSubmitQuote({ lineCount: 2, quoteReady: true, placing: false, quote: base })).toBe(true);
   });
 
   it("enables only the newer manager-confirmed, unaccepted quote", () => {
@@ -32,7 +32,8 @@ describe("salesperson commercial quote reconciliation policy", () => {
 
   it("classifies expiry without treating it as a valid checkout state", () => {
     const expired = { ...base, expiresAt: "2028-01-01T00:00:00.000Z" };
-    expect(classifyQuoteRefresh(expired, Date.parse("2029-01-01T00:00:00.000Z")).kind).toBe("expired");
-    expect(canSubmitQuote({ lineCount: 2, quoteReady: true, placing: false, quote: expired })).toBe(false);
+    const now = Date.parse("2029-01-01T00:00:00.000Z");
+    expect(classifyQuoteRefresh(expired, now).kind).toBe("expired");
+    expect(canSubmitQuote({ lineCount: 2, quoteReady: true, placing: false, quote: expired, now })).toBe(false);
   });
 });

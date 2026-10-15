@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
-import { AdminRequest, requireAdmin } from "../../lib/adminAuth";
+import { AdminRequest, requireAdmin, requireAnyAdminPermission } from "../../lib/adminAuth";
+import { Permissions } from "../../modules/identity/roleCatalog";
 import { ageAllRetailers } from "../../lib/ageing";
 import { financialLedgerFor } from "../../modules/finance/financialQueries";
 import { financialSummaryFor } from "../../modules/finance/financialSummary";
@@ -14,7 +15,17 @@ import { CommercialStatusCode } from "@prisma/client";
 import { internalStatusForRetailer, recordCommercialStatusEvent } from "../../modules/commercialStatus/statusService";
 
 const router = Router();
-router.use(requireAdmin);
+
+router.get(
+  "/tiers",
+  requireAnyAdminPermission(Permissions.STAFF_MANAGE, Permissions.RETAILER_PROPOSAL_REVIEW, Permissions.CATALOG_MANAGE),
+  async (_req, res) => {
+    const tiers = await prisma.tier.findMany({ orderBy: { name: "asc" } });
+    res.json({ tiers });
+  }
+);
+
+router.use(["/retailers", "/ageing", "/payments"], requireAdmin);
 
 router.get("/retailers", async (_req, res) => {
   const retailers = await prisma.retailer.findMany({
@@ -263,11 +274,6 @@ router.post("/payments", async (req, res) => {
     }
     throw error;
   }
-});
-
-router.get("/tiers", async (_req, res) => {
-  const tiers = await prisma.tier.findMany({ orderBy: { name: "asc" } });
-  res.json({ tiers });
 });
 
 export default router;

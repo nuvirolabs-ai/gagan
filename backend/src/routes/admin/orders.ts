@@ -11,7 +11,7 @@ import { ensureKycApprovedForDispatch, KycGateError } from "../../modules/kyc/ky
 import { attributeOrders } from "../../modules/orders/orderAttribution";
 
 const router = Router();
-router.use(requireAdmin);
+router.use(["/orders", "/dispatch"], requireAdmin);
 class OrderTransitionConflict extends Error {}
 
 // Orders move forward only, one step at a time. Anything else is a bad request

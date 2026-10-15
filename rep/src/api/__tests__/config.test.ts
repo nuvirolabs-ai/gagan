@@ -6,5 +6,6 @@ describe("staff API configuration", () => {
     expect(() => resolveApiBaseUrl("http://api.gagan.test", false, "android")).toThrow("HTTPS");
     expect(() => resolveApiBaseUrl(undefined, false, "android")).toThrow("EXPO_PUBLIC_API_URL");
     expect(resolveApiBaseUrl("https://api.gagan.test/", false, "android")).toBe("https://api.gagan.test");
+    expect(resolveApiBaseUrl("http://127.0.0.1:4000/", false, "android")).toBe("http://127.0.0.1:4000");
   });
 });

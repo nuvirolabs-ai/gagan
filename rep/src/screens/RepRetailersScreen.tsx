@@ -69,17 +69,10 @@ export function OutletCard({
         <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} />
       </View>
       <View style={styles.outletRule} />
-      {reviewRequired ? (
-        <Text style={styles.outletReview}>{dueLabel}</Text>
-      ) : (
-        <View style={styles.outletBottom}>
-          <View style={styles.outletMoney}>
-            <Text style={[styles.outletDue, dueTone === "danger" && styles.outletDueDanger]}>{dueLabel}</Text>
-            <Text style={styles.outletCredit}>{creditLabel}</Text>
-          </View>
-          {chip ? <StatusChip label={chip.label} tone={chip.tone} /> : <Text style={styles.outletQuiet}>Open account</Text>}
-        </View>
-      )}
+      <View style={styles.outletBottom}>
+        <Text style={styles.outletQuiet}>{item.deliveryCity || "Active store"}</Text>
+        {chip ? <StatusChip label={chip.label} tone={chip.tone} /> : <Text style={styles.outletQuiet}>Active account</Text>}
+      </View>
     </TouchableOpacity>
   );
 }
@@ -262,9 +255,7 @@ export default function RepRetailersScreen({ navigation }: any) {
               ? { label: t("retailers.filterOverdue"), tone: "danger" as const }
               : onRoute
                 ? { label: t("retailers.routeToday"), tone: "green" as const }
-                : item.tier?.toLowerCase() === "gold"
-                  ? { label: t("retailers.gold"), tone: "gold" as const }
-                  : undefined;
+                : undefined;
             return (
               <OutletCard
                 item={item}

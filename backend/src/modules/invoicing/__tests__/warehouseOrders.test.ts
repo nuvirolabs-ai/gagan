@@ -132,9 +132,15 @@ describe("warehouse order API on local PostgreSQL", () => {
     }
     await prisma.auditEvent.deleteMany({ where: { subjectId: { in: Object.values(ids) } } });
     await prisma.dispatchAuthorization.deleteMany({ where: { orderId: { in: [ids.confirmed, ids.packed, ids.placed] } } });
+    await prisma.financialLedgerEntry.deleteMany({ where: { invoice: { orderId: { in: [ids.confirmed, ids.packed, ids.placed] } } } });
+    await prisma.invoiceLine.deleteMany({ where: { invoice: { orderId: { in: [ids.confirmed, ids.packed, ids.placed] } } } });
+    await prisma.invoice.deleteMany({ where: { orderId: { in: [ids.confirmed, ids.packed, ids.placed] } } });
+    await prisma.ledgerEntry.deleteMany({ where: { orderId: { in: [ids.confirmed, ids.packed, ids.placed] } } });
+    await prisma.delivery.deleteMany({ where: { orderId: { in: [ids.confirmed, ids.packed, ids.placed] } } });
     await prisma.creditAssessment.deleteMany({ where: { orderId: { in: [ids.confirmed, ids.packed, ids.placed] } } });
     await prisma.orderItem.deleteMany({ where: { orderId: { in: [ids.confirmed, ids.packed, ids.placed] } } });
     await prisma.order.deleteMany({ where: { id: { in: [ids.confirmed, ids.packed, ids.placed] } } });
+    await prisma.kycCase.deleteMany({ where: { retailerId: ids.retailer } });
     for (const { staffId, adminId } of createdOperators) {
       await prisma.staffUser.deleteMany({ where: { id: staffId } });
       await prisma.adminUser.deleteMany({ where: { id: adminId } });
@@ -238,5 +244,44 @@ describe("warehouse order API on local PostgreSQL", () => {
       .set("Authorization", `Bearer ${adminToken}`)
       .expect(200);
     expect(adminReadback.body.order.status).toBe("packed");
+
+    await prisma.retailer.update({
+      where: { id: ids.retailer },
+      data: { status: "active" },
+    });
+    await prisma.kycCase.create({
+      data: {
+        retailerId: ids.retailer,
+        status: "approved",
+      },
+    });
+
+    const dispatched = await request(app)
+      .post(`/admin/warehouse-orders/${ids.confirmed}/dispatch`)
+      .set("Authorization", `Bearer ${warehouseToken}`)
+      .send({ routeId: "ROUTE-WH-01" })
+      .expect(200);
+    expect(dispatched.body.order.status).toBe("out_for_delivery");
+    expect(dispatched.body.order.delivery).toMatchObject({ routeId: "ROUTE-WH-01" });
+
+    const orderWithItems = await prisma.order.findUniqueOrThrow({
+      where: { id: ids.confirmed },
+      include: { items: true },
+    });
+
+    const delivered = await request(app)
+      .post(`/admin/warehouse-orders/${ids.confirmed}/deliver`)
+      .set("Authorization", `Bearer ${warehouseToken}`)
+      .send({
+        podType: "photo",
+        items: [{
+          orderItemId: orderWithItems.items[0].id,
+          qtyDelivered: 3,
+        }],
+      })
+      .expect(200);
+    expect(delivered.body.order.status).toBe("delivered");
+    expect(delivered.body).toHaveProperty("invoiceId");
   });
 });
+

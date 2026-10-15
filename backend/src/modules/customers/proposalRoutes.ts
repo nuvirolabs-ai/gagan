@@ -229,7 +229,8 @@ export function createRetailerProposalAdminRouter(options: {
   const router = Router();
   router.use("/retailer-proposals", options.authenticate);
 
-  const scopeOf = async (req: StaffAuthedRequest) => (await scopes.resolve(req.staffAuth!)).staffIds;
+  const scopeOf = async (req: StaffAuthedRequest, narrowTo?: string | null) =>
+    (await scopes.resolveFor(req.staffAuth!, narrowTo)).staffIds;
 
   const sendError = (error: unknown, res: any, next: any) => {
     if (error instanceof ScopeError) return res.status(error.status).json({ error: error.code });
@@ -241,10 +242,14 @@ export function createRetailerProposalAdminRouter(options: {
     requirePermission(Permissions.RETAILER_PROPOSAL_REVIEW),
     asyncRoute(async (req: StaffAuthedRequest, res, next) => {
       try {
+        const narrowTo =
+          typeof req.query.salespersonId === "string" && req.query.salespersonId.trim()
+            ? req.query.salespersonId.trim()
+            : null;
         res.json({
           proposals: await service.listForReview({
             status: typeof req.query.status === "string" ? req.query.status : undefined,
-            scopeStaffIds: await scopeOf(req),
+            scopeStaffIds: await scopeOf(req, narrowTo),
           }),
         });
       } catch (error) {

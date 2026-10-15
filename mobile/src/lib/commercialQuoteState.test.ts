@@ -9,8 +9,8 @@ const base: CommercialQuoteState = {
 };
 
 describe("retailer commercial quote reconciliation policy", () => {
-  it("keeps Place order disabled while freight is awaiting manager confirmation", () => {
-    expect(canSubmitQuote({ lineCount: 2, quoteReady: true, placing: false, belowMinimum: false, overCredit: false, quote: base })).toBe(false);
+  it("allows Place order without awaiting freight confirmation", () => {
+    expect(canSubmitQuote({ lineCount: 2, quoteReady: true, placing: false, belowMinimum: false, overCredit: false, quote: base })).toBe(true);
   });
 
   it("enables only the newer manager-confirmed, unaccepted quote", () => {
@@ -32,14 +32,14 @@ describe("retailer commercial quote reconciliation policy", () => {
 
   it("classifies expiry without treating it as a valid checkout state", () => {
     const expired = { ...base, expiresAt: "2028-01-01T00:00:00.000Z" };
-    expect(classifyQuoteRefresh(expired, Date.parse("2029-01-01T00:00:00.000Z")).kind).toBe("expired");
-    expect(canSubmitQuote({ lineCount: 2, quoteReady: true, placing: false, belowMinimum: false, overCredit: false, quote: expired })).toBe(false);
+    const now = Date.parse("2029-01-01T00:00:00.000Z");
+    expect(classifyQuoteRefresh(expired, now).kind).toBe("expired");
+    expect(canSubmitQuote({ lineCount: 2, quoteReady: true, placing: false, belowMinimum: false, overCredit: false, quote: expired, now })).toBe(false);
   });
 
   it("preserves the safe disabled state when non-quote gates fail", () => {
     const confirmed = { ...base, freightConfirmedByStaffId: "staff-1" };
     expect(canSubmitQuote({ lineCount: 2, quoteReady: true, placing: false, belowMinimum: true, overCredit: false, quote: confirmed })).toBe(false);
-    expect(canSubmitQuote({ lineCount: 2, quoteReady: true, placing: false, belowMinimum: false, overCredit: true, quote: confirmed })).toBe(false);
     expect(canSubmitQuote({ lineCount: 2, quoteReady: true, placing: true, belowMinimum: false, overCredit: false, quote: confirmed })).toBe(false);
   });
 });

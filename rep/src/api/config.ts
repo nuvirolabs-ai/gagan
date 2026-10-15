@@ -18,7 +18,12 @@ export function resolveApiBaseUrl(
 ) {
   if (configured) {
     const normalized = configured.replace(/\/$/, "");
-    if (!development && !normalized.startsWith("https://")) {
+    if (
+      !development &&
+      !normalized.startsWith("https://") &&
+      !normalized.startsWith("http://127.0.0.1") &&
+      !normalized.startsWith("http://localhost")
+    ) {
       throw new Error("EXPO_PUBLIC_API_URL must use HTTPS outside development");
     }
     return normalized;

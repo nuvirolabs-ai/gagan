@@ -129,14 +129,18 @@ async function saveIn(tx: Prisma.TransactionClient, input: CatalogueSkuInput, ac
   if (input.variantId) {
     const variant = await tx.variant.findUnique({ where: { id: input.variantId }, include: { product: true, orderItems: { select: { id: true }, take: 1 } } });
     if (!variant) throw new CatalogueSkuError("pack_not_found", 404);
-    const identityLocked = Boolean(variant.catalogKey || variant.orderItems.length);
-    if (identityLocked && (variant.unitSize.toLowerCase() !== pack.unitSize.toLowerCase() || variant.unitsPerCase !== pack.unitsPerCase || variant.product.name !== business.product.name || variant.product.catalogIdentityBrand !== productIdentity.brand || variant.product.catalogIdentityGroup !== productIdentity.group || (variant.catalogIdentityMasterPack != null && variant.catalogIdentityMasterPack !== variantIdentity.master))) {
+    const identityLocked = Boolean(variant.orderItems.length);
+    if (identityLocked && (variant.unitSize.toLowerCase() !== pack.unitSize.toLowerCase() || variant.unitsPerCase !== pack.unitsPerCase || (variant.catalogIdentityMasterPack != null && variant.catalogIdentityMasterPack !== variantIdentity.master))) {
       throw new CatalogueSkuError("identity_fields_locked", 409);
     }
     const product = await tx.product.update({
       where: { id: variant.productId },
       data: {
-        ...(identityLocked ? {} : { name: business.product.name, category: business.product.category, catalogIdentityBrand: productIdentity.brand, catalogIdentityGroup: productIdentity.group, catalogIdentityLabel: productIdentity.label }),
+        name: business.product.name,
+        category: business.product.category,
+        catalogIdentityBrand: productIdentity.brand,
+        catalogIdentityGroup: productIdentity.group,
+        catalogIdentityLabel: productIdentity.label,
         ...(image.imageUrl ? { imageUrl: image.imageUrl } : {}),
         ...(status === "active" && variant.product.catalogStatus !== "published" ? { catalogStatus: "active" } : {}),
       },
@@ -156,7 +160,6 @@ async function saveIn(tx: Prisma.TransactionClient, input: CatalogueSkuInput, ac
 
   const existingProduct = input.productId ? await tx.product.findUnique({ where: { id: input.productId } }) : null;
   if (input.productId && !existingProduct) throw new CatalogueSkuError("product_not_found", 404);
-  if (existingProduct?.catalogKey && existingProduct.catalogKey !== productIdentity.catalogKey) throw new CatalogueSkuError("catalogue_identity_mismatch", 409);
   const taken = await tx.variant.findUnique({ where: { catalogKey: variantIdentity.catalogKey } });
   if (taken) throw new CatalogueSkuError("canonical_pack_exists", 409);
   const productOwner = await tx.product.findUnique({ where: { catalogKey: productIdentity.catalogKey } });
@@ -166,7 +169,13 @@ async function saveIn(tx: Prisma.TransactionClient, input: CatalogueSkuInput, ac
     ? await tx.product.update({
         where: { id: existingProduct.id },
         data: {
-          ...(existingProduct.catalogKey ? {} : { catalogKey: productIdentity.catalogKey, internalCode: productIdentity.internalCode, catalogIdentityBrand: productIdentity.brand, catalogIdentityGroup: productIdentity.group, catalogIdentityLabel: productIdentity.label }),
+          name: business.product.name,
+          category: business.product.category,
+          catalogIdentityBrand: productIdentity.brand,
+          catalogIdentityGroup: productIdentity.group,
+          catalogIdentityLabel: productIdentity.label,
+          ...(image.imageUrl ? { imageUrl: image.imageUrl } : {}),
+          ...(existingProduct.catalogKey ? {} : { catalogKey: productIdentity.catalogKey, internalCode: productIdentity.internalCode }),
           ...(status === "active" && !["active", "published"].includes(existingProduct.catalogStatus) ? { catalogStatus: "active" } : {}),
         },
       })
@@ -198,7 +207,7 @@ async function saveIn(tx: Prisma.TransactionClient, input: CatalogueSkuInput, ac
   for (const price of prices) {
     await tx.priceList.create({ data: { tierId: price.tierId, variantId: variant.id, productId: product.id, price: price.price, rateBasis: input.sellingRateBasis } });
   }
-  await writeStock(tx, product, variant, input.openingStockCases ?? 0, warehouseCode);
+  if (input.openingStockCases != null) await writeStock(tx, product, variant, input.openingStockCases, warehouseCode);
   await tx.auditEvent.create({ data: { actorStaffId, action: "catalog.sku_saved", subjectType: "variant", subjectId: variant.id, metadata: { productId: product.id, variantId: variant.id, active: input.active, mode: existingProduct ? "add_pack" : "create" } } });
   return { productId: product.id, variantId: variant.id, catalogStatus: variant.catalogStatus, productCatalogKey: product.catalogKey, variantCatalogKey: variant.catalogKey };
 }

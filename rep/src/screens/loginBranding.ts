@@ -17,3 +17,14 @@ export const SALESPERSON_LOGIN_ARTWORK = {
 } as const;
 
 export const SALESPERSON_LOGIN_ARTWORK_LABEL = "GAGAN Sales login artwork";
+
+export const SALESPERSON_HERO_ARTWORK = {
+  heroSource: "gagan-sales-hero.png",
+  footerSource: "gagan-sales-footer.png",
+  width: 487,
+  heroHeight: 610,
+  brand: "GAGAN SALES",
+  title: "Welcome to GAGAN SALES",
+  subtitle: "Serve better. Grow together.",
+  support: "Contact your manager",
+} as const;

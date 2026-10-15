@@ -330,7 +330,8 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   const { retailer, credit, recentOrders, recentLedger, kyc, financialSummary } = data;
   const reviewRequired = financialSummary?.reconciliationRequired === true;
   const kycApproved = retailer.lifecycle === "active" && (kyc?.status === "approved" || kyc?.legacyVerified === true);
-  const blocked = !criticalReady || !visitReady || credit.available <= 0 || !kycApproved;
+  // Pilot phase: credit limit does not block order taking for approved stores
+  const blocked = !criticalReady || !visitReady;
   const visiting = Boolean(activeVisit && !activeVisit.checkedOutAt);
   const lastOrder = recentOrders[0] ?? data.lastOrderSummary;
   const todayStop = todayField?.route?.stops?.find((stop: any) => stop.retailer?.id === retailer.id);
@@ -458,9 +459,6 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
               {retailer.shopAddress}
             </Text>
             <View style={styles.chips}>
-              {retailer.tier ? (
-                <StatusChip label={`${retailer.tier} retailer`} tone={retailer.tier.toLowerCase() === "gold" ? "gold" : "neutral"} />
-              ) : null}
               {retailer.internalSegment ? (
                 <StatusChip label={`Internal segment ${retailer.internalSegment}`} tone="neutral" />
               ) : null}
@@ -564,32 +562,6 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
           </Surface>
         ) : null}
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t("retailer.openOutstandingLedger", { name: retailer.name })}
-          onPress={() => navigation.navigate("RepRetailerOutstanding", { retailerId: retailer.id, retailerName: retailer.name })}
-          style={({ pressed }) => [pressed && { opacity: 0.82 }]}
-        >
-          <Surface>
-            <View style={styles.moneyRow}>
-              <View style={styles.moneyCell}>
-                <Text style={styles.moneyLabel}>{t("profile.outstanding")}</Text>
-                <Text style={styles.moneyValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                  {reviewRequired ? "—" : inr(credit.outstanding)}
-                </Text>
-              </View>
-              <MaterialCommunityIcons name="chevron-right" size={22} color={colors.primary} />
-            </View>
-            {reviewRequired ? <Text style={styles.muted}>{t("finance.reviewTitle")}. {t("finance.reviewBody")}</Text> : <EntityAttribution
-              amounts={financialSummary?.entityBalances?.outstanding}
-              overdue={financialSummary?.entityBalances?.overdue}
-              expectedOverdue={Number(credit.overdue)}
-              status={financialSummary?.entityBalances?.attributionStatus}
-              expectedTotal={Number(credit.outstanding)}
-            />}
-          </Surface>
-        </Pressable>
-
         {schemes.length > 0 ? (
           <Surface>
             <SectionHeader title="Schemes for this store" />
@@ -620,12 +592,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
           </Surface>
         ) : null}
 
-        {!reviewRequired && credit.overdue > 0 ? (
-          <FocusCard tone="danger">
-            <Text style={styles.insight}>{inr(credit.overdue)} overdue</Text>
-            <Text style={styles.insightBody}>Collect before taking a large order.</Text>
-          </FocusCard>
-        ) : lastOrder ? (
+        {lastOrder ? (
           <Text style={styles.insightQuiet}>
             Last order {new Date(lastOrder.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} ·{" "}
             {inr(Number(lastOrder.orderTotal))}
@@ -886,13 +853,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
       {!visiting && !activeVisitElsewhere ? (
         <View style={[styles.bar, { paddingBottom: spacing.section + insets.bottom }]}>
           <PrimaryButton
-            label={
-              credit.available <= 0
-                ? "No credit available"
-                : !kycApproved
-                  ? "KYC approval required"
-                  : t("orders.place")
-            }
+            label={t("orders.place")}
             icon="cart-outline"
             disabled={blocked}
             onPress={startOrder}

@@ -7,6 +7,7 @@ import { Permissions } from "../../modules/identity/roleCatalog";
 import { transitionOrder } from "./orders";
 import { ensureKycApprovedForDispatch, KycGateError } from "../../modules/kyc/kycGate";
 import { createInvoiceForDelivery, InvoiceCreationError } from "../../modules/invoicing/invoiceService";
+import { DEFAULT_WAREHOUSE_CODE } from "../../modules/inventory/inventoryService";
 
 const router = Router();
 const defaultStatuses: OrderStatus[] = ["confirmed", "packed"];
@@ -106,6 +107,42 @@ router.get("/warehouse-orders", async (req, res) => {
     take: 200,
   });
   res.json({ orders: orders.map(projectWarehouseOrder) });
+});
+
+router.get("/warehouse-orders/routes", async (_req, res) => {
+  const configuredRoutes = process.env.DELIVERY_ROUTES
+    ? process.env.DELIVERY_ROUTES.split(",").map((r) => r.trim()).filter(Boolean)
+    : [
+        "ROUTE-INDORE-CENTRAL",
+        "ROUTE-MALWAMILL-PATNIPURA",
+        "ROUTE-VIJAYNAGAR-SCHEME78",
+        "ROUTE-EXPRESS",
+      ];
+
+  try {
+    const pastDeliveries = await prisma.delivery.findMany({
+      where: { routeId: { not: null } },
+      select: { routeId: true },
+      distinct: ["routeId"],
+      take: 20,
+    });
+    const discoveredRoutes = pastDeliveries.map((d) => d.routeId).filter(Boolean) as string[];
+    const merged = Array.from(new Set([...configuredRoutes, ...discoveredRoutes]));
+
+    res.json({
+      routes: merged,
+      defaultRoute: configuredRoutes[0] ?? "ROUTE-INDORE-CENTRAL",
+      warehouseCode: process.env.WAREHOUSE_CODE ?? DEFAULT_WAREHOUSE_CODE,
+      warehouseCity: process.env.WAREHOUSE_CITY ?? "Indore",
+    });
+  } catch {
+    res.json({
+      routes: configuredRoutes,
+      defaultRoute: configuredRoutes[0] ?? "ROUTE-INDORE-CENTRAL",
+      warehouseCode: process.env.WAREHOUSE_CODE ?? DEFAULT_WAREHOUSE_CODE,
+      warehouseCity: process.env.WAREHOUSE_CITY ?? "Indore",
+    });
+  }
 });
 
 router.get("/warehouse-orders/:id", async (req, res) => {

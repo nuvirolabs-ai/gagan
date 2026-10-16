@@ -43,12 +43,26 @@ const FILTERS: Array<{ value: QueueFilter; label: string; step: string; icon: st
   { value: "delivered", label: "Delivered", step: "4. Delivered", icon: "check" },
 ];
 
-const ROUTE_PRESETS = [
-  "ROUTE-PUNE-EAST-1",
-  "ROUTE-PUNE-WEST-2",
-  "ROUTE-MARKET-YARD",
+const DEFAULT_ROUTE_PRESETS = [
+  "ROUTE-INDORE-CENTRAL",
+  "ROUTE-MALWAMILL-PATNIPURA",
+  "ROUTE-VIJAYNAGAR-SCHEME78",
   "ROUTE-EXPRESS",
 ];
+
+function suggestRouteForRetailer(retailer?: WarehouseOrder["retailer"], presets: string[] = DEFAULT_ROUTE_PRESETS): string {
+  if (!retailer) return presets[0] || "ROUTE-INDORE-CENTRAL";
+  const haystack = `${retailer.name ?? ""} ${retailer.shopAddress ?? ""} ${retailer.deliveryCity ?? ""}`.toUpperCase();
+  if (haystack.includes("MALWAMILL") || haystack.includes("PATNIPURA") || haystack.includes("NANDA NAGAR")) {
+    const match = presets.find((p) => p.includes("MALWAMILL") || p.includes("PATNIPURA"));
+    if (match) return match;
+  }
+  if (haystack.includes("VIJAY NAGAR") || haystack.includes("SCHEME 78") || haystack.includes("MALVIYA NAGAR")) {
+    const match = presets.find((p) => p.includes("VIJAYNAGAR") || p.includes("SCHEME78"));
+    if (match) return match;
+  }
+  return presets[0] || "ROUTE-INDORE-CENTRAL";
+}
 
 function statusBadgeClass(status: WarehouseOrder["status"]) {
   switch (status) {
@@ -119,8 +133,23 @@ export default function WarehouseOrders() {
   const [modalDetailLoading, setModalDetailLoading] = useState(false);
 
   // Dispatch fields inside modal
-  const [dispatchRouteId, setDispatchRouteId] = useState("ROUTE-PUNE-EAST-1");
+  const [routePresets, setRoutePresets] = useState<string[]>(DEFAULT_ROUTE_PRESETS);
+  const [warehouseCity, setWarehouseCity] = useState("Indore");
+  const [dispatchRouteId, setDispatchRouteId] = useState("ROUTE-INDORE-CENTRAL");
   const [dispatchSlot, setDispatchSlot] = useState("");
+
+  useEffect(() => {
+    api.warehouseRoutes?.()
+      .then((res) => {
+        if (res?.routes && Array.isArray(res.routes) && res.routes.length > 0) {
+          setRoutePresets(res.routes);
+        }
+        if (res?.warehouseCity) {
+          setWarehouseCity(res.warehouseCity);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // POD Delivery fields inside modal
   const [podType, setPodType] = useState<"photo" | "otp" | "signature">("photo");
@@ -279,7 +308,8 @@ export default function WarehouseOrders() {
   // Open Pop-up Modal on order click
   const openOrderModal = useCallback(async (order: WarehouseOrder) => {
     setModalOrder(order);
-    setDispatchRouteId(order.delivery?.routeId || "ROUTE-PUNE-EAST-1");
+    const initialRoute = order.delivery?.routeId || suggestRouteForRetailer(order.retailer, routePresets);
+    setDispatchRouteId(initialRoute);
     setDispatchSlot("");
     setPodType("photo");
     setDeliveredLines(order.items.map((i) => ({ orderItemId: i.id, cases: i.qtyOrdered })));
@@ -300,7 +330,7 @@ export default function WarehouseOrders() {
     } finally {
       setModalDetailLoading(false);
     }
-  }, []);
+  }, [routePresets]);
 
   const closeModal = useCallback(() => {
     if (busy) return;
@@ -1035,10 +1065,10 @@ export default function WarehouseOrders() {
 
                     <div style={{ marginBottom: 14 }}>
                       <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
-                        Route Presets
+                        Route Presets <span style={{ fontSize: 11, fontWeight: 400, color: "#6b7280" }}>({warehouseCity})</span>
                       </label>
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-                        {ROUTE_PRESETS.map((p) => (
+                        {routePresets.map((p) => (
                           <button
                             key={p}
                             type="button"

@@ -222,6 +222,7 @@ export const api = {
   warehouseOrders: (status?: string) =>
     request(`/admin/warehouse-orders${status ? `?status=${status}` : ""}`),
   warehouseOrder: (id: string) => request(`/admin/warehouse-orders/${id}`),
+  warehouseRoutes: () => request("/admin/warehouse-orders/routes"),
   packWarehouseOrder: (id: string) => post(`/admin/warehouse-orders/${id}/pack`),
   dispatchWarehouseOrder: (id: string, routeId: string, deliverySlot?: string) =>
     post(`/admin/warehouse-orders/${id}/dispatch`, { routeId, deliverySlot }),

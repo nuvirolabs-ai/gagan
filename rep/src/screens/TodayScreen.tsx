@@ -127,32 +127,6 @@ function MilestoneRail({ completion }: { completion: number }) {
   );
 }
 
-function TargetBlock({
-  label,
-  value,
-  detail,
-  pct,
-  pctLabel,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  pct?: number;
-  pctLabel?: string;
-}) {
-  const bounded = pct == null ? 0 : Math.max(0, Math.min(100, pct));
-  return (
-    <View style={styles.targetBlock}>
-      <View style={styles.targetBlockHead}>
-        <Text style={styles.targetBlockLabel}>{label}</Text>
-        {pct != null ? <Text style={styles.targetBlockPct}>{pctLabel ?? `${pct}%`}</Text> : null}
-      </View>
-      <ProgressRow pct={bounded} tone="green" />
-      <Text style={styles.targetBlockDetail} numberOfLines={1}>{detail}</Text>
-      <Text style={styles.targetBlockValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>{value}</Text>
-    </View>
-  );
-}
 
 function AchievementSheet({
   achievement,
@@ -305,28 +279,37 @@ export default function TodayScreen({ navigation }: any) {
   }
 
   const banner = trackingBanner({ tracking: tracking?.tracking ?? false, reason: tracking?.reason ?? "off_duty", pendingUploads: outbox.pending });
-  const route = today.route;
   const metrics = today.todayMetrics ?? {};
-  const target = today.targets?.find((item: any) => item.metric === "order_value") ?? today.headlineTarget;
-  const positiveTarget = target != null && safeCount(target.target) > 0;
-  const nextStop = route?.nextStop;
-  const pendingStops = safeCount(route?.progress?.pending);
+  const orderTarget = today.targets?.find((item: any) => item.metric === "order_value") ?? today.headlineTarget;
+  const target = orderTarget;
+  const hasConfiguredTarget = orderTarget != null && safeCount(orderTarget.target) > 0;
+
+  // Monthly target from admin DB or standard FMCG benchmark ₹2,50,000
+  const monthlyTarget = hasConfiguredTarget ? safeCount(orderTarget.target) : 250000;
+  // Daily target (derived from monthly / 25 working days or configured)
+  const dailyTarget = hasConfiguredTarget && (orderTarget as any).dailyTarget
+    ? safeCount((orderTarget as any).dailyTarget)
+    : Math.round(monthlyTarget / 25);
+
+  const todaySales = safeCount(metrics.orderValue);
+  const todayOrders = safeCount(metrics.orders);
+  const todayPct = dailyTarget > 0 ? Math.round((todaySales / dailyTarget) * 100) : 0;
+  const todayBarPct = Math.max(0, Math.min(100, todayPct));
+  const todayRemaining = Math.max(0, dailyTarget - todaySales);
+  const todayAchieved = todaySales >= dailyTarget && dailyTarget > 0;
+
+  const monthSales = safeCount(
+    today.monthMetrics?.orderValue ?? (hasConfiguredTarget ? orderTarget.actual : todaySales)
+  );
+  const monthOrders = safeCount(today.monthMetrics?.orders ?? todayOrders);
+  const monthPct = monthlyTarget > 0 ? Math.round((monthSales / monthlyTarget) * 100) : 0;
+  const monthBarPct = Math.max(0, Math.min(100, monthPct));
+  const monthRemaining = Math.max(0, monthlyTarget - monthSales);
+  const monthAchieved = monthSales >= monthlyTarget && monthlyTarget > 0;
+
   const pendingRetailers = today.pendingCollections?.retailers ?? [];
   const attentionItems = visibleAttentionItems({ overdueRetailers: pendingRetailers, accountReviews: today.pendingCollections?.reviewRetailers ?? [], opportunityActions: today.opportunities?.actions ?? [], serviceIssues: today.serviceIssues ?? [], followUps: today.followUps ?? [] });
   const remainingTasks = (today.tasks ?? []).filter((task: any) => task.status !== "done" && task.status !== "cancelled");
-  const planned = safeCount(route?.progress?.total);
-  const visited = safeCount(route?.progress?.visited) + safeCount(route?.progress?.skipped);
-  const completion = Math.max(0, safeCount(target?.completionPct));
-  const targetActual = target?.unit === "currency" ? inr(safeCount(target.actual)) : String(safeCount(target?.actual));
-  const targetTotal = target?.unit === "currency" ? inr(safeCount(target.target)) : String(safeCount(target?.target));
-  const targetProgressDetail = positiveTarget
-    ? safeCount(target.remaining) > 0
-      ? target.unit === "currency"
-        ? `${inr(safeCount(target.remaining))} to go`
-        : `${safeCount(target.remaining)} to go`
-      : "Target reached"
-    : "Target progress";
-  const coverage = planned > 0 ? Math.round((safeCount(metrics.customersCovered) / planned) * 100) : null;
 
   return (
     <AppScreen>
@@ -339,71 +322,106 @@ export default function TodayScreen({ navigation }: any) {
       <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.blue} />}>
         {error ? <OfflineBanner title={t("today.offline")} body={error || t("today.offlineBody")} /> : null}
 
-        <Surface style={styles.salesSurface}>
-          <View style={styles.salesHeading}>
+        {/* Today's Target vs Monthly Target Card */}
+        <Surface style={styles.targetCard}>
+          <View style={styles.targetCardHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.eyebrow}>TODAY’S SALES</Text>
-              <Text style={styles.salesValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>{inr(safeCount(metrics.orderValue))}</Text>
+              <Text style={styles.targetCardKicker}>SALES TARGETS & PROGRESS</Text>
+              <Text style={styles.targetCardTitle}>Daily & Monthly Goals</Text>
             </View>
-            <View style={styles.salesContext}>
-              <Text style={styles.contextLabel}>{target ? "MONTH TARGET" : "TARGET"}</Text>
-              <Text style={[styles.contextValue, !positiveTarget && styles.contextValueQuiet]}>{positiveTarget ? `${completion}%` : "—"}</Text>
+            <View style={styles.targetStatusBadge}>
+              <Text style={styles.targetStatusBadgeText}>
+                {hasConfiguredTarget ? "Admin Target" : "Standard Benchmark"}
+              </Text>
             </View>
           </View>
-          {positiveTarget ? (
-            <>
-              <View style={styles.targetGrid}>
-                <TargetBlock label={target.label || "Monthly sales"} value={`${targetActual} / ${targetTotal}`} detail={targetProgressDetail} pct={completion} />
-                <View style={styles.targetDivider} />
-                <TargetBlock label={safeCount(target.remaining) > 0 ? "To go" : "Target"} value={safeCount(target.remaining) > 0 ? (target.unit === "currency" ? inr(safeCount(target.remaining)) : String(safeCount(target.remaining))) : "Done"} detail={safeCount(target.remaining) > 0 ? (target.periodStart && target.periodEnd ? `${new Date(target.periodStart).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} — ${new Date(target.periodEnd).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}` : "Configured target period") : "Target reached"} pct={safeCount(target.remaining) > 0 ? Math.max(0, 100 - completion) : 100} pctLabel={safeCount(target.remaining) > 0 ? `${Math.max(0, 100 - completion)}% left` : "Done"} />
+
+          {/* Today's Target Section */}
+          <View style={styles.targetSection}>
+            <View style={styles.targetSectionHead}>
+              <View style={styles.targetSectionLabelRow}>
+                <View style={[styles.targetIconCircle, { backgroundColor: colors.blueSoft }]}>
+                  <Ionicons name="flash-outline" size={15} color={colors.blueInk} />
+                </View>
+                <Text style={styles.targetSectionLabel}>TODAY’S TARGET</Text>
               </View>
-              <MilestoneRail completion={completion} />
-            </>
-          ) : target ? (
-            <View style={styles.targetUnavailable}><Ionicons name="flag-outline" size={18} color={colors.inkMuted} /><Text style={styles.caption}>{`No positive target configured for this period. Actual: ${targetActual} / ${targetTotal}.`}</Text></View>
-          ) : (
-            <View style={styles.targetUnavailable}><Ionicons name="flag-outline" size={18} color={colors.inkMuted} /><Text style={styles.caption}>No target has been configured for this period.</Text></View>
-          )}
+              <View style={[styles.targetPctBadge, todayAchieved && styles.targetPctBadgeGreen]}>
+                <Text style={[styles.targetPctText, todayAchieved && styles.targetPctTextGreen]}>
+                  {todayPct}% DONE
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.targetNumbersRow}>
+              <Text style={styles.targetActualBig}>{inr(todaySales)}</Text>
+              <Text style={styles.targetGoalText}> / {inr(dailyTarget)}</Text>
+            </View>
+
+            <ProgressRow pct={todayBarPct} tone={todayAchieved ? "green" : "gold"} />
+
+            <View style={styles.targetMetaRow}>
+              {todayAchieved ? (
+                <View style={styles.targetAchievedPill}>
+                  <Ionicons name="checkmark-circle" size={14} color={colors.green} />
+                  <Text style={styles.targetAchievedPillText}>
+                    Daily target achieved! (+{inr(todaySales - dailyTarget)} ahead)
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.targetMetaText}>
+                  {inr(todayRemaining)} to go today · {todayOrders} order{todayOrders === 1 ? "" : "s"} booked
+                </Text>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.targetCardDivider} />
+
+          {/* Monthly Target Section */}
+          <View style={styles.targetSection}>
+            <View style={styles.targetSectionHead}>
+              <View style={styles.targetSectionLabelRow}>
+                <View style={[styles.targetIconCircle, { backgroundColor: colors.limeSoft }]}>
+                  <Ionicons name="trophy-outline" size={15} color={colors.green} />
+                </View>
+                <Text style={styles.targetSectionLabel}>MONTHLY TARGET</Text>
+              </View>
+              <View style={[styles.targetPctBadge, monthAchieved && styles.targetPctBadgeGreen]}>
+                <Text style={[styles.targetPctText, monthAchieved && styles.targetPctTextGreen]}>
+                  {monthPct}% DONE
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.targetNumbersRow}>
+              <Text style={styles.targetActualBig}>{inr(monthSales)}</Text>
+              <Text style={styles.targetGoalText}> / {inr(monthlyTarget)}</Text>
+            </View>
+
+            <ProgressRow pct={monthBarPct} tone={monthAchieved ? "green" : "gold"} />
+
+            <View style={styles.targetMetaRow}>
+              {monthAchieved ? (
+                <View style={styles.targetAchievedPill}>
+                  <Ionicons name="checkmark-circle" size={14} color={colors.green} />
+                  <Text style={styles.targetAchievedPillText}>
+                    Monthly target completed! Excellent work.
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.targetMetaText}>
+                  {inr(monthRemaining)} to reach monthly goal · {monthOrders} orders MTD
+                </Text>
+              )}
+            </View>
+
+            <MilestoneRail completion={monthPct} />
+          </View>
         </Surface>
 
-        {!dayClosed && nextStop ? (
-          <View style={styles.hero}>
-            <View style={styles.heroTop}>
-              <View style={styles.heroBadge}>
-                <Text style={styles.heroBadgeText}>{stopTime(nextStop) ? `NEXT · ${stopTime(nextStop)}` : "NEXT STOP"}</Text>
-              </View>
-              <Ionicons name="navigate-outline" size={21} color={colors.onDarkMuted} />
-            </View>
-            <Text style={styles.heroMetaTop}>STOP {nextStop.sequence} · {nextStop.purpose?.replace(/_/g, " ")}</Text>
-            <Text style={styles.heroName} numberOfLines={2}>{nextStop.retailer.name}</Text>
-            <Text style={styles.heroAddress} numberOfLines={2}>{nextStop.retailer.shopAddress}</Text>
-            {nextStop.retailer.locationStatus ? (
-              <View style={styles.heroLocation}>
-                <Ionicons name="location-outline" size={15} color={colors.onDarkMuted} />
-                <Text style={styles.heroLocationText}>{nextStop.retailer.locationStatus === "VERIFIED" ? "Verified store location" : "Store location needs review"}</Text>
-              </View>
-            ) : null}
-            <View style={styles.heroActions}>
-              <View style={{ flex: 1 }}>
-                <PrimaryButton label={dayOpen ? "Start visit" : "Open store"} icon="navigate-circle-outline" onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: nextStop.retailer.id, startVisit: dayOpen })} />
-              </View>
-              <SecondaryButton variant="text" label="Navigate" icon="navigate-outline" onPress={() => navigateTo(nextStop)} />
-            </View>
-          </View>
-        ) : dayClosed ? (
+        {dayClosed ? (
           <CompactDayStatus minutes={attendance.minutesSoFar} onPress={() => navigation.navigate("Activity")} />
-        ) : (
-          <Surface style={styles.calmHero}>
-            <View style={styles.calmHeroContent}>
-              <View style={styles.calmHeroMark}><Ionicons name="calendar-outline" size={20} color={colors.blueInk} /></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.eyebrow}>SALES DAY</Text>
-                <Text style={styles.calmTitle}>No next visit assigned</Text>
-                <Text style={styles.caption}>{banner.body}</Text>
-              </View>
-            </View>
-          </Surface>
-        )}
+        ) : null}
 
         {attentionItems.length > 0 ? (
           <FocusCard tone="danger" style={styles.attentionFocus}>
@@ -424,39 +442,11 @@ export default function TodayScreen({ navigation }: any) {
           </FocusCard>
         ) : null}
 
-        <View style={styles.metricStrip}>
-            <View style={styles.metricCell}><Text style={styles.metricValue}>{safeCount(metrics.visits)}</Text><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.metricLabel}>Visits</Text></View>
-            <View style={styles.metricCell}><Text style={styles.metricValue}>{visited}</Text><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.metricLabel}>Done</Text></View>
-            <View style={styles.metricCell}><Text style={styles.metricValue}>{coverage == null ? "—" : `${coverage}%`}</Text><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.metricLabel}>Coverage</Text></View>
-        </View>
-
-        <View>
-          <SectionHeader title="Next up today" action={<TextButton label={route ? `${pendingStops} stops left` : "My route"} onPress={() => navigation.navigate("Route")} />} />
-          {route ? (
-            <Surface style={styles.routeSurface}>
-              <View style={styles.routeProgressLine}><Text style={styles.caption}>{visited} of {planned} stops complete</Text><Text style={styles.routePct}>{safeCount(route.progress.completionPct)}%</Text></View>
-              <ProgressRow pct={safeCount(route.progress.completionPct)} tone="green" />
-              {(route.stops ?? []).filter((stop: any) => stop.status !== "visited" && stop.status !== "skipped").slice(0, 2).map((stop: any) => {
-                const visitedStop = stop.status === "visited";
-                const skipped = stop.status === "skipped";
-                return (
-                  <Pressable key={stop.id} onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: stop.retailer.id })} style={({ pressed }) => [styles.stopRow, pressed && styles.pressed]}>
-                    <View style={styles.stopTimeCol}><Text style={styles.stopTime}>{stopTime(stop) || `#${stop.sequence}`}</Text></View>
-                    <View style={{ flex: 1, minWidth: 0 }}><Text style={styles.stopName} numberOfLines={1}>{stop.retailer.name}</Text><Text style={styles.stopAddress} numberOfLines={1}>{stop.retailer.shopAddress}</Text></View>
-                    <Text style={[styles.stopStatus, visitedStop && styles.stopStatusDone, skipped && styles.stopStatusSkipped]}>{visitedStop ? "DONE" : skipped ? "SKIPPED" : stop.id === nextStop?.id ? "NEXT" : "PLANNED"}</Text>
-                  </Pressable>
-                );
-              })}
-              <TextButton label="Full plan" onPress={() => navigation.navigate("Route")} />
-            </Surface>
-          ) : <Text style={styles.caption}>{t("today.noRouteBody")}</Text>}
-        </View>
-
         <View>
           <SectionHeader title="Quick actions" />
           <View style={styles.actionSurface}>
             <ActionTile icon="calendar-outline" label="Attendance" onPress={handleAttendancePress} />
-            <ActionTile icon="cart-outline" label="Order" onPress={() => nextStop ? navigation.navigate("RepRetailerDetail", { retailerId: nextStop.retailer.id }) : navigation.navigate("Retailers")} />
+            <ActionTile icon="cart-outline" label="Order" onPress={() => navigation.navigate("Retailers")} />
             <ActionTile icon="cube-outline" label="Sales Kit" onPress={() => navigation.navigate("SalesKit")} />
             <ActionTile icon="ellipsis-horizontal" label="More" onPress={() => navigation.navigate("More")} />
           </View>
@@ -527,40 +517,144 @@ const styles = StyleSheet.create({
   bellButton: { width: 44, height: 52, alignItems: "center", justifyContent: "center", position: "relative" },
   taskEvidenceButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: radius.sm, backgroundColor: colors.blueSoft },
   notificationDot: { position: "absolute", top: 12, right: 9, width: 7, height: 7, borderRadius: 99, backgroundColor: colors.danger, borderWidth: 1.5, borderColor: colors.canvas },
-
-  hero: { backgroundColor: colors.navy, borderRadius: radius.hero, padding: spacing.xl, gap: spacing.sm },
-  heroTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  heroBadge: { backgroundColor: "rgba(37,99,235,0.22)", borderWidth: 1, borderColor: "rgba(96,165,250,0.55)", borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 8, alignSelf: "flex-start" },
-  heroBadgeText: { color: "#BFDBFE", fontSize: 12, fontWeight: "800", letterSpacing: 0.25 },
-  heroMetaTop: { color: colors.onDarkMuted, fontSize: 11, fontWeight: "700", letterSpacing: 1, textTransform: "uppercase", marginTop: spacing.md },
-  heroName: { color: colors.onDark, fontSize: 27, lineHeight: 32, fontWeight: "800", letterSpacing: -0.6, marginTop: 2 },
-  heroAddress: { color: colors.onDarkMuted, fontSize: 15, lineHeight: 21 },
-  heroLocation: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 2 },
-  heroLocationText: { color: colors.onDarkMuted, fontSize: 12.5 },
   heroActions: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.lg },
-  calmHero: { gap: spacing.md, minHeight: 96, paddingVertical: spacing.lg },
-  calmHeroContent: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  calmHeroMark: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.blueSoft, alignItems: "center", justifyContent: "center" },
-  eyebrow: { color: colors.inkMuted, fontSize: 10.5, fontWeight: "800", letterSpacing: 1.2 },
-  calmTitle: { color: colors.ink, fontSize: 21, fontWeight: "800", letterSpacing: -0.3, marginTop: 3 },
-  caption: { color: colors.inkMuted, fontSize: 13, lineHeight: 18 },
 
-  salesSurface: { gap: spacing.md, paddingVertical: spacing.lg },
-  salesHeading: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
-  salesValue: { color: colors.ink, fontSize: 32, lineHeight: 37, fontWeight: "700", letterSpacing: -0.8, fontVariant: ["tabular-nums"] },
-  salesContext: { alignItems: "flex-end", paddingTop: 2 },
-  contextLabel: { color: colors.inkMuted, fontSize: 10, fontWeight: "800", letterSpacing: 0.8 },
-  contextValue: { color: colors.blue, fontSize: 20, fontWeight: "700", marginTop: 4, fontVariant: ["tabular-nums"] },
-  contextValueQuiet: { color: colors.inkFaint },
-  targetGrid: { flexDirection: "row", gap: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.md },
-  targetBlock: { flex: 1, minWidth: 0, gap: 6 },
-  targetDivider: { width: 1, backgroundColor: colors.separator, marginVertical: 2 },
-  targetBlockHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 4 },
-  targetBlockLabel: { color: colors.inkMuted, fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.55, flex: 1 },
-  targetBlockPct: { color: colors.blueInk, fontSize: 15, fontWeight: "700", fontVariant: ["tabular-nums"] },
-  targetBlockDetail: { color: colors.inkMuted, fontSize: 11, lineHeight: 15 },
-  targetBlockValue: { color: colors.ink, fontSize: 13, fontWeight: "700", fontVariant: ["tabular-nums"] },
-  targetUnavailable: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surfaceAlt, borderRadius: radius.md, padding: spacing.md },
+  targetCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.hero,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xl,
+    gap: spacing.md,
+  },
+  targetCardHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  targetCardKicker: {
+    color: colors.inkMuted,
+    fontSize: 10.5,
+    fontWeight: "800",
+    letterSpacing: 1.1,
+  },
+  targetCardTitle: {
+    color: colors.ink,
+    fontSize: 20,
+    fontWeight: "800",
+    letterSpacing: -0.3,
+    marginTop: 2,
+  },
+  targetStatusBadge: {
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    alignSelf: "flex-start",
+  },
+  targetStatusBadgeText: {
+    color: colors.inkMuted,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  targetSection: {
+    gap: 6,
+  },
+  targetSectionHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  targetSectionLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  targetIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  targetSectionLabel: {
+    color: colors.inkMuted,
+    fontSize: 11.5,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+  },
+  targetPctBadge: {
+    backgroundColor: colors.blueSoft,
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  targetPctBadgeGreen: {
+    backgroundColor: colors.greenSoft,
+  },
+  targetPctText: {
+    color: colors.blueInk,
+    fontSize: 12,
+    fontWeight: "800",
+    fontVariant: ["tabular-nums"],
+  },
+  targetPctTextGreen: {
+    color: colors.green,
+  },
+  targetNumbersRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 4,
+    marginTop: 2,
+  },
+  targetActualBig: {
+    color: colors.ink,
+    fontSize: 28,
+    lineHeight: 33,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+    fontVariant: ["tabular-nums"],
+  },
+  targetGoalText: {
+    color: colors.inkMuted,
+    fontSize: 16,
+    fontWeight: "600",
+    fontVariant: ["tabular-nums"],
+  },
+  targetMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 2,
+  },
+  targetMetaText: {
+    color: colors.inkMuted,
+    fontSize: 12.5,
+    lineHeight: 16,
+  },
+  targetAchievedPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: colors.limeSoft,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+  },
+  targetAchievedPillText: {
+    color: colors.green,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  targetCardDivider: {
+    height: 1,
+    backgroundColor: colors.separator,
+    marginVertical: spacing.xs,
+  },
+  eyebrow: { color: colors.inkMuted, fontSize: 10.5, fontWeight: "800", letterSpacing: 1.2 },
+  caption: { color: colors.inkMuted, fontSize: 13, lineHeight: 18 },
   milestoneRail: { flexDirection: "row", justifyContent: "space-between", gap: 6, paddingTop: spacing.xs },
   milestoneItem: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 34, borderRadius: radius.pill, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border },
   milestoneItemPast: { backgroundColor: colors.limeSoft, borderColor: colors.limeSoft },
@@ -568,25 +662,6 @@ const styles = StyleSheet.create({
   milestoneText: { color: colors.inkMuted, fontSize: 11, fontWeight: "800", fontVariant: ["tabular-nums"] },
   milestoneTextPast: { color: colors.green },
   milestoneTextCurrent: { color: colors.onDark },
-
-  metricStrip: { flexDirection: "row", backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, paddingVertical: spacing.md },
-  metricCell: { flex: 1, alignItems: "center", gap: 4, paddingHorizontal: spacing.xs },
-  metricValue: { color: colors.ink, fontSize: 22, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  metricLabel: { color: colors.inkMuted, fontSize: 11.5, textAlign: "center", width: "100%" },
-
-  routeSurface: { gap: spacing.sm },
-  routeProgressLine: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  routePct: { color: colors.blueInk, fontSize: 13, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  stopRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.md, borderTopWidth: 1, borderTopColor: colors.border, minHeight: 58 },
-  // Keep the full HH:MM token on one line on narrow Android devices. The
-  // route is an itinerary, so a wrapped time is materially harder to scan.
-  stopTimeCol: { width: 52 },
-  stopTime: { color: colors.inkMuted, fontSize: 11, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  stopName: { color: colors.ink, fontSize: 14.5, fontWeight: "700" },
-  stopAddress: { color: colors.inkMuted, fontSize: 12, marginTop: 2 },
-  stopStatus: { color: colors.blueInk, fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
-  stopStatusDone: { color: colors.green },
-  stopStatusSkipped: { color: colors.warning },
 
   actionSurface: { flexDirection: "row", gap: spacing.xs, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, borderRadius: radius.lg, backgroundColor: colors.surfaceAlt },
   actionTile: { flex: 1, minHeight: 64, alignItems: "center", justifyContent: "center", gap: 4, borderRadius: radius.md, paddingHorizontal: 4 },

@@ -344,7 +344,7 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
         </Surface>
 
         <Surface style={styles.couponSurface}>
-          <SectionHeader title="Coupon Discount" subtitle="Apply a retailer discount voucher" />
+          <SectionHeader title="Coupon Discount" />
           {appliedCoupon ? (
             <View style={styles.couponAppliedRow}>
               <View style={{ flex: 1 }}>
@@ -498,4 +498,5 @@ const styles = StyleSheet.create({
   couponTotalRow: { marginTop: spacing.xs, paddingTop: spacing.xs, borderTopWidth: 1, borderTopColor: colors.separator },
   couponTotalLabel: { color: colors.ink, fontSize: 15, fontWeight: "700" },
   couponTotalVal: { color: colors.ink, fontSize: 16, fontWeight: "800" },
+  couponErrorText: { color: colors.danger, fontSize: 12, marginTop: 4 },
 });

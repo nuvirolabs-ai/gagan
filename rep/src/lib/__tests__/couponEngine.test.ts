@@ -12,26 +12,34 @@ describe("rep couponEngine", () => {
   it("evaluates WELCOME500 flat discount", () => {
     const res = evaluateCoupon("welcome500", 3000);
     expect(res.valid).toBe(true);
-    expect(res.discountAmount).toBe(500);
-    expect(res.coupon?.code).toBe("WELCOME500");
+    if (res.valid) {
+      expect(res.discountAmount).toBe(500);
+      expect(res.coupon?.code).toBe("WELCOME500");
+    }
   });
 
   it("evaluates percentage discount DIWALI5 capped at maxDiscount", () => {
     const res = evaluateCoupon("DIWALI5", 30000);
     expect(res.valid).toBe(true);
-    expect(res.discountAmount).toBe(1000);
+    if (res.valid) {
+      expect(res.discountAmount).toBe(1000);
+    }
   });
 
   it("evaluates SAVE10 percentage discount on qualified order", () => {
     const res = evaluateCoupon("SAVE10", 15000);
     expect(res.valid).toBe(true);
-    expect(res.discountAmount).toBe(1500);
+    if (res.valid) {
+      expect(res.discountAmount).toBe(1500);
+    }
   });
 
   it("rejects non-existent coupon", () => {
     const res = evaluateCoupon("NONEXISTENT", 5000);
     expect(res.valid).toBe(false);
-    expect(res.error).toBe("invalid_coupon");
-    expect(res.friendlyMessage).toBe("Invalid coupon code.");
+    if (!res.valid) {
+      expect(res.error).toBe("invalid_coupon");
+      expect(res.friendlyMessage).toBe("Invalid coupon code.");
+    }
   });
 });

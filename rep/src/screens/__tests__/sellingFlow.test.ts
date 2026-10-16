@@ -54,25 +54,20 @@ describe("selling continuation", () => {
 });
 
 describe("screen integration contracts", () => {
-  it("renders the requested Home order without duplicating the sales surface", () => {
+  it("renders the today vs monthly target progress dashboard without visit route banner", () => {
     const home = source("TodayScreen.tsx");
-    const anchors = ["<Surface style={styles.salesSurface}>", "{!dayClosed && nextStop", '<FocusCard tone="danger"', "<View style={styles.metricStrip}>", 'title="Next up today"'];
-    const positions = anchors.map(value => home.indexOf(value));
-    expect(positions.every(position => position >= 0)).toBe(true);
-    expect(positions).toEqual([...positions].sort((a, b) => a - b));
-    expect(home.split(anchors[0])).toHaveLength(2);
+    expect(home).toContain("<Surface style={styles.targetCard}>");
+    expect(home).toContain("TODAY’S TARGET");
+    expect(home).toContain("MONTHLY TARGET");
+    expect(home).not.toContain("No next visit assigned");
+    expect(home).not.toContain('title="Next up today"');
   });
-  it("keeps an explicitly zero personal target distinct from a missing target or a completed one", () => {
+  it("computes daily and monthly target progress with completion percentages", () => {
     const home = source("TodayScreen.tsx");
-    expect(home).toContain("const positiveTarget = target != null && safeCount(target.target) > 0");
-    expect(home).toContain("No positive target configured for this period. Actual:");
-    expect(home).toContain("No target has been configured for this period.");
-    expect(home).toContain("{positiveTarget ? (");
-  });
-  it("shows uncapped achievement above target on the personal Home", () => {
-    const home = source("TodayScreen.tsx");
-    expect(home).toContain("const completion = Math.max(0, safeCount(target?.completionPct));");
-    expect(home).not.toContain("Math.min(100, safeCount(target?.completionPct))");
+    expect(home).toContain("const todayPct = dailyTarget > 0 ? Math.round((todaySales / dailyTarget) * 100) : 0;");
+    expect(home).toContain("const monthPct = monthlyTarget > 0 ? Math.round((monthSales / monthlyTarget) * 100) : 0;");
+    expect(home).toContain("ProgressRow pct={todayBarPct}");
+    expect(home).toContain("ProgressRow pct={monthBarPct}");
   });
   it("removes profile credit presentation and unblocks orders in pilot phase", () => {
     const profile = source("RepRetailerDetailScreen.tsx");

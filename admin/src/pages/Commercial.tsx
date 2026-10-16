@@ -166,7 +166,7 @@ function Invoice({ invoice, reload }: { invoice: Row; reload: () => Promise<void
 export default function Commercial() {
   const { permissions } = useAuth();
   const canConfigure = permissions.includes("staff.manage");
-  const [tab, setTab] = useState<"invoices" | "tiers" | "tax">("invoices");
+  const [tab, setTab] = useState<"invoices" | "tiers" | "tax" | "schemes">("invoices");
 
   // Invoices & SKUs data
   const [data, setData] = useState<Row | null>(null);
@@ -212,6 +212,32 @@ export default function Commercial() {
   const [selectedHsnCode, setSelectedHsnCode] = useState("");
   const [selectedVariants, setSelectedVariants] = useState<string[]>([]);
 
+  // Gap 14: Customer Schemes & Trade Promotions state
+  const [schemes, setSchemes] = useState<any[]>([]);
+  const [schemeTiers, setSchemeTiers] = useState<any[]>([]);
+  const [schemeVariants, setSchemeVariants] = useState<any[]>([]);
+  const [schemesLoading, setSchemesLoading] = useState(false);
+  const [showSchemeModal, setShowSchemeModal] = useState(false);
+  const [editingScheme, setEditingScheme] = useState<any | null>(null);
+  const [schemeForm, setSchemeForm] = useState({
+    name: "",
+    headline: "",
+    description: "",
+    ruleType: "order_value" as "order_value" | "product_qty" | "volume_slab",
+    targetAmount: "20000",
+    minQuantity: "10",
+    qualifyingVariantId: "",
+    rewardType: "flat_discount" as "flat_discount" | "percentage_discount" | "free_goods",
+    rewardValue: "750",
+    freeVariantId: "",
+    targetAudience: "all_retailers" as "all_retailers" | "tier" | "territory",
+    targetTierId: "",
+    targetTerritory: "",
+    active: true,
+    startsAt: new Date().toISOString().split("T")[0],
+    endsAt: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
+  });
+
   const reloadCommercial = async () => {
     setData(await api.commercial());
   };
@@ -243,6 +269,20 @@ export default function Commercial() {
     }
   };
 
+  const loadSchemes = async () => {
+    setSchemesLoading(true);
+    try {
+      const res = await api.promotionalSchemes();
+      setSchemes(res.schemes ?? []);
+      setSchemeTiers(res.tiers ?? []);
+      setSchemeVariants(res.variants ?? []);
+    } catch (err: any) {
+      setError(err.message ?? "Failed to load promotional schemes");
+    } finally {
+      setSchemesLoading(false);
+    }
+  };
+
   useEffect(() => {
     void reloadCommercial().catch((e) => setError(String(e)));
   }, []);
@@ -252,6 +292,8 @@ export default function Commercial() {
       void loadTiers();
     } else if (tab === "tax") {
       void loadHsn();
+    } else if (tab === "schemes") {
+      void loadSchemes();
     }
   }, [tab]);
 
@@ -400,6 +442,70 @@ export default function Commercial() {
     }
   };
 
+  // Handlers for Schemes (Gap 14)
+  const handleSaveScheme = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const payload = {
+        name: schemeForm.name.trim(),
+        headline: schemeForm.headline.trim(),
+        description: schemeForm.description.trim() || undefined,
+        ruleType: schemeForm.ruleType,
+        targetAmount: parseFloat(schemeForm.targetAmount) || 0,
+        discountAmount: schemeForm.rewardType === "flat_discount" ? (parseFloat(schemeForm.rewardValue) || 0) : 0,
+        minQuantity: schemeForm.ruleType === "product_qty" ? (parseInt(schemeForm.minQuantity) || 1) : undefined,
+        qualifyingVariantId: schemeForm.ruleType === "product_qty" ? (schemeForm.qualifyingVariantId || undefined) : undefined,
+        rewardType: schemeForm.rewardType,
+        rewardValue: parseFloat(schemeForm.rewardValue) || 0,
+        freeVariantId: schemeForm.rewardType === "free_goods" ? (schemeForm.freeVariantId || undefined) : undefined,
+        targetAudience: schemeForm.targetAudience,
+        targetTierId: schemeForm.targetAudience === "tier" ? (schemeForm.targetTierId || undefined) : undefined,
+        targetTerritory: schemeForm.targetAudience === "territory" ? (schemeForm.targetTerritory.trim() || undefined) : undefined,
+        active: schemeForm.active,
+        startsAt: new Date(schemeForm.startsAt).toISOString(),
+        endsAt: new Date(schemeForm.endsAt).toISOString(),
+      };
+
+      if (editingScheme) {
+        await api.updateScheme(editingScheme.id, payload);
+        setNotice(`Scheme "${payload.name}" updated successfully.`);
+      } else {
+        await api.createScheme(payload);
+        setNotice(`Scheme "${payload.name}" launched successfully.`);
+      }
+      setShowSchemeModal(false);
+      setEditingScheme(null);
+      await loadSchemes();
+    } catch (err: any) {
+      setError(err.message ?? "Failed to save trade scheme");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleToggleSchemeActive = async (schemeId: string) => {
+    try {
+      const res = await api.toggleSchemeActive(schemeId);
+      setNotice(res.message ?? "Scheme status toggled.");
+      await loadSchemes();
+    } catch (err: any) {
+      setError(err.message ?? "Failed to toggle scheme status");
+    }
+  };
+
+  const handleDeleteScheme = async (schemeId: string, name: string) => {
+    if (!window.confirm(`Delete promotional scheme "${name}"?`)) return;
+    try {
+      await api.deleteScheme(schemeId);
+      setNotice(`Scheme "${name}" deleted.`);
+      await loadSchemes();
+    } catch (err: any) {
+      setError(err.message ?? "Failed to delete scheme");
+    }
+  };
+
   return (
     <main>
       <div className="between" style={{ marginBottom: 16 }}>
@@ -412,7 +518,8 @@ export default function Commercial() {
         <button className="secondary" onClick={() => {
           if (tab === "invoices") void reloadCommercial();
           else if (tab === "tiers") void loadTiers();
-          else void loadHsn();
+          else if (tab === "tax") void loadHsn();
+          else void loadSchemes();
         }}>
           Refresh
         </button>
@@ -440,6 +547,12 @@ export default function Commercial() {
           onClick={() => setTab("tax")}
         >
           Tax / GST & HSN Codes (Gap 11)
+        </button>
+        <button
+          className={tab === "schemes" ? "primary" : "secondary"}
+          onClick={() => setTab("schemes")}
+        >
+          Trade Schemes & Promotions (Gap 14)
         </button>
       </div>
 
@@ -1091,6 +1204,475 @@ export default function Commercial() {
                     <button type="button" className="secondary" onClick={() => setShowApplyHsnModal(false)}>Cancel</button>
                     <button type="submit" disabled={busy || selectedVariants.length === 0}>
                       {busy ? "Applying…" : `Apply to ${selectedVariants.length} Variants`}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 4: Trade Schemes & Promotion Engine (Gap 14) */}
+      {tab === "schemes" && (
+        <div>
+          {/* KPI Cards */}
+          <div className="grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 20 }}>
+            <div className="card" style={{ padding: 14 }}>
+              <div style={{ color: "#6b7280", fontSize: 12, fontWeight: 600 }}>TOTAL TRADE SCHEMES</div>
+              <div style={{ fontSize: 24, fontWeight: 800, marginTop: 4 }}>{schemes.length}</div>
+              <div style={{ fontSize: 12, color: "#16a34a", marginTop: 2 }}>Configured in catalog</div>
+            </div>
+
+            <div className="card" style={{ padding: 14 }}>
+              <div style={{ color: "#6b7280", fontSize: 12, fontWeight: 600 }}>ACTIVE PROMOTIONS</div>
+              <div style={{ fontSize: 24, fontWeight: 800, marginTop: 4, color: "#165a31" }}>
+                {schemes.filter((s) => s.active).length}
+              </div>
+              <div style={{ fontSize: 12, color: "#4b5563", marginTop: 2 }}>Enabled for salesperson punching</div>
+            </div>
+
+            <div className="card" style={{ padding: 14 }}>
+              <div style={{ color: "#6b7280", fontSize: 12, fontWeight: 600 }}>LIVE PROMOTIONS NOW</div>
+              <div style={{ fontSize: 24, fontWeight: 800, marginTop: 4, color: "#2563eb" }}>
+                {schemes.filter((s) => s.isLiveNow).length}
+              </div>
+              <div style={{ fontSize: 12, color: "#2563eb", marginTop: 2 }}>Within calendar date validity</div>
+            </div>
+
+            <div className="card" style={{ padding: 14 }}>
+              <div style={{ color: "#6b7280", fontSize: 12, fontWeight: 600 }}>FREE GOODS (FOC) SCHEMES</div>
+              <div style={{ fontSize: 24, fontWeight: 800, marginTop: 4, color: "#d97706" }}>
+                {schemes.filter((s) => s.rewardType === "free_goods").length}
+              </div>
+              <div style={{ fontSize: 12, color: "#b45309", marginTop: 2 }}>Buy X, Get Y Free</div>
+            </div>
+          </div>
+
+          {/* Action Row */}
+          <div className="between" style={{ marginBottom: 14 }}>
+            <div>
+              <h2 style={{ margin: "0 0 4px", fontSize: 18 }}>Customer Schemes & Trade Promotions</h2>
+              <p className="page-sub" style={{ margin: 0 }}>
+                Configure wholesale quantity discounts, seasonal cash rebates, and free goods (FOC) incentives.
+              </p>
+            </div>
+            <button
+              className="primary"
+              style={{ background: "#165a31", borderColor: "#165a31", fontWeight: 700 }}
+              onClick={() => {
+                setEditingScheme(null);
+                setSchemeForm({
+                  name: "",
+                  headline: "",
+                  description: "",
+                  ruleType: "order_value",
+                  targetAmount: "20000",
+                  minQuantity: "10",
+                  qualifyingVariantId: schemeVariants[0]?.id || "",
+                  rewardType: "flat_discount",
+                  rewardValue: "750",
+                  freeVariantId: schemeVariants[0]?.id || "",
+                  targetAudience: "all_retailers",
+                  targetTierId: schemeTiers[0]?.id || "",
+                  targetTerritory: "Indore Central",
+                  active: true,
+                  startsAt: new Date().toISOString().split("T")[0],
+                  endsAt: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
+                });
+                setShowSchemeModal(true);
+              }}
+            >
+              ➕ Create Promotional Scheme
+            </button>
+          </div>
+
+          {schemesLoading ? (
+            <p>Loading promotional schemes…</p>
+          ) : schemes.length === 0 ? (
+            <div className="card" style={{ padding: 40, textAlign: "center", color: "#6b7280" }}>
+              No trade schemes found. Click <strong>Create Promotional Scheme</strong> to set up promotional rules.
+            </div>
+          ) : (
+            <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb", textAlign: "left", color: "#4b5563" }}>
+                      <th style={{ padding: "10px 14px" }}>Scheme / Offer Title</th>
+                      <th style={{ padding: "10px 14px" }}>Trigger Condition</th>
+                      <th style={{ padding: "10px 14px" }}>Commercial Reward</th>
+                      <th style={{ padding: "10px 14px" }}>Target Audience</th>
+                      <th style={{ padding: "10px 14px" }}>Validity Period</th>
+                      <th style={{ padding: "10px 14px" }}>Status</th>
+                      <th style={{ padding: "10px 14px", textAlign: "right" }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {schemes.map((s) => {
+                      let conditionLabel = `Min Order ${inr(s.targetAmount)}`;
+                      if (s.ruleType === "product_qty") {
+                        conditionLabel = `Order min ${s.minQuantity} cases of ${s.qualifyingVariantName || "Product"}`;
+                      } else if (s.ruleType === "volume_slab") {
+                        conditionLabel = `Volume threshold: ${inr(s.targetAmount)}`;
+                      }
+
+                      let rewardBadge = s.rewardValue != null ? `₹${s.rewardValue} Flat Off` : (s.headline || "Promotional Discount");
+                      let rewardColor = "#065f46";
+                      let rewardBg = "#ecfdf5";
+                      if (s.rewardType === "percentage_discount") {
+                        rewardBadge = s.rewardValue != null ? `${s.rewardValue}% Discount` : "Special Discount";
+                        rewardColor = "#1e40af";
+                        rewardBg = "#dbeafe";
+                      } else if (s.rewardType === "free_goods") {
+                        rewardBadge = `Free: ${s.freeVariantName || "Goods FOC"}`;
+                        rewardColor = "#92400e";
+                        rewardBg = "#fef3c7";
+                      }
+
+                      return (
+                        <tr key={s.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                          <td style={{ padding: "12px 14px" }}>
+                            <div style={{ fontWeight: 700, color: "#111827", fontSize: 14 }}>{s.name}</div>
+                            {s.headline && (
+                              <div style={{ color: "#d97706", fontSize: 12, fontWeight: 600, marginTop: 2 }}>
+                                ⭐ {s.headline}
+                              </div>
+                            )}
+                            {s.description && (
+                              <div style={{ color: "#6b7280", fontSize: 11, marginTop: 2, maxWidth: 320 }}>
+                                {s.description}
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ padding: "12px 14px", color: "#374151" }}>
+                            <strong>{conditionLabel}</strong>
+                            <div style={{ fontSize: 11, color: "#6b7280", textTransform: "capitalize" }}>
+                              Rule: {s.ruleType.replace("_", " ")}
+                            </div>
+                          </td>
+                          <td style={{ padding: "12px 14px" }}>
+                            <span
+                              style={{
+                                padding: "3px 8px",
+                                borderRadius: 6,
+                                fontSize: 12,
+                                fontWeight: 700,
+                                background: rewardBg,
+                                color: rewardColor,
+                              }}
+                            >
+                              {rewardBadge}
+                            </span>
+                          </td>
+                          <td style={{ padding: "12px 14px" }}>
+                            <div style={{ fontWeight: 600, color: "#374151" }}>
+                              {s.targetAudience === "all_retailers"
+                                ? "🌐 All Retailers"
+                                : s.targetAudience === "tier"
+                                ? `🏅 Tier: ${s.targetTierName || "Target Tier"}`
+                                : `📍 Territory: ${s.targetTerritory}`}
+                            </div>
+                          </td>
+                          <td style={{ padding: "12px 14px", fontSize: 12, color: "#4b5563" }}>
+                            <div>From: {new Date(s.startsAt).toLocaleDateString("en-IN")}</div>
+                            <div>Until: {new Date(s.endsAt).toLocaleDateString("en-IN")}</div>
+                          </td>
+                          <td style={{ padding: "12px 14px" }}>
+                            <span
+                              style={{
+                                padding: "2px 8px",
+                                borderRadius: 12,
+                                fontSize: 11,
+                                fontWeight: 700,
+                                background: s.active ? (s.isLiveNow ? "#dcfce7" : "#fef3c7") : "#fee2e2",
+                                color: s.active ? (s.isLiveNow ? "#15803d" : "#b45309") : "#b91c1c",
+                              }}
+                            >
+                              {s.active ? (s.isLiveNow ? "● Live Now" : "● Scheduled") : "○ Paused"}
+                            </span>
+                          </td>
+                          <td style={{ padding: "12px 14px", textAlign: "right" }}>
+                            <div style={{ display: "inline-flex", gap: 6 }}>
+                              <button
+                                type="button"
+                                className="sm secondary"
+                                style={{ fontSize: 11 }}
+                                onClick={() => void handleToggleSchemeActive(s.id)}
+                              >
+                                {s.active ? "Pause" : "Activate"}
+                              </button>
+                              <button
+                                type="button"
+                                className="sm secondary"
+                                style={{ fontSize: 11 }}
+                                onClick={() => {
+                                  setEditingScheme(s);
+                                  setSchemeForm({
+                                    name: s.name,
+                                    headline: s.headline || "",
+                                    description: s.description || "",
+                                    ruleType: s.ruleType || "order_value",
+                                    targetAmount: String(s.targetAmount || 0),
+                                    minQuantity: String(s.minQuantity || 1),
+                                    qualifyingVariantId: s.qualifyingVariantId || "",
+                                    rewardType: s.rewardType || "flat_discount",
+                                    rewardValue: String(s.rewardValue || s.discountAmount || 0),
+                                    freeVariantId: s.freeVariantId || "",
+                                    targetAudience: s.targetAudience || "all_retailers",
+                                    targetTierId: s.targetTierId || "",
+                                    targetTerritory: s.targetTerritory || "",
+                                    active: s.active,
+                                    startsAt: new Date(s.startsAt).toISOString().split("T")[0],
+                                    endsAt: new Date(s.endsAt).toISOString().split("T")[0],
+                                  });
+                                  setShowSchemeModal(true);
+                                }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="sm ghost"
+                                style={{ fontSize: 11, color: "#dc2626" }}
+                                onClick={() => void handleDeleteScheme(s.id, s.name)}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Modal: Create / Edit Scheme */}
+          {showSchemeModal && (
+            <div className="modal-backdrop" style={{
+              position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+            }}>
+              <div className="card" style={{ width: 620, maxWidth: "95vw", maxHeight: "90vh", overflowY: "auto" }}>
+                <h3 style={{ marginTop: 0 }}>
+                  {editingScheme ? `Edit Scheme: ${editingScheme.name}` : "Create Promotional Trade Scheme"}
+                </h3>
+                <form onSubmit={handleSaveScheme}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                    <div className="field">
+                      <label>Scheme Name *</label>
+                      <input
+                        value={schemeForm.name}
+                        onChange={(e) => setSchemeForm({ ...schemeForm, name: e.target.value })}
+                        placeholder="e.g. Diwali Dhamaka Special"
+                        required
+                      />
+                    </div>
+                    <div className="field">
+                      <label>Catchy Headline / Badge</label>
+                      <input
+                        value={schemeForm.headline}
+                        onChange={(e) => setSchemeForm({ ...schemeForm, headline: e.target.value })}
+                        placeholder="e.g. Flat ₹750 Off on ₹20k Order"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="field" style={{ marginBottom: 12 }}>
+                    <label>Description & Terms</label>
+                    <textarea
+                      rows={2}
+                      value={schemeForm.description}
+                      onChange={(e) => setSchemeForm({ ...schemeForm, description: e.target.value })}
+                      placeholder="e.g. Applicable on all dry staples orders punched before Diwali"
+                    />
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                    <div className="field">
+                      <label>Rule Condition Type</label>
+                      <select
+                        value={schemeForm.ruleType}
+                        onChange={(e) => setSchemeForm({ ...schemeForm, ruleType: e.target.value as any })}
+                      >
+                        <option value="order_value">Total Order Value (₹ threshold)</option>
+                        <option value="product_qty">Product Quantity (Buy X cases)</option>
+                        <option value="volume_slab">Volume Slab Rebate</option>
+                      </select>
+                    </div>
+
+                    {schemeForm.ruleType === "product_qty" ? (
+                      <div className="field">
+                        <label>Minimum Cases Required *</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={schemeForm.minQuantity}
+                          onChange={(e) => setSchemeForm({ ...schemeForm, minQuantity: e.target.value })}
+                          required
+                        />
+                      </div>
+                    ) : (
+                      <div className="field">
+                        <label>Target Order Amount (₹) *</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={schemeForm.targetAmount}
+                          onChange={(e) => setSchemeForm({ ...schemeForm, targetAmount: e.target.value })}
+                          required
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {schemeForm.ruleType === "product_qty" && (
+                    <div className="field" style={{ marginBottom: 12 }}>
+                      <label>Qualifying Product SKU Variant</label>
+                      <select
+                        value={schemeForm.qualifyingVariantId}
+                        onChange={(e) => setSchemeForm({ ...schemeForm, qualifyingVariantId: e.target.value })}
+                      >
+                        <option value="">-- Any / All Product Variants --</option>
+                        {schemeVariants.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.product.name} ({v.unitSize})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                    <div className="field">
+                      <label>Reward / Benefit Type</label>
+                      <select
+                        value={schemeForm.rewardType}
+                        onChange={(e) => setSchemeForm({ ...schemeForm, rewardType: e.target.value as any })}
+                      >
+                        <option value="flat_discount">Flat Cash Discount (₹)</option>
+                        <option value="percentage_discount">Percentage Discount (%)</option>
+                        <option value="free_goods">Free Goods (FOC Item)</option>
+                      </select>
+                    </div>
+
+                    <div className="field">
+                      <label>
+                        {schemeForm.rewardType === "percentage_discount"
+                          ? "Discount Percentage (%)"
+                          : schemeForm.rewardType === "flat_discount"
+                          ? "Discount Amount (₹)"
+                          : "Free Quantity (Cases/Units)"}
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        value={schemeForm.rewardValue}
+                        onChange={(e) => setSchemeForm({ ...schemeForm, rewardValue: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {schemeForm.rewardType === "free_goods" && (
+                    <div className="field" style={{ marginBottom: 12 }}>
+                      <label>Free Goods (FOC) SKU Variant *</label>
+                      <select
+                        value={schemeForm.freeVariantId}
+                        onChange={(e) => setSchemeForm({ ...schemeForm, freeVariantId: e.target.value })}
+                        required
+                      >
+                        <option value="">-- Choose Free Goods SKU --</option>
+                        {schemeVariants.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.product.name} ({v.unitSize})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                    <div className="field">
+                      <label>Target Audience</label>
+                      <select
+                        value={schemeForm.targetAudience}
+                        onChange={(e) => setSchemeForm({ ...schemeForm, targetAudience: e.target.value as any })}
+                      >
+                        <option value="all_retailers">All Retailers</option>
+                        <option value="tier">Specific Pricing Tier</option>
+                        <option value="territory">Specific Delivery Territory</option>
+                      </select>
+                    </div>
+
+                    {schemeForm.targetAudience === "tier" ? (
+                      <div className="field">
+                        <label>Eligible Tier</label>
+                        <select
+                          value={schemeForm.targetTierId}
+                          onChange={(e) => setSchemeForm({ ...schemeForm, targetTierId: e.target.value })}
+                        >
+                          {schemeTiers.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : schemeForm.targetAudience === "territory" ? (
+                      <div className="field">
+                        <label>Target Territory / Route</label>
+                        <input
+                          value={schemeForm.targetTerritory}
+                          onChange={(e) => setSchemeForm({ ...schemeForm, targetTerritory: e.target.value })}
+                          placeholder="e.g. Indore Central"
+                          required
+                        />
+                      </div>
+                    ) : (
+                      <div className="field">
+                        <label>Scope</label>
+                        <input value="Universal Wholesale Promotion" disabled style={{ background: "#f3f4f6" }} />
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+                    <div className="field">
+                      <label>Starts At *</label>
+                      <input
+                        type="date"
+                        value={schemeForm.startsAt}
+                        onChange={(e) => setSchemeForm({ ...schemeForm, startsAt: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="field">
+                      <label>Ends At *</label>
+                      <input
+                        type="date"
+                        value={schemeForm.endsAt}
+                        onChange={(e) => setSchemeForm({ ...schemeForm, endsAt: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <button type="button" className="secondary" onClick={() => setShowSchemeModal(false)}>
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={busy}
+                      style={{ background: "#165a31", borderColor: "#165a31", fontWeight: 700 }}
+                    >
+                      {busy ? "Saving…" : editingScheme ? "Update Scheme" : "Launch Scheme"}
                     </button>
                   </div>
                 </form>

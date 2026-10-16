@@ -18,6 +18,11 @@ import { createCreditPolicyRouter } from "./routes/admin/creditPolicy";
 import { createCatalogHierarchyRouter } from "./routes/admin/catalogHierarchy";
 import { createMediaRouter } from "./routes/admin/media";
 import { createTaxMasterRouter } from "./routes/admin/taxMaster";
+import { createInventoryMovementsRouter } from "./routes/admin/inventoryMovements";
+import { createFleetRunsRouter } from "./routes/admin/fleetRuns";
+import { createSchemesRouter } from "./routes/admin/schemes";
+import { createFieldTasksRouter } from "./routes/admin/fieldTasks";
+import { createFieldApprovalsRouter } from "./routes/admin/fieldApprovals";
 import { createAdminStaffRouter } from "./modules/identity/adminStaffRoutes";
 import { StaffManagementService } from "./modules/identity/staffManagementService";
 import { requireAdmin, requireAdminIdentity } from "./lib/adminAuth";
@@ -265,6 +270,11 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/admin", createCatalogHierarchyRouter());
   app.use("/admin", createMediaRouter());
   app.use("/admin", createTaxMasterRouter());
+  app.use("/admin", createInventoryMovementsRouter());
+  app.use("/admin", createFleetRunsRouter());
+  app.use("/admin", createSchemesRouter());
+  app.use("/admin", createFieldTasksRouter());
+  app.use("/admin", createFieldApprovalsRouter());
   app.use(
     "/admin",
     createAdminStaffRouter({

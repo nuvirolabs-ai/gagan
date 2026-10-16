@@ -54,6 +54,48 @@ type WarehouseOrder = {
   } | null;
 };
 
+type FleetVehicle = {
+  id: string;
+  regNumber: string;
+  model: string;
+  type: "truck" | "tempo" | "three_wheeler" | "van";
+  capacityKg: number;
+  capacityBags: number;
+  driverName: string;
+  driverPhone: string;
+  isActive: boolean;
+  runsCount?: number;
+  createdAt?: string;
+};
+
+type DeliveryRunSummary = {
+  id: string;
+  runNumber: string;
+  warehouseCode: string;
+  vehicleId?: string;
+  vehicleReg: string;
+  vehicleModel: string;
+  driverName: string;
+  driverPhone: string;
+  status: "planned" | "loading" | "out_for_delivery" | "completed" | "cancelled";
+  orderCount: number;
+  totalWeightKg: number;
+  totalOrderAmount: number;
+  notes?: string;
+  departureTime?: string;
+  completedTime?: string;
+  createdAt: string;
+  orders: Array<{
+    id: string;
+    orderNo: number;
+    orderTotal: number;
+    retailerName: string;
+    deliveryCity?: string;
+    shopAddress?: string;
+    phone?: string;
+  }>;
+};
+
 const FILTERS: Array<{ value: QueueFilter; label: string; step: string; icon: string }> = [
   { value: "all", label: "All", step: "All stages", icon: "table" },
   { value: "confirmed", label: "Confirmed", step: "1. To Pack", icon: "box" },
@@ -461,14 +503,168 @@ export default function WarehouseOrders() {
     }
   };
 
+  // Gap 13: Delivery Fleet & Vehicle Run Dispatcher state
+  const [activeTab, setActiveTab] = useState<"orders" | "fleet">("orders");
+  const [vehicles, setVehicles] = useState<FleetVehicle[]>([]);
+  const [runs, setRuns] = useState<DeliveryRunSummary[]>([]);
+  const [loadingFleet, setLoadingFleet] = useState(false);
+  const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
+  const [showCreateRunModal, setShowCreateRunModal] = useState(false);
+  const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
+
+  const [newVehicle, setNewVehicle] = useState({
+    regNumber: "",
+    model: "",
+    type: "tempo" as "truck" | "tempo" | "three_wheeler" | "van",
+    capacityKg: 1000,
+    capacityBags: 40,
+    driverName: "",
+    driverPhone: "",
+  });
+
+  const [newRun, setNewRun] = useState<{
+    vehicleId: string;
+    driverName: string;
+    driverPhone: string;
+    notes: string;
+    orderIds: string[];
+  }>({
+    vehicleId: "",
+    driverName: "",
+    driverPhone: "",
+    notes: "",
+    orderIds: [],
+  });
+
+  const loadFleet = useCallback(async () => {
+    setLoadingFleet(true);
+    try {
+      const [vRes, rRes] = await Promise.all([
+        api.fleetVehicles(),
+        api.deliveryRuns(),
+      ]);
+      if (vRes?.vehicles) setVehicles(vRes.vehicles);
+      if (rRes?.runs) setRuns(rRes.runs);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to load fleet data");
+    } finally {
+      setLoadingFleet(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "fleet") {
+      void loadFleet();
+    }
+  }, [activeTab, loadFleet]);
+
+  const handleCreateVehicle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api.createFleetVehicle({
+        ...newVehicle,
+        capacityKg: Number(newVehicle.capacityKg),
+        capacityBags: Number(newVehicle.capacityBags),
+      });
+      setNotice(`✅ Vehicle ${newVehicle.regNumber} registered successfully!`);
+      setShowAddVehicleModal(false);
+      setNewVehicle({
+        regNumber: "",
+        model: "",
+        type: "tempo",
+        capacityKg: 1000,
+        capacityBags: 40,
+        driverName: "",
+        driverPhone: "",
+      });
+      await loadFleet();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to register vehicle");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleToggleVehicleActive = async (v: FleetVehicle) => {
+    try {
+      await api.updateFleetVehicle(v.id, { isActive: !v.isActive });
+      await loadFleet();
+      setNotice(`Vehicle ${v.regNumber} status updated.`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to update vehicle");
+    }
+  };
+
+  const handleDeleteVehicle = async (id: string, reg: string) => {
+    if (!window.confirm(`Are you sure you want to delete vehicle ${reg}?`)) return;
+    try {
+      await api.deleteFleetVehicle(id);
+      await loadFleet();
+      setNotice(`Vehicle ${reg} removed from fleet.`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to delete vehicle");
+    }
+  };
+
+  const handleCreateRun = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newRun.orderIds.length === 0) {
+      setError("Please select at least 1 order to dispatch in this run");
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.createDeliveryRun({
+        warehouseCode: "WH-001",
+        vehicleId: newRun.vehicleId || undefined,
+        driverName: newRun.driverName,
+        driverPhone: newRun.driverPhone,
+        orderIds: newRun.orderIds,
+        notes: newRun.notes,
+      });
+      setNotice(`✅ Delivery Run dispatched with ${newRun.orderIds.length} orders!`);
+      setShowCreateRunModal(false);
+      setNewRun({ vehicleId: "", driverName: "", driverPhone: "", notes: "", orderIds: [] });
+      await loadFleet();
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to dispatch run");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleUpdateRunStatus = async (runId: string, status: string, label: string) => {
+    setBusy(true);
+    try {
+      await api.updateRunStatus(runId, status);
+      setNotice(`✅ Run updated to: ${label}`);
+      await loadFleet();
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to update run status");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Compute fleet metrics
+  const activeRunsCount = runs.filter((r) => r.status === "loading" || r.status === "out_for_delivery").length;
+  const completedRunsCount = runs.filter((r) => r.status === "completed").length;
+  const totalFleetTonnage = vehicles.reduce((sum, v) => sum + (v.capacityKg || 0), 0);
+  const activeRoadWeight = runs
+    .filter((r) => r.status === "out_for_delivery")
+    .reduce((sum, r) => sum + (r.totalWeightKg || 0), 0);
+
   return (
     <div className="page-shell warehouse-orders-page">
       <header className="page-header warehouse-orders-header">
         <div>
-          <SectionLabel>Warehouse / Fulfillment Operations</SectionLabel>
+          <SectionLabel>Warehouse / Logistics Operations</SectionLabel>
           <h1 className="page-title">Warehouse orders</h1>
           <p className="page-sub">
-            Pick, pack, route, and complete deliveries with simple one-click operations.
+            Pick, pack, route orders, manage fleet vehicles, and dispatch delivery runs.
           </p>
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
@@ -495,12 +691,51 @@ export default function WarehouseOrders() {
         </div>
       </header>
 
-      {/* Analytics, Metrics & Infographics Dashboard */}
-      {showAnalytics && (
-        <section className="warehouse-analytics-section" aria-label="Warehouse Analytics and Infographics">
-          {/* Row 1: KPI Stat Cards */}
-          <div className="warehouse-kpi-grid">
-            <div
+      {/* Top Tab Switcher */}
+      <div style={{ display: "flex", gap: 10, borderBottom: "1px solid #e5e7eb", paddingBottom: 12, marginBottom: 16 }}>
+        <button
+          type="button"
+          className={`button ${activeTab === "orders" ? "primary" : "secondary"}`}
+          style={{
+            fontWeight: 700,
+            borderRadius: 8,
+            padding: "8px 16px",
+            background: activeTab === "orders" ? "#165a31" : "#f3f4f6",
+            color: activeTab === "orders" ? "#ffffff" : "#374151",
+            borderColor: activeTab === "orders" ? "#165a31" : "#d1d5db",
+          }}
+          onClick={() => setActiveTab("orders")}
+        >
+          📦 Warehouse Orders Queue ({metrics.pendingTotal} pending)
+        </button>
+        <button
+          type="button"
+          className={`button ${activeTab === "fleet" ? "primary" : "secondary"}`}
+          style={{
+            fontWeight: 700,
+            borderRadius: 8,
+            padding: "8px 16px",
+            background: activeTab === "fleet" ? "#165a31" : "#f3f4f6",
+            color: activeTab === "fleet" ? "#ffffff" : "#374151",
+            borderColor: activeTab === "fleet" ? "#165a31" : "#d1d5db",
+          }}
+          onClick={() => {
+            setActiveTab("fleet");
+            void loadFleet();
+          }}
+        >
+          🚚 Delivery Fleet & Run Dispatcher (Gap 13)
+        </button>
+      </div>
+
+      {activeTab === "orders" && (
+        <>
+          {/* Analytics, Metrics & Infographics Dashboard */}
+          {showAnalytics && (
+            <section className="warehouse-analytics-section" aria-label="Warehouse Analytics and Infographics">
+              {/* Row 1: KPI Stat Cards */}
+              <div className="warehouse-kpi-grid">
+                <div
               className={`warehouse-kpi-card kpi-total ${filter === "all" ? "active-filter" : ""}`}
               onClick={() => setFilter("all")}
               role="button"
@@ -969,6 +1204,427 @@ export default function WarehouseOrders() {
           </div>
         )}
       </div>
+      </>
+      )}
+
+      {activeTab === "fleet" && (
+        <section className="fleet-dispatcher-section" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          {/* Fleet KPI Metric Grid */}
+          <div className="warehouse-kpi-grid">
+            <div className="warehouse-kpi-card">
+              <div className="warehouse-kpi-header">
+                <span className="warehouse-kpi-label">Registered Fleet</span>
+                <span className="warehouse-kpi-icon">🚚</span>
+              </div>
+              <div className="warehouse-kpi-value">{vehicles.length}</div>
+              <div className="warehouse-kpi-sub">
+                <strong>{vehicles.filter((v) => v.isActive).length}</strong> operational vehicles
+              </div>
+            </div>
+
+            <div className="warehouse-kpi-card">
+              <div className="warehouse-kpi-header">
+                <span className="warehouse-kpi-label">Fleet Payload Capacity</span>
+                <span className="warehouse-kpi-icon">⚖️</span>
+              </div>
+              <div className="warehouse-kpi-value">{(totalFleetTonnage / 1000).toFixed(1)} T</div>
+              <div className="warehouse-kpi-sub">
+                <strong>{totalFleetTonnage.toLocaleString("en-IN")} kg</strong> combined
+              </div>
+            </div>
+
+            <div className="warehouse-kpi-card">
+              <div className="warehouse-kpi-header">
+                <span className="warehouse-kpi-label">Active Delivery Runs</span>
+                <span className="warehouse-kpi-icon">🛣️</span>
+              </div>
+              <div className="warehouse-kpi-value" style={{ color: "#d97706" }}>{activeRunsCount}</div>
+              <div className="warehouse-kpi-sub">
+                loading or on delivery route
+              </div>
+            </div>
+
+            <div className="warehouse-kpi-card">
+              <div className="warehouse-kpi-header">
+                <span className="warehouse-kpi-label">Cargo in Transit</span>
+                <span className="warehouse-kpi-icon">📦</span>
+              </div>
+              <div className="warehouse-kpi-value" style={{ color: "#2563eb" }}>{activeRoadWeight} kg</div>
+              <div className="warehouse-kpi-sub">
+                across current active runs
+              </div>
+            </div>
+
+            <div className="warehouse-kpi-card">
+              <div className="warehouse-kpi-header">
+                <span className="warehouse-kpi-label">Completed Today</span>
+                <span className="warehouse-kpi-icon">✅</span>
+              </div>
+              <div className="warehouse-kpi-value" style={{ color: "#16a34a" }}>{completedRunsCount}</div>
+              <div className="warehouse-kpi-sub">
+                trips completed & delivered
+              </div>
+            </div>
+          </div>
+
+          {/* Action Row */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span style={{ fontSize: 13, color: "#6b7280" }}>Indore Regional Logistics Hub (WH-001)</span>
+              <button
+                type="button"
+                className="button secondary compact"
+                onClick={() => void loadFleet()}
+                disabled={loadingFleet}
+              >
+                🔄 {loadingFleet ? "Refreshing…" : "Refresh Fleet"}
+              </button>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                type="button"
+                className="button secondary"
+                style={{ fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6 }}
+                onClick={() => setShowAddVehicleModal(true)}
+              >
+                ➕ Register Fleet Vehicle
+              </button>
+              <button
+                type="button"
+                className="button primary"
+                style={{
+                  background: "#165a31",
+                  borderColor: "#165a31",
+                  fontWeight: 700,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+                onClick={() => {
+                  if (vehicles.length === 0) {
+                    setError("Please register at least one fleet vehicle first.");
+                    return;
+                  }
+                  const firstVehicle = vehicles[0];
+                  setNewRun({
+                    vehicleId: firstVehicle.id,
+                    driverName: firstVehicle.driverName,
+                    driverPhone: firstVehicle.driverPhone,
+                    notes: "",
+                    orderIds: [],
+                  });
+                  setShowCreateRunModal(true);
+                }}
+              >
+                🚚 Dispatch Delivery Run
+              </button>
+            </div>
+          </div>
+
+          {/* Section 1: Active & Recent Delivery Runs */}
+          <div className="panel" style={{ padding: 18, background: "#ffffff", borderRadius: 10, border: "1px solid #e5e7eb" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div>
+                <h3 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 700, color: "#111827" }}>
+                  Active & Recent Delivery Runs ({runs.length})
+                </h3>
+                <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>
+                  Monitor staged runs, vehicles at docking bays, and real-time transit status.
+                </p>
+              </div>
+            </div>
+
+            {runs.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "40px 20px", color: "#6b7280" }}>
+                No delivery runs dispatched yet. Click <strong>Dispatch Delivery Run</strong> to bundle packed orders into a vehicle run.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {runs.map((r) => {
+                  const isExpanded = expandedRunId === r.id;
+                  let statusBadgeBg = "#fef3c7";
+                  let statusBadgeColor = "#b45309";
+                  let statusLabel = "Planned";
+
+                  if (r.status === "loading") {
+                    statusBadgeBg = "#dbeafe";
+                    statusBadgeColor = "#1d4ed8";
+                    statusLabel = "Loading at Dock";
+                  } else if (r.status === "out_for_delivery") {
+                    statusBadgeBg = "#ede9fe";
+                    statusBadgeColor = "#6d28d9";
+                    statusLabel = "Out for Delivery";
+                  } else if (r.status === "completed") {
+                    statusBadgeBg = "#dcfce7";
+                    statusBadgeColor = "#15803d";
+                    statusLabel = "Completed";
+                  } else if (r.status === "cancelled") {
+                    statusBadgeBg = "#fee2e2";
+                    statusBadgeColor = "#b91c1c";
+                    statusLabel = "Cancelled";
+                  }
+
+                  return (
+                    <div
+                      key={r.id}
+                      style={{
+                        border: "1px solid #e5e7eb",
+                        borderRadius: 8,
+                        padding: 14,
+                        background: r.status === "out_for_delivery" ? "#fbfdff" : "#ffffff",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <strong style={{ fontSize: 15, color: "#111827" }}>{r.runNumber}</strong>
+                            <span
+                              style={{
+                                padding: "2px 8px",
+                                borderRadius: 6,
+                                fontSize: 12,
+                                fontWeight: 700,
+                                background: statusBadgeBg,
+                                color: statusBadgeColor,
+                              }}
+                            >
+                              {statusLabel}
+                            </span>
+                            <span style={{ fontSize: 12, color: "#6b7280" }}>
+                              {new Date(r.createdAt).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" })}
+                            </span>
+                          </div>
+                          <div style={{ marginTop: 6, fontSize: 13, color: "#374151" }}>
+                            🚛 <strong>{r.vehicleReg}</strong> ({r.vehicleModel}) · 👤 Driver: <strong>{r.driverName}</strong> ({r.driverPhone})
+                          </div>
+                          {r.notes && (
+                            <div style={{ marginTop: 4, fontSize: 12, color: "#6b7280", fontStyle: "italic" }}>
+                              📝 {r.notes}
+                            </div>
+                          )}
+                        </div>
+
+                        <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                          <div style={{ fontSize: 13 }}>
+                            <strong style={{ fontSize: 14, color: "#111827" }}>{r.orderCount} orders</strong>
+                            <span style={{ color: "#6b7280" }}> · {r.totalWeightKg} kg · {inr(r.totalOrderAmount)}</span>
+                          </div>
+
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                            {r.status === "planned" && (
+                              <button
+                                type="button"
+                                className="button secondary compact"
+                                style={{ background: "#dbeafe", borderColor: "#93c5fd", color: "#1d4ed8", fontWeight: 600 }}
+                                onClick={() => void handleUpdateRunStatus(r.id, "loading", "Loading at Dock")}
+                                disabled={busy}
+                              >
+                                📦 Mark Loading
+                              </button>
+                            )}
+
+                            {(r.status === "planned" || r.status === "loading") && (
+                              <button
+                                type="button"
+                                className="button primary compact"
+                                style={{ background: "#165a31", borderColor: "#165a31", fontWeight: 600 }}
+                                onClick={() => void handleUpdateRunStatus(r.id, "out_for_delivery", "Dispatched (Out for Delivery)")}
+                                disabled={busy}
+                              >
+                                🚚 Dispatch Vehicle
+                              </button>
+                            )}
+
+                            {r.status === "out_for_delivery" && (
+                              <button
+                                type="button"
+                                className="button primary compact"
+                                style={{ background: "#15803d", borderColor: "#15803d", fontWeight: 600 }}
+                                onClick={() => void handleUpdateRunStatus(r.id, "completed", "Completed & Delivered")}
+                                disabled={busy}
+                              >
+                                ✅ Mark Completed
+                              </button>
+                            )}
+
+                            {r.status !== "completed" && r.status !== "cancelled" && (
+                              <button
+                                type="button"
+                                className="button ghost compact"
+                                style={{ color: "#dc2626", fontSize: 11 }}
+                                onClick={() => void handleUpdateRunStatus(r.id, "cancelled", "Cancelled")}
+                                disabled={busy}
+                              >
+                                Cancel Run
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              className="button secondary compact"
+                              style={{ fontSize: 11 }}
+                              onClick={() => setExpandedRunId(isExpanded ? null : r.id)}
+                            >
+                              {isExpanded ? "Hide Orders ▲" : `View Orders (${r.orderCount}) ▼`}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Expandable Order Breakdown */}
+                      {isExpanded && (
+                        <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px dashed #d1d5db" }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: "#4b5563", marginBottom: 6 }}>
+                            Assigned Retailer Orders:
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 8 }}>
+                            {r.orders.map((o) => (
+                              <div
+                                key={o.id}
+                                style={{
+                                  padding: "8px 10px",
+                                  borderRadius: 6,
+                                  background: "#f9fafb",
+                                  border: "1px solid #e5e7eb",
+                                  fontSize: 12,
+                                }}
+                              >
+                                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 600, color: "#111827" }}>
+                                  <span>Order #{o.orderNo}</span>
+                                  <span>{inr(o.orderTotal)}</span>
+                                </div>
+                                <div style={{ color: "#4b5563", marginTop: 2 }}>
+                                  🏢 {o.retailerName} {o.deliveryCity ? `(${o.deliveryCity})` : ""}
+                                </div>
+                                {o.shopAddress && (
+                                  <div style={{ color: "#6b7280", fontSize: 11, marginTop: 2 }}>
+                                    📍 {o.shopAddress}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Section 2: Fleet Vehicle Register */}
+          <div className="panel" style={{ padding: 18, background: "#ffffff", borderRadius: 10, border: "1px solid #e5e7eb" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div>
+                <h3 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 700, color: "#111827" }}>
+                  Delivery Fleet Register ({vehicles.length})
+                </h3>
+                <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>
+                  Trucks, tempos, and three-wheelers available for order fulfillment and routing.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="button secondary compact"
+                onClick={() => setShowAddVehicleModal(true)}
+              >
+                ➕ Add Vehicle
+              </button>
+            </div>
+
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb", textAlign: "left", color: "#4b5563" }}>
+                    <th style={{ padding: "10px 12px" }}>Registration Plate</th>
+                    <th style={{ padding: "10px 12px" }}>Model & Type</th>
+                    <th style={{ padding: "10px 12px" }}>Payload Capacity</th>
+                    <th style={{ padding: "10px 12px" }}>Assigned Driver</th>
+                    <th style={{ padding: "10px 12px" }}>Contact Phone</th>
+                    <th style={{ padding: "10px 12px" }}>Total Trips</th>
+                    <th style={{ padding: "10px 12px" }}>Status</th>
+                    <th style={{ padding: "10px 12px", textAlign: "right" }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vehicles.map((v) => (
+                    <tr key={v.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                      <td style={{ padding: "10px 12px", fontWeight: 700, color: "#111827" }}>
+                        🚚 {v.regNumber}
+                      </td>
+                      <td style={{ padding: "10px 12px" }}>
+                        <div>{v.model}</div>
+                        <span
+                          style={{
+                            fontSize: 10,
+                            padding: "1px 6px",
+                            borderRadius: 4,
+                            background: "#e0f2fe",
+                            color: "#0369a1",
+                            textTransform: "uppercase",
+                            fontWeight: 700,
+                          }}
+                        >
+                          {v.type.replace("_", " ")}
+                        </span>
+                      </td>
+                      <td style={{ padding: "10px 12px" }}>
+                        <strong>{v.capacityKg} kg</strong>
+                        <div style={{ fontSize: 11, color: "#6b7280" }}>{v.capacityBags} bags/cases</div>
+                      </td>
+                      <td style={{ padding: "10px 12px", fontWeight: 600, color: "#374151" }}>
+                        {v.driverName}
+                      </td>
+                      <td style={{ padding: "10px 12px", color: "#4b5563" }}>
+                        {v.driverPhone}
+                      </td>
+                      <td style={{ padding: "10px 12px", color: "#4b5563" }}>
+                        {v.runsCount ?? 0} runs
+                      </td>
+                      <td style={{ padding: "10px 12px" }}>
+                        <span
+                          style={{
+                            padding: "3px 8px",
+                            borderRadius: 12,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            background: v.isActive ? "#dcfce7" : "#fee2e2",
+                            color: v.isActive ? "#15803d" : "#b91c1c",
+                          }}
+                        >
+                          {v.isActive ? "Operational" : "Maintenance"}
+                        </span>
+                      </td>
+                      <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                        <div style={{ display: "inline-flex", gap: 6 }}>
+                          <button
+                            type="button"
+                            className="button secondary compact"
+                            style={{ fontSize: 11 }}
+                            onClick={() => void handleToggleVehicleActive(v)}
+                          >
+                            {v.isActive ? "Mark Inactive" : "Mark Active"}
+                          </button>
+                          <button
+                            type="button"
+                            className="button ghost compact"
+                            style={{ fontSize: 11, color: "#dc2626" }}
+                            onClick={() => void handleDeleteVehicle(v.id, v.regNumber)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* POP-UP MODAL WINDOW FOR ORDER FULFILLMENT */}
       {modalOrder && (
@@ -1504,6 +2160,382 @@ export default function WarehouseOrders() {
                 Close
               </button>
             </footer>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Register Fleet Vehicle */}
+      {showAddVehicleModal && (
+        <div className="warehouse-modal-backdrop" onClick={() => setShowAddVehicleModal(false)}>
+          <div
+            className="warehouse-modal-card"
+            role="dialog"
+            aria-modal="true"
+            style={{ maxWidth: 520 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="warehouse-modal-header">
+              <div className="warehouse-modal-title-group">
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>➕ Register New Delivery Vehicle</h2>
+                <small style={{ color: "#6b7280" }}>Add logistics carrier to Indore delivery fleet</small>
+              </div>
+              <button
+                type="button"
+                className="button ghost compact warehouse-modal-close"
+                onClick={() => setShowAddVehicleModal(false)}
+              >
+                ✕
+              </button>
+            </header>
+
+            <form onSubmit={handleCreateVehicle}>
+              <div className="warehouse-modal-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                    Vehicle Registration Plate Number *
+                  </label>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="e.g. MP-09-GA-8822"
+                    value={newVehicle.regNumber}
+                    onChange={(e) => setNewVehicle({ ...newVehicle, regNumber: e.target.value.toUpperCase() })}
+                    required
+                  />
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                      Vehicle Model Name *
+                    </label>
+                    <input
+                      type="text"
+                      className="input"
+                      placeholder="e.g. Tata Ace Gold CNG"
+                      value={newVehicle.model}
+                      onChange={(e) => setNewVehicle({ ...newVehicle, model: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                      Vehicle Type
+                    </label>
+                    <select
+                      className="input"
+                      value={newVehicle.type}
+                      onChange={(e) => setNewVehicle({ ...newVehicle, type: e.target.value as any })}
+                    >
+                      <option value="tempo">Tempo (Light Commercial)</option>
+                      <option value="truck">Heavy Truck (LPT)</option>
+                      <option value="three_wheeler">Three-Wheeler / E-Rickshaw</option>
+                      <option value="van">Delivery Van</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                      Weight Capacity (kg) *
+                    </label>
+                    <input
+                      type="number"
+                      className="input"
+                      min={50}
+                      value={newVehicle.capacityKg}
+                      onChange={(e) => setNewVehicle({ ...newVehicle, capacityKg: Number(e.target.value) })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                      Case / Bag Capacity *
+                    </label>
+                    <input
+                      type="number"
+                      className="input"
+                      min={5}
+                      value={newVehicle.capacityBags}
+                      onChange={(e) => setNewVehicle({ ...newVehicle, capacityBags: Number(e.target.value) })}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                      Primary Driver Name *
+                    </label>
+                    <input
+                      type="text"
+                      className="input"
+                      placeholder="e.g. Suresh Rathore"
+                      value={newVehicle.driverName}
+                      onChange={(e) => setNewVehicle({ ...newVehicle, driverName: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                      Driver Mobile Phone *
+                    </label>
+                    <input
+                      type="tel"
+                      className="input"
+                      placeholder="10-digit mobile number"
+                      maxLength={10}
+                      value={newVehicle.driverPhone}
+                      onChange={(e) => setNewVehicle({ ...newVehicle, driverPhone: e.target.value.replace(/\D/g, "") })}
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <footer className="warehouse-modal-footer">
+                <button
+                  type="button"
+                  className="button secondary compact"
+                  onClick={() => setShowAddVehicleModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="button primary compact"
+                  style={{ background: "#165a31", borderColor: "#165a31" }}
+                  disabled={busy}
+                >
+                  {busy ? "Registering…" : "Register Vehicle"}
+                </button>
+              </footer>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Dispatch Delivery Run */}
+      {showCreateRunModal && (
+        <div className="warehouse-modal-backdrop" onClick={() => setShowCreateRunModal(false)}>
+          <div
+            className="warehouse-modal-card"
+            role="dialog"
+            aria-modal="true"
+            style={{ maxWidth: 680 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="warehouse-modal-header">
+              <div className="warehouse-modal-title-group">
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>🚚 Dispatch New Delivery Run</h2>
+                <small style={{ color: "#6b7280" }}>Bundle packed warehouse orders into a vehicle delivery run</small>
+              </div>
+              <button
+                type="button"
+                className="button ghost compact warehouse-modal-close"
+                onClick={() => setShowCreateRunModal(false)}
+              >
+                ✕
+              </button>
+            </header>
+
+            <form onSubmit={handleCreateRun}>
+              <div className="warehouse-modal-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                      Select Assigned Vehicle *
+                    </label>
+                    <select
+                      className="input"
+                      value={newRun.vehicleId}
+                      onChange={(e) => {
+                        const selV = vehicles.find((v) => v.id === e.target.value);
+                        setNewRun({
+                          ...newRun,
+                          vehicleId: e.target.value,
+                          driverName: selV?.driverName || newRun.driverName,
+                          driverPhone: selV?.driverPhone || newRun.driverPhone,
+                        });
+                      }}
+                      required
+                    >
+                      <option value="">-- Choose Vehicle --</option>
+                      {vehicles.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.regNumber} ({v.model} - max {v.capacityKg} kg)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                      Driver Name & Phone *
+                    </label>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input
+                        type="text"
+                        className="input"
+                        placeholder="Driver Name"
+                        value={newRun.driverName}
+                        onChange={(e) => setNewRun({ ...newRun, driverName: e.target.value })}
+                        required
+                      />
+                      <input
+                        type="tel"
+                        className="input"
+                        placeholder="Phone"
+                        maxLength={10}
+                        value={newRun.driverPhone}
+                        onChange={(e) => setNewRun({ ...newRun, driverPhone: e.target.value.replace(/\D/g, "") })}
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                    Route / Delivery Notes
+                  </label>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="e.g. Route A: Malwa Mill, Patnipura, Vijay Nagar"
+                    value={newRun.notes}
+                    onChange={(e) => setNewRun({ ...newRun, notes: e.target.value })}
+                  />
+                </div>
+
+                {/* Select Orders to Dispatch */}
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <label style={{ fontSize: 12, fontWeight: 700 }}>
+                      Select Orders to Dispatch ({newRun.orderIds.length} selected) *
+                    </label>
+                    {allOrders.length > 0 && (
+                      <button
+                        type="button"
+                        className="button ghost compact"
+                        style={{ fontSize: 11 }}
+                        onClick={() => {
+                          const candidateIds = allOrders
+                            .filter((o) => o.status === "packed" || o.status === "confirmed")
+                            .map((o) => o.id);
+                          const allSelected = candidateIds.every((id) => newRun.orderIds.includes(id));
+                          setNewRun({
+                            ...newRun,
+                            orderIds: allSelected ? [] : candidateIds,
+                          });
+                        }}
+                      >
+                        Select All Packed/Confirmed
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Orders selection list */}
+                  <div
+                    style={{
+                      maxHeight: 220,
+                      overflowY: "auto",
+                      border: "1px solid #d1d5db",
+                      borderRadius: 6,
+                      background: "#fafafa",
+                      padding: 8,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 6,
+                    }}
+                  >
+                    {allOrders
+                      .filter((o) => o.status === "packed" || o.status === "confirmed")
+                      .map((o) => {
+                        const isChecked = newRun.orderIds.includes(o.id);
+                        const orderCases = o.items.reduce((sum, item) => sum + (item.qtyOrdered || 0), 0);
+                        return (
+                          <label
+                            key={o.id}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 10,
+                              padding: "6px 10px",
+                              borderRadius: 6,
+                              background: isChecked ? "#ecfdf5" : "#ffffff",
+                              border: isChecked ? "1px solid #a7f3d0" : "1px solid #e5e7eb",
+                              cursor: "pointer",
+                              fontSize: 12.5,
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setNewRun({ ...newRun, orderIds: [...newRun.orderIds, o.id] });
+                                } else {
+                                  setNewRun({ ...newRun, orderIds: newRun.orderIds.filter((id) => id !== o.id) });
+                                }
+                              }}
+                            />
+                            <div style={{ flex: 1, display: "flex", justifyContent: "space-between" }}>
+                              <div>
+                                <strong>#{o.orderNo}</strong> · {o.retailer?.name ?? "Retailer"} ({o.retailer?.deliveryCity ?? "Indore"})
+                                <span style={{ marginLeft: 8, fontSize: 11, color: "#6b7280" }}>
+                                  ({orderCases} cases)
+                                </span>
+                              </div>
+                              <div>
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    padding: "2px 6px",
+                                    borderRadius: 4,
+                                    marginRight: 8,
+                                    background: o.status === "packed" ? "#dbeafe" : "#fef3c7",
+                                    color: o.status === "packed" ? "#1e40af" : "#92400e",
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  {o.status}
+                                </span>
+                                <strong>{inr(o.orderTotal || 0)}</strong>
+                              </div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    {allOrders.filter((o) => o.status === "packed" || o.status === "confirmed").length === 0 && (
+                      <div style={{ padding: 12, textAlign: "center", color: "#6b7280", fontSize: 12 }}>
+                        No orders in packed or confirmed status. Pack orders from the Queue tab first!
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <footer className="warehouse-modal-footer">
+                <button
+                  type="button"
+                  className="button secondary compact"
+                  onClick={() => setShowCreateRunModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="button primary compact"
+                  style={{ background: "#165a31", borderColor: "#165a31" }}
+                  disabled={busy || newRun.orderIds.length === 0}
+                >
+                  {busy ? "Dispatching…" : `Dispatch Run (${newRun.orderIds.length} orders)`}
+                </button>
+              </footer>
+            </form>
           </div>
         </div>
       )}

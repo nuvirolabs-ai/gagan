@@ -29,7 +29,7 @@ interface CityRouting {
 }
 
 export default function Warehouses() {
-  const [tab, setTab] = useState<"warehouses" | "routing">("warehouses");
+  const [tab, setTab] = useState<"warehouses" | "routing" | "stock">("warehouses");
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [routings, setRoutings] = useState<CityRouting[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,6 +41,29 @@ export default function Warehouses() {
   const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null);
   const [showAddRouting, setShowAddRouting] = useState(false);
   const [editingRouting, setEditingRouting] = useState<CityRouting | null>(null);
+
+  // Gap 12: Stock Adjustments & Transfers state
+  const [stockWarehouse, setStockWarehouse] = useState("WH-001");
+  const [stockData, setStockData] = useState<any | null>(null);
+  const [stockMovements, setStockMovements] = useState<any[]>([]);
+  const [stockTransfers, setStockTransfers] = useState<any[]>([]);
+  const [stockLoading, setStockLoading] = useState(false);
+  const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
+  const [adjustmentForm, setAdjustmentForm] = useState({
+    variantId: "",
+    type: "receipt" as "receipt" | "spoilage" | "damage" | "discrepancy" | "audit_reconciliation",
+    quantity: "10",
+    reason: "",
+    performedBy: "Warehouse Manager",
+  });
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferForm, setTransferForm] = useState({
+    fromWarehouseCode: "WH-001",
+    toWarehouseCode: "WH-002",
+    variantId: "",
+    quantity: "20",
+    notes: "",
+  });
 
   // Forms
   const [warehouseForm, setWarehouseForm] = useState({
@@ -64,6 +87,24 @@ export default function Warehouses() {
     slaHours: 24,
     isActive: true,
   });
+
+  const loadStock = async (whCode = stockWarehouse) => {
+    setStockLoading(true);
+    try {
+      const [summary, movements, transfers] = await Promise.all([
+        api.inventorySummary(whCode),
+        api.inventoryMovements(whCode),
+        api.inventoryTransfers(),
+      ]);
+      setStockData(summary);
+      setStockMovements(movements.movements || []);
+      setStockTransfers(transfers.transfers || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load stock data");
+    } finally {
+      setStockLoading(false);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -179,10 +220,17 @@ export default function Warehouses() {
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          {tab === "warehouses" ? (
+          {tab === "warehouses" && (
             <button onClick={() => setShowAddWarehouse(true)}>+ Add Warehouse Hub</button>
-          ) : (
+          )}
+          {tab === "routing" && (
             <button onClick={() => setShowAddRouting(true)}>+ Add City Route</button>
+          )}
+          {tab === "stock" && (
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="secondary" onClick={() => setShowTransferModal(true)}>+ New Stock Transfer</button>
+              <button onClick={() => setShowAdjustmentModal(true)}>+ Record Stock Adjustment</button>
+            </div>
           )}
         </div>
       </div>
@@ -202,6 +250,15 @@ export default function Warehouses() {
           onClick={() => setTab("routing")}
         >
           City & Hub Routing Matrix ({routings.length})
+        </button>
+        <button
+          className={tab === "stock" ? "primary" : "secondary"}
+          onClick={() => {
+            setTab("stock");
+            void loadStock(stockWarehouse);
+          }}
+        >
+          Stock Adjustments & Transfers (Gap 12)
         </button>
       </div>
 
@@ -380,6 +437,458 @@ export default function Warehouses() {
               </tbody>
             </table>
           )}
+        </div>
+      )}
+
+      {/* Gap 12: Stock Adjustments & Transfers Tab */}
+      {tab === "stock" && (
+        <div>
+          {/* Top Hub Filter */}
+          <div className="between" style={{ marginBottom: 16, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+              <label style={{ fontWeight: 600, fontSize: 13 }}>Current Hub:</label>
+              <select
+                value={stockWarehouse}
+                onChange={(e) => {
+                  setStockWarehouse(e.target.value);
+                  void loadStock(e.target.value);
+                }}
+                style={{ minWidth: 240, padding: "6px 12px", borderRadius: 6, fontWeight: 500 }}
+              >
+                {warehouses.map((wh) => (
+                  <option key={wh.code} value={wh.code}>
+                    {wh.code} — {wh.name} ({wh.city})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button className="secondary sm" onClick={() => void loadStock(stockWarehouse)}>
+              Refresh Stock
+            </button>
+          </div>
+
+          {/* Metrics */}
+          <div className="metrics" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 20 }}>
+            <div className="metric card">
+              <div className="metric-label">Tracked SKUs</div>
+              <div className="metric-value">{stockData?.metrics?.totalSkus ?? 0}</div>
+            </div>
+            <div className="metric card">
+              <div className="metric-label">Total On-Hand Units</div>
+              <div className="metric-value" style={{ color: "var(--primary)" }}>
+                {stockData?.metrics?.totalOnHand?.toLocaleString("en-IN") ?? 0}
+              </div>
+            </div>
+            <div className="metric card">
+              <div className="metric-label">Committed To Orders</div>
+              <div className="metric-value">{stockData?.metrics?.totalCommitted?.toLocaleString("en-IN") ?? 0}</div>
+            </div>
+            <div className="metric card">
+              <div className="metric-label">Low Stock Warnings</div>
+              <div
+                className="metric-value"
+                style={{ color: (stockData?.metrics?.lowStockCount ?? 0) > 0 ? "var(--danger)" : "var(--green)" }}
+              >
+                {stockData?.metrics?.lowStockCount ?? 0}
+              </div>
+            </div>
+          </div>
+
+          {/* Section 1: Stock On Hand Table */}
+          <div className="card" style={{ marginBottom: 24, padding: 0 }}>
+            <div style={{ padding: "14px 18px", borderBottom: "1px solid #f0f0f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 15 }}>SKU Inventory & Threshold Levels</h3>
+                <div className="small muted">Live physical counts, order reservations, and alert thresholds</div>
+              </div>
+            </div>
+            {stockLoading ? (
+              <div className="muted" style={{ padding: 22 }}>Loading warehouse inventory…</div>
+            ) : !stockData?.inventory || stockData.inventory.length === 0 ? (
+              <div className="empty-state">No inventory snapshots found for {stockWarehouse}.</div>
+            ) : (
+              <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ background: "var(--surface-muted, #f8f9fa)", textAlign: "left" }}>
+                    <th style={{ padding: "10px 14px" }}>SKU Variant</th>
+                    <th style={{ padding: "10px 14px" }}>Category</th>
+                    <th style={{ padding: "10px 14px" }}>Packaging</th>
+                    <th style={{ padding: "10px 14px", textAlign: "right" }}>On Hand</th>
+                    <th style={{ padding: "10px 14px", textAlign: "right" }}>Committed</th>
+                    <th style={{ padding: "10px 14px", textAlign: "right" }}>Available</th>
+                    <th style={{ padding: "10px 14px", textAlign: "right" }}>Alert Below</th>
+                    <th style={{ padding: "10px 14px", textAlign: "center" }}>Stock Status</th>
+                    <th style={{ padding: "10px 14px", textAlign: "right" }}>Quick Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stockData.inventory.map((item: any) => (
+                    <tr key={item.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                      <td style={{ padding: "10px 14px", fontWeight: 600 }}>{item.productName}</td>
+                      <td style={{ padding: "10px 14px", color: "var(--text-muted)" }}>{item.category}</td>
+                      <td style={{ padding: "10px 14px" }}>{item.pack}</td>
+                      <td style={{ padding: "10px 14px", textAlign: "right", fontWeight: 600 }}>{item.onHand}</td>
+                      <td style={{ padding: "10px 14px", textAlign: "right", color: "var(--text-muted)" }}>{item.committed}</td>
+                      <td style={{ padding: "10px 14px", textAlign: "right", fontWeight: 700, color: item.isLowStock ? "var(--danger)" : "var(--green)" }}>
+                        {item.available}
+                      </td>
+                      <td style={{ padding: "10px 14px", textAlign: "right" }}>
+                        <button
+                          className="ghost sm"
+                          style={{ fontSize: 11, padding: "2px 6px" }}
+                          onClick={() => {
+                            const input = window.prompt("Enter new low-stock alert threshold (minimum units):", String(item.lowStockThreshold));
+                            if (input !== null) {
+                              const val = parseInt(input, 10);
+                              if (!isNaN(val) && val >= 0) {
+                                void api.setVariantLowStockThreshold(item.variantId, val).then(() => {
+                                  setNotice("Low stock threshold updated");
+                                  void loadStock(stockWarehouse);
+                                });
+                              }
+                            }
+                          }}
+                        >
+                          ≤ {item.lowStockThreshold} units ✎
+                        </button>
+                      </td>
+                      <td style={{ padding: "10px 14px", textAlign: "center" }}>
+                        {item.isLowStock ? (
+                          <span className="pill" style={{ background: "#fee2e2", color: "#991b1b" }}>⚠ Low Stock</span>
+                        ) : (
+                          <span className="pill status-confirmed">✓ In Stock</span>
+                        )}
+                      </td>
+                      <td style={{ padding: "10px 14px", textAlign: "right" }}>
+                        <button
+                          className="sm secondary"
+                          onClick={() => {
+                            setAdjustmentForm({
+                              variantId: item.variantId,
+                              type: "receipt",
+                              quantity: "10",
+                              reason: "",
+                              performedBy: "Warehouse Manager",
+                            });
+                            setShowAdjustmentModal(true);
+                          }}
+                        >
+                          Adjust
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Section 2: Movements Log & Transfers Grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            {/* Movements Log */}
+            <div className="card" style={{ padding: 0 }}>
+              <div style={{ padding: "12px 16px", borderBottom: "1px solid #f0f0f0" }}>
+                <h3 style={{ margin: 0, fontSize: 14 }}>Recent Stock Movements Audit</h3>
+                <div className="small muted">Audited receipts, breakage, spoilage & discrepancies</div>
+              </div>
+              <div style={{ maxHeight: 320, overflowY: "auto" }}>
+                {stockMovements.length === 0 ? (
+                  <div className="empty-state" style={{ padding: 20 }}>No stock movements recorded yet.</div>
+                ) : (
+                  <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ background: "var(--surface-muted, #f8f9fa)", textAlign: "left" }}>
+                        <th style={{ padding: "8px 12px" }}>Time</th>
+                        <th style={{ padding: "8px 12px" }}>SKU</th>
+                        <th style={{ padding: "8px 12px" }}>Type</th>
+                        <th style={{ padding: "8px 12px", textAlign: "right" }}>Qty</th>
+                        <th style={{ padding: "8px 12px" }}>Reason & Actor</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stockMovements.map((m) => (
+                        <tr key={m.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                          <td style={{ padding: "8px 12px", color: "var(--text-muted)", fontSize: 11 }}>
+                            {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </td>
+                          <td style={{ padding: "8px 12px", fontWeight: 600 }}>{m.variantName}</td>
+                          <td style={{ padding: "8px 12px" }}>
+                            <span
+                              className="pill"
+                              style={{
+                                fontSize: 10,
+                                background: m.type === "receipt" ? "#dcfce7" : m.type === "spoilage" ? "#fee2e2" : "#fef3c7",
+                                color: m.type === "receipt" ? "#166534" : m.type === "spoilage" ? "#991b1b" : "#92400e",
+                              }}
+                            >
+                              {m.type.toUpperCase()}
+                            </span>
+                          </td>
+                          <td style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700 }}>
+                            {m.type === "spoilage" || m.type === "damage" ? `-${m.quantity}` : `+${m.quantity}`}
+                          </td>
+                          <td style={{ padding: "8px 12px" }}>
+                            <div>{m.reason}</div>
+                            <div className="small muted">By {m.performedBy}</div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+
+            {/* Inter-Warehouse Transfers */}
+            <div className="card" style={{ padding: 0 }}>
+              <div style={{ padding: "12px 16px", borderBottom: "1px solid #f0f0f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 14 }}>Inter-Warehouse Transfers</h3>
+                  <div className="small muted">Stock in-transit between company depots</div>
+                </div>
+                <button className="sm" onClick={() => setShowTransferModal(true)}>+ New Transfer</button>
+              </div>
+              <div style={{ maxHeight: 320, overflowY: "auto" }}>
+                {stockTransfers.length === 0 ? (
+                  <div className="empty-state" style={{ padding: 20 }}>No inter-warehouse transfers.</div>
+                ) : (
+                  <div style={{ padding: 12 }}>
+                    {stockTransfers.map((t) => (
+                      <div
+                        key={t.id}
+                        style={{
+                          border: "1px solid #e2e8f0",
+                          borderRadius: 6,
+                          padding: 10,
+                          marginBottom: 8,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                            <span style={{ fontWeight: 700, fontSize: 13 }}>{t.transferNumber}</span>
+                            <span
+                              className="pill"
+                              style={{
+                                fontSize: 10,
+                                background: t.status === "received" ? "#dcfce7" : t.status === "in_transit" ? "#fef3c7" : "#f1f5f9",
+                                color: t.status === "received" ? "#166534" : t.status === "in_transit" ? "#92400e" : "#475569",
+                              }}
+                            >
+                              {t.status.toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="small muted" style={{ marginTop: 2 }}>
+                            {t.fromWarehouseCode} → {t.toWarehouseCode} · {t.items?.length || 1} SKU item(s)
+                          </div>
+                          {t.notes && <div className="small" style={{ color: "#64748b", marginTop: 2 }}>"{t.notes}"</div>}
+                        </div>
+                        <div>
+                          {t.status === "in_transit" && (
+                            <button
+                              className="sm"
+                              onClick={async () => {
+                                try {
+                                  await api.updateTransferStatus(t.id, "received");
+                                  setNotice(`Transfer ${t.transferNumber} marked as received.`);
+                                  await loadStock(stockWarehouse);
+                                } catch (err: any) {
+                                  setError(err.message);
+                                }
+                              }}
+                            >
+                              Mark Received
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Record Stock Adjustment */}
+      {showAdjustmentModal && (
+        <div className="modal-backdrop" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
+          <div className="card" style={{ width: 500, maxWidth: "90vw" }}>
+            <h2 className="section-title">Record Stock Adjustment ({stockWarehouse})</h2>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!adjustmentForm.variantId) return setError("Please select a SKU variant");
+                try {
+                  await api.recordStockAdjustment({
+                    warehouseCode: stockWarehouse,
+                    variantId: adjustmentForm.variantId,
+                    type: adjustmentForm.type,
+                    quantity: parseFloat(adjustmentForm.quantity),
+                    reason: adjustmentForm.reason.trim(),
+                    performedBy: adjustmentForm.performedBy,
+                  });
+                  setNotice("Stock adjustment recorded successfully.");
+                  setShowAdjustmentModal(false);
+                  setAdjustmentForm({ ...adjustmentForm, reason: "" });
+                  await loadStock(stockWarehouse);
+                } catch (err: any) {
+                  setError(err.message || "Failed to record adjustment");
+                }
+              }}
+            >
+              <div className="form-grid">
+                <div className="field" style={{ gridColumn: "1 / -1" }}>
+                  <label>Select SKU Variant *</label>
+                  <select
+                    value={adjustmentForm.variantId}
+                    onChange={(e) => setAdjustmentForm({ ...adjustmentForm, variantId: e.target.value })}
+                    required
+                  >
+                    <option value="">-- Choose Product SKU --</option>
+                    {(stockData?.inventory ?? []).map((i: any) => (
+                      <option key={i.variantId} value={i.variantId}>
+                        {i.productName} ({i.pack}) — Current: {i.onHand}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Adjustment Type *</label>
+                  <select
+                    value={adjustmentForm.type}
+                    onChange={(e) => setAdjustmentForm({ ...adjustmentForm, type: e.target.value as any })}
+                  >
+                    <option value="receipt">Stock Receipt / Inward (+)</option>
+                    <option value="spoilage">Damage / Spoilage (-)</option>
+                    <option value="discrepancy">Physical Discrepancy (Set Count)</option>
+                    <option value="audit_reconciliation">Audit Reconciliation (Set Count)</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Quantity Units *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={adjustmentForm.quantity}
+                    onChange={(e) => setAdjustmentForm({ ...adjustmentForm, quantity: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="field" style={{ gridColumn: "1 / -1" }}>
+                  <label>Audit Reason / Memo *</label>
+                  <input
+                    placeholder="e.g. Factory shipment batch, bag tear during unloading, physical audit"
+                    value={adjustmentForm.reason}
+                    onChange={(e) => setAdjustmentForm({ ...adjustmentForm, reason: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 18 }}>
+                <button type="button" className="secondary" onClick={() => setShowAdjustmentModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit">Commit Adjustment</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: New Stock Transfer */}
+      {showTransferModal && (
+        <div className="modal-backdrop" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
+          <div className="card" style={{ width: 520, maxWidth: "90vw" }}>
+            <h2 className="section-title">Initiate Inter-Warehouse Transfer</h2>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!transferForm.variantId) return setError("Please select a SKU variant to transfer");
+                try {
+                  await api.createStockTransfer({
+                    fromWarehouseCode: transferForm.fromWarehouseCode,
+                    toWarehouseCode: transferForm.toWarehouseCode,
+                    notes: transferForm.notes,
+                    items: [{ variantId: transferForm.variantId, quantity: parseFloat(transferForm.quantity) }],
+                  });
+                  setNotice("Stock transfer initiated successfully.");
+                  setShowTransferModal(false);
+                  await loadStock(stockWarehouse);
+                } catch (err: any) {
+                  setError(err.message || "Failed to create transfer");
+                }
+              }}
+            >
+              <div className="form-grid">
+                <div className="field">
+                  <label>Source Hub (From) *</label>
+                  <select
+                    value={transferForm.fromWarehouseCode}
+                    onChange={(e) => setTransferForm({ ...transferForm, fromWarehouseCode: e.target.value })}
+                  >
+                    {warehouses.map((w) => (
+                      <option key={w.code} value={w.code}>{w.code} — {w.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Destination Hub (To) *</label>
+                  <select
+                    value={transferForm.toWarehouseCode}
+                    onChange={(e) => setTransferForm({ ...transferForm, toWarehouseCode: e.target.value })}
+                  >
+                    {warehouses.map((w) => (
+                      <option key={w.code} value={w.code}>{w.code} — {w.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field" style={{ gridColumn: "1 / -1" }}>
+                  <label>SKU Variant to Move *</label>
+                  <select
+                    value={transferForm.variantId}
+                    onChange={(e) => setTransferForm({ ...transferForm, variantId: e.target.value })}
+                    required
+                  >
+                    <option value="">-- Choose Product SKU --</option>
+                    {(stockData?.inventory ?? []).map((i: any) => (
+                      <option key={i.variantId} value={i.variantId}>
+                        {i.productName} ({i.pack})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Transfer Quantity (Bags/Cases) *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={transferForm.quantity}
+                    onChange={(e) => setTransferForm({ ...transferForm, quantity: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="field">
+                  <label>Transfer Dispatch Notes</label>
+                  <input
+                    placeholder="e.g. Weekly replenishment transfer"
+                    value={transferForm.notes}
+                    onChange={(e) => setTransferForm({ ...transferForm, notes: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 18 }}>
+                <button type="button" className="secondary" onClick={() => setShowTransferModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit">Dispatch Transfer</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

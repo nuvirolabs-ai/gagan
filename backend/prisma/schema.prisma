@@ -93,6 +93,7 @@ enum SurveyQuestionType {
   rating
   number
   text
+  photo
 }
 
 enum SurveyRespondentType {
@@ -1033,15 +1034,27 @@ model Notification {
 // Read-only scheme display for v1 — the spec defers a real promotions engine.
 // Progress is computed from delivered/placed order totals inside the window.
 model Scheme {
-  id             String   @id @default(uuid())
-  name           String
-  headline       String
-  targetAmount   Decimal  @db.Decimal(12, 2)
-  discountAmount Decimal  @db.Decimal(12, 2)
-  featured       Boolean  @default(false)
-  active         Boolean  @default(true)
-  startsAt       DateTime
-  endsAt         DateTime
+  id                  String   @id @default(uuid())
+  name                String
+  headline            String
+  targetAmount        Decimal  @db.Decimal(12, 2)
+  discountAmount      Decimal  @db.Decimal(12, 2)
+  featured            Boolean  @default(false)
+  active              Boolean  @default(true)
+  startsAt            DateTime
+  endsAt              DateTime
+  description         String?
+  ruleType            String   @default("order_value")
+  minQuantity         Int?
+  qualifyingVariantId String?
+  rewardType          String   @default("flat_discount")
+  rewardValue         Decimal? @db.Decimal(12, 2)
+  freeVariantId       String?
+  targetAudience      String   @default("all_retailers")
+  targetTierId        String?
+  targetTerritory     String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
 }
 
 enum SapSyncStatus {
@@ -1218,6 +1231,124 @@ model HsnMaster {
   updatedAt      DateTime @updatedAt
 }
 
+// -------------------------------------------------------------
+// Gap 12: Inventory Movements & Transfers
+// -------------------------------------------------------------
+
+enum StockMovementType {
+  receipt
+  spoilage
+  damage
+  discrepancy
+  audit_reconciliation
+  transfer_in
+  transfer_out
+}
+
+model StockMovement {
+  id            String            @id @default(uuid())
+  warehouseCode String
+  variantId     String
+  type          StockMovementType
+  quantity      Decimal           @db.Decimal(14, 3)
+  previousStock Decimal           @db.Decimal(14, 3)
+  newStock      Decimal           @db.Decimal(14, 3)
+  reason        String
+  performedBy   String?
+  createdAt     DateTime          @default(now())
+
+  @@index([warehouseCode, variantId])
+  @@index([createdAt])
+}
+
+enum StockTransferStatus {
+  draft
+  in_transit
+  received
+  cancelled
+}
+
+model StockTransfer {
+  id                String              @id @default(uuid())
+  transferNumber    String              @unique
+  fromWarehouseCode String
+  toWarehouseCode   String
+  status            StockTransferStatus @default(draft)
+  items             StockTransferItem[]
+  notes             String?
+  initiatedAt       DateTime            @default(now())
+  dispatchedAt      DateTime?
+  receivedAt        DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([fromWarehouseCode, status])
+  @@index([toWarehouseCode, status])
+}
+
+model StockTransferItem {
+  id         String        @id @default(uuid())
+  transferId String
+  transfer   StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  variantId  String
+  quantity   Decimal       @db.Decimal(14, 3)
+
+  @@index([transferId])
+}
+
+// -------------------------------------------------------------
+// Gap 13: Delivery Fleet & Vehicle Run Dispatcher
+// -------------------------------------------------------------
+
+enum VehicleType {
+  truck
+  tempo
+  three_wheeler
+  van
+}
+
+model DeliveryVehicle {
+  id           String        @id @default(uuid())
+  regNumber    String        @unique
+  model        String
+  type         VehicleType   @default(tempo)
+  capacityKg   Decimal       @db.Decimal(10, 2)
+  capacityBags Int           @default(50)
+  driverName   String
+  driverPhone  String
+  isActive     Boolean       @default(true)
+  runs         DeliveryRun[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+enum DeliveryRunStatus {
+  draft
+  loaded
+  out_for_delivery
+  completed
+  cancelled
+}
+
+model DeliveryRun {
+  id            String            @id @default(uuid())
+  runNumber     String            @unique
+  warehouseCode String
+  vehicleId     String?
+  vehicle       DeliveryVehicle?  @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  driverName    String
+  driverPhone   String
+  status        DeliveryRunStatus @default(draft)
+  orderIds      Json              @default("[]")
+  notes         String?
+  departureTime DateTime?
+  completedTime DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([warehouseCode, status])
+}
+
 model Product {
   catalogKey         String?             @unique
   internalCode       String?             @unique
@@ -1251,6 +1382,7 @@ model Variant {
   catalogImageStatus       String                            @default("exact")
   catalogImageLabel        String?
   hsnCode                  String?
+  lowStockThreshold        Int?                              @default(10)
   sellingEntity            String?
   gstPercent               Decimal?                          @db.Decimal(5, 2)
   /// Explicit staging-only permission to accept an order before GST is finalized.

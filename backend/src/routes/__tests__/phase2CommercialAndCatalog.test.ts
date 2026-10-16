@@ -34,7 +34,6 @@ beforeAll(async () => {
   const session = await lazyIdentitySessionService.createSession({
     realm: "admin",
     subjectId: staffId,
-    context: { roles: ["platform_admin"] },
   });
   token = session.accessToken;
 });

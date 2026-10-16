@@ -615,6 +615,56 @@ export const api = {
   deleteHsnCode: (id: string) => remove(`/admin/tax/hsn/${id}`),
   applyHsnToVariants: (hsnCode: string, variantIds: string[]) =>
     post("/admin/tax/apply-hsn-to-variants", { hsnCode, variantIds }),
+
+  // Gap 12: Inventory Stock Adjustments & Transfer Manager
+  inventorySummary: (warehouseCode?: string) =>
+    request(`/admin/inventory/summary${warehouseCode ? `?warehouseCode=${encodeURIComponent(warehouseCode)}` : ""}`),
+  inventoryMovements: (warehouseCode?: string) =>
+    request(`/admin/inventory/movements${warehouseCode ? `?warehouseCode=${encodeURIComponent(warehouseCode)}` : ""}`),
+  recordStockAdjustment: (body: unknown) => post("/admin/inventory/adjustments", body),
+  inventoryTransfers: () => request("/admin/inventory/transfers"),
+  createStockTransfer: (body: unknown) => post("/admin/inventory/transfers", body),
+  updateTransferStatus: (id: string, status: string) => post(`/admin/inventory/transfers/${id}/status`, { status }),
+  setVariantLowStockThreshold: (id: string, threshold: number) =>
+    post(`/admin/inventory/variants/${id}/low-stock-threshold`, { threshold }),
+
+  // Gap 13: Delivery Fleet & Vehicle Run Dispatcher
+  fleetVehicles: () => request("/admin/fleet/vehicles"),
+  createFleetVehicle: (body: unknown) => post("/admin/fleet/vehicles", body),
+  updateFleetVehicle: (id: string, body: unknown) => put(`/admin/fleet/vehicles/${id}`, body),
+  deleteFleetVehicle: (id: string) => remove(`/admin/fleet/vehicles/${id}`),
+  deliveryRuns: (warehouseCode?: string) =>
+    request(`/admin/fleet/runs${warehouseCode ? `?warehouseCode=${encodeURIComponent(warehouseCode)}` : ""}`),
+  createDeliveryRun: (body: unknown) => post("/admin/fleet/runs", body),
+  updateRunStatus: (id: string, status: string) => post(`/admin/fleet/runs/${id}/status`, { status }),
+
+  // Gap 14: Customer Schemes & Trade Promotion Engine
+  promotionalSchemes: () => request("/admin/promotions/schemes"),
+  createScheme: (body: unknown) => post("/admin/promotions/schemes", body),
+  updateScheme: (id: string, body: unknown) => put(`/admin/promotions/schemes/${id}`, body),
+  toggleSchemeActive: (id: string) => post(`/admin/promotions/schemes/${id}/toggle-active`, {}),
+  deleteScheme: (id: string) => remove(`/admin/promotions/schemes/${id}`),
+
+  // Gap 15: Market Surveys & Field Task Creator
+  fieldTasksList: (status?: string, salespersonId?: string) => {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    if (salespersonId) params.set("salespersonId", salespersonId);
+    const qs = params.toString();
+    return request(`/admin/field-tasks${qs ? `?${qs}` : ""}`);
+  },
+  createFieldTask: (body: unknown) => post("/admin/field-tasks", body),
+  fieldTaskEvidence: (id: string) => request(`/admin/field-tasks/${id}/evidence`),
+
+  // Gap 16: Salesperson Expense & Leave Approvals Portal
+  portalExpenses: (status?: string) =>
+    request(`/admin/field-approvals/expenses${status ? `?status=${encodeURIComponent(status)}` : ""}`),
+  decidePortalExpense: (id: string, decision: "approved" | "rejected", note?: string) =>
+    post(`/admin/field-approvals/expenses/${id}/decision`, { decision, note }),
+  portalLeaves: (status?: string) =>
+    request(`/admin/field-approvals/leaves${status ? `?status=${encodeURIComponent(status)}` : ""}`),
+  decidePortalLeave: (id: string, decision: "approved" | "rejected", note?: string) =>
+    post(`/admin/field-approvals/leaves/${id}/decision`, { decision, note }),
 };
 
 export const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;

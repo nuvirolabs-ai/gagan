@@ -7,6 +7,7 @@ import {
   createInvoiceForDelivery,
   InvoiceCreationError,
 } from "../../modules/invoicing/invoiceService";
+import { renderInvoicePdf } from "../../modules/invoicing/invoicePdf";
 import { ensureKycApprovedForDispatch, KycGateError } from "../../modules/kyc/kycGate";
 import { attributeOrders } from "../../modules/orders/orderAttribution";
 
@@ -189,6 +190,7 @@ router.post("/dispatch/:orderId/assign", async (req: AdminRequest, res) => {
 
 const podSchema = z.object({
   podType: z.enum(["photo", "otp", "signature"]),
+  transportationAmount: z.number().min(0).optional(),
   items: z
     .array(
       z.object({
@@ -248,6 +250,7 @@ router.post("/dispatch/:orderId/pod", async (req: AdminRequest, res) => {
       orderId: order.id,
       occurredAt,
       idempotencyKey: `delivery:${order.id}`,
+      transportationAmount: parsed.data.transportationAmount,
       lines: parsed.data.items.map((item) => ({
         orderItemId: item.orderItemId,
         deliveredCases: item.qtyDelivered,
@@ -272,6 +275,61 @@ router.post("/dispatch/:orderId/pod", async (req: AdminRequest, res) => {
     }
     throw error;
   }
+});
+
+router.get("/orders/:id/invoice-pdf", async (req, res) => {
+  const order = await prisma.order.findUnique({
+    where: { id: req.params.id },
+    include: {
+      retailer: true,
+      invoice: {
+        include: {
+          lines: true,
+        },
+      },
+    },
+  });
+
+  if (!order || !order.invoice) {
+    return res.status(404).json({ error: "Invoice not found for this order" });
+  }
+
+  const freightLine = order.invoice.lines.find(
+    (l) => l.descriptionSnapshot.toLowerCase().includes("freight") || l.descriptionSnapshot.toLowerCase().includes("transport")
+  );
+
+  const pdfBuffer = renderInvoicePdf({
+    invoiceNumber: order.invoice.invoiceNumber,
+    orderNo: order.orderNo,
+    invoiceDate: order.invoice.invoiceDate,
+    dueDate: order.invoice.dueDate,
+    currency: order.invoice.currency,
+    subtotal: Number(order.invoice.subtotal),
+    taxTotal: Number(order.invoice.taxTotal),
+    total: Number(order.invoice.total),
+    transportationAmount: freightLine ? Number(freightLine.lineTotal) : undefined,
+    retailer: {
+      name: order.retailer.name,
+      shopAddress: order.retailer.shopAddress,
+      deliveryCity: order.retailer.deliveryCity,
+      phone: order.retailer.phone,
+    },
+    lines: order.invoice.lines.map((l) => ({
+      description: l.descriptionSnapshot,
+      cases: l.deliveredCases,
+      weightKg: l.deliveredWeightKg ? Number(l.deliveredWeightKg) : undefined,
+      unitPrice: Number(l.unitPrice),
+      lineTotal: Number(l.lineTotal),
+      sellingEntity: l.sellingEntity,
+    })),
+  });
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="Invoice-INV-${order.invoice.invoiceNumber}.pdf"`
+  );
+  res.send(pdfBuffer);
 });
 
 export default router;

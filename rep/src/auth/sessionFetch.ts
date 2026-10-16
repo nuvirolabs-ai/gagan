@@ -59,7 +59,23 @@ export function createSessionFetch(options: SessionFetchOptions) {
       const current = await options.store.load();
       if (current) headers.Authorization = `Bearer ${current.accessToken}`;
     }
-    const response = await fetcher(`${options.baseUrl}${path}`, { ...requestOptions, headers });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    let response: Response;
+    try {
+      response = await fetcher(`${options.baseUrl}${path}`, {
+        ...requestOptions,
+        headers,
+        signal: requestOptions.signal ?? controller.signal,
+      });
+    } catch (err: any) {
+      if (err?.name === "AbortError") {
+        throw new SessionFetchError(504, { error: "Server response timed out. Please check your internet connection and try again." });
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
     const body = await readBody(response);
     if (response.status === 401 && auth && allowRefresh) {
       try {

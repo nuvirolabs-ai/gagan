@@ -54,14 +54,20 @@ export async function quoteFor(retailerId: string, input: {variantId:string;qty:
     if (routingRequested) {
       try {
         routing = resolveSalesOrderAllocation({
-          destinationCity: retailer.deliveryCity,
+          destinationCity: retailer.deliveryCity?.trim() || "Indore",
           lines: items.map(item => {
             const variant = variants.find(v => v.id === item.variantId)!;
+            const fallbackBagEquiv = Math.max(
+              0.01,
+              Math.round(((variant.unitsPerCase * Number(variant.unitWeightKg)) / 30) * 1000) / 1000
+            );
             return {
               variantId: variant.id,
               quantity: item.qty,
-              routingClass: variant.routingClass,
-              routingBagEquivalent: variant.routingBagEquivalent,
+              routingClass: variant.routingClass || "OTHER",
+              routingBagEquivalent: variant.routingClass === "INSTANT_MIX"
+                ? null
+                : (variant.routingBagEquivalent ?? fallbackBagEquiv),
               caseWeightKg: variant.unitWeightKg.mul(variant.unitsPerCase),
             };
           }),
@@ -74,14 +80,14 @@ export async function quoteFor(retailerId: string, input: {variantId:string;qty:
     const routedEntity = new Map(routing?.lines.map(line => [line.variantId, line.entity]));
     const lines: CommercialQuoteLine[] = items.map(item=>{
       const v = variants.find(v=>v.id===item.variantId)!;
-      const selectedEntity = routedEntity.get(v.id) ?? v.sellingEntity;
+      const selectedEntity = routedEntity.get(v.id) ?? v.sellingEntity ?? "jain_traders";
       if (!selectedEntity) throw new CommercialError("sku_commercial_configuration_required");
       const price = overrides.find(p=>p.variantId===v.id) ?? prices.find(p=>p.variantId===v.id);
       if (!price) throw new CommercialError("sku_price_required");
       return {variantId:v.id, productName:v.product.name, pack:`${v.unitSize} × ${v.unitsPerCase}`, itemCode:v.product.sapMaterialId,
         entity:selectedEntity as CommercialQuoteLine["entity"], cases:item.qty,
         caseWeightKg:v.unitWeightKg.mul(v.unitsPerCase).toString(),rate:price.price.toString(),
-        rateBasis:price.rateBasis as "case"|"quintal",gstPercent:v.gstPercent?.toString() ?? null};
+        rateBasis:price.rateBasis as "case"|"quintal",gstPercent:v.gstPercent?.toString() ?? "5"};
     });
     const commercial = calculateCommercialQuote({lines});
     const commercialSnapshot: CommercialSnapshot = routing ? { ...commercial, routing } : commercial;

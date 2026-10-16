@@ -30,6 +30,7 @@ export default function PodModal({ order, onClose, onDone }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [commercial,setCommercial]=useState<any>(null);
   const [quotedInput,setQuotedInput]=useState("");
+  const [transportationAmount, setTransportationAmount] = useState<number>(0);
 
   const [lines, setLines] = useState<Line[]>(() =>
     order.items.map((i: any) => {
@@ -69,7 +70,7 @@ export default function PodModal({ order, onClose, onDone }: Props) {
   }, [lines]);
 
   const orderedTotal = Number(order.orderTotal);
-  const variance = preview.total - orderedTotal;
+  const finalInvoiceTotal = (order.commercialSnapshot && commercial ? Number(commercial.total) : preview.total) + (Number(transportationAmount) || 0);
 
   const submit = async () => {
     if(order.commercialSnapshot && (!commercial || quotedInput!==deliveryInput))return;
@@ -86,7 +87,8 @@ export default function PodModal({ order, onClose, onDone }: Props) {
             qtyDelivered: parseInt(l.qtyDelivered, 10) || 0,
             weightDeliveredKg: Number.isFinite(weight) ? weight : undefined,
           };
-        })
+        }),
+        Number(transportationAmount) || 0
       );
       onDone(`Delivery captured — invoiced ${inr(Number(result.invoice.total))}`);
     } catch (err) {
@@ -171,18 +173,30 @@ export default function PodModal({ order, onClose, onDone }: Props) {
             <span>{inr(orderedTotal)}</span>
           </div>
           <div className="between" style={{ marginTop: 6 }}>
-            <span style={{ fontWeight: 700 }}>Invoice (delivered weight)</span>
-            <span style={{ fontWeight: 700, fontSize: 17 }}>{order.commercialSnapshot ? (commercial?inr(Number(commercial.total)):"Pricing…"):inr(preview.total)}</span>
+            <span className="muted">Goods Subtotal</span>
+            <span>{order.commercialSnapshot ? (commercial?inr(Number(commercial.total)):"Pricing…"):inr(preview.total)}</span>
           </div>
-          {!order.commercialSnapshot && Math.abs(variance) >= 1 && (
-            <div className="between small" style={{ marginTop: 6 }}>
-              <span className="muted">Variance</span>
-              <span style={{ color: variance < 0 ? "var(--danger)" : "var(--green)" }}>
-                {variance < 0 ? "−" : "+"}
-                {inr(Math.abs(variance))}
-              </span>
-            </div>
-          )}
+          <div className="between" style={{ marginTop: 10, alignItems: "center" }}>
+            <label style={{ fontWeight: 600, color: "#92400e" }}>
+              🚚 Transportation Amount (₹):
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="any"
+              placeholder="0.00"
+              value={transportationAmount === 0 ? "" : transportationAmount}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value) || 0;
+                setTransportationAmount(val < 0 ? 0 : val);
+              }}
+              style={{ width: 120, padding: "4px 8px", textAlign: "right", borderRadius: 4, border: "1px solid #d97706" }}
+            />
+          </div>
+          <div className="between" style={{ marginTop: 10, paddingTop: 8, borderTop: "1px dashed var(--border)" }}>
+            <span style={{ fontWeight: 700, fontSize: 15 }}>Final Invoice Total</span>
+            <span style={{ fontWeight: 800, fontSize: 18, color: "var(--green)" }}>{inr(finalInvoiceTotal)}</span>
+          </div>
         </div>
 
         <div className="row" style={{ justifyContent: "flex-end", marginTop: 18 }}>
@@ -190,7 +204,7 @@ export default function PodModal({ order, onClose, onDone }: Props) {
             Cancel
           </button>
           <button onClick={submit} disabled={busy || (!!order.commercialSnapshot && (!commercial || quotedInput !== deliveryInput))}>
-            {busy ? "Posting…" : order.commercialSnapshot ? (commercial ? `Confirm & invoice ${inr(Number(commercial.total))}` : "Pricing delivery…") : `Confirm & invoice ${inr(preview.total)}`}
+            {busy ? "Posting…" : `Confirm & create invoice (${inr(finalInvoiceTotal)})`}
           </button>
         </div>
       </div>

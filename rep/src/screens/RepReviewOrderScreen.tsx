@@ -160,8 +160,11 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
         setStandardPrices(prices);
       }
       replaceExpiredIntentQuote.current = false;
-    } catch {
-      if (basketRef.current === requestedBasket) setQuoteError("Unable to price this basket. Return to products and retry.");
+    } catch (err: any) {
+      if (basketRef.current === requestedBasket) {
+        const errorDetail = err?.body?.error || err?.message;
+        setQuoteError(errorDetail ? `Pricing error (${errorDetail}). Return to products and retry.` : "Unable to price this basket. Return to products and retry.");
+      }
     }
   }, [applyQuote, basket, proposalDemandMode, proposalIntent?.conversionCommercialQuoteId, retailerId]);
 

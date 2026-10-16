@@ -136,43 +136,43 @@ export async function setupFreshSalesWarehouseCluster() {
     create: { staffId: leadStaff.id, roleId: roleMap.get("field_manager")! },
   });
 
-  // 5. Create Dedicated Salesperson: Vikram Singh (9800000001)
-  console.log("5. Creating Dedicated Salesperson Account (Vikram Singh - 9800000001)...");
+  // 5. Create Dedicated Salesperson: Vikas Bhimke (9812345680)
+  console.log("5. Creating Dedicated Salesperson Account (Vikas Bhimke - 9812345680)...");
   const salesRep = await prisma.salesRep.upsert({
     where: { id: "rep-vikram-singh-01" },
     update: {
-      name: "Vikram Singh",
-      phone: "9800000001",
+      name: "Vikas Bhimke",
+      phone: "9812345680",
       territory: "Indore Central Kirana Cluster",
     },
     create: {
       id: "rep-vikram-singh-01",
-      name: "Vikram Singh",
-      phone: "9800000001",
+      name: "Vikas Bhimke",
+      phone: "9812345680",
       territory: "Indore Central Kirana Cluster",
     },
   });
 
   // Free up SALES-002 if taken
   await prisma.staffUser.updateMany({
-    where: { employeeRef: "SALES-002", phone: { not: "9800000001" } },
+    where: { employeeRef: "SALES-002", phone: { not: "9812345680" } },
     data: { employeeRef: "SALES-LEGACY-002" },
   });
 
   const salesStaff = await prisma.staffUser.upsert({
-    where: { phone: "9800000001" },
+    where: { phone: "9812345680" },
     update: {
-      name: "Vikram Singh (Field Sales)",
-      email: "vikram@gagan.test",
+      name: "Vikas Bhimke (Field Sales)",
+      email: "vikas@gagan.test",
       employeeRef: "SALES-002",
       salesRepId: salesRep.id,
       managerId: leadStaff.id,
       status: "active",
     },
     create: {
-      name: "Vikram Singh (Field Sales)",
-      email: "vikram@gagan.test",
-      phone: "9800000001",
+      name: "Vikas Bhimke (Field Sales)",
+      email: "vikas@gagan.test",
+      phone: "9812345680",
       employeeRef: "SALES-002",
       salesRepId: salesRep.id,
       managerId: leadStaff.id,
@@ -405,8 +405,24 @@ export async function setupFreshSalesWarehouseCluster() {
     });
   }
 
-  // 8. Assign ALL Real-World Retailers to Vikram Singh (9800000001)
-  console.log("8. Assigning ALL Real-World Retailers to Vikram Singh (9800000001)...");
+  // 7b. Reconcile all active catalog variants and retailers to ensure 100% orderable quotes
+  console.log("7b. Ensuring all active variants and retailers have commercial routing configured...");
+  await prisma.$executeRawUnsafe(`
+    UPDATE "Variant"
+    SET "routingClass" = 'OTHER',
+        "routingBagEquivalent" = GREATEST(0.010, ROUND(("unitsPerCase" * "unitWeightKg") / 30.0, 3)),
+        "sellingEntity" = NULL,
+        "gstPercent" = COALESCE("gstPercent", 5.00)
+    WHERE "catalogStatus" = 'active'
+      AND ("routingClass" IS NULL OR "routingBagEquivalent" IS NULL);
+
+    UPDATE "Retailer"
+    SET "deliveryCity" = 'Indore'
+    WHERE "deliveryCity" IS NULL OR "deliveryCity" = '';
+  `);
+
+  // 8. Assign ALL Real-World Retailers to Vikas Bhimke (9812345680)
+  console.log("8. Assigning ALL Real-World Retailers to Vikas Bhimke (9812345680)...");
 
   // A. Mahesh Kirana Store (9999999999)
   let mahesh = await prisma.retailer.findUnique({ where: { phone: "9999999999" } });
@@ -603,15 +619,15 @@ export async function setupFreshSalesWarehouseCluster() {
   console.log("\n===============================================================");
   console.log("  SETUP COMPLETE & VERIFIED!");
   console.log("===============================================================");
-  console.log(`- Retailers assigned to Vikram Singh: ${totalAssigned} (All ACTIVE & VERIFIED)`);
+  console.log(`- Retailers assigned to Vikas Bhimke: ${totalAssigned} (All ACTIVE & VERIFIED)`);
   console.log(`- Active Products: ${totalActiveProducts}`);
   console.log(`- Active Variants (Single Pricing): ${totalActiveVariants}`);
   console.log(`- Total Orders in System: ${totalOrders} (BLANK SLATE: Ready for Order #1)`);
   console.log("\nLOGIN CREDENTIALS:");
   console.log("1. Salesperson (Field Sales App):");
-  console.log("   Phone: 9800000001");
+  console.log("   Phone: 9812345680");
   console.log("   OTP:   123456");
-  console.log("   Name:  Vikram Singh (Field Sales)");
+  console.log("   Name:  Vikas Bhimke (Field Sales)");
   console.log("   Status: Ready to punch orders immediately with NO setup pending blockers!");
   console.log("\n2. Warehouse Manager (Admin Orders Portal):");
   console.log("   Email:    warehouse-lead@gagan.test");

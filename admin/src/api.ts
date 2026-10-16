@@ -229,8 +229,31 @@ export const api = {
   deliverWarehouseOrder: (
     id: string,
     podType: string,
-    items: { orderItemId: string; qtyDelivered: number; weightDeliveredKg?: number }[]
-  ) => post(`/admin/warehouse-orders/${id}/deliver`, { podType, items }),
+    items: { orderItemId: string; qtyDelivered: number; weightDeliveredKg?: number }[],
+    transportationAmount?: number
+  ) => post(`/admin/warehouse-orders/${id}/deliver`, { podType, items, transportationAmount }),
+  downloadWarehouseOrderInvoicePdf: async (orderId: string, invoiceNumber?: number | string) => {
+    const blob = await requestBlob(`/admin/warehouse-orders/${orderId}/invoice-pdf`);
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Invoice-INV-${invoiceNumber || orderId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  },
+  downloadOrderInvoicePdf: async (orderId: string, invoiceNumber?: number | string) => {
+    const blob = await requestBlob(`/admin/orders/${orderId}/invoice-pdf`);
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Invoice-INV-${invoiceNumber || orderId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  },
   approve: (id: string) => post(`/admin/orders/${id}/approve`),
   reject: (id: string) => post(`/admin/orders/${id}/reject`),
   pack: (id: string) => post(`/admin/orders/${id}/pack`),
@@ -243,8 +266,9 @@ export const api = {
   capturePod: (
     id: string,
     podType: string,
-    items: { orderItemId: string; qtyDelivered: number; weightDeliveredKg?: number }[]
-  ) => post(`/admin/dispatch/${id}/pod`, { podType, items }),
+    items: { orderItemId: string; qtyDelivered: number; weightDeliveredKg?: number }[],
+    transportationAmount?: number
+  ) => post(`/admin/dispatch/${id}/pod`, { podType, items, transportationAmount }),
 
   retailers: () => request("/admin/retailers"),
   fieldRetailerMarketingHistory: (retailerId: string) =>

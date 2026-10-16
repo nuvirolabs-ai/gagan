@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api } from "../api";
+import { api, inr } from "../api";
 import { Icon, SectionLabel } from "../components/OperationalPrimitives";
 import { formatOrderRef } from "../orderRef";
 
@@ -9,6 +9,7 @@ type WarehouseOrder = {
   id: string;
   orderNo: number;
   status: "confirmed" | "packed" | "out_for_delivery" | "delivered";
+  orderTotal?: number;
   createdAt: string;
   retailer: {
     id: string;
@@ -24,6 +25,7 @@ type WarehouseOrder = {
   items: Array<{
     id: string;
     qtyOrdered: number;
+    unitPrice?: number;
     caseWeightKg?: number;
     variant: {
       unitSize: string;
@@ -33,6 +35,23 @@ type WarehouseOrder = {
       product: { name: string } | null;
     } | null;
   }>;
+  invoice?: {
+    id: string;
+    invoiceNumber: number;
+    invoiceDate: string;
+    dueDate: string;
+    subtotal: number;
+    taxTotal: number;
+    total: number;
+    outstandingAmount: number;
+    lines: Array<{
+      id: string;
+      description: string;
+      cases?: number | null;
+      unitPrice: number;
+      lineTotal: number;
+    }>;
+  } | null;
 };
 
 const FILTERS: Array<{ value: QueueFilter; label: string; step: string; icon: string }> = [
@@ -154,6 +173,8 @@ export default function WarehouseOrders() {
   // POD Delivery fields inside modal
   const [podType, setPodType] = useState<"photo" | "otp" | "signature">("photo");
   const [deliveredLines, setDeliveredLines] = useState<Array<{ orderItemId: string; cases: number }>>([]);
+  const [transportationAmount, setTransportationAmount] = useState<number>(0);
+  const [downloadingInvoice, setDownloadingInvoice] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -312,6 +333,8 @@ export default function WarehouseOrders() {
     setDispatchRouteId(initialRoute);
     setDispatchSlot("");
     setPodType("photo");
+    setTransportationAmount(0);
+    setDownloadingInvoice(false);
     setDeliveredLines(order.items.map((i) => ({ orderItemId: i.id, cases: i.qtyOrdered })));
     setError(null);
     setNotice(null);
@@ -336,6 +359,37 @@ export default function WarehouseOrders() {
     if (busy) return;
     setModalOrder(null);
   }, [busy]);
+
+  const deliveredTotalCases = useMemo(() => {
+    if (!modalOrder) return 0;
+    return modalOrder.items.reduce((sum, item) => {
+      const lineVal = deliveredLines.find((l) => l.orderItemId === item.id)?.cases ?? item.qtyOrdered;
+      return sum + lineVal;
+    }, 0);
+  }, [modalOrder, deliveredLines]);
+
+  const goodsSubtotal = useMemo(() => {
+    if (!modalOrder) return 0;
+    return modalOrder.items.reduce((sum, item) => {
+      const lineVal = deliveredLines.find((l) => l.orderItemId === item.id)?.cases ?? item.qtyOrdered;
+      return sum + lineVal * (item.unitPrice || 0);
+    }, 0);
+  }, [modalOrder, deliveredLines]);
+
+  const calculatedInvoiceTotal = useMemo(() => {
+    return Math.max(0, goodsSubtotal + (Number(transportationAmount) || 0));
+  }, [goodsSubtotal, transportationAmount]);
+
+  const handleDownloadInvoice = async (orderId: string, invoiceNumber?: number) => {
+    setDownloadingInvoice(true);
+    try {
+      await api.downloadWarehouseOrderInvoicePdf(orderId, invoiceNumber);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to download invoice PDF");
+    } finally {
+      setDownloadingInvoice(false);
+    }
+  };
 
   // Action: Pack inside modal
   const handlePack = async () => {
@@ -394,10 +448,11 @@ export default function WarehouseOrders() {
         orderItemId: line.orderItemId,
         qtyDelivered: line.cases,
       }));
-      const result = await api.deliverWarehouseOrder(modalOrder.id, podType, itemsPayload);
+      const transportAmt = Number(transportationAmount) || 0;
+      const result = await api.deliverWarehouseOrder(modalOrder.id, podType, itemsPayload, transportAmt);
       const deliveredOrder = (result.order as WarehouseOrder) || { ...modalOrder, status: "delivered" };
       setModalOrder(deliveredOrder);
-      setNotice(`✅ Delivery confirmed for ${formatOrderRef(modalOrder)}! POD recorded.`);
+      setNotice(`✅ Delivery confirmed & invoice generated for ${formatOrderRef(modalOrder)}!`);
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not record delivery");
@@ -876,9 +931,36 @@ export default function WarehouseOrders() {
                       <span className={statusBadgeClass(order.status)}>{statusHumanLabel(order.status)}</span>
                     </span>
                     <span className="td-action">
-                      <span className="warehouse-view-cta">
-                        Open pop-up <Icon name="arrow" size={13} />
-                      </span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "flex-end" }}>
+                        {order.status === "delivered" && (
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            className="button secondary compact"
+                            style={{
+                              fontSize: 11,
+                              padding: "4px 8px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              background: "#ecfdf5",
+                              borderColor: "#a7f3d0",
+                              color: "#065f46",
+                              fontWeight: 600,
+                            }}
+                            title="Download Invoice PDF"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleDownloadInvoice(order.id, order.invoice?.invoiceNumber);
+                            }}
+                          >
+                            📄 Invoice
+                          </span>
+                        )}
+                        <span className="warehouse-view-cta">
+                          Open <Icon name="arrow" size={13} />
+                        </span>
+                      </div>
                     </span>
                   </button>
                 );
@@ -1185,7 +1267,9 @@ export default function WarehouseOrders() {
                             >
                               <div>
                                 <strong style={{ fontSize: 13 }}>{item.variant?.product?.name ?? "Item"}</strong>
-                                <div style={{ fontSize: 11, color: "#6b7280" }}>Ordered: {item.qtyOrdered} cases</div>
+                                <div style={{ fontSize: 11, color: "#6b7280" }}>
+                                  Ordered: {item.qtyOrdered} cases {item.unitPrice ? `· ${inr(item.unitPrice)}/case` : ""}
+                                </div>
                               </div>
                               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                 <label style={{ fontSize: 12, color: "#374151" }}>Delivered:</label>
@@ -1209,27 +1293,111 @@ export default function WarehouseOrders() {
                       </div>
                     </div>
 
+                    {/* Transportation / Freight Charge Option */}
+                    <div
+                      style={{
+                        background: "#fffbeb",
+                        border: "1px solid #fef3c7",
+                        borderRadius: 8,
+                        padding: "14px 16px",
+                        marginBottom: 16,
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <label style={{ fontSize: 13, fontWeight: 700, color: "#92400e" }}>
+                          🚚 Transportation / Freight Amount (₹)
+                        </label>
+                        <span style={{ fontSize: 11, color: "#b45309" }}>Warehouse Manager Option</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                        <span style={{ fontSize: 16, fontWeight: 700, color: "#374151" }}>₹</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step="any"
+                          placeholder="0.00"
+                          value={transportationAmount === 0 ? "" : transportationAmount}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            setTransportationAmount(val < 0 ? 0 : val);
+                          }}
+                          style={{
+                            flex: 1,
+                            padding: "8px 12px",
+                            borderRadius: 6,
+                            border: "1.5px solid #d97706",
+                            fontSize: 15,
+                            fontWeight: 600,
+                            color: "#1f2937",
+                            background: "#ffffff",
+                          }}
+                        />
+                      </div>
+                      <p style={{ margin: "0 0 10px 0", fontSize: 12, color: "#78350f" }}>
+                        💡 Add transportation charge before generating the invoice. The amount will be added to the invoice total and debited to the retailer.
+                      </p>
+
+                      {/* Live Invoice Breakdown Preview */}
+                      <div
+                        style={{
+                          background: "#ffffff",
+                          borderRadius: 6,
+                          padding: "10px 12px",
+                          border: "1px solid #fde68a",
+                          fontSize: 12.5,
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, color: "#4b5563" }}>
+                          <span>Goods Subtotal ({deliveredTotalCases} cases):</span>
+                          <strong>{inr(goodsSubtotal)}</strong>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, color: "#92400e" }}>
+                          <span>Transportation Charge:</span>
+                          <strong>+ {inr(Number(transportationAmount || 0))}</strong>
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            paddingTop: 6,
+                            borderTop: "1px dashed #d1d5db",
+                            fontSize: 14,
+                            fontWeight: 800,
+                            color: "#111827",
+                          }}
+                        >
+                          <span>Calculated Final Invoice Total:</span>
+                          <span style={{ color: "#065f46" }}>
+                            {inr(calculatedInvoiceTotal)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
                     <button
                       type="button"
                       className="button primary"
                       style={{
-                        background: "#d97706",
-                        borderColor: "#d97706",
-                        padding: "10px 20px",
-                        fontSize: 14,
-                        fontWeight: 600,
+                        background: "#065f46",
+                        borderColor: "#065f46",
+                        padding: "12px 20px",
+                        fontSize: 14.5,
+                        fontWeight: 700,
                         width: "100%",
                         justifyContent: "center",
                       }}
                       onClick={() => void handleConfirmDelivery()}
                       disabled={busy || modalDetailLoading}
                     >
-                      <Icon name="check" size={16} /> {busy ? "Recording…" : "📦 Complete Delivery & Invoice"}
+                      <Icon name="check" size={16} />{" "}
+                      {busy
+                        ? "Generating Final Invoice…"
+                        : `📦 Complete Delivery & Create Invoice (${inr(calculatedInvoiceTotal)})`}
                     </button>
                   </div>
                 )}
 
-                {/* 4. Delivered -> Completed state */}
+                {/* 4. Delivered -> Completed & Invoiced state */}
                 {modalOrder.status === "delivered" && (
                   <div
                     style={{
@@ -1237,15 +1405,86 @@ export default function WarehouseOrders() {
                       border: "1px solid #a7f3d0",
                       borderRadius: 8,
                       padding: "16px 20px",
-                      textAlign: "center",
                     }}
                   >
-                    <div style={{ fontSize: 16, fontWeight: 700, color: "#065f46", marginBottom: 4 }}>
-                      ✅ Fulfillment Completed & Invoiced
+                    <div style={{ textAlign: "center", marginBottom: 14 }}>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: "#065f46", marginBottom: 4 }}>
+                        ✅ Fulfillment Completed & Invoiced
+                      </div>
+                      <p style={{ margin: 0, fontSize: 13, color: "#047857" }}>
+                        This order has been verified, delivered to the retailer, and the tax invoice has been generated.
+                      </p>
                     </div>
-                    <p style={{ margin: 0, fontSize: 13, color: "#047857" }}>
-                      This order has been verified, delivered to the retailer, and handed off for automated invoice generation.
-                    </p>
+
+                    {modalOrder.invoice && (
+                      <div
+                        style={{
+                          background: "#ffffff",
+                          borderRadius: 6,
+                          padding: "12px 14px",
+                          border: "1px solid #bbf7d0",
+                          marginBottom: 14,
+                          fontSize: 13,
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                          <span style={{ color: "#4b5563" }}>Invoice Number:</span>
+                          <strong>INV-{modalOrder.invoice.invoiceNumber}</strong>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                          <span style={{ color: "#4b5563" }}>Invoice Date:</span>
+                          <span>{createdLabel(modalOrder.invoice.invoiceDate)}</span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                          <span style={{ color: "#4b5563" }}>Goods Subtotal:</span>
+                          <span>{inr(Number(modalOrder.invoice.subtotal))}</span>
+                        </div>
+                        {modalOrder.invoice.lines.some((l) => l.description.toLowerCase().includes("freight") || l.description.toLowerCase().includes("transport")) && (
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, color: "#92400e" }}>
+                            <span>Transportation / Freight:</span>
+                            <strong>
+                              {inr(Number(modalOrder.invoice.lines.find((l) => l.description.toLowerCase().includes("freight") || l.description.toLowerCase().includes("transport"))?.lineTotal || 0))}
+                            </strong>
+                          </div>
+                        )}
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            paddingTop: 6,
+                            borderTop: "1px solid #e5e7eb",
+                            fontWeight: 800,
+                            fontSize: 15,
+                            color: "#065f46",
+                          }}
+                        >
+                          <span>Final Invoice Total:</span>
+                          <span>{inr(Number(modalOrder.invoice.total))}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+                      <button
+                        type="button"
+                        className="button primary"
+                        style={{
+                          background: "#165a31",
+                          borderColor: "#165a31",
+                          padding: "10px 18px",
+                          fontSize: 13.5,
+                          fontWeight: 700,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                        onClick={() => void handleDownloadInvoice(modalOrder.id, modalOrder.invoice?.invoiceNumber)}
+                        disabled={downloadingInvoice}
+                      >
+                        <Icon name="arrow" size={14} />
+                        {downloadingInvoice ? "Downloading PDF…" : "📄 Download Invoice (PDF)"}
+                      </button>
+                    </div>
                   </div>
                 )}
               </section>

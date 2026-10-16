@@ -399,6 +399,22 @@ export async function seedRealWorldTesting() {
   }
   console.log(`Seeded ${seedData.products.length} products and ${totalVariantsSeeded} variants successfully!`);
 
+  // Reconcile all active catalog variants and retailers to ensure 100% orderable quotes
+  console.log("Ensuring all active variants and retailers have commercial routing configured...");
+  await prisma.$executeRawUnsafe(`
+    UPDATE "Variant"
+    SET "routingClass" = 'OTHER',
+        "routingBagEquivalent" = GREATEST(0.010, ROUND(("unitsPerCase" * "unitWeightKg") / 30.0, 3)),
+        "sellingEntity" = NULL,
+        "gstPercent" = COALESCE("gstPercent", 5.00)
+    WHERE "catalogStatus" = 'active'
+      AND ("routingClass" IS NULL OR "routingBagEquivalent" IS NULL);
+
+    UPDATE "Retailer"
+    SET "deliveryCity" = 'Indore'
+    WHERE "deliveryCity" IS NULL OR "deliveryCity" = '';
+  `);
+
   // 11. Seed Retailer Mahesh (9999999999)
   console.log("5. Seeding Retailer Mahesh (9999999999)...");
   let mahesh = await prisma.retailer.findUnique({ where: { phone: "9999999999" } });

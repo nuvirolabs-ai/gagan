@@ -160,6 +160,19 @@ async function createOnce(input: CreateInvoiceForDeliveryInput): Promise<Invoice
           line.lineTotal=Number(commercial.lines.find(l=>l.variantId===item.variantId)!.total);
         }
       }
+
+      const transportAmt = input.transportationAmount != null && Number.isFinite(input.transportationAmount) && input.transportationAmount > 0
+        ? Math.round(input.transportationAmount * 100) / 100
+        : 0;
+
+      if (transportAmt > 0) {
+        if (commercial?.freight) {
+          breakdown.total = Math.round((breakdown.total - Number(commercial.freight.total) + transportAmt) * 100) / 100;
+        } else {
+          breakdown.total = Math.round((breakdown.total + transportAmt) * 100) / 100;
+        }
+      }
+
       if (breakdown.total <= 0) throw new InvoiceCreationError("invoice_total_must_be_positive");
 
       const termDays = await paymentTermDays(tx, order.retailerId);
@@ -187,13 +200,47 @@ async function createOnce(input: CreateInvoiceForDeliveryInput): Promise<Invoice
         });
       }
 
+      const freightLine = transportAmt > 0
+        ? {
+            orderItemId: undefined,
+            descriptionSnapshot: "Transportation / Freight Charge",
+            itemCodeSnapshot: "FREIGHT",
+            deliveredCases: 0,
+            deliveredWeightKg: undefined,
+            unitPrice: new Prisma.Decimal(transportAmt),
+            lineTotal: transportAmt,
+            sellingEntity: commercial?.freight?.entity ?? commercial?.entities[0]?.entity ?? "jain_traders",
+            taxableBase: transportAmt.toFixed(2),
+            gstPercent: "0.00",
+            taxAmount: "0.00",
+          }
+        : commercial?.freight
+          ? {
+              orderItemId: undefined,
+              descriptionSnapshot: "Freight",
+              itemCodeSnapshot: null,
+              deliveredCases: 0,
+              deliveredWeightKg: undefined,
+              unitPrice: new Prisma.Decimal(commercial.freight.amount),
+              lineTotal: Number(commercial.freight.total),
+              sellingEntity: commercial.freight.entity,
+              taxableBase: commercial.freight.amount,
+              gstPercent: commercial.freight.gstPercent,
+              taxAmount: commercial.freight.gst,
+            }
+          : null;
+
+      const invoiceSubtotal = commercial
+        ? new Prisma.Decimal(commercial.total).minus(commercialTax!).plus(transportAmt > 0 ? transportAmt : 0)
+        : breakdown.total;
+
       const invoice = await tx.invoice.create({
         data: {
           retailerId: order.retailerId,
           orderId: order.id,
           invoiceDate: input.occurredAt,
           dueDate,
-          subtotal: commercial ? new Prisma.Decimal(commercial.total).minus(commercialTax!) : breakdown.total,
+          subtotal: invoiceSubtotal,
           taxTotal: commercial ? commercialTax! : 0,
           ...(commercial ? {commercialSnapshot:asJson(commercial)}:{}),
           total: breakdown.total,
@@ -214,7 +261,7 @@ async function createOnce(input: CreateInvoiceForDeliveryInput): Promise<Invoice
                 unitPrice: item.unitPrice,
                 lineTotal: line.lineTotal,
               };
-            }).concat(commercial?.freight ? [{orderItemId:undefined,descriptionSnapshot:"Freight",itemCodeSnapshot:null,deliveredCases:0,deliveredWeightKg:undefined,unitPrice:new Prisma.Decimal(commercial.freight.amount),lineTotal:Number(commercial.freight.total),sellingEntity:commercial.freight.entity,taxableBase:commercial.freight.amount,gstPercent:commercial.freight.gstPercent,taxAmount:commercial.freight.gst}] : []),
+            }).concat(freightLine ? [freightLine] : []),
           },
         },
         include: { lines: true },

@@ -10,11 +10,11 @@ async function runVerification() {
   console.log("=== STARTING END-TO-END VERIFICATION ===");
 
   // 1. Salesperson Request OTP
-  console.log("1. Requesting OTP for Vikram Singh (9800000001)...");
+  console.log("1. Requesting OTP for Vikas Bhimke (9812345680)...");
   const otpReqRes = await fetch(`${BASE_URL}/rep/auth/otp/request`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ phone: "9800000001" }),
+    body: JSON.stringify({ phone: "9812345680" }),
   });
   const otpReqData = await otpReqRes.json();
   console.log("OTP request result:", otpReqData);
@@ -28,7 +28,7 @@ async function runVerification() {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      phone: "9800000001",
+      phone: "9812345680",
       otp: "123456",
       challengeId: otpReqData.challengeId,
     }),
@@ -41,14 +41,14 @@ async function runVerification() {
   const repToken = otpVerifyData.accessToken;
 
   // 3. Fetch Retailers
-  console.log("3. Fetching retailers assigned to Vikram Singh...");
+  console.log("3. Fetching retailers assigned to Vikas Bhimke...");
   const retailersRes = await fetch(`${BASE_URL}/rep/retailers`, {
     headers: { Authorization: `Bearer ${repToken}` },
   });
   const retailersData = await retailersRes.json();
   console.log(`Found ${retailersData.retailers?.length} assigned retailers!`);
   if (!retailersData.retailers || retailersData.retailers.length === 0) {
-    throw new Error("No retailers returned for Vikram Singh!");
+    throw new Error("No retailers returned for Vikas Bhimke!");
   }
 
   const sampleRetailer = retailersData.retailers[0];

@@ -13,6 +13,7 @@ export interface CreateInvoiceForDeliveryInput {
   occurredAt: Date;
   idempotencyKey: string;
   proof?: { podType: PodType; capturedAt: Date };
+  transportationAmount?: number;
 }
 
 export type InvoiceResult = Prisma.InvoiceGetPayload<{

@@ -7,6 +7,7 @@ import { Permissions } from "../../modules/identity/roleCatalog";
 import { transitionOrder } from "./orders";
 import { ensureKycApprovedForDispatch, KycGateError } from "../../modules/kyc/kycGate";
 import { createInvoiceForDelivery, InvoiceCreationError } from "../../modules/invoicing/invoiceService";
+import { renderInvoicePdf } from "../../modules/invoicing/invoicePdf";
 import { DEFAULT_WAREHOUSE_CODE } from "../../modules/inventory/inventoryService";
 
 const router = Router();
@@ -17,6 +18,7 @@ const warehouseOrderSelect = {
   id: true,
   orderNo: true,
   status: true,
+  orderTotal: true,
   createdAt: true,
   retailer: {
     select: {
@@ -37,6 +39,7 @@ const warehouseOrderSelect = {
     select: {
       id: true,
       qtyOrdered: true,
+      unitPrice: true,
       caseWeightKgSnapshot: true,
       variant: {
         select: {
@@ -49,6 +52,28 @@ const warehouseOrderSelect = {
       },
     },
   },
+  invoice: {
+    select: {
+      id: true,
+      invoiceNumber: true,
+      invoiceDate: true,
+      dueDate: true,
+      subtotal: true,
+      taxTotal: true,
+      total: true,
+      outstandingAmount: true,
+      lines: {
+        select: {
+          id: true,
+          descriptionSnapshot: true,
+          deliveredCases: true,
+          unitPrice: true,
+          lineTotal: true,
+          taxAmount: true,
+        },
+      },
+    },
+  },
 } as const;
 
 function projectWarehouseOrder(order: any) {
@@ -56,6 +81,7 @@ function projectWarehouseOrder(order: any) {
     id: order.id,
     orderNo: order.orderNo,
     status: order.status,
+    orderTotal: order.orderTotal ? Number(order.orderTotal) : 0,
     createdAt: order.createdAt,
     retailer: order.retailer ? {
       id: order.retailer.id,
@@ -71,6 +97,7 @@ function projectWarehouseOrder(order: any) {
     items: (order.items ?? []).map((item: any) => ({
       id: item.id,
       qtyOrdered: item.qtyOrdered,
+      unitPrice: Number(item.unitPrice ?? 0),
       caseWeightKg: Number(item.caseWeightKgSnapshot ?? (item.variant ? Number(item.variant.unitWeightKg ?? 0) * item.variant.unitsPerCase : 0)),
       variant: item.variant ? {
         unitSize: item.variant.unitSize,
@@ -80,6 +107,23 @@ function projectWarehouseOrder(order: any) {
         product: item.variant.product ? { name: item.variant.product.name } : null,
       } : null,
     })),
+    invoice: order.invoice ? {
+      id: order.invoice.id,
+      invoiceNumber: order.invoice.invoiceNumber,
+      invoiceDate: order.invoice.invoiceDate,
+      dueDate: order.invoice.dueDate,
+      subtotal: Number(order.invoice.subtotal),
+      taxTotal: Number(order.invoice.taxTotal),
+      total: Number(order.invoice.total),
+      outstandingAmount: Number(order.invoice.outstandingAmount),
+      lines: (order.invoice.lines ?? []).map((l: any) => ({
+        id: l.id,
+        description: l.descriptionSnapshot,
+        cases: l.deliveredCases,
+        unitPrice: Number(l.unitPrice),
+        lineTotal: Number(l.lineTotal),
+      })),
+    } : null,
   };
 }
 
@@ -238,6 +282,7 @@ router.post("/warehouse-orders/:id/dispatch", async (req: AdminRequest, res) => 
 
 const podSchema = z.object({
   podType: z.enum(["photo", "otp", "signature"]),
+  transportationAmount: z.number().min(0).optional(),
   items: z
     .array(
       z.object({
@@ -271,6 +316,7 @@ router.post("/warehouse-orders/:id/deliver", async (req: AdminRequest, res) => {
       orderId: order.id,
       occurredAt,
       idempotencyKey: `delivery:${order.id}`,
+      transportationAmount: parsed.data.transportationAmount,
       lines: parsed.data.items.map((item) => ({
         orderItemId: item.orderItemId,
         deliveredCases: item.qtyDelivered,
@@ -295,6 +341,61 @@ router.post("/warehouse-orders/:id/deliver", async (req: AdminRequest, res) => {
     }
     throw error;
   }
+});
+
+router.get("/warehouse-orders/:id/invoice-pdf", async (req, res) => {
+  const order = await prisma.order.findUnique({
+    where: { id: req.params.id },
+    include: {
+      retailer: true,
+      invoice: {
+        include: {
+          lines: true,
+        },
+      },
+    },
+  });
+
+  if (!order || !order.invoice) {
+    return res.status(404).json({ error: "Invoice not found for this order" });
+  }
+
+  const freightLine = order.invoice.lines.find(
+    (l) => l.descriptionSnapshot.toLowerCase().includes("freight") || l.descriptionSnapshot.toLowerCase().includes("transport")
+  );
+
+  const pdfBuffer = renderInvoicePdf({
+    invoiceNumber: order.invoice.invoiceNumber,
+    orderNo: order.orderNo,
+    invoiceDate: order.invoice.invoiceDate,
+    dueDate: order.invoice.dueDate,
+    currency: order.invoice.currency,
+    subtotal: Number(order.invoice.subtotal),
+    taxTotal: Number(order.invoice.taxTotal),
+    total: Number(order.invoice.total),
+    transportationAmount: freightLine ? Number(freightLine.lineTotal) : undefined,
+    retailer: {
+      name: order.retailer.name,
+      shopAddress: order.retailer.shopAddress,
+      deliveryCity: order.retailer.deliveryCity,
+      phone: order.retailer.phone,
+    },
+    lines: order.invoice.lines.map((l) => ({
+      description: l.descriptionSnapshot,
+      cases: l.deliveredCases,
+      weightKg: l.deliveredWeightKg ? Number(l.deliveredWeightKg) : undefined,
+      unitPrice: Number(l.unitPrice),
+      lineTotal: Number(l.lineTotal),
+      sellingEntity: l.sellingEntity,
+    })),
+  });
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="Invoice-INV-${order.invoice.invoiceNumber}.pdf"`
+  );
+  res.send(pdfBuffer);
 });
 
 export default router;

@@ -13,6 +13,11 @@ import adminSapRoutes from "./routes/admin/sap";
 import adminImportRoutes from "./routes/admin/imports";
 import adminWarehouseRoutes from "./routes/admin/warehouses";
 import adminAppConfigRoutes from "./routes/admin/appConfig";
+import { createTiersRouter } from "./routes/admin/tiers";
+import { createCreditPolicyRouter } from "./routes/admin/creditPolicy";
+import { createCatalogHierarchyRouter } from "./routes/admin/catalogHierarchy";
+import { createMediaRouter } from "./routes/admin/media";
+import { createTaxMasterRouter } from "./routes/admin/taxMaster";
 import { createAdminStaffRouter } from "./modules/identity/adminStaffRoutes";
 import { StaffManagementService } from "./modules/identity/staffManagementService";
 import { requireAdmin, requireAdminIdentity } from "./lib/adminAuth";
@@ -255,6 +260,11 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/admin", adminImportRoutes);
   app.use("/admin", adminWarehouseRoutes);
   app.use("/admin", adminAppConfigRoutes);
+  app.use("/admin", createTiersRouter());
+  app.use("/admin", createCreditPolicyRouter());
+  app.use("/admin", createCatalogHierarchyRouter());
+  app.use("/admin", createMediaRouter());
+  app.use("/admin", createTaxMasterRouter());
   app.use(
     "/admin",
     createAdminStaffRouter({

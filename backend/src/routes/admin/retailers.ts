@@ -306,4 +306,210 @@ router.post("/retailers/bulk-reassign", async (req: AdminRequest, res) => {
   });
 });
 
+// Gap 8: Full Retailer Profile & KYC Master
+router.get("/retailers/:id/full-profile", async (req: AdminRequest, res) => {
+  try {
+    const retailer = await prisma.retailer.findUnique({
+      where: { id: req.params.id },
+      include: {
+        tier: true,
+        salesRep: true,
+        location: true,
+        contacts: true,
+        kycCase: {
+          include: {
+            documents: {
+              include: { asset: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!retailer) return res.status(404).json({ error: "Retailer not found" });
+
+    res.json({
+      retailer: {
+        id: retailer.id,
+        name: retailer.name,
+        ownerName: retailer.ownerName,
+        shopAddress: retailer.shopAddress,
+        deliveryCity: retailer.deliveryCity,
+        pincode: retailer.pincode,
+        phone: retailer.phone,
+        gstin: retailer.gstin,
+        pan: retailer.pan,
+        status: retailer.status,
+        internalSegment: retailer.internalSegment,
+        tierId: retailer.tierId,
+        tierName: retailer.tier.name,
+        creditLimit: Number(retailer.creditLimit),
+        currentBalance: Number(retailer.currentBalance),
+        overdueAmount: Number(retailer.overdueAmount),
+        paymentTermDays: retailer.paymentTermDays ?? retailer.tier.paymentTermDays,
+        salesRepId: retailer.salesRepId,
+        salesRepName: retailer.salesRep?.name ?? null,
+        location: retailer.location
+          ? {
+              latitude: retailer.location.latitude ? Number(retailer.location.latitude) : null,
+              longitude: retailer.location.longitude ? Number(retailer.location.longitude) : null,
+              accuracyMeters: retailer.location.accuracyMeters ? Number(retailer.location.accuracyMeters) : null,
+              status: retailer.location.status,
+            }
+          : null,
+        contacts: retailer.contacts,
+        kyc: retailer.kycCase
+          ? {
+              id: retailer.kycCase.id,
+              status: retailer.kycCase.status,
+              submittedAt: retailer.kycCase.submittedAt,
+              reviewedAt: retailer.kycCase.reviewedAt,
+              rejectionReason: retailer.kycCase.rejectionReason,
+              documents: retailer.kycCase.documents.map((d) => ({
+                id: d.id,
+                type: d.type,
+                status: d.status,
+                rejectionReason: d.rejectionReason,
+                url: d.asset?.objectKey || null,
+              })),
+            }
+          : null,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load full retailer profile", detail: String(err) });
+  }
+});
+
+router.put("/retailers/:id/full-profile", async (req: AdminRequest, res) => {
+  const parsed = z
+    .object({
+      name: z.string().trim().min(2).optional(),
+      ownerName: z.string().trim().nullable().optional(),
+      shopAddress: z.string().trim().min(3).optional(),
+      deliveryCity: z.string().trim().nullable().optional(),
+      pincode: z.string().trim().nullable().optional(),
+      phone: z.string().trim().min(10).max(15).optional(),
+      gstin: z.string().trim().nullable().optional(),
+      pan: z.string().trim().nullable().optional(),
+      tierId: z.string().uuid().optional(),
+      internalSegment: z.enum(["A", "B", "C"]).nullable().optional(),
+      salesRepId: z.string().nullable().optional(),
+      paymentTermDays: z.number().int().min(0).max(180).nullable().optional(),
+      creditLimit: z.number().finite().nonnegative().optional(),
+    })
+    .safeParse(req.body);
+
+  if (!parsed.success) return res.status(400).json({ error: "Invalid profile data", details: parsed.error.flatten() });
+
+  try {
+    const updated = await prisma.retailer.update({
+      where: { id: req.params.id },
+      data: {
+        ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
+        ...(parsed.data.ownerName !== undefined ? { ownerName: parsed.data.ownerName } : {}),
+        ...(parsed.data.shopAddress !== undefined ? { shopAddress: parsed.data.shopAddress } : {}),
+        ...(parsed.data.deliveryCity !== undefined ? { deliveryCity: parsed.data.deliveryCity } : {}),
+        ...(parsed.data.pincode !== undefined ? { pincode: parsed.data.pincode } : {}),
+        ...(parsed.data.phone !== undefined ? { phone: parsed.data.phone } : {}),
+        ...(parsed.data.gstin !== undefined ? { gstin: parsed.data.gstin } : {}),
+        ...(parsed.data.pan !== undefined ? { pan: parsed.data.pan } : {}),
+        ...(parsed.data.tierId !== undefined ? { tierId: parsed.data.tierId } : {}),
+        ...(parsed.data.internalSegment !== undefined ? { internalSegment: parsed.data.internalSegment } : {}),
+        ...(parsed.data.salesRepId !== undefined ? { salesRepId: parsed.data.salesRepId } : {}),
+        ...(parsed.data.paymentTermDays !== undefined ? { paymentTermDays: parsed.data.paymentTermDays } : {}),
+        ...(parsed.data.creditLimit !== undefined ? { creditLimit: parsed.data.creditLimit } : {}),
+      },
+      include: { tier: true, salesRep: true },
+    });
+
+    res.json({ ok: true, retailer: updated, message: "Retailer profile updated successfully" });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update retailer profile", detail: String(err) });
+  }
+});
+
+router.post("/retailers/:id/coordinates", async (req: AdminRequest, res) => {
+  const parsed = z
+    .object({
+      latitude: z.number().min(-90).max(90),
+      longitude: z.number().min(-180).max(180),
+      accuracyMeters: z.number().min(0).optional(),
+    })
+    .safeParse(req.body);
+
+  if (!parsed.success) return res.status(400).json({ error: "Invalid GPS coordinates" });
+
+  try {
+    const location = await prisma.retailerLocation.upsert({
+      where: { retailerId: req.params.id },
+      update: {
+        latitude: parsed.data.latitude,
+        longitude: parsed.data.longitude,
+        accuracyMeters: parsed.data.accuracyMeters ?? 5.0,
+        status: "VERIFIED",
+        source: "ADMIN_CORRECTION",
+        verifiedAt: new Date(),
+        locationVersion: { increment: 1 },
+      },
+      create: {
+        retailerId: req.params.id,
+        latitude: parsed.data.latitude,
+        longitude: parsed.data.longitude,
+        accuracyMeters: parsed.data.accuracyMeters ?? 5.0,
+        status: "VERIFIED",
+        source: "ADMIN_CORRECTION",
+        verifiedAt: new Date(),
+      },
+    });
+
+    res.json({ ok: true, location, message: "GPS coordinates updated successfully" });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update coordinates", detail: String(err) });
+  }
+});
+
+router.post("/retailers/:id/kyc-decision", async (req: AdminRequest, res) => {
+  const parsed = z
+    .object({
+      decision: z.enum(["approve", "reject"]),
+      reason: z.string().trim().min(3),
+    })
+    .safeParse(req.body);
+
+  if (!parsed.success) return res.status(400).json({ error: "Invalid KYC decision input" });
+
+  try {
+    const kycCase = await prisma.kycCase.findUnique({
+      where: { retailerId: req.params.id },
+    });
+
+    if (!kycCase) return res.status(404).json({ error: "No KYC case found for this retailer" });
+
+    const newStatus = parsed.data.decision === "approve" ? "approved" : "rejected";
+
+    const [updatedCase] = await prisma.$transaction([
+      prisma.kycCase.update({
+        where: { id: kycCase.id },
+        data: {
+          status: newStatus,
+          reviewedAt: new Date(),
+          rejectionReason: parsed.data.decision === "reject" ? parsed.data.reason : null,
+        },
+      }),
+      prisma.retailer.update({
+        where: { id: req.params.id },
+        data: {
+          status: parsed.data.decision === "approve" ? "active" : "pending_kyc",
+        },
+      }),
+    ]);
+
+    res.json({ ok: true, kycCase: updatedCase, message: `KYC ${newStatus} successfully` });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to process KYC decision", detail: String(err) });
+  }
+});
+
 export default router;
+

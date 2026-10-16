@@ -567,6 +567,54 @@ export const api = {
   // Global AppConfig & Policies (Gap 5)
   appConfig: () => request("/admin/app-config"),
   updateAppConfig: (body: unknown) => put("/admin/app-config", body),
+
+  // Gap 6: Pricing Tier & Slab Rule Editor
+  tiersWithSlabs: () => request("/admin/commercial/tiers"),
+  createTier: (body: unknown) => post("/admin/commercial/tiers", body),
+  updateTier: (id: string, body: unknown) => put(`/admin/commercial/tiers/${id}`, body),
+  deleteTier: (id: string) => remove(`/admin/commercial/tiers/${id}`),
+  createSlab: (tierId: string, body: unknown) => post(`/admin/commercial/tiers/${tierId}/slabs`, body),
+  updateSlab: (tierId: string, slabId: string, body: unknown) => put(`/admin/commercial/tiers/${tierId}/slabs/${slabId}`, body),
+  deleteSlab: (tierId: string, slabId: string) => remove(`/admin/commercial/tiers/${tierId}/slabs/${slabId}`),
+
+  // Gap 7: Credit Policy & Mode Gate
+  creditPolicy: () => request("/admin/credit/policy"),
+  setCreditMode: (mode: "shadow" | "enforce") => post("/admin/credit/policy/mode", { mode }),
+  overrideRetailerCreditLimit: (retailerId: string, body: { newLimit: number; reason: string; expiresDays?: number }) =>
+    post(`/admin/credit/retailers/${retailerId}/override-limit`, body),
+  setRetailerPaymentTerms: (retailerId: string, body: { paymentTermsDays?: number; creditLimit?: number }) =>
+    post(`/admin/credit/retailers/${retailerId}/payment-terms`, body),
+
+  // Gap 8: Full Retailer Profile & KYC Master Editor
+  retailerFullProfile: (id: string) => request(`/admin/retailers/${id}/full-profile`),
+  updateRetailerFullProfile: (id: string, body: unknown) => put(`/admin/retailers/${id}/full-profile`, body),
+  updateRetailerCoordinates: (id: string, body: { lat: number; lng: number; reason?: string }) =>
+    post(`/admin/retailers/${id}/coordinates`, body),
+  decideRetailerKyc: (id: string, body: { decision: "APPROVE" | "REJECT"; reason?: string; rejectionReason?: string }) =>
+    post(`/admin/retailers/${id}/kyc-decision`, body),
+
+  // Gap 9: Catalog Category & Brand Hierarchy Master
+  categories: () => request("/admin/categories"),
+  createCategory: (body: unknown) => post("/admin/categories", body),
+  updateCategory: (id: string, body: unknown) => put(`/admin/categories/${id}`, body),
+  deleteCategory: (id: string) => remove(`/admin/categories/${id}`),
+  brands: () => request("/admin/brands"),
+  createBrand: (body: unknown) => post("/admin/brands", body),
+  updateBrand: (id: string, body: unknown) => put(`/admin/brands/${id}`, body),
+  deleteBrand: (id: string) => remove(`/admin/brands/${id}`),
+
+  // Gap 10: Product Media & Asset Manager
+  catalogMedia: () => request("/admin/catalog/media"),
+  updateProductImage: (id: string, imageUrl: string) => post(`/admin/catalog/products/${id}/image`, { imageUrl }),
+  updateVariantImage: (id: string, imageUrl: string) => post(`/admin/catalog/variants/${id}/image`, { imageUrl }),
+
+  // Gap 11: Tax / GST Rates & HSN Code Master
+  taxHsnCodes: () => request("/admin/tax/hsn"),
+  createHsnCode: (body: unknown) => post("/admin/tax/hsn", body),
+  updateHsnCode: (id: string, body: unknown) => put(`/admin/tax/hsn/${id}`, body),
+  deleteHsnCode: (id: string) => remove(`/admin/tax/hsn/${id}`),
+  applyHsnToVariants: (hsnCode: string, variantIds: string[]) =>
+    post("/admin/tax/apply-hsn-to-variants", { hsnCode, variantIds }),
 };
 
 export const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;

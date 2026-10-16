@@ -53,6 +53,151 @@ export default function Catalog() {
   const [publishing, setPublishing] = useState<any>(null);
   const [outerPack, setOuterPack] = useState<"Bag" | "Box">("Bag");
   const [fieldErrors, setFieldErrors] = useState<DraftPackFields>({});
+
+  // Navigation tab
+  const [tab, setTab] = useState<"skus" | "hierarchy" | "media">("skus");
+
+  // Gap 9: Hierarchy (Categories & Brands)
+  const [categories, setCategories] = useState<any[]>([]);
+  const [brands, setBrands] = useState<any[]>([]);
+  const [hierarchyLoading, setHierarchyLoading] = useState(false);
+  const [showCatModal, setShowCatModal] = useState(false);
+  const [editingCat, setEditingCat] = useState<any | null>(null);
+  const [catForm, setCatForm] = useState({ name: "", description: "", bannerUrl: "", sortOrder: "0", isActive: true });
+  const [showBrandModal, setShowBrandModal] = useState(false);
+  const [editingBrand, setEditingBrand] = useState<any | null>(null);
+  const [brandForm, setBrandForm] = useState({ name: "", description: "", logoUrl: "", sortOrder: "0", isActive: true });
+
+  // Gap 10: Media & Assets
+  const [mediaStats, setMediaStats] = useState<any | null>(null);
+  const [mediaProducts, setMediaProducts] = useState<any[]>([]);
+  const [mediaLoading, setMediaLoading] = useState(false);
+  const [filterMissingOnly, setFilterMissingOnly] = useState(false);
+  const [mediaSearch, setMediaSearch] = useState("");
+  const [showImageModal, setShowImageModal] = useState<{ type: "product" | "variant"; id: string; name: string; currentUrl: string } | null>(null);
+  const [newImageUrl, setNewImageUrl] = useState("");
+  const [savingImage, setSavingImage] = useState(false);
+
+  const loadHierarchy = async () => {
+    setHierarchyLoading(true);
+    try {
+      const [cats, brs] = await Promise.all([api.categories(), api.brands()]);
+      setCategories(cats.categories ?? []);
+      setBrands(brs.brands ?? []);
+    } catch (err: any) {
+      setError(err.message ?? "Failed to load categories and brands");
+    } finally {
+      setHierarchyLoading(false);
+    }
+  };
+
+  const loadMedia = async () => {
+    setMediaLoading(true);
+    try {
+      const res = await api.catalogMedia();
+      setMediaStats(res.metrics || res.stats);
+      setMediaProducts(res.products ?? []);
+    } catch (err: any) {
+      setError(err.message ?? "Failed to load catalog media");
+    } finally {
+      setMediaLoading(false);
+    }
+  };
+
+  const handleSaveCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        name: catForm.name.trim(),
+        description: catForm.description.trim() || undefined,
+        bannerUrl: catForm.bannerUrl.trim() || undefined,
+        sortOrder: parseInt(catForm.sortOrder, 10) || 0,
+        isActive: catForm.isActive,
+      };
+      if (editingCat) {
+        await api.updateCategory(editingCat.id, payload);
+        setNotice(`Category "${payload.name}" updated`);
+      } else {
+        await api.createCategory(payload);
+        setNotice(`Category "${payload.name}" created`);
+      }
+      setShowCatModal(false);
+      setEditingCat(null);
+      await loadHierarchy();
+    } catch (err: any) {
+      setError(err.message ?? "Failed to save category");
+    }
+  };
+
+  const handleDeleteCategory = async (cat: any) => {
+    if (!window.confirm(`Delete category "${cat.name}"?`)) return;
+    try {
+      await api.deleteCategory(cat.id);
+      setNotice(`Category "${cat.name}" deleted`);
+      await loadHierarchy();
+    } catch (err: any) {
+      setError(err.message ?? "Cannot delete category");
+    }
+  };
+
+  const handleSaveBrand = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        name: brandForm.name.trim(),
+        description: brandForm.description.trim() || undefined,
+        logoUrl: brandForm.logoUrl.trim() || undefined,
+        sortOrder: parseInt(brandForm.sortOrder, 10) || 0,
+        isActive: brandForm.isActive,
+      };
+      if (editingBrand) {
+        await api.updateBrand(editingBrand.id, payload);
+        setNotice(`Brand "${payload.name}" updated`);
+      } else {
+        await api.createBrand(payload);
+        setNotice(`Brand "${payload.name}" created`);
+      }
+      setShowBrandModal(false);
+      setEditingBrand(null);
+      await loadHierarchy();
+    } catch (err: any) {
+      setError(err.message ?? "Failed to save brand");
+    }
+  };
+
+  const handleDeleteBrand = async (brand: any) => {
+    if (!window.confirm(`Delete brand "${brand.name}"?`)) return;
+    try {
+      await api.deleteBrand(brand.id);
+      setNotice(`Brand "${brand.name}" deleted`);
+      await loadHierarchy();
+    } catch (err: any) {
+      setError(err.message ?? "Cannot delete brand");
+    }
+  };
+
+  const handleSaveMediaImage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showImageModal) return;
+    setSavingImage(true);
+    setError(null);
+    try {
+      if (showImageModal.type === "product") {
+        await api.updateProductImage(showImageModal.id, newImageUrl.trim());
+      } else {
+        await api.updateVariantImage(showImageModal.id, newImageUrl.trim());
+      }
+      setNotice(`Image for ${showImageModal.name} updated`);
+      setShowImageModal(null);
+      setNewImageUrl("");
+      await loadMedia();
+      await load();
+    } catch (err: any) {
+      setError(err.message ?? "Failed to update image");
+    } finally {
+      setSavingImage(false);
+    }
+  };
   const editorKey = editor ? `${editor.kind}:${editor.product?.id ?? ""}:${editor.variant?.id ?? ""}` : "";
   const [packDraft, setPackDraft] = useState({ key: "", packSize: "", unit: "kg", unitsPerCase: "", measuredWeightKg: "" });
   if (editor && packDraft.key !== editorKey) {
@@ -171,6 +316,14 @@ export default function Catalog() {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    if (tab === "hierarchy") {
+      void loadHierarchy();
+    } else if (tab === "media") {
+      void loadMedia();
+    }
+  }, [tab]);
 
   const query = search.trim().toLocaleLowerCase().replace(/\s+/g, " ");
   const rows = products.flatMap((product) => product.variants.map((variant: any) => ({ product, variant })));
@@ -402,7 +555,30 @@ export default function Catalog() {
         Rates show their stored basis. Kilogram and case equivalents are derived from the configured pack weight. GST and freight are calculated in the commercial quote.
       </p>
 
-      <div className="row" style={{ marginBottom: 16 }}>
+      <div className="tab-row" style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+        <button
+          className={tab === "skus" ? "primary" : "secondary"}
+          onClick={() => setTab("skus")}
+        >
+          SKUs & Packs ({products.length})
+        </button>
+        <button
+          className={tab === "hierarchy" ? "primary" : "secondary"}
+          onClick={() => setTab("hierarchy")}
+        >
+          Categories & Brands (Gap 9)
+        </button>
+        <button
+          className={tab === "media" ? "primary" : "secondary"}
+          onClick={() => setTab("media")}
+        >
+          Media & Assets (Gap 10)
+        </button>
+      </div>
+
+      {tab === "skus" && (
+        <>
+          <div className="row" style={{ marginBottom: 16 }}>
         <button onClick={() => setEditor({ kind: "sku" })}>Add product</button>
         <a href="/imports">Bulk import</a>
       </div>
@@ -978,6 +1154,504 @@ export default function Catalog() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+        </>
+      )}
+
+      {/* TAB 2: Gap 9 - Categories & Brands Hierarchy Master */}
+      {tab === "hierarchy" && (
+        <div>
+          <div className="between" style={{ marginBottom: 16 }}>
+            <div>
+              <h2 style={{ margin: 0 }}>Category & Brand Hierarchy Master</h2>
+              <p className="page-sub">Central taxonomy, brand logos, banners, and store catalog display ordering.</p>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => {
+                setEditingCat(null);
+                setCatForm({ name: "", description: "", bannerUrl: "", sortOrder: "0", isActive: true });
+                setShowCatModal(true);
+              }}>
+                + Add Category
+              </button>
+              <button onClick={() => {
+                setEditingBrand(null);
+                setBrandForm({ name: "", description: "", logoUrl: "", sortOrder: "0", isActive: true });
+                setShowBrandModal(true);
+              }}>
+                + Add Brand
+              </button>
+            </div>
+          </div>
+
+          {hierarchyLoading ? (
+            <div className="card muted">Loading taxonomy and brands…</div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+              {/* Category Master Card */}
+              <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+                <div className="between" style={{ padding: "14px 18px", borderBottom: "1px solid var(--border, #eee)", background: "var(--surface-muted, #f8f9fa)" }}>
+                  <h3 style={{ margin: 0, fontSize: 16 }}>Categories ({categories.length})</h3>
+                  <button className="sm" onClick={() => {
+                    setEditingCat(null);
+                    setCatForm({ name: "", description: "", bannerUrl: "", sortOrder: "0", isActive: true });
+                    setShowCatModal(true);
+                  }}>
+                    + Add
+                  </button>
+                </div>
+                {categories.length === 0 ? (
+                  <div className="empty-state" style={{ padding: 20 }}>No categories found.</div>
+                ) : (
+                  <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ textAlign: "left", borderBottom: "1px solid #f0f0f0" }}>
+                        <th style={{ padding: "8px 14px" }}>Category Name</th>
+                        <th style={{ padding: "8px 14px" }}>Description</th>
+                        <th style={{ padding: "8px 14px" }}>Status</th>
+                        <th style={{ padding: "8px 14px", textAlign: "right" }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {categories.map((c) => (
+                        <tr key={c.id} style={{ borderBottom: "1px solid #f5f5f5" }}>
+                          <td style={{ padding: "8px 14px", fontWeight: 600 }}>{c.name}</td>
+                          <td style={{ padding: "8px 14px", color: "var(--text-muted)" }}>{c.description || "—"}</td>
+                          <td style={{ padding: "8px 14px" }}>
+                            {c.isActive ? (
+                              <span className="pill status-confirmed">Active</span>
+                            ) : (
+                              <span className="pill">Inactive</span>
+                            )}
+                          </td>
+                          <td style={{ padding: "8px 14px", textAlign: "right" }}>
+                            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                              <button className="sm secondary" onClick={() => {
+                                setEditingCat(c);
+                                setCatForm({
+                                  name: c.name,
+                                  description: c.description ?? "",
+                                  bannerUrl: c.bannerUrl ?? "",
+                                  sortOrder: String(c.sortOrder ?? 0),
+                                  isActive: Boolean(c.isActive),
+                                });
+                                setShowCatModal(true);
+                              }}>
+                                Edit
+                              </button>
+                              <button className="sm secondary" style={{ color: "var(--danger)" }} onClick={() => handleDeleteCategory(c)}>
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* Brand Master Card */}
+              <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+                <div className="between" style={{ padding: "14px 18px", borderBottom: "1px solid var(--border, #eee)", background: "var(--surface-muted, #f8f9fa)" }}>
+                  <h3 style={{ margin: 0, fontSize: 16 }}>Brands ({brands.length})</h3>
+                  <button className="sm" onClick={() => {
+                    setEditingBrand(null);
+                    setBrandForm({ name: "", description: "", logoUrl: "", sortOrder: "0", isActive: true });
+                    setShowBrandModal(true);
+                  }}>
+                    + Add
+                  </button>
+                </div>
+                {brands.length === 0 ? (
+                  <div className="empty-state" style={{ padding: 20 }}>No brands configured.</div>
+                ) : (
+                  <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ textAlign: "left", borderBottom: "1px solid #f0f0f0" }}>
+                        <th style={{ padding: "8px 14px" }}>Brand</th>
+                        <th style={{ padding: "8px 14px" }}>Description</th>
+                        <th style={{ padding: "8px 14px" }}>Status</th>
+                        <th style={{ padding: "8px 14px", textAlign: "right" }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {brands.map((b) => (
+                        <tr key={b.id} style={{ borderBottom: "1px solid #f5f5f5" }}>
+                          <td style={{ padding: "8px 14px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              {b.logoUrl && (
+                                <img
+                                  src={b.logoUrl}
+                                  alt=""
+                                  style={{ width: 24, height: 24, objectFit: "contain", borderRadius: 3 }}
+                                  onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none"; }}
+                                />
+                              )}
+                              <strong>{b.name}</strong>
+                            </div>
+                          </td>
+                          <td style={{ padding: "8px 14px", color: "var(--text-muted)" }}>{b.description || "—"}</td>
+                          <td style={{ padding: "8px 14px" }}>
+                            {b.isActive ? (
+                              <span className="pill status-confirmed">Active</span>
+                            ) : (
+                              <span className="pill">Inactive</span>
+                            )}
+                          </td>
+                          <td style={{ padding: "8px 14px", textAlign: "right" }}>
+                            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                              <button className="sm secondary" onClick={() => {
+                                setEditingBrand(b);
+                                setBrandForm({
+                                  name: b.name,
+                                  description: b.description ?? "",
+                                  logoUrl: b.logoUrl ?? "",
+                                  sortOrder: String(b.sortOrder ?? 0),
+                                  isActive: Boolean(b.isActive),
+                                });
+                                setShowBrandModal(true);
+                              }}>
+                                Edit
+                              </button>
+                              <button className="sm secondary" style={{ color: "var(--danger)" }} onClick={() => handleDeleteBrand(b)}>
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Modal: Add/Edit Category */}
+          {showCatModal && (
+            <div className="modal-backdrop" style={{
+              position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+            }}>
+              <div className="card" style={{ width: 480, maxWidth: "90vw" }}>
+                <h3 style={{ marginTop: 0 }}>{editingCat ? `Edit Category: ${editingCat.name}` : "Create Catalog Category"}</h3>
+                <form onSubmit={handleSaveCategory}>
+                  <div className="field" style={{ marginBottom: 12 }}>
+                    <label>Category Name</label>
+                    <input
+                      value={catForm.name}
+                      onChange={(e) => setCatForm({ ...catForm, name: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="field" style={{ marginBottom: 12 }}>
+                    <label>Description</label>
+                    <input
+                      value={catForm.description}
+                      onChange={(e) => setCatForm({ ...catForm, description: e.target.value })}
+                      placeholder="e.g. Premium pulses, toor dal, and lentils"
+                    />
+                  </div>
+                  <div className="field" style={{ marginBottom: 12 }}>
+                    <label>Banner Image URL</label>
+                    <input
+                      type="url"
+                      value={catForm.bannerUrl}
+                      onChange={(e) => setCatForm({ ...catForm, bannerUrl: e.target.value })}
+                      placeholder="https://..."
+                    />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+                    <div className="field">
+                      <label>Sort Order Index</label>
+                      <input
+                        type="number"
+                        value={catForm.sortOrder}
+                        onChange={(e) => setCatForm({ ...catForm, sortOrder: e.target.value })}
+                      />
+                    </div>
+                    <div className="field" style={{ display: "flex", alignItems: "center", paddingTop: 20 }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={catForm.isActive}
+                          onChange={(e) => setCatForm({ ...catForm, isActive: e.target.checked })}
+                        />
+                        <span>Active</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <button type="button" className="secondary" onClick={() => setShowCatModal(false)}>Cancel</button>
+                    <button type="submit">Save Category</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Modal: Add/Edit Brand */}
+          {showBrandModal && (
+            <div className="modal-backdrop" style={{
+              position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+            }}>
+              <div className="card" style={{ width: 480, maxWidth: "90vw" }}>
+                <h3 style={{ marginTop: 0 }}>{editingBrand ? `Edit Brand: ${editingBrand.name}` : "Create Catalog Brand"}</h3>
+                <form onSubmit={handleSaveBrand}>
+                  <div className="field" style={{ marginBottom: 12 }}>
+                    <label>Brand Name</label>
+                    <input
+                      value={brandForm.name}
+                      onChange={(e) => setBrandForm({ ...brandForm, name: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="field" style={{ marginBottom: 12 }}>
+                    <label>Description / Positioning</label>
+                    <input
+                      value={brandForm.description}
+                      onChange={(e) => setBrandForm({ ...brandForm, description: e.target.value })}
+                      placeholder="e.g. Flagship premium consumer staples"
+                    />
+                  </div>
+                  <div className="field" style={{ marginBottom: 12 }}>
+                    <label>Logo URL</label>
+                    <input
+                      type="url"
+                      value={brandForm.logoUrl}
+                      onChange={(e) => setBrandForm({ ...brandForm, logoUrl: e.target.value })}
+                      placeholder="https://..."
+                    />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+                    <div className="field">
+                      <label>Sort Order Index</label>
+                      <input
+                        type="number"
+                        value={brandForm.sortOrder}
+                        onChange={(e) => setBrandForm({ ...brandForm, sortOrder: e.target.value })}
+                      />
+                    </div>
+                    <div className="field" style={{ display: "flex", alignItems: "center", paddingTop: 20 }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={brandForm.isActive}
+                          onChange={(e) => setBrandForm({ ...brandForm, isActive: e.target.checked })}
+                        />
+                        <span>Active</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <button type="button" className="secondary" onClick={() => setShowBrandModal(false)}>Cancel</button>
+                    <button type="submit">Save Brand</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 3: Gap 10 - Product Media & Asset Manager */}
+      {tab === "media" && (
+        <div>
+          <div className="between" style={{ marginBottom: 16 }}>
+            <div>
+              <h2 style={{ margin: 0 }}>Product Media & Asset Manager</h2>
+              <p className="page-sub">Catalog asset health monitor, missing image audit, and direct SKU pack image URL updater.</p>
+            </div>
+            <button className="secondary" onClick={() => void loadMedia()}>
+              Refresh Assets
+            </button>
+          </div>
+
+          {/* Media Health Metrics */}
+          {mediaStats && (
+            <div className="metrics" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 20 }}>
+              <div className="metric card">
+                <div className="metric-label">Total Catalog Products</div>
+                <div className="metric-value">{mediaStats.totalProducts ?? 0}</div>
+              </div>
+              <div className="metric card">
+                <div className="metric-label">Total SKU Variants</div>
+                <div className="metric-value">{mediaStats.totalVariants ?? 0}</div>
+              </div>
+              <div className="metric card">
+                <div className="metric-label">Missing Product Images</div>
+                <div className="metric-value" style={{ color: (mediaStats.productsMissingImage ?? mediaStats.productsWithoutImage ?? 0) > 0 ? "var(--danger)" : "var(--green)" }}>
+                  {mediaStats.productsMissingImage ?? mediaStats.productsWithoutImage ?? 0}
+                </div>
+              </div>
+              <div className="metric card">
+                <div className="metric-label">Missing SKU Images</div>
+                <div className="metric-value" style={{ color: (mediaStats.variantsMissingImage ?? mediaStats.variantsWithoutImage ?? 0) > 0 ? "#d97706" : "var(--green)" }}>
+                  {mediaStats.variantsMissingImage ?? mediaStats.variantsWithoutImage ?? 0}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Search & Missing Image Filter */}
+          <div className="between" style={{ marginBottom: 16, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 12, alignItems: "center", flex: 1, maxWidth: 450 }}>
+              <input
+                type="search"
+                placeholder="Search products or SKUs by name or brand…"
+                value={mediaSearch}
+                onChange={(e) => setMediaSearch(e.target.value)}
+                style={{ width: "100%" }}
+              />
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
+              <input
+                type="checkbox"
+                checked={filterMissingOnly}
+                onChange={(e) => setFilterMissingOnly(e.target.checked)}
+              />
+              <span>Show Only Items With Missing Images</span>
+            </label>
+          </div>
+
+          {mediaLoading ? (
+            <div className="card muted">Loading product media assets…</div>
+          ) : (
+            <div className="card" style={{ padding: 0 }}>
+              <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ background: "var(--surface-muted, #f8f9fa)", textAlign: "left" }}>
+                    <th style={{ padding: "10px 14px", width: 70 }}>Preview</th>
+                    <th style={{ padding: "10px 14px" }}>Product & Brand</th>
+                    <th style={{ padding: "10px 14px" }}>Category</th>
+                    <th style={{ padding: "10px 14px" }}>Asset Status</th>
+                    <th style={{ padding: "10px 14px" }}>Image Asset URL</th>
+                    <th style={{ padding: "10px 14px", textAlign: "right" }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mediaProducts
+                    .filter((p) => {
+                      if (filterMissingOnly && p.hasImage && p.missingVariantsCount === 0) return false;
+                      if (!mediaSearch) return true;
+                      const s = mediaSearch.toLowerCase();
+                      return p.name.toLowerCase().includes(s) || (p.brand ?? "").toLowerCase().includes(s) || p.category.toLowerCase().includes(s);
+                    })
+                    .map((item) => {
+                      const displayImgUrl = item.imageUrl ? (item.imageUrl.startsWith("http") ? item.imageUrl : `http://localhost:4000${item.imageUrl}`) : "";
+                      return (
+                      <tr key={item.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                        <td style={{ padding: "10px 14px" }}>
+                          {displayImgUrl ? (
+                            <img
+                              src={displayImgUrl}
+                              alt=""
+                              style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 4, border: "1px solid #e2e8f0" }}
+                              onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none"; }}
+                            />
+                          ) : (
+                            <div style={{ width: 44, height: 44, background: "#f1f5f9", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#94a3b8" }}>
+                              No Pic
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: "10px 14px" }}>
+                          <div style={{ fontWeight: 600 }}>{item.name}</div>
+                          <div className="muted small">Brand: {item.brand || "Gagan"} · {item.totalVariants} SKU pack(s)</div>
+                        </td>
+                        <td style={{ padding: "10px 14px", color: "var(--text-muted)" }}>
+                          {item.category}
+                        </td>
+                        <td style={{ padding: "10px 14px" }}>
+                          {item.hasImage ? (
+                            <span className="pill status-confirmed">✓ Image Configured</span>
+                          ) : (
+                            <span className="pill" style={{ background: "#fee2e2", color: "#991b1b" }}>⚠ Missing Image</span>
+                          )}
+                          {item.missingVariantsCount > 0 && (
+                            <div className="small" style={{ color: "#d97706", marginTop: 2 }}>
+                              {item.missingVariantsCount} pack(s) missing photo
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: 11, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {item.imageUrl ? (
+                            <a href={item.imageUrl} target="_blank" rel="noreferrer" style={{ color: "var(--primary)" }}>
+                              {item.imageUrl}
+                            </a>
+                          ) : (
+                            <span className="muted">—</span>
+                          )}
+                        </td>
+                        <td style={{ padding: "10px 14px", textAlign: "right" }}>
+                          <button
+                            className="sm secondary"
+                            onClick={() => {
+                              setShowImageModal({
+                                type: "product",
+                                id: item.id,
+                                name: item.name,
+                                currentUrl: item.imageUrl ?? "",
+                              });
+                              setNewImageUrl(item.imageUrl ?? "");
+                            }}
+                          >
+                            Update Image
+                          </button>
+                        </td>
+                      </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Modal: Update Image URL */}
+          {showImageModal && (
+            <div className="modal-backdrop" style={{
+              position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+            }}>
+              <div className="card" style={{ width: 500, maxWidth: "90vw" }}>
+                <h3 style={{ marginTop: 0 }}>Update Image for {showImageModal.name}</h3>
+                <form onSubmit={handleSaveMediaImage}>
+                  <div className="field" style={{ marginBottom: 14 }}>
+                    <label>New Image Asset URL</label>
+                    <input
+                      type="url"
+                      value={newImageUrl}
+                      onChange={(e) => setNewImageUrl(e.target.value)}
+                      placeholder="http://localhost:4000/catalog-images/... or https://..."
+                      required
+                    />
+                  </div>
+
+                  {newImageUrl && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, background: "#f8fafc", borderRadius: 6, marginBottom: 16 }}>
+                      <img
+                        src={newImageUrl}
+                        alt="Preview"
+                        style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 4, border: "1px solid #cbd5e1" }}
+                        onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none"; }}
+                      />
+                      <span className="muted small">Live Image Preview</span>
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <button type="button" className="secondary" onClick={() => setShowImageModal(null)}>Cancel</button>
+                    <button type="submit" disabled={savingImage}>
+                      {savingImage ? "Saving…" : "Save Image"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

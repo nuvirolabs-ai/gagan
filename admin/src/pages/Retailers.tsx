@@ -23,6 +23,148 @@ export default function Retailers() {
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [reassigning, setReassigning] = useState(false);
 
+  // Gap 8: Full Retailer Profile & KYC Master Editor state
+  const [profileModalRetailerId, setProfileModalRetailerId] = useState<string | null>(null);
+  const [fullProfileData, setFullProfileData] = useState<any | null>(null);
+  const [fullProfileLoading, setFullProfileLoading] = useState(false);
+  const [savingFullProfile, setSavingFullProfile] = useState(false);
+  const [fullProfileTab, setFullProfileTab] = useState<"details" | "location" | "kyc" | "orders">("details");
+
+  const [profileForm, setProfileForm] = useState({
+    storeName: "",
+    ownerName: "",
+    phone: "",
+    address: "",
+    pincode: "",
+    deliveryCity: "",
+    gstin: "",
+    pan: "",
+    paymentTermsDays: "30",
+    creditLimit: "50000",
+    tierId: "",
+    salesRepId: "",
+  });
+
+  const [coordsForm, setCoordsForm] = useState({
+    lat: "",
+    lng: "",
+    reason: "",
+  });
+  const [savingCoords, setSavingCoords] = useState(false);
+  const [kycRejectionReason, setKycRejectionReason] = useState("");
+  const [decidingKyc, setDecidingKyc] = useState(false);
+
+  const openFullProfile = async (retailerId: string) => {
+    setProfileModalRetailerId(retailerId);
+    setFullProfileLoading(true);
+    setFullProfileTab("details");
+    setError(null);
+    try {
+      const res = await api.retailerFullProfile(retailerId);
+      setFullProfileData(res);
+      const r = res.retailer;
+      setProfileForm({
+        storeName: r.name ?? "",
+        ownerName: r.ownerName ?? "",
+        phone: r.phone ?? "",
+        address: r.shopAddress ?? "",
+        pincode: r.pincode ?? "",
+        deliveryCity: r.deliveryCity ?? "",
+        gstin: r.gstin ?? "",
+        pan: r.pan ?? "",
+        paymentTermsDays: String(r.paymentTermsDays ?? 30),
+        creditLimit: String(r.creditLimit ?? 0),
+        tierId: r.tierId ?? tiers[0]?.id ?? "",
+        salesRepId: r.salesRepId ?? "",
+      });
+      setCoordsForm({
+        lat: r.lat != null ? String(r.lat) : "",
+        lng: r.lng != null ? String(r.lng) : "",
+        reason: "",
+      });
+    } catch (err: any) {
+      setError(err.message ?? "Failed to load full retailer profile");
+    } finally {
+      setFullProfileLoading(false);
+    }
+  };
+
+  const saveFullProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profileModalRetailerId) return;
+    setSavingFullProfile(true);
+    setError(null);
+    try {
+      const res = await api.updateRetailerFullProfile(profileModalRetailerId, {
+        storeName: profileForm.storeName.trim(),
+        ownerName: profileForm.ownerName.trim() || undefined,
+        phone: profileForm.phone.trim(),
+        address: profileForm.address.trim(),
+        pincode: profileForm.pincode.trim() || undefined,
+        city: profileForm.deliveryCity.trim() || undefined,
+        gstin: profileForm.gstin.trim() || undefined,
+        pan: profileForm.pan.trim() || undefined,
+        paymentTermsDays: parseInt(profileForm.paymentTermsDays, 10) || 30,
+        creditLimit: parseFloat(profileForm.creditLimit) || 0,
+        tierId: profileForm.tierId || undefined,
+        salesRepId: profileForm.salesRepId || undefined,
+      });
+      setNotice(res.message ?? "Retailer master profile updated");
+      await load();
+      await openFullProfile(profileModalRetailerId);
+    } catch (err: any) {
+      setError(err.message ?? "Failed to update retailer profile");
+    } finally {
+      setSavingFullProfile(false);
+    }
+  };
+
+  const saveCoordinates = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profileModalRetailerId) return;
+    setSavingCoords(true);
+    setError(null);
+    try {
+      const res = await api.updateRetailerCoordinates(profileModalRetailerId, {
+        lat: parseFloat(coordsForm.lat),
+        lng: parseFloat(coordsForm.lng),
+        reason: coordsForm.reason.trim() || "Admin pinpoint correction",
+      });
+      setNotice(res.message ?? "GPS coordinates updated and verified");
+      await openFullProfile(profileModalRetailerId);
+      await load();
+    } catch (err: any) {
+      setError(err.message ?? "Failed to update GPS coordinates");
+    } finally {
+      setSavingCoords(false);
+    }
+  };
+
+  const handleKycDecision = async (decision: "APPROVE" | "REJECT") => {
+    if (!profileModalRetailerId) return;
+    if (decision === "REJECT" && !kycRejectionReason.trim()) {
+      setError("Please specify a reason for KYC rejection.");
+      return;
+    }
+    setDecidingKyc(true);
+    setError(null);
+    try {
+      const res = await api.decideRetailerKyc(profileModalRetailerId, {
+        decision,
+        reason: decision === "APPROVE" ? "Approved by Admin" : undefined,
+        rejectionReason: decision === "REJECT" ? kycRejectionReason.trim() : undefined,
+      });
+      setNotice(res.message ?? `KYC status updated to ${decision}D`);
+      setKycRejectionReason("");
+      await openFullProfile(profileModalRetailerId);
+      await load();
+    } catch (err: any) {
+      setError(err.message ?? "Failed to submit KYC decision");
+    } finally {
+      setDecidingKyc(false);
+    }
+  };
+
   const load = async () => {
     setLoading(true);
     try {
@@ -392,6 +534,9 @@ export default function Retailers() {
                   </td>
                   <td className="right">
                     <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                      <button className="sm primary" onClick={() => openFullProfile(r.id)}>
+                        Profile & KYC
+                      </button>
                       <button className="sm secondary" onClick={() => changeLimit(r)}>
                         Limit
                       </button>
@@ -522,6 +667,476 @@ export default function Retailers() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Gap 8: Full Retailer Profile & KYC Master Modal Drawer */}
+      {profileModalRetailerId && (
+        <div
+          className="modal-backdrop"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              width: 780,
+              maxWidth: "94%",
+              maxHeight: "92vh",
+              overflowY: "auto",
+              background: "#fff",
+              padding: 24,
+              boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+            }}
+          >
+            {fullProfileLoading ? (
+              <div className="muted" style={{ padding: 40, textAlign: "center" }}>
+                Loading retailer master profile…
+              </div>
+            ) : fullProfileData ? (
+              <div>
+                {/* Header */}
+                <div className="between" style={{ borderBottom: "1px solid var(--border, #eee)", paddingBottom: 14, marginBottom: 16 }}>
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <h2 style={{ margin: 0, fontSize: 20 }}>{fullProfileData.retailer.name}</h2>
+                      {fullProfileData.retailer.kycStatus === "APPROVED" ? (
+                        <span className="pill status-confirmed" style={{ fontSize: 12 }}>KYC Approved</span>
+                      ) : fullProfileData.retailer.kycStatus === "REJECTED" ? (
+                        <span className="pill" style={{ background: "#fee2e2", color: "#991b1b", fontSize: 12 }}>KYC Rejected</span>
+                      ) : (
+                        <span className="pill" style={{ background: "#fef3c7", color: "#92400e", fontSize: 12 }}>KYC Pending</span>
+                      )}
+                      <span className="pill" style={{ background: "#f1f5f9", color: "#475569", fontSize: 12 }}>
+                        {fullProfileData.retailer.tier?.name ?? "Standard Tier"}
+                      </span>
+                    </div>
+                    <p className="muted small" style={{ margin: "4px 0 0 0" }}>
+                      ID: {fullProfileData.retailer.id} · Phone: {fullProfileData.retailer.phone} · City: {fullProfileData.retailer.deliveryCity ?? "Not configured"}
+                    </p>
+                  </div>
+                  <button
+                    className="secondary"
+                    onClick={() => {
+                      setProfileModalRetailerId(null);
+                      setFullProfileData(null);
+                    }}
+                    style={{ fontSize: 16, padding: "4px 10px", lineHeight: 1 }}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Sub-tabs inside modal */}
+                <div className="tab-row" style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+                  <button
+                    type="button"
+                    className={fullProfileTab === "details" ? "primary" : "secondary"}
+                    onClick={() => setFullProfileTab("details")}
+                  >
+                    Store Master & Commercials
+                  </button>
+                  <button
+                    type="button"
+                    className={fullProfileTab === "location" ? "primary" : "secondary"}
+                    onClick={() => setFullProfileTab("location")}
+                  >
+                    GPS Pinpoint ({fullProfileData.retailer.locationStatus ?? "NOT_SET"})
+                  </button>
+                  <button
+                    type="button"
+                    className={fullProfileTab === "kyc" ? "primary" : "secondary"}
+                    onClick={() => setFullProfileTab("kyc")}
+                  >
+                    KYC Documents ({fullProfileData.documents?.length ?? 0})
+                  </button>
+                  <button
+                    type="button"
+                    className={fullProfileTab === "orders" ? "primary" : "secondary"}
+                    onClick={() => setFullProfileTab("orders")}
+                  >
+                    Recent Orders ({fullProfileData.recentOrders?.length ?? 0})
+                  </button>
+                </div>
+
+                {/* SUB-TAB 1: Store Master & Commercials */}
+                {fullProfileTab === "details" && (
+                  <form onSubmit={saveFullProfile}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                      <div className="field">
+                        <label>Store / Firm Name</label>
+                        <input
+                          value={profileForm.storeName}
+                          onChange={(e) => setProfileForm({ ...profileForm, storeName: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div className="field">
+                        <label>Owner / Contact Person</label>
+                        <input
+                          value={profileForm.ownerName}
+                          onChange={(e) => setProfileForm({ ...profileForm, ownerName: e.target.value })}
+                          placeholder="Proprietor / Managing Partner"
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                      <div className="field">
+                        <label>Mobile Number (Login Handle)</label>
+                        <input
+                          value={profileForm.phone}
+                          onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div className="field">
+                        <label>Verified Delivery City</label>
+                        <input
+                          value={profileForm.deliveryCity}
+                          onChange={(e) => setProfileForm({ ...profileForm, deliveryCity: e.target.value })}
+                          placeholder="e.g. Indore"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="field" style={{ marginBottom: 12 }}>
+                      <label>Physical Shop / Warehouse Address</label>
+                      <input
+                        value={profileForm.address}
+                        onChange={(e) => setProfileForm({ ...profileForm, address: e.target.value })}
+                        required
+                      />
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
+                      <div className="field">
+                        <label>PIN Code</label>
+                        <input
+                          value={profileForm.pincode}
+                          onChange={(e) => setProfileForm({ ...profileForm, pincode: e.target.value })}
+                          placeholder="6-digit PIN"
+                        />
+                      </div>
+                      <div className="field">
+                        <label>GSTIN (15 chars)</label>
+                        <input
+                          value={profileForm.gstin}
+                          onChange={(e) => setProfileForm({ ...profileForm, gstin: e.target.value.toUpperCase() })}
+                          placeholder="23AAAAA0000A1Z5"
+                        />
+                      </div>
+                      <div className="field">
+                        <label>PAN (10 chars)</label>
+                        <input
+                          value={profileForm.pan}
+                          onChange={(e) => setProfileForm({ ...profileForm, pan: e.target.value.toUpperCase() })}
+                          placeholder="ABCDE1234F"
+                        />
+                      </div>
+                    </div>
+
+                    <h4 style={{ margin: "16px 0 10px 0", borderTop: "1px solid #eee", paddingTop: 14 }}>
+                      Commercial & Credit Parameters
+                    </h4>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                      <div className="field">
+                        <label>Commercial Pricing Tier</label>
+                        <select
+                          value={profileForm.tierId}
+                          onChange={(e) => setProfileForm({ ...profileForm, tierId: e.target.value })}
+                        >
+                          {tiers.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name} ({t.discountPct > 0 ? `${t.discountPct}% off` : "Standard"})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="field">
+                        <label>Credit Limit (₹)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1000"
+                          value={profileForm.creditLimit}
+                          onChange={(e) => setProfileForm({ ...profileForm, creditLimit: e.target.value })}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+                      <div className="field">
+                        <label>Payment Terms (Grace Days)</label>
+                        <select
+                          value={profileForm.paymentTermsDays}
+                          onChange={(e) => setProfileForm({ ...profileForm, paymentTermsDays: e.target.value })}
+                        >
+                          <option value="0">Cash On Delivery (0 Days)</option>
+                          <option value="7">7 Days Credit</option>
+                          <option value="14">14 Days Credit</option>
+                          <option value="21">21 Days Credit</option>
+                          <option value="30">30 Days Standard Credit</option>
+                          <option value="45">45 Days Extended Credit</option>
+                          <option value="60">60 Days Credit</option>
+                        </select>
+                      </div>
+                      <div className="field">
+                        <label>Assigned Sales Representative</label>
+                        <select
+                          value={profileForm.salesRepId}
+                          onChange={(e) => setProfileForm({ ...profileForm, salesRepId: e.target.value })}
+                        >
+                          <option value="">Unassigned</option>
+                          {salesReps.map((rep) => (
+                            <option key={rep.salesRepId} value={rep.salesRepId}>
+                              {rep.name} ({rep.phone}){rep.territory ? ` — ${rep.territory}` : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => setProfileModalRetailerId(null)}
+                      >
+                        Close
+                      </button>
+                      <button type="submit" disabled={savingFullProfile}>
+                        {savingFullProfile ? "Saving…" : "Save Master Profile"}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* SUB-TAB 2: Location & GPS Pinpoint */}
+                {fullProfileTab === "location" && (
+                  <div>
+                    <div className="card" style={{ background: "#f8fafc", marginBottom: 16 }}>
+                      <div className="between">
+                        <div>
+                          <strong>Current Coordinates:</strong>{" "}
+                          {fullProfileData.retailer.lat != null && fullProfileData.retailer.lng != null ? (
+                            <span>{fullProfileData.retailer.lat.toFixed(6)}, {fullProfileData.retailer.lng.toFixed(6)}</span>
+                          ) : (
+                            <span className="muted">Not set</span>
+                          )}
+                        </div>
+                        <span className={`pill ${fullProfileData.retailer.locationStatus === "VERIFIED" ? "status-confirmed" : ""}`}>
+                          {fullProfileData.retailer.locationStatus ?? "NOT_SET"}
+                        </span>
+                      </div>
+                      {fullProfileData.retailer.lat != null && fullProfileData.retailer.lng != null && (
+                        <div style={{ marginTop: 8 }}>
+                          <a
+                            href={`https://maps.google.com/?q=${fullProfileData.retailer.lat},${fullProfileData.retailer.lng}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="small"
+                          >
+                            Open in Google Maps ↗
+                          </a>
+                        </div>
+                      )}
+                    </div>
+
+                    <form onSubmit={saveCoordinates} style={{ borderTop: "1px solid #eee", paddingTop: 14 }}>
+                      <h4 style={{ margin: "0 0 10px 0" }}>Update & Verify Pinpoint Coordinates</h4>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                        <div className="field">
+                          <label>Latitude</label>
+                          <input
+                            type="number"
+                            step="0.000001"
+                            value={coordsForm.lat}
+                            onChange={(e) => setCoordsForm({ ...coordsForm, lat: e.target.value })}
+                            placeholder="e.g. 22.719568"
+                            required
+                          />
+                        </div>
+                        <div className="field">
+                          <label>Longitude</label>
+                          <input
+                            type="number"
+                            step="0.000001"
+                            value={coordsForm.lng}
+                            onChange={(e) => setCoordsForm({ ...coordsForm, lng: e.target.value })}
+                            placeholder="e.g. 75.857727"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div className="field" style={{ marginBottom: 16 }}>
+                        <label>Reason / Verification Reference</label>
+                        <input
+                          value={coordsForm.reason}
+                          onChange={(e) => setCoordsForm({ ...coordsForm, reason: e.target.value })}
+                          placeholder="e.g. Field rep store visit verified via storefront photo"
+                          required
+                        />
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                        <button type="submit" disabled={savingCoords}>
+                          {savingCoords ? "Verifying…" : "Save & Verify Coordinates"}
+                        </button>
+                      </div>
+                    </form>
+
+                    {/* Location Audit Trail */}
+                    {fullProfileData.locationAudit && fullProfileData.locationAudit.length > 0 && (
+                      <div style={{ marginTop: 20 }}>
+                        <h4 style={{ margin: "0 0 8px 0" }}>Coordinate Change Audit Log</h4>
+                        <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
+                          <thead>
+                            <tr style={{ background: "#f1f5f9", textAlign: "left" }}>
+                              <th style={{ padding: "6px 8px" }}>Timestamp</th>
+                              <th style={{ padding: "6px 8px" }}>Coordinates</th>
+                              <th style={{ padding: "6px 8px" }}>Source / Reason</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {fullProfileData.locationAudit.map((log: any) => (
+                              <tr key={log.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                                <td style={{ padding: "6px 8px" }}>{new Date(log.createdAt).toLocaleString()}</td>
+                                <td style={{ padding: "6px 8px", fontFamily: "monospace" }}>{log.lat?.toFixed(5)}, {log.lng?.toFixed(5)}</td>
+                                <td style={{ padding: "6px 8px" }}>{log.source}: {log.reason}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* SUB-TAB 3: KYC Documents & Approval */}
+                {fullProfileTab === "kyc" && (
+                  <div>
+                    <div className="card" style={{ background: "#f8fafc", marginBottom: 16 }}>
+                      <div className="between">
+                        <div>
+                          <strong>KYC Status:</strong>{" "}
+                          <span className={fullProfileData.retailer.kycStatus === "APPROVED" ? "pill status-confirmed" : "pill"}>
+                            {fullProfileData.retailer.kycStatus ?? "NOT_SUBMITTED"}
+                          </span>
+                        </div>
+                        {fullProfileData.retailer.kycRejectionReason && (
+                          <div className="small" style={{ color: "var(--danger)" }}>
+                            Rejection Note: {fullProfileData.retailer.kycRejectionReason}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <h4 style={{ margin: "16px 0 8px 0" }}>Submitted Documents & Proofs</h4>
+                    {(!fullProfileData.documents || fullProfileData.documents.length === 0) ? (
+                      <div className="empty-state" style={{ padding: 16 }}>
+                        No KYC document proofs uploaded for this retailer.
+                      </div>
+                    ) : (
+                      <div style={{ display: "grid", gap: 8, marginBottom: 16 }}>
+                        {fullProfileData.documents.map((doc: any) => (
+                          <div key={doc.id} className="between card" style={{ padding: 10 }}>
+                            <div>
+                              <strong>{doc.type}</strong>
+                              <div className="muted small">Uploaded {new Date(doc.createdAt).toLocaleDateString()}</div>
+                            </div>
+                            {doc.fileUrl ? (
+                              <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="sm button secondary">
+                                View Document ↗
+                              </a>
+                            ) : (
+                              <span className="muted small">Reference: {doc.referenceNumber || doc.id}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* KYC Decision Controls */}
+                    <div style={{ borderTop: "1px solid #eee", paddingTop: 16 }}>
+                      <h4 style={{ margin: "0 0 10px 0" }}>KYC Administrative Decision</h4>
+                      <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+                        <button
+                          type="button"
+                          className="primary"
+                          disabled={decidingKyc || fullProfileData.retailer.kycStatus === "APPROVED"}
+                          onClick={() => handleKycDecision("APPROVE")}
+                          style={{ background: "var(--green, #16a34a)" }}
+                        >
+                          {fullProfileData.retailer.kycStatus === "APPROVED" ? "✓ KYC Already Approved" : "Approve KYC & Activate Dispatches"}
+                        </button>
+
+                        <div style={{ display: "flex", gap: 8, flex: 1, minWidth: 260 }}>
+                          <input
+                            placeholder="Reason if rejecting (e.g. invalid GSTIN)"
+                            value={kycRejectionReason}
+                            onChange={(e) => setKycRejectionReason(e.target.value)}
+                            style={{ flex: 1 }}
+                          />
+                          <button
+                            type="button"
+                            className="secondary"
+                            style={{ color: "var(--danger)" }}
+                            disabled={decidingKyc}
+                            onClick={() => handleKycDecision("REJECT")}
+                          >
+                            Reject KYC
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* SUB-TAB 4: Recent Orders */}
+                {fullProfileTab === "orders" && (
+                  <div>
+                    {(!fullProfileData.recentOrders || fullProfileData.recentOrders.length === 0) ? (
+                      <div className="empty-state" style={{ padding: 20 }}>No orders placed yet.</div>
+                    ) : (
+                      <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
+                        <thead>
+                          <tr style={{ background: "#f8f9fa", textAlign: "left" }}>
+                            <th style={{ padding: "8px 10px" }}>Order ID</th>
+                            <th style={{ padding: "8px 10px" }}>Date</th>
+                            <th style={{ padding: "8px 10px" }}>Status</th>
+                            <th style={{ padding: "8px 10px", textAlign: "right" }}>Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {fullProfileData.recentOrders.map((ord: any) => (
+                            <tr key={ord.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                              <td style={{ padding: "8px 10px", fontWeight: 600 }}>{ord.orderNumber || ord.id.slice(0, 8)}</td>
+                              <td style={{ padding: "8px 10px" }}>{new Date(ord.createdAt).toLocaleDateString()}</td>
+                              <td style={{ padding: "8px 10px" }}>
+                                <span className="pill status-confirmed">{ord.status}</span>
+                              </td>
+                              <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 600 }}>{inr(ord.totalAmount)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
       )}

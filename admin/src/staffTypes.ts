@@ -15,6 +15,7 @@ export interface StaffMember {
   employeeRef?: string | null;
   status: "active" | "suspended" | "revoked";
   salesRepId?: string | null;
+  salesRep?: { id: string; name: string; phone: string; territory?: string | null } | null;
   managerId?: string | null;
   directReports?: { id: string; name: string; status: string }[];
   roles: { role: StaffRole }[];

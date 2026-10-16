@@ -115,6 +115,8 @@ const post = (path: string, body?: unknown) =>
 const patch = (path: string, body: unknown) =>
   request(path, { method: "PATCH", body: JSON.stringify(body) });
 const remove = (path: string) => request(path, { method: "DELETE" });
+const put = (path: string, body: unknown) =>
+  request(path, { method: "PUT", body: JSON.stringify(body) });
 
 export const api = {
   exportServiceIssues: (filters?: { status?: string; retailerId?: string; salespersonId?: string; from?: string; through?: string }) => {
@@ -542,6 +544,29 @@ export const api = {
     if (!res.ok) throw new ApiError(res.status, await parseResponse(res));
     return res.blob();
   },
+
+  // Warehouses & Routing (Gap 1)
+  warehouses: () => request("/admin/warehouses"),
+  createWarehouse: (body: unknown) => post("/admin/warehouses", body),
+  updateWarehouse: (id: string, body: unknown) => put(`/admin/warehouses/${id}`, body),
+  cityRoutings: () => request("/admin/warehouses/routing"),
+  upsertCityRouting: (body: unknown) => post("/admin/warehouses/routing", body),
+  deleteCityRouting: (id: string) => remove(`/admin/warehouses/routing/${id}`),
+
+  // Staff Profile CRUD (Gap 2)
+  updateStaffProfile: (id: string, body: unknown) => patch(`/admin/staff/${id}`, body),
+
+  // Bulk Retailer Reassignment (Gap 3)
+  bulkReassignRetailers: (retailerIds: string[], salesRepId: string) =>
+    post("/admin/retailers/bulk-reassign", { retailerIds, salesRepId }),
+
+  // Target Setting Matrix (Gap 4)
+  targetMatrix: () => request("/admin/field/targets/matrix"),
+  saveTargetMatrix: (updates: unknown[]) => post("/admin/field/targets/matrix", { updates }),
+
+  // Global AppConfig & Policies (Gap 5)
+  appConfig: () => request("/admin/app-config"),
+  updateAppConfig: (body: unknown) => put("/admin/app-config", body),
 };
 
 export const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;

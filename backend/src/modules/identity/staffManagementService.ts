@@ -5,6 +5,7 @@ import type {
   SellingLeaderSetupInput,
   SalespersonSetupInput,
   StaffCreateInput,
+  StaffUpdateInput,
   StaffManagement,
 } from "./adminStaffRoutes";
 import { normalizeIndianPhone } from "./otpService";
@@ -132,6 +133,7 @@ export const prismaStaffManagementStore: StaffManagementStore = {
     return prisma.staffUser.findMany({
       orderBy: { name: "asc" },
       include: {
+        salesRep: { select: { id: true, name: true, phone: true, territory: true } },
         roles: { include: { role: true } },
         directReports: { select: { id: true, name: true, status: true } },
         delegationsHeld: {
@@ -159,6 +161,65 @@ export class StaffManagementService implements StaffManagement {
     private readonly store: StaffManagementStore = prismaStaffManagementStore,
     private readonly db: typeof prisma = prisma
   ) {}
+
+  async updateStaff(
+    id: string,
+    input: StaffUpdateInput,
+    actorStaffId: string
+  ): Promise<any> {
+    return this.store.transaction(async (tx) => {
+      const existing = await this.db.staffUser.findUnique({
+        where: { id },
+        include: { salesRep: true },
+      });
+      if (!existing) {
+        throw new StaffManagementError("staff_not_found", 404);
+      }
+
+      const normalizedPhone = input.phone ? normalizeIndianPhone(input.phone) : undefined;
+
+      const updated = await this.db.staffUser.update({
+        where: { id },
+        data: {
+          ...(input.name ? { name: input.name } : {}),
+          ...(normalizedPhone ? { phone: normalizedPhone } : {}),
+          ...(input.email ? { email: input.email } : {}),
+          ...(input.employeeRef !== undefined ? { employeeRef: input.employeeRef } : {}),
+          ...(input.managerId !== undefined ? { managerId: input.managerId } : {}),
+          ...(input.status ? { status: input.status } : {}),
+        },
+        include: {
+          salesRep: { select: { id: true, name: true, phone: true, territory: true } },
+          roles: { include: { role: true } },
+        },
+      });
+
+      if (existing.salesRepId) {
+        await this.db.salesRep.update({
+          where: { id: existing.salesRepId },
+          data: {
+            ...(input.name ? { name: input.name } : {}),
+            ...(normalizedPhone ? { phone: normalizedPhone } : {}),
+            ...(input.territory !== undefined ? { territory: input.territory } : {}),
+          },
+        });
+      }
+
+      if (input.status === "suspended") {
+        await tx.revokeSubjectSessions(id, new Date());
+      }
+
+      await tx.appendAudit({
+        actorStaffId,
+        action: "staff.profile.updated",
+        subjectType: "staff_user",
+        subjectId: id,
+        metadata: { input },
+      });
+
+      return updated;
+    });
+  }
 
   setupSellingLeader(input: SellingLeaderSetupInput, actorStaffId: string) {
     return this.setupSeller(input, actorStaffId, "sales_leader");

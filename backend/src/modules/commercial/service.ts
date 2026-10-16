@@ -60,7 +60,7 @@ export async function quoteFor(retailerId: string, input: {variantId:string;qty:
             const fallbackBagEquiv = Math.max(
               0.01,
               Math.round(((variant.unitsPerCase * Number(variant.unitWeightKg)) / 30) * 1000) / 1000
-            );
+            ).toFixed(3);
             return {
               variantId: variant.id,
               quantity: item.qty,

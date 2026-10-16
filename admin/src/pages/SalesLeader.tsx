@@ -28,9 +28,57 @@ function pct(value: number | null | undefined): string {
  */
 export default function SalesLeader() {
   const [data, setData] = useState<any | null>(null);
-  const [tab, setTab] = useState<"team" | "leaderboard" | "actions">("team");
+  const [tab, setTab] = useState<"team" | "leaderboard" | "actions" | "matrix">("team");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const [matrixData, setMatrixData] = useState<any | null>(null);
+  const [matrixLoading, setMatrixLoading] = useState(false);
+  const [matrixEdits, setMatrixEdits] = useState<Record<string, { dailyTarget: number; monthlyTarget: number; targetOrders: number }>>({});
+  const [matrixSaving, setMatrixSaving] = useState(false);
+  const [matrixNotice, setMatrixNotice] = useState<string | null>(null);
+
+  const loadMatrix = async () => {
+    setMatrixLoading(true);
+    try {
+      const res = await api.targetMatrix();
+      setMatrixData(res);
+      const initialEdits: Record<string, { dailyTarget: number; monthlyTarget: number; targetOrders: number }> = {};
+      for (const sp of res.salespeople) {
+        initialEdits[sp.salespersonId] = {
+          dailyTarget: sp.dailyTarget,
+          monthlyTarget: sp.monthlyTarget,
+          targetOrders: sp.targetOrders,
+        };
+      }
+      setMatrixEdits(initialEdits);
+    } catch (err) {
+      setError(explain(err, "Could not load target matrix"));
+    } finally {
+      setMatrixLoading(false);
+    }
+  };
+
+  const handleSaveMatrix = async () => {
+    setMatrixSaving(true);
+    setMatrixNotice(null);
+    try {
+      const updates = Object.entries(matrixEdits).map(([salespersonId, values]) => ({
+        salespersonId,
+        dailyTarget: Number(values.dailyTarget) || 0,
+        monthlyTarget: Number(values.monthlyTarget) || 0,
+        targetOrders: Number(values.targetOrders) || 0,
+      }));
+      await api.saveTargetMatrix(updates);
+      setMatrixNotice("Targets successfully updated and published to field reps!");
+      await loadMatrix();
+      await load();
+    } catch (err) {
+      setError(explain(err, "Failed to save targets"));
+    } finally {
+      setMatrixSaving(false);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -46,6 +94,7 @@ export default function SalesLeader() {
 
   useEffect(() => {
     void load();
+    void loadMatrix();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -158,6 +207,15 @@ export default function SalesLeader() {
               Recommended actions
               {data.recommendedActions.length ? ` (${data.recommendedActions.length})` : ""}
             </button>
+            <button
+              className={`tab ${tab === "matrix" ? "active" : ""}`}
+              onClick={() => {
+                setTab("matrix");
+                if (!matrixData) void loadMatrix();
+              }}
+            >
+              Target Setting Matrix
+            </button>
           </div>
 
           {tab === "team" ? (
@@ -268,7 +326,7 @@ export default function SalesLeader() {
                 </table>
               )}
             </div>
-          ) : (
+          ) : tab === "actions" ? (
             <div className="card" style={{ padding: 0 }}>
               {data.recommendedActions.length === 0 ? (
                 <div className="empty-state">Nothing needs intervention right now.</div>
@@ -289,6 +347,171 @@ export default function SalesLeader() {
                         <td className="small">{action.why}</td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          ) : (
+            <div className="card" style={{ padding: 0 }}>
+              <div
+                style={{
+                  padding: "14px 18px",
+                  borderBottom: "1px solid var(--border, #dfe3e3)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: 12,
+                }}
+              >
+                <div>
+                  <h2 className="section-title" style={{ margin: 0 }}>
+                    Target Setting Matrix {matrixData?.period?.monthName ? `— ${matrixData.period.monthName}` : ""}
+                  </h2>
+                  <p className="section-copy" style={{ margin: "4px 0 0 0" }}>
+                    Configure daily and monthly revenue and order quotas per salesperson.{" "}
+                    {matrixData?.period?.daysRemaining != null
+                      ? `(${matrixData.period.daysRemaining} days remaining in month)`
+                      : ""}
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button className="secondary" type="button" onClick={loadMatrix} disabled={matrixLoading}>
+                    Refresh
+                  </button>
+                  <button type="button" onClick={handleSaveMatrix} disabled={matrixSaving || matrixLoading}>
+                    {matrixSaving ? "Saving Quotas…" : "Save All Targets"}
+                  </button>
+                </div>
+              </div>
+
+              {matrixNotice && (
+                <div className="banner success" style={{ margin: "14px 18px" }}>
+                  {matrixNotice}
+                </div>
+              )}
+
+              {matrixLoading && !matrixData ? (
+                <div style={{ padding: 24 }} className="muted">
+                  Loading target matrix…
+                </div>
+              ) : !matrixData?.salespeople?.length ? (
+                <div style={{ padding: 24 }} className="muted">
+                  No active field salespeople found.
+                </div>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Salesperson</th>
+                      <th>Territory</th>
+                      <th className="right">MTD Revenue</th>
+                      <th style={{ width: 140 }}>Achievement</th>
+                      <th style={{ width: 150 }}>Daily Target (₹)</th>
+                      <th style={{ width: 160 }}>Monthly Target (₹)</th>
+                      <th style={{ width: 120 }}>Monthly Orders</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {matrixData.salespeople.map((person: any) => {
+                      const edit = matrixEdits[person.salespersonId] || {
+                        dailyTarget: person.dailyTarget,
+                        monthlyTarget: person.monthlyTarget,
+                        targetOrders: person.targetOrders,
+                      };
+                      return (
+                        <tr key={person.salespersonId}>
+                          <td>
+                            <strong>{person.name}</strong>
+                            <div className="muted small">{person.phone}</div>
+                          </td>
+                          <td>
+                            <span className="pill status-confirmed">{person.territory}</span>
+                          </td>
+                          <td className="right">
+                            <div style={{ fontWeight: 600 }}>{inr(person.mtdRevenue)}</div>
+                            <div className="muted small">{person.mtdOrders} orders</div>
+                          </td>
+                          <td>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <div
+                                style={{
+                                  flex: 1,
+                                  background: "#e2e8f0",
+                                  height: 8,
+                                  borderRadius: 4,
+                                  overflow: "hidden",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: `${Math.min(100, person.achievementPct)}%`,
+                                    background:
+                                      person.achievementPct >= 80
+                                        ? "var(--green, #10b981)"
+                                        : person.achievementPct >= 50
+                                        ? "#f59e0b"
+                                        : "var(--danger, #ef4444)",
+                                    height: "100%",
+                                  }}
+                                />
+                              </div>
+                              <span style={{ fontSize: 12, fontWeight: 600 }}>
+                                {person.achievementPct}%
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min={0}
+                              step={500}
+                              value={edit.dailyTarget}
+                              onChange={(e) => {
+                                const val = Number(e.target.value);
+                                setMatrixEdits((prev) => ({
+                                  ...prev,
+                                  [person.salespersonId]: { ...edit, dailyTarget: val },
+                                }));
+                              }}
+                              style={{ width: "100%", padding: "6px 8px" }}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min={0}
+                              step={1000}
+                              value={edit.monthlyTarget}
+                              onChange={(e) => {
+                                const val = Number(e.target.value);
+                                setMatrixEdits((prev) => ({
+                                  ...prev,
+                                  [person.salespersonId]: { ...edit, monthlyTarget: val },
+                                }));
+                              }}
+                              style={{ width: "100%", padding: "6px 8px" }}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min={0}
+                              step={1}
+                              value={edit.targetOrders}
+                              onChange={(e) => {
+                                const val = Number(e.target.value);
+                                setMatrixEdits((prev) => ({
+                                  ...prev,
+                                  [person.salespersonId]: { ...edit, targetOrders: val },
+                                }));
+                              }}
+                              style={{ width: "100%", padding: "6px 8px" }}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               )}

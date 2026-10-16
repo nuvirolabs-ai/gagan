@@ -46,8 +46,27 @@ export default function StaffDetail() {
   const [selectedReports, setSelectedReports] = useState<string[]>([]);
   const [leaderManagerId, setLeaderManagerId] = useState("");
   const [setupResult, setSetupResult] = useState<any | null>(null);
+  const [profileForm, setProfileForm] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    employeeRef: "",
+    territory: "",
+  });
 
   const member = staff.find((item) => item.id === staffId);
+
+  useEffect(() => {
+    if (member) {
+      setProfileForm({
+        name: member.name,
+        phone: member.phone,
+        email: member.email,
+        employeeRef: member.employeeRef || "",
+        territory: member.salesRep?.territory || "",
+      });
+    }
+  }, [member]);
   const canCollect = staffMemberHasPermission(member, roles, "collection.submit");
   const delegator = staff.find((item) => item.id === delegatorStaffId);
   const delegatorRoleIds = useMemo(
@@ -185,6 +204,19 @@ export default function StaffDetail() {
     );
   };
 
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await run(async () => {
+      await api.updateStaffProfile(staffId, {
+        name: profileForm.name.trim(),
+        phone: profileForm.phone.trim(),
+        email: profileForm.email.trim(),
+        employeeRef: profileForm.employeeRef.trim() || null,
+        territory: profileForm.territory.trim() || null,
+      });
+    }, "Staff profile and territory updated successfully.");
+  };
+
   if (loading) return <div className="muted">Loading…</div>;
   if (!member) return <div className="card"><p>Staff member not found.</p><Link to="/staff">Back to staff</Link></div>;
 
@@ -196,7 +228,9 @@ export default function StaffDetail() {
       <div className="between detail-heading">
         <div>
           <h1 className="page-title">{member.name}</h1>
-          <p className="page-sub" style={{ marginBottom: 0 }}>{member.email} · {member.phone}</p>
+          <p className="page-sub" style={{ marginBottom: 0 }}>
+            {member.email} · {member.phone} {member.salesRep?.territory ? `· Territory: ${member.salesRep.territory}` : ""}
+          </p>
         </div>
         <span className={`pill status-${member.status}`}>{member.status}</span>
       </div>
@@ -205,6 +239,74 @@ export default function StaffDetail() {
       {notice && <div className="banner success">{notice}</div>}
 
       {auth?.permissions.includes("expense.review") ? <ExpenseClaims salespersonId={staffId} /> : null}
+
+      <section className="card">
+        <h2 className="section-title">Staff Profile & Field Territory</h2>
+        <p className="section-copy">
+          Edit personal identity, official contact phone number, and on-ground assigned sales territory.
+        </p>
+        <form onSubmit={handleSaveProfile}>
+          <div className="form-grid">
+            <div className="field">
+              <label htmlFor="profile-name">Full Name *</label>
+              <input
+                id="profile-name"
+                value={profileForm.name}
+                onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                required
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="profile-phone">Mobile Phone * (10 Digits)</label>
+              <input
+                id="profile-phone"
+                value={profileForm.phone}
+                onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+                inputMode="tel"
+                required
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="profile-email">Official Email *</label>
+              <input
+                id="profile-email"
+                type="email"
+                value={profileForm.email}
+                onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                required
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="profile-ref">Employee Reference</label>
+              <input
+                id="profile-ref"
+                value={profileForm.employeeRef}
+                onChange={(e) => setProfileForm({ ...profileForm, employeeRef: e.target.value })}
+                placeholder="e.g. EMP-104"
+              />
+            </div>
+            <div className="field" style={{ gridColumn: "1 / -1" }}>
+              <label htmlFor="profile-territory">
+                Assigned Sales Territory / Beat Region
+                <span className="small muted" style={{ display: "block", marginTop: 2 }}>
+                  Used for beat planning, retailer clustering, and field routing assignments.
+                </span>
+              </label>
+              <input
+                id="profile-territory"
+                value={profileForm.territory}
+                onChange={(e) => setProfileForm({ ...profileForm, territory: e.target.value })}
+                placeholder="e.g. Indore Central, Malwa Mill & Rajaram Dhaba Cluster"
+              />
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
+            <button type="submit" disabled={busy}>
+              {busy ? "Saving Profile…" : "Save Profile Changes"}
+            </button>
+          </div>
+        </form>
+      </section>
 
       <section className="card">
         <div className="between">

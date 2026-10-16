@@ -75,13 +75,33 @@ export default function Staff() {
     }
   };
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+
+  const filteredStaff = staff.filter((member) => {
+    const q = searchQuery.toLowerCase().trim();
+    const matchesQuery =
+      !q ||
+      member.name.toLowerCase().includes(q) ||
+      member.phone.toLowerCase().includes(q) ||
+      member.email.toLowerCase().includes(q) ||
+      Boolean(member.salesRep?.territory && member.salesRep.territory.toLowerCase().includes(q));
+
+    const matchesRole =
+      roleFilter === "all" ||
+      (roleFilter === "no_role" && member.roles.length === 0) ||
+      member.roles.some((r) => r.role.name === roleFilter);
+
+    return matchesQuery && matchesRole;
+  });
+
   return (
     <div>
       <div className="between" style={{ marginBottom: 18 }}>
         <div>
-          <h1 className="page-title">Staff access</h1>
+          <h1 className="page-title">Staff Access & Directory</h1>
           <p className="page-sub" style={{ marginBottom: 0 }}>
-            Give each person only the role they need.
+            Manage staff credentials, assigned sales territories, phone numbers, and operational access roles.
           </p>
         </div>
         <button onClick={() => setCreating((value) => !value)}>
@@ -145,22 +165,62 @@ export default function Staff() {
         </form>
       )}
 
+      <div style={{ display: "flex", gap: 12, marginBottom: 14 }}>
+        <input
+          type="search"
+          placeholder="Search by name, phone, email, or territory…"
+          style={{ flex: 1 }}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        <select
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value)}
+          style={{ minWidth: 180 }}
+        >
+          <option value="all">All Roles ({staff.length})</option>
+          <option value="salesperson">Salesperson</option>
+          <option value="field_manager">Field Manager</option>
+          <option value="warehouse_manager">Warehouse Lead</option>
+          <option value="accounts">Accounts & Finance</option>
+          <option value="admin">Platform Admin</option>
+          <option value="no_role">Unassigned</option>
+        </select>
+      </div>
+
       <div className="card" style={{ padding: 0 }}>
         {loading ? (
           <div className="muted" style={{ padding: 22 }}>Loading…</div>
-        ) : staff.length === 0 ? (
-          <div className="empty-state">No staff identities yet.</div>
+        ) : filteredStaff.length === 0 ? (
+          <div className="empty-state">No matching staff members found.</div>
         ) : (
           <table>
             <thead>
-              <tr><th>Person</th><th>Access</th><th>Status</th><th className="right">Manage</th></tr>
+              <tr>
+                <th>Person & Contact</th>
+                <th>Assigned Territory</th>
+                <th>Roles & Access</th>
+                <th>Status</th>
+                <th className="right">Manage</th>
+              </tr>
             </thead>
             <tbody>
-              {staff.map((member) => (
+              {filteredStaff.map((member) => (
                 <tr key={member.id}>
                   <td>
                     <div style={{ fontWeight: 650 }}>{member.name}</div>
                     <div className="small muted">{member.email} · {member.phone}</div>
+                  </td>
+                  <td>
+                    {member.salesRep?.territory ? (
+                      <div>
+                        <span className="pill status-confirmed">{member.salesRep.territory}</span>
+                      </div>
+                    ) : member.salesRepId ? (
+                      <span className="small muted">SalesRep linked (No territory set)</span>
+                    ) : (
+                      <span className="small muted">—</span>
+                    )}
                   </td>
                   <td>
                     <div className="chip-row">
@@ -170,7 +230,9 @@ export default function Staff() {
                     </div>
                   </td>
                   <td><span className={`pill status-${member.status}`}>{member.status}</span></td>
-                  <td className="right"><Link className="text-action" to={`/staff/${member.id}`}>Manage access</Link></td>
+                  <td className="right">
+                    <Link className="text-action" to={`/staff/${member.id}`}>Edit / Manage</Link>
+                  </td>
                 </tr>
               ))}
             </tbody>

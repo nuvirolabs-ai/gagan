@@ -3,7 +3,13 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import Retailers from "../Retailers";
 
-const mocks = vi.hoisted(() => ({ retailers: vi.fn(), tiers: vi.fn(), setInternalSegment: vi.fn(), fieldRetailerMarketingHistory: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  retailers: vi.fn(),
+  tiers: vi.fn(),
+  staff: vi.fn(),
+  setInternalSegment: vi.fn(),
+  fieldRetailerMarketingHistory: vi.fn(),
+}));
 const auth = vi.hoisted(() => ({ permissions: ["route.manage"] as string[] }));
 vi.mock("../../api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api")>();
@@ -26,6 +32,7 @@ beforeEach(() => {
     available: 8000,
   }] });
   mocks.tiers.mockResolvedValue({ tiers: [{ id: "tier-1", name: "Gold" }] });
+  mocks.staff.mockResolvedValue({ staff: [] });
   mocks.setInternalSegment.mockResolvedValue({ retailer: { id: "retailer-1", internalSegment: "A" } });
   mocks.fieldRetailerMarketingHistory.mockResolvedValue({ executions: [{
     task: { id: "task-1", title: "Shelf display", status: "done", completedAt: "2026-09-24T10:00:00.000Z" },

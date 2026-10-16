@@ -682,5 +682,225 @@ export function createFieldAdminRouter(options: {
     })
   );
 
+  router.get(
+    "/field/targets/matrix",
+    requirePermission(Permissions.ROUTE_MANAGE),
+    asyncRoute(async (_req, res, next) => {
+      try {
+        const now = new Date();
+        const todayStart = startOfDay(now);
+        const todayEnd = endOfDay(now);
+        const monthStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+        const monthEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59));
+
+        const salespeople = await db.staffUser.findMany({
+          where: {
+            status: "active",
+            OR: [
+              { salesRepId: { not: null } },
+              { roles: { some: { role: { name: "salesperson" } } } },
+            ],
+          },
+          include: {
+            salesRep: { select: { id: true, name: true, phone: true, territory: true } },
+            roles: { include: { role: true } },
+          },
+          orderBy: { name: "asc" },
+        });
+
+        const staffIds = salespeople.map((s) => s.id);
+        const repIds = salespeople.map((s) => s.salesRepId).filter(Boolean) as string[];
+
+        const [targets, orders] = await Promise.all([
+          db.salesTarget.findMany({
+            where: {
+              salespersonId: { in: staffIds },
+              scope: "PERSONAL",
+              periodStart: { gte: monthStart },
+            },
+          }),
+          db.order.findMany({
+            where: {
+              createdAt: { gte: monthStart, lte: monthEnd },
+              status: { notIn: ["rejected"] },
+              OR: [
+                { placedByRepId: { in: repIds } },
+                { retailer: { salesRepId: { in: repIds } } },
+              ],
+            },
+            select: {
+              id: true,
+              orderTotal: true,
+              placedByRepId: true,
+              retailer: { select: { salesRepId: true } },
+            },
+          }),
+        ]);
+
+        const matrix = salespeople.map((person) => {
+          const personTargets = targets.filter((t) => t.salespersonId === person.id);
+          const dailyTargetRow = personTargets.find(
+            (t) => t.metric === "order_value" && t.periodStart >= todayStart
+          );
+          const monthlyTargetRow = personTargets.find(
+            (t) => t.metric === "order_value" && t.periodStart.getTime() === monthStart.getTime()
+          );
+          const targetOrdersRow = personTargets.find(
+            (t) => t.metric === "order_count" && t.periodStart.getTime() === monthStart.getTime()
+          );
+
+          const personOrders = orders.filter(
+            (o) =>
+              (person.salesRepId && o.placedByRepId === person.salesRepId) ||
+              (person.salesRepId && o.retailer?.salesRepId === person.salesRepId)
+          );
+          const mtdRevenue = personOrders.reduce((acc, o) => acc + Number(o.orderTotal || 0), 0);
+          const mtdOrders = personOrders.length;
+
+          const monthlyTarget = Number(monthlyTargetRow?.targetValue ?? 0);
+          const achievementPct = monthlyTarget > 0 ? Math.round((mtdRevenue / monthlyTarget) * 100) : 0;
+
+          return {
+            salespersonId: person.id,
+            name: person.name,
+            phone: person.phone,
+            territory: person.salesRep?.territory ?? "Unassigned",
+            dailyTarget: Number(dailyTargetRow?.targetValue ?? 0),
+            monthlyTarget,
+            targetOrders: Number(targetOrdersRow?.targetValue ?? 0),
+            mtdRevenue,
+            mtdOrders,
+            achievementPct,
+          };
+        });
+
+        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        const daysRemaining = Math.max(0, daysInMonth - now.getDate());
+
+        res.json({
+          period: {
+            monthName: now.toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+            daysInMonth,
+            daysRemaining,
+          },
+          salespeople: matrix,
+        });
+      } catch (error) {
+        sendError(error, res, next);
+      }
+    })
+  );
+
+  router.post(
+    "/field/targets/matrix",
+    requirePermission(Permissions.ROUTE_MANAGE),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      const parsed = z
+        .object({
+          updates: z.array(
+            z.object({
+              salespersonId: z.string().uuid(),
+              dailyTarget: z.number().finite().nonnegative().optional(),
+              monthlyTarget: z.number().finite().nonnegative().optional(),
+              targetOrders: z.number().finite().nonnegative().optional(),
+            })
+          ),
+        })
+        .safeParse(req.body);
+
+      if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+
+      try {
+        const now = new Date();
+        const todayStart = startOfDay(now);
+        const todayEnd = endOfDay(now);
+        const monthStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+        const monthEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59));
+
+        for (const update of parsed.data.updates) {
+          if (update.dailyTarget !== undefined) {
+            await db.salesTarget.upsert({
+              where: {
+                salespersonId_scope_metric_periodStart_periodEnd: {
+                  salespersonId: update.salespersonId,
+                  scope: "PERSONAL",
+                  metric: "order_value",
+                  periodStart: todayStart,
+                  periodEnd: todayEnd,
+                },
+              },
+              create: {
+                salespersonId: update.salespersonId,
+                scope: "PERSONAL",
+                metric: "order_value",
+                periodStart: todayStart,
+                periodEnd: todayEnd,
+                targetValue: update.dailyTarget,
+                createdByStaffId: req.staffAuth!.staffId,
+              },
+              update: { targetValue: update.dailyTarget },
+            });
+          }
+
+          if (update.monthlyTarget !== undefined) {
+            await db.salesTarget.upsert({
+              where: {
+                salespersonId_scope_metric_periodStart_periodEnd: {
+                  salespersonId: update.salespersonId,
+                  scope: "PERSONAL",
+                  metric: "order_value",
+                  periodStart: monthStart,
+                  periodEnd: monthEnd,
+                },
+              },
+              create: {
+                salespersonId: update.salespersonId,
+                scope: "PERSONAL",
+                metric: "order_value",
+                periodStart: monthStart,
+                periodEnd: monthEnd,
+                targetValue: update.monthlyTarget,
+                createdByStaffId: req.staffAuth!.staffId,
+              },
+              update: { targetValue: update.monthlyTarget },
+            });
+          }
+
+          if (update.targetOrders !== undefined) {
+            await db.salesTarget.upsert({
+              where: {
+                salespersonId_scope_metric_periodStart_periodEnd: {
+                  salespersonId: update.salespersonId,
+                  scope: "PERSONAL",
+                  metric: "order_count",
+                  periodStart: monthStart,
+                  periodEnd: monthEnd,
+                },
+              },
+              create: {
+                salespersonId: update.salespersonId,
+                scope: "PERSONAL",
+                metric: "order_count",
+                periodStart: monthStart,
+                periodEnd: monthEnd,
+                targetValue: update.targetOrders,
+                createdByStaffId: req.staffAuth!.staffId,
+              },
+              update: { targetValue: update.targetOrders },
+            });
+          }
+        }
+
+        res.json({
+          success: true,
+          updatedCount: parsed.data.updates.length,
+          message: `Successfully saved targets for ${parsed.data.updates.length} salesperson(s)`,
+        });
+      } catch (error) {
+        sendError(error, res, next);
+      }
+    })
+  );
+
   return router;
 }

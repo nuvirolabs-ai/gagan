@@ -17,6 +17,11 @@ export default function Retailers() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [expandedExecutionId, setExpandedExecutionId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", phone: "", shopAddress: "", deliveryCity: "", tierId: "", creditLimit: "" });
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [salesReps, setSalesReps] = useState<{ salesRepId: string; name: string; phone: string; territory?: string }[]>([]);
+  const [targetRepId, setTargetRepId] = useState("");
+  const [showReassignModal, setShowReassignModal] = useState(false);
+  const [reassigning, setReassigning] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -24,12 +29,59 @@ export default function Retailers() {
       const [r, t] = await Promise.all([api.retailers(), api.tiers()]);
       setRetailers(r.retailers);
       setTiers(t.tiers);
+      try {
+        const s = await api.staff();
+        const reps = (s.staff ?? [])
+          .filter((member: any) => member.status === "active" && member.salesRepId)
+          .map((member: any) => ({
+            salesRepId: member.salesRepId,
+            name: member.name,
+            phone: member.phone,
+            territory: member.salesRep?.territory,
+          }));
+        setSalesReps(reps);
+        if (reps.length > 0 && !targetRepId) setTargetRepId(reps[0].salesRepId);
+      } catch {
+        // Staff listing optional or mocked
+      }
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load retailers");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleBulkReassign = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetRepId || selectedIds.length === 0) return;
+    setReassigning(true);
+    setError(null);
+    try {
+      const result = await api.bulkReassignRetailers(selectedIds, targetRepId);
+      setNotice(result.message ?? `Successfully reassigned ${selectedIds.length} retailers.`);
+      setSelectedIds([]);
+      setShowReassignModal(false);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to bulk reassign retailers");
+    } finally {
+      setReassigning(false);
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === retailers.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(retailers.map((r) => r.id));
+    }
+  };
+
+  const toggleSelectOne = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
   };
 
   useEffect(() => {
@@ -218,6 +270,33 @@ export default function Retailers() {
         </form>
       )}
 
+      {selectedIds.length > 0 && (
+        <div
+          className="card"
+          style={{
+            background: "var(--accent-subtle, #f0f7ff)",
+            border: "1px solid var(--accent, #0066cc)",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 14,
+            padding: "12px 18px",
+          }}
+        >
+          <div style={{ fontWeight: 600 }}>
+            ✓ {selectedIds.length} of {retailers.length} store(s) selected
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button type="button" className="secondary" onClick={() => setSelectedIds([])}>
+              Deselect All
+            </button>
+            <button type="button" onClick={() => setShowReassignModal(true)}>
+              Transfer to Salesperson…
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="card" style={{ padding: 0 }}>
         {loading ? (
           <div style={{ padding: 22 }} className="muted">
@@ -227,7 +306,16 @@ export default function Retailers() {
           <table>
             <thead>
               <tr>
+                <th style={{ width: 36, textAlign: "center" }}>
+                  <input
+                    type="checkbox"
+                    aria-label="Select all retailers"
+                    checked={retailers.length > 0 && selectedIds.length === retailers.length}
+                    onChange={toggleSelectAll}
+                  />
+                </th>
                 <th>Retailer</th>
+                <th>Assigned Rep</th>
                 <th>Commercial tier</th>
                 <th>Internal segment</th>
                 <th className="right">Credit limit</th>
@@ -240,11 +328,28 @@ export default function Retailers() {
               {retailers.map((r) => (
                 <Fragment key={r.id}>
                 <tr key={r.id}>
+                  <td style={{ width: 36, textAlign: "center" }}>
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${r.name}`}
+                      checked={selectedIds.includes(r.id)}
+                      onChange={() => toggleSelectOne(r.id)}
+                    />
+                  </td>
                   <td>
                     <div style={{ fontWeight: 600 }}>{r.name}</div>
                     <div className="muted small">{r.phone}</div>
                     <div className="muted small">Delivery: {r.deliveryCity ?? "Not configured"}</div>
                     {r.commercialStatus?.currentLabel ? <div className="muted small internal-status-inline">{r.commercialStatus.currentLabel}</div> : null}
+                  </td>
+                  <td>
+                    {r.salesRep ? (
+                      <div>
+                        <span className="pill status-confirmed">{r.salesRep.name}</span>
+                      </div>
+                    ) : (
+                      <span className="small muted">Unassigned</span>
+                    )}
                   </td>
                   <td>
                     <select
@@ -362,6 +467,65 @@ export default function Retailers() {
           </table>
         )}
       </div>
+
+      {showReassignModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+        >
+          <div className="card" style={{ width: 480, maxWidth: "90%", background: "#fff", padding: 24, boxShadow: "0 10px 25px rgba(0,0,0,0.2)" }}>
+            <h3 style={{ marginTop: 0 }}>Reassign Selected Retailers</h3>
+            <p className="page-sub">
+              You are reassigning <strong>{selectedIds.length}</strong> store(s) to a new salesperson beat / territory.
+            </p>
+            <form onSubmit={handleBulkReassign}>
+              <div className="field" style={{ marginBottom: 16 }}>
+                <label>Target Sales Representative</label>
+                <select
+                  value={targetRepId}
+                  onChange={(e) => setTargetRepId(e.target.value)}
+                  style={{ width: "100%", padding: "8px 10px" }}
+                  required
+                >
+                  <option value="" disabled>-- Select Salesperson --</option>
+                  {salesReps.map((rep) => (
+                    <option key={rep.salesRepId} value={rep.salesRepId}>
+                      {rep.name} ({rep.phone}){rep.territory ? ` — ${rep.territory}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={reassigning}
+                  onClick={() => setShowReassignModal(false)}
+                >
+                  Cancel
+                </button>
+                <button type="submit" disabled={reassigning || !targetRepId}>
+                  {reassigning ? "Reassigning…" : `Confirm Transfer (${selectedIds.length})`}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

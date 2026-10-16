@@ -9,6 +9,7 @@ export interface StaffManagement {
   listStaff(): Promise<unknown[]>;
   listRoles(): Promise<unknown[]>;
   createStaff(input: StaffCreateInput, actorStaffId: string): Promise<unknown>;
+  updateStaff?(id: string, input: StaffUpdateInput, actorStaffId: string): Promise<unknown>;
   setStatus(id: string, status: "active" | "suspended" | "revoked", actorStaffId: string): Promise<unknown>;
   assignRole(staffId: string, roleId: string, actorStaffId: string): Promise<void>;
   removeRole(staffId: string, roleId: string, actorStaffId: string): Promise<void>;
@@ -17,6 +18,16 @@ export interface StaffManagement {
   setupSellingLeader(input: SellingLeaderSetupInput, actorStaffId: string): Promise<unknown>;
   setupSalesperson(input: SalespersonSetupInput, actorStaffId: string): Promise<unknown>;
   setupManagerOnly(staffId: string, actorStaffId: string): Promise<unknown>;
+}
+
+export interface StaffUpdateInput {
+  name?: string;
+  phone?: string;
+  email?: string;
+  employeeRef?: string | null;
+  territory?: string | null;
+  managerId?: string | null;
+  status?: "active" | "suspended";
 }
 
 export interface SellingLeaderSetupInput {
@@ -161,6 +172,31 @@ export function createAdminStaffRouter(options: AdminStaffRouterOptions) {
     asyncRoute(async (req: StaffAuthedRequest, res) => {
       const result = await options.service.setupManagerOnly(req.params.id, req.staffAuth!.staffId);
       res.json(result);
+    })
+  );
+
+  router.patch(
+    "/staff/:id",
+    asyncRoute(async (req: StaffAuthedRequest, res) => {
+      const parsed = z
+        .object({
+          name: z.string().trim().min(2).max(100).optional(),
+          phone: z.string().trim().min(10).max(20).optional(),
+          email: z.string().trim().email().optional(),
+          employeeRef: z.string().trim().nullable().optional(),
+          territory: z.string().trim().nullable().optional(),
+          managerId: z.string().uuid().nullable().optional(),
+          status: z.enum(["active", "suspended"]).optional(),
+        })
+        .safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+      if (!options.service.updateStaff) return res.status(501).json({ error: "not_implemented" });
+      const staff = await options.service.updateStaff(
+        req.params.id,
+        parsed.data,
+        req.staffAuth!.staffId
+      );
+      res.json({ staff });
     })
   );
 

@@ -276,4 +276,34 @@ router.post("/payments", async (req, res) => {
   }
 });
 
+const bulkReassignSchema = z.object({
+  retailerIds: z.array(z.string().min(1)).min(1),
+  salesRepId: z.string().min(1),
+});
+
+router.post("/retailers/bulk-reassign", async (req: AdminRequest, res) => {
+  const parsed = bulkReassignSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+  }
+
+  const targetRep = await prisma.salesRep.findUnique({
+    where: { id: parsed.data.salesRepId },
+  });
+  if (!targetRep) {
+    return res.status(404).json({ error: "Target salesperson does not exist" });
+  }
+
+  const result = await prisma.retailer.updateMany({
+    where: { id: { in: parsed.data.retailerIds } },
+    data: { salesRepId: parsed.data.salesRepId },
+  });
+
+  res.json({
+    updatedCount: result.count,
+    targetSalesRep: { id: targetRep.id, name: targetRep.name },
+    message: `Successfully reassigned ${result.count} retailer(s) to ${targetRep.name}`,
+  });
+});
+
 export default router;

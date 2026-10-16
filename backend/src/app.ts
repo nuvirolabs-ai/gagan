@@ -11,6 +11,8 @@ import adminWarehouseOrderRoutes from "./routes/admin/warehouseOrders";
 import adminRetailerRoutes from "./routes/admin/retailers";
 import adminSapRoutes from "./routes/admin/sap";
 import adminImportRoutes from "./routes/admin/imports";
+import adminWarehouseRoutes from "./routes/admin/warehouses";
+import adminAppConfigRoutes from "./routes/admin/appConfig";
 import { createAdminStaffRouter } from "./modules/identity/adminStaffRoutes";
 import { StaffManagementService } from "./modules/identity/staffManagementService";
 import { requireAdmin, requireAdminIdentity } from "./lib/adminAuth";
@@ -251,6 +253,8 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/admin", adminCatalogRoutes);
   app.use("/admin", adminSapRoutes);
   app.use("/admin", adminImportRoutes);
+  app.use("/admin", adminWarehouseRoutes);
+  app.use("/admin", adminAppConfigRoutes);
   app.use(
     "/admin",
     createAdminStaffRouter({

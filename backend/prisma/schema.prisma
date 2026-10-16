@@ -1116,6 +1116,36 @@ model AppConfig {
   locationPingIntervalSeconds   Int               @default(300)
 }
 
+model Warehouse {
+  id           String        @id @default(uuid())
+  code         String        @unique
+  name         String
+  address      String?
+  city         String        @default("Indore")
+  state        String        @default("Madhya Pradesh")
+  pincode      String?
+  contactName  String?
+  contactPhone String?
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  cityRoutings CityRouting[]
+}
+
+model CityRouting {
+  id                    String    @id @default(uuid())
+  city                  String    @unique
+  state                 String    @default("Madhya Pradesh")
+  pincodes              String?
+  primaryWarehouseCode  String
+  primaryWarehouse      Warehouse @relation(fields: [primaryWarehouseCode], references: [code], onDelete: Cascade)
+  fallbackWarehouseCode String?
+  slaHours              Int       @default(24)
+  isActive              Boolean   @default(true)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
 model Product {
   catalogKey         String?             @unique
   internalCode       String?             @unique
@@ -2460,6 +2490,11 @@ model SalesTarget {
 
   @@unique([salespersonId, scope, metric, periodStart, periodEnd])
   @@index([periodStart, periodEnd])
+}
+
+model TargetWriteGate {
+  name   String  @id
+  paused Boolean @default(false)
 }
 
 // ---------------------------------------------------------------------------

@@ -726,16 +726,20 @@ model Role {
   id          String           @id @default(uuid())
   name        String           @unique
   description String?
+  color       String?          @default("#1e40af")
+  isSystem    Boolean          @default(false)
   staff       StaffRole[]
   permissions RolePermission[]
   delegations RoleDelegation[]
   createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @default(now()) @updatedAt
 }
 
 model Permission {
   id          String           @id @default(uuid())
   name        String           @unique
   description String?
+  category    String?
   roles       RolePermission[]
   createdAt   DateTime         @default(now())
 }
@@ -1029,6 +1033,47 @@ model Notification {
   body       String
   read       Boolean  @default(false)
   createdAt  DateTime @default(now())
+}
+
+enum BroadcastPriority {
+  normal
+  urgent
+}
+
+enum BroadcastAudience {
+  all_users
+  all_salespeople
+  all_retailers
+  city
+}
+
+enum BroadcastStatus {
+  draft
+  scheduled
+  sent
+  cancelled
+}
+
+model BroadcastMessage {
+  id             String            @id @default(uuid())
+  title          String
+  body           String
+  priority       BroadcastPriority @default(normal)
+  audience       BroadcastAudience @default(all_retailers)
+  targetCity     String?
+  channels       String[]          @default(["in_app"])
+  status         BroadcastStatus   @default(sent)
+  scheduledAt    DateTime?
+  sentAt         DateTime?
+  recipientCount Int               @default(0)
+  authorName     String            @default("Operations Lead")
+  authorStaffId  String?
+  metadata       Json?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([status, createdAt])
+  @@index([audience, createdAt])
 }
 
 // Read-only scheme display for v1 — the spec defers a real promotions engine.

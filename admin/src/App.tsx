@@ -33,6 +33,8 @@ import RetailerApprovals from "./pages/RetailerApprovals";
 import ImportCenter from "./pages/ImportCenter";
 import MarketSurveys from "./pages/MarketSurveys";
 import Settings from "./pages/Settings";
+import Broadcasts from "./pages/Broadcasts";
+import RolesPermissions from "./pages/RolesPermissions";
 import CommandPalette from "./components/CommandPalette";
 import { canAccess, permissionsFor } from "./adminSearch";
 import { ADMIN_NAV_GROUPS, type AdminDestination } from "./navigation";
@@ -122,6 +124,8 @@ function Shell() {
           <Route path="/" element={<Guard anyOf={permissionsFor("work")}><Dashboard /></Guard>} />
           <Route path="/warehouses" element={<Guard anyOf={permissionsFor("warehouses")}><Warehouses /></Guard>} />
           <Route path="/settings" element={<Guard anyOf={permissionsFor("settings")}><Settings /></Guard>} />
+          <Route path="/broadcasts" element={<Guard anyOf={permissionsFor("broadcasts")}><Broadcasts /></Guard>} />
+          <Route path="/roles" element={<Guard anyOf={permissionsFor("roles")}><RolesPermissions /></Guard>} />
           <Route path="/sap" element={<Guard anyOf={permissionsFor("sap")}><SapSync /></Guard>} />
           <Route path="/imports" element={<Guard anyOf={permissionsFor("imports")}><ImportCenter /></Guard>} />
           <Route path="/approvals" element={<Guard anyOf={permissionsFor("approvals")}><Approvals /></Guard>} />

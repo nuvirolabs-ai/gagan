@@ -665,6 +665,30 @@ export const api = {
     request(`/admin/field-approvals/leaves${status ? `?status=${encodeURIComponent(status)}` : ""}`),
   decidePortalLeave: (id: string, decision: "approved" | "rejected", note?: string) =>
     post(`/admin/field-approvals/leaves/${id}/decision`, { decision, note }),
+
+  // Gap 17: Notification & Broadcast Center
+  broadcasts: (params?: { search?: string; status?: string; audience?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.search) qs.set("search", params.search);
+    if (params?.status) qs.set("status", params.status);
+    if (params?.audience) qs.set("audience", params.audience);
+    const queryString = qs.toString();
+    return request(`/admin/broadcasts${queryString ? `?${queryString}` : ""}`);
+  },
+  createBroadcast: (body: unknown) => post("/admin/broadcasts", body),
+  cancelBroadcast: (id: string) => patch(`/admin/broadcasts/${id}/cancel`, {}),
+  resendBroadcast: (id: string) => post(`/admin/broadcasts/${id}/resend`, {}),
+  deleteBroadcast: (id: string) => remove(`/admin/broadcasts/${id}`),
+
+  // Gap 18: Role-Based Access Control (RBAC) & Permissions Editor
+  rbacRoles: () => request("/admin/rbac/roles"),
+  rbacPermissions: () => request("/admin/rbac/permissions"),
+  createRbacRole: (body: unknown) => post("/admin/rbac/roles", body),
+  updateRbacRole: (id: string, body: unknown) => put(`/admin/rbac/roles/${id}`, body),
+  updateRbacRolePermissions: (id: string, permissionIds: string[]) =>
+    put(`/admin/rbac/roles/${id}/permissions`, { permissionIds }),
+  deleteRbacRole: (id: string) => remove(`/admin/rbac/roles/${id}`),
+  rbacAuditTrail: () => request("/admin/rbac/audit-trail"),
 };
 
 export const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;

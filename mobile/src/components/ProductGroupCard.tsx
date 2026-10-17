@@ -28,6 +28,7 @@ export interface Sku {
   commercialRate?: number | null;
   rateBasis?: string;
   rateLabel?: string | null;
+  gstPercent?: number | null;
   catalogStatus?: string;
   orderable?: boolean;
   gstPending?: boolean;
@@ -123,7 +124,7 @@ export default function ProductGroupCard({
             </Text>
             {priceDisplay.perKg ? <Text style={[styles.rateLabel, row && styles.rateLabelRow]}>{priceDisplay.perKg}</Text> : null}
             {priceDisplay.caseEquivalent ? <Text style={[styles.rateLabel, row && styles.rateLabelRow]}>{priceDisplay.caseEquivalent}</Text> : null}
-            {selected?.rateBasis?.toLowerCase() === "quintal" || selected?.rateLabel ? <Text style={[styles.rateLabel, row && styles.rateLabelRow]}>Excluding GST</Text> : null}
+            {priceDisplay.gstLabel ? <Text style={[styles.rateLabel, row && styles.rateLabelRow]}>{priceDisplay.gstLabel}</Text> : null}
             {selected?.gstPending || selected?.taxStatus === "PENDING" ? <Text style={styles.outOfStock}>GST pending — final tax will be applied before invoicing.</Text> : null}
             {!orderable && selected ? <Text style={styles.outOfStock}>{selected.orderingReason ?? "Out of stock"}</Text> : null}
           </View>

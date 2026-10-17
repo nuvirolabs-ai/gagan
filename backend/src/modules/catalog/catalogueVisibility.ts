@@ -34,7 +34,8 @@ export function withInventoryOrderability<T extends { orderable: boolean; orderi
 
 /** Commercial fields safe for retailer and salesperson apps. Purchase cost stays in Admin. */
 export function retailerCommercialFields(variant: { gstPercent?: unknown; sellingEntity?: string | null }) {
-  return { sellingEntity: variant.sellingEntity ?? null, gstPercent: variant.gstPercent ?? null };
+  const gst = variant.gstPercent == null ? null : Number(variant.gstPercent);
+  return { sellingEntity: variant.sellingEntity ?? null, gstPercent: gst != null && Number.isFinite(gst) ? gst : null };
 }
 
 export function approvedCatalogueImage(variant: { catalogImageStatus?: string | null; imageUrl?: string | null }) {

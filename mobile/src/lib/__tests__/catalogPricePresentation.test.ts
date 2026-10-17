@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { catalogPricePresentation } from "../catalogPricePresentation";
 
 describe("catalog price presentation", () => {
-  it("shows a quintal rate and display-only kg and master-pack equivalents", () => {
+  it("shows a quintal rate and display-only kg and master-pack equivalents when GST is pending", () => {
     expect(catalogPricePresentation({
       price: 1620,
       commercialRate: 5400,
@@ -12,12 +12,13 @@ describe("catalog price presentation", () => {
       primary: "₹5,400 / quintal",
       perKg: "₹54 / kg",
       caseEquivalent: "₹1,620 / 30 KG case",
+      gstLabel: "Excluding GST",
     });
   });
 
   it("does not invent a pack equivalent when weight is missing", () => {
     expect(catalogPricePresentation({ price: 5400, commercialRate: 5400, rateBasis: "quintal" }))
-      .toEqual({ primary: "₹5,400 / quintal", perKg: "₹54 / kg", caseEquivalent: null });
+      .toEqual({ primary: "₹5,400 / quintal", perKg: "₹54 / kg", caseEquivalent: null, gstLabel: "Excluding GST" });
   });
 
   it.each([
@@ -27,7 +28,7 @@ describe("catalog price presentation", () => {
     ["Gagan Classic 1 kg × 20", 9950, 20, "₹99.5 / kg", "₹1,990 / 20 KG case"],
     ["Gagan Classic 5 kg × 4", 9950, 20, "₹99.5 / kg", "₹1,990 / 20 KG case"],
     ["Gagan Classic 10 kg × 4", 9750, 40, "₹97.5 / kg", "₹3,900 / 40 KG case"],
-  ])("presents approved six-variant pricing without changing its quintal rate: %s", (_name, rate, weight, perKg, pack) => {
+  ])("presents approved six-variant pricing without changing its quintal rate when GST is pending: %s", (_name, rate, weight, perKg, pack) => {
     expect(catalogPricePresentation({
       price: Math.round(Number(rate) * Number(weight)) / 100,
       commercialRate: Number(rate),
@@ -37,11 +38,55 @@ describe("catalog price presentation", () => {
       primary: `₹${Number(rate).toLocaleString("en-IN")} / quintal`,
       perKg,
       caseEquivalent: pack,
+      gstLabel: "Excluding GST",
     });
   });
 
-  it("preserves legacy case-price presentation", () => {
+  it("calculates and presents price including GST when GST is registered", () => {
+    expect(catalogPricePresentation({
+      price: 1990,
+      commercialRate: 9950,
+      rateBasis: "quintal",
+      caseWeightKg: 20,
+      gstPercent: 5,
+    })).toEqual({
+      primary: "₹10,447.5 / quintal",
+      perKg: "₹104.48 / kg",
+      caseEquivalent: "₹2,089.5 / 20 KG case",
+      gstLabel: "Including 5% GST",
+    });
+  });
+
+  it("presents 0% GST (Nil) when GST is zero", () => {
+    expect(catalogPricePresentation({
+      price: 1990,
+      commercialRate: 9950,
+      rateBasis: "quintal",
+      caseWeightKg: 20,
+      gstPercent: 0,
+    })).toEqual({
+      primary: "₹9,950 / quintal",
+      perKg: "₹99.5 / kg",
+      caseEquivalent: "₹1,990 / 20 KG case",
+      gstLabel: "Including 0% GST (Nil)",
+    });
+  });
+
+  it("presents case-price including GST when rate basis is case", () => {
+    expect(catalogPricePresentation({
+      price: 3000,
+      caseWeightKg: 30,
+      gstPercent: 5,
+    })).toEqual({
+      primary: "₹3,150 / case",
+      perKg: "₹105 / kg",
+      caseEquivalent: null,
+      gstLabel: "Including 5% GST",
+    });
+  });
+
+  it("preserves legacy case-price presentation when GST is unconfigured", () => {
     expect(catalogPricePresentation({ price: 2500 }))
-      .toEqual({ primary: "₹2,500 / case", perKg: null, caseEquivalent: null });
+      .toEqual({ primary: "₹2,500 / case", perKg: null, caseEquivalent: null, gstLabel: "Excluding GST" });
   });
 });

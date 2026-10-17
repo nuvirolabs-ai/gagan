@@ -91,7 +91,15 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
       casePrice: casePrice(overrideByVariant.get(v.id) ?? priceByVariant.get(v.id), overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case", Number(v.unitWeightKg) * v.unitsPerCase),
       commercialRate: overrideByVariant.get(v.id) ?? priceByVariant.get(v.id) ?? null,
       rateBasis: overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case",
-      rateLabel: (overrideByVariant.get(v.id) ?? priceByVariant.get(v.id)) != null ? `${(overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case") === "quintal" ? "per quintal" : "per case"} · Excluding GST` : null,
+      gstPercent: v.gstPercent == null ? null : Number(v.gstPercent),
+      rateLabel: (() => {
+        const rateVal = overrideByVariant.get(v.id) ?? priceByVariant.get(v.id);
+        if (rateVal == null) return null;
+        const basis = overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case";
+        const gst = v.gstPercent == null ? null : Number(v.gstPercent);
+        const gstLabel = gst != null && Number.isFinite(gst) ? (gst === 0 ? "Including 0% GST (Nil)" : `Including ${gst}% GST`) : "Excluding GST";
+        return `${basis === "quintal" ? "per quintal" : "per case"} · ${gstLabel}`;
+      })(),
       catalogStatus: v.catalogStatus,
       ...withInventoryOrderability(catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed), stockFor(product, v)),
       ...catalogueImageState(v),
@@ -119,7 +127,15 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
         price: casePrice(overrideByVariant.get(v.id) ?? priceByVariant.get(v.id), overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case", Number(v.unitWeightKg) * v.unitsPerCase),
         commercialRate: Number(overrideByVariant.get(v.id) ?? priceByVariant.get(v.id) ?? 0) || null,
         rateBasis: overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case",
-        rateLabel: (overrideByVariant.get(v.id) ?? priceByVariant.get(v.id)) != null ? `${(overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case") === "quintal" ? "per quintal" : "per case"} · Excluding GST` : null,
+        gstPercent: v.gstPercent == null ? null : Number(v.gstPercent),
+        rateLabel: (() => {
+          const rateVal = overrideByVariant.get(v.id) ?? priceByVariant.get(v.id);
+          if (rateVal == null) return null;
+          const basis = overrideBasisByVariant.get(v.id) ?? priceBasisByVariant.get(v.id) ?? "case";
+          const gst = v.gstPercent == null ? null : Number(v.gstPercent);
+          const gstLabel = gst != null && Number.isFinite(gst) ? (gst === 0 ? "Including 0% GST (Nil)" : `Including ${gst}% GST`) : "Excluding GST";
+          return `${basis === "quintal" ? "per quintal" : "per case"} · ${gstLabel}`;
+        })(),
         catalogStatus: v.catalogStatus,
         ...withInventoryOrderability(catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed), stockFor(product, v)),
         ...catalogueImageState(v),

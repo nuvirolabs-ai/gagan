@@ -179,7 +179,7 @@ export default function ProductDetailScreen({ route, navigation }: any) {
             </View>
           )}
           {priceDisplay.caseEquivalent ? <Text style={styles.rateLabel}>{priceDisplay.caseEquivalent}</Text> : null}
-          {selected?.rateBasis?.toLowerCase() === "quintal" || selected?.rateLabel ? <Text style={styles.rateLabel}>Excluding GST</Text> : null}
+          {priceDisplay.gstLabel ? <Text style={styles.rateLabel}>{priceDisplay.gstLabel}</Text> : null}
           {selected?.gstPending || selected?.taxStatus === "PENDING" ? <Text style={styles.pendingOrder}>GST pending — final tax will be applied before invoicing.</Text> : null}
           {selected?.orderable === false ? <Text style={styles.pendingOrder}>{selected.orderingReason ?? "Ordering setup pending"}</Text> : null}
           {selected?.isOverride ? (

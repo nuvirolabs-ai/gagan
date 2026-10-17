@@ -4,33 +4,59 @@ type PriceInput = {
   rateBasis?: string;
   caseWeightKg?: number | null;
   pricePerKg?: number | null;
+  gstPercent?: number | null;
 };
 
 const money = (value: number) => `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 
 /** Display-only derived amounts. The stored/backend rate and cart price are unchanged. */
 export function catalogPricePresentation(sku: PriceInput | null | undefined) {
-  if (!sku) return { primary: "Price on request", perKg: null, caseEquivalent: null };
+  if (!sku) return { primary: "Price on request", perKg: null, caseEquivalent: null, gstLabel: null };
   const weight = sku.caseWeightKg;
+  const gst = sku.gstPercent == null || !Number.isFinite(Number(sku.gstPercent)) ? null : Number(sku.gstPercent);
+  const gstMultiplier = gst != null && gst > 0 ? 1 + gst / 100 : 1;
+  const gstLabel = gst != null
+    ? (gst === 0 ? "Including 0% GST (Nil)" : `Including ${gst}% GST`)
+    : "Excluding GST";
+
   if (sku.rateBasis?.toLowerCase() === "quintal" && sku.commercialRate != null) {
     const rate = Number(sku.commercialRate);
-    if (!Number.isFinite(rate)) return { primary: "Price on request", perKg: null, caseEquivalent: null };
+    if (!Number.isFinite(rate)) return { primary: "Price on request", perKg: null, caseEquivalent: null, gstLabel: null };
+    const effectiveRate = Math.round(rate * gstMultiplier * 100) / 100;
+    const effectivePerKg = Math.round((effectiveRate / 100) * 100) / 100;
+    const effectiveCase = weight != null && Number.isFinite(Number(weight)) && Number(weight) > 0
+      ? Math.round(effectiveRate * Number(weight)) / 100
+      : null;
     return {
-      primary: `${money(rate)} / quintal`,
-      perKg: `${money(rate / 100)} / kg`,
-      caseEquivalent: weight != null && Number.isFinite(Number(weight)) && Number(weight) > 0
-        ? `${money(Math.round(rate * Number(weight)) / 100)} / ${weight} KG case`
+      primary: `${money(effectiveRate)} / quintal`,
+      perKg: `${money(effectivePerKg)} / kg`,
+      caseEquivalent: effectiveCase != null
+        ? `${money(effectiveCase)} / ${weight} KG case`
         : null,
+      gstLabel,
     };
   }
+
+  const rawPrice = sku.price == null ? null : Number(sku.price);
+  if (rawPrice == null || !Number.isFinite(rawPrice)) {
+    return { primary: "Price on request", perKg: null, caseEquivalent: null, gstLabel: null };
+  }
+  const effectivePrice = Math.round(rawPrice * gstMultiplier * 100) / 100;
   const existingPerKg = sku.pricePerKg == null ? null : Number(sku.pricePerKg);
-  const weightPerKg = sku.price != null && weight != null && Number(weight) > 0
-    ? Number(sku.price) / Number(weight)
+  const weightPerKg = weight != null && Number(weight) > 0
+    ? effectivePrice / Number(weight)
     : null;
-  const perKg = existingPerKg != null && Number.isFinite(existingPerKg) ? existingPerKg : weightPerKg;
+  const rawPerKg = weightPerKg != null && Number.isFinite(weightPerKg)
+    ? weightPerKg
+    : existingPerKg != null && Number.isFinite(existingPerKg)
+    ? existingPerKg * gstMultiplier
+    : null;
+  const perKg = rawPerKg != null && Number.isFinite(rawPerKg) ? Math.round(rawPerKg * 100) / 100 : null;
+
   return {
-    primary: sku.price == null ? "Price on request" : `${money(Number(sku.price))} / case`,
+    primary: `${money(effectivePrice)} / case`,
     perKg: perKg == null || !Number.isFinite(perKg) ? null : `${money(perKg)} / kg`,
     caseEquivalent: null,
+    gstLabel,
   };
 }

@@ -16,9 +16,9 @@ describe("product detail guidance", () => {
     expect(configuredPositiveAmount("2500")).toBe(2500);
   });
 
-  it("renders the GST-exclusion note once", () => {
+  it("renders the GST label once", () => {
     const source = readFileSync(fileURLToPath(new URL("../../screens/ProductDetailScreen.tsx", import.meta.url)), "utf8");
-    expect(source.match(/<Text style=\{styles\.rateLabel\}>Excluding GST<\/Text>/g)).toHaveLength(1);
+    expect(source.match(/\{priceDisplay\.gstLabel \? <Text style=\{styles\.rateLabel\}>\{priceDisplay\.gstLabel\}<\/Text> : null\}/g)).toHaveLength(1);
   });
 
   it("does not promise included delivery before the manager quote", () => {

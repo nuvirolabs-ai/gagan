@@ -48,7 +48,12 @@ function shapeVariant(v: any, resolve: ReturnType<typeof priceResolver>, invento
     catalogStatus: v.catalogStatus,
     ...withInventoryOrderability(catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed), availability),
     ...catalogueImageState(v),
-    rateLabel: rate !== null ? `${rateBasis === "quintal" ? "per quintal" : "per case"} · Excluding GST` : null,
+    rateLabel: (() => {
+      if (rate === null) return null;
+      const gst = v.gstPercent == null ? null : Number(v.gstPercent);
+      const gstLabel = gst != null && Number.isFinite(gst) ? (gst === 0 ? "Including 0% GST (Nil)" : `Including ${gst}% GST`) : "Excluding GST";
+      return `${rateBasis === "quintal" ? "per quintal" : "per case"} · ${gstLabel}`;
+    })(),
     pricePerKg: price != null && caseWeightKg > 0 ? Math.round((price / caseWeightKg) * 100) / 100 : null,
     availability,
   };

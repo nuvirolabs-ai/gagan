@@ -211,7 +211,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
                     </View>
                     {priceDisplay.perKg ? <Text style={styles.perKg}>{priceDisplay.perKg}</Text> : null}
                     {priceDisplay.caseEquivalent ? <Text style={styles.rateLabel}>{priceDisplay.caseEquivalent}</Text> : null}
-                    {variant.rateBasis?.toLowerCase() === "quintal" || variant.rateLabel ? <Text style={styles.rateLabel}>Excluding GST</Text> : null}
+                    {priceDisplay.gstLabel ? <Text style={styles.rateLabel}>{priceDisplay.gstLabel}</Text> : null}
                   </View>}
                   {variant.gstPending || variant.taxStatus === "PENDING" ? <Text style={styles.pendingOrder}>GST pending — final tax will be applied before invoicing.</Text> : null}
                   {variant.orderable === false ? <Text style={styles.pendingOrder}>{variant.orderingReason ?? "Ordering setup pending"}</Text> : null}

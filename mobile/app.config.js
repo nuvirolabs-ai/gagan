@@ -1,7 +1,7 @@
 // Local device acceptance must not replace a user's installed staging app/data.
 module.exports = ({ config }) => {
   if (process.env.GAGAN_HOSTED_REVIEW === "1") {
-    if (process.env.EXPO_PUBLIC_API_URL !== "https://gagan-srat.onrender.com") {
+    if (!["https://gagan-srat.onrender.com", "https://gagan-client-uat-api.onrender.com"].includes(process.env.EXPO_PUBLIC_API_URL)) {
       throw new Error("Hosted review profile requires the client-owned staging API");
     }
     const reviewVersionCode = Number(process.env.GAGAN_REVIEW_VERSION_CODE);

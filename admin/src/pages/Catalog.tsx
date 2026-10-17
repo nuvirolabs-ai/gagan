@@ -12,7 +12,7 @@ interface RowEditState {
   routingClass: string;
   price: string;
   rateBasis: "case" | "quintal";
-  ratePerKg: number;
+  ratePerKg: string;
 }
 
 function getCaseWeightKg(packSize: string, unit: string, unitsPerCase: string, measuredWeightKg?: number): number {
@@ -391,13 +391,13 @@ export default function Catalog() {
     const currentBasis: "case" | "quintal" = (primaryPrice?.rateBasis ?? v.listRateBasis ?? "case") === "quintal" ? "quintal" : "case";
 
     const initialWeight = getCaseWeightKg(packSize, unit, unitsPerCase, v.unitWeightKg);
-    let initialRatePerKg = 0;
+    let initialRatePerKg = "";
     if (currentPrice !== "" && Number(currentPrice) > 0) {
       const numPrice = Number(currentPrice);
       if (currentBasis === "quintal") {
-        initialRatePerKg = numPrice / 100;
+        initialRatePerKg = String(Math.round((numPrice / 100) * 100) / 100);
       } else if (initialWeight > 0) {
-        initialRatePerKg = Math.round((numPrice / initialWeight) * 10000) / 10000;
+        initialRatePerKg = String(Math.round((numPrice / initialWeight) * 100) / 100);
       }
     }
 
@@ -424,13 +424,14 @@ export default function Catalog() {
       const newWeight = getCaseWeightKg(newPackSize, newUnit, newUnitsPerCase);
 
       let newPrice = curr.price;
+      const numRate = Number(curr.ratePerKg);
       // If we have a ratePerKg and newWeight > 0, simultaneously update the case price!
-      if (curr.ratePerKg > 0 && newWeight > 0) {
+      if (Number.isFinite(numRate) && numRate > 0 && newWeight > 0) {
         if (curr.rateBasis === "case") {
-          const calcPrice = Math.round(curr.ratePerKg * newWeight * 100) / 100;
+          const calcPrice = Math.round(numRate * newWeight * 100) / 100;
           newPrice = String(calcPrice);
         } else if (curr.rateBasis === "quintal") {
-          newPrice = String(Math.round(curr.ratePerKg * 100 * 100) / 100);
+          newPrice = String(Math.round(numRate * 100 * 100) / 100);
         }
       }
 
@@ -448,11 +449,11 @@ export default function Catalog() {
       const numPrice = Number(newPriceStr);
       let newRatePerKg = curr.ratePerKg;
       const currentWeight = getCaseWeightKg(curr.packSize, curr.unit, curr.unitsPerCase);
-      if (Number.isFinite(numPrice) && numPrice > 0) {
+      if (newPriceStr.trim() !== "" && Number.isFinite(numPrice) && numPrice >= 0) {
         if (curr.rateBasis === "quintal") {
-          newRatePerKg = Math.round((numPrice / 100) * 10000) / 10000;
+          newRatePerKg = String(Math.round((numPrice / 100) * 100) / 100);
         } else if (currentWeight > 0) {
-          newRatePerKg = Math.round((numPrice / currentWeight) * 10000) / 10000;
+          newRatePerKg = String(Math.round((numPrice / currentWeight) * 100) / 100);
         }
       }
       return {
@@ -469,7 +470,7 @@ export default function Catalog() {
       const numRate = Number(newRateStr);
       const currentWeight = getCaseWeightKg(curr.packSize, curr.unit, curr.unitsPerCase);
       let newPrice = curr.price;
-      if (Number.isFinite(numRate) && numRate > 0) {
+      if (newRateStr.trim() !== "" && Number.isFinite(numRate) && numRate >= 0) {
         if (curr.rateBasis === "quintal") {
           newPrice = String(Math.round(numRate * 100 * 100) / 100);
         } else if (currentWeight > 0) {
@@ -479,7 +480,7 @@ export default function Catalog() {
       return {
         ...curr,
         price: newPrice,
-        ratePerKg: Number.isFinite(numRate) && numRate >= 0 ? numRate : curr.ratePerKg,
+        ratePerKg: newRateStr,
       };
     });
   };
@@ -488,12 +489,25 @@ export default function Catalog() {
     setRowEdit((curr) => {
       if (!curr) return null;
       const currentWeight = getCaseWeightKg(curr.packSize, curr.unit, curr.unitsPerCase);
+      const numRate = Number(curr.ratePerKg);
       let newPrice = curr.price;
-      if (curr.ratePerKg > 0) {
+      if (Number.isFinite(numRate) && numRate > 0) {
         if (newBasis === "quintal") {
-          newPrice = String(Math.round(curr.ratePerKg * 100 * 100) / 100);
+          newPrice = String(Math.round(numRate * 100 * 100) / 100);
         } else if (currentWeight > 0) {
-          newPrice = String(Math.round(curr.ratePerKg * currentWeight * 100) / 100);
+          newPrice = String(Math.round(numRate * currentWeight * 100) / 100);
+        }
+      } else {
+        const numPrice = Number(curr.price);
+        if (Number.isFinite(numPrice) && numPrice > 0) {
+          const derivedRate = curr.rateBasis === "quintal" ? numPrice / 100 : (currentWeight > 0 ? numPrice / currentWeight : 0);
+          if (derivedRate > 0) {
+            if (newBasis === "quintal") {
+              newPrice = String(Math.round(derivedRate * 100 * 100) / 100);
+            } else if (currentWeight > 0) {
+              newPrice = String(Math.round(derivedRate * currentWeight * 100) / 100);
+            }
+          }
         }
       }
       return {
@@ -921,7 +935,7 @@ export default function Catalog() {
                                 aria-label="Rate per kg"
                                 type="text"
                                 inputMode="decimal"
-                                value={activeEdit.ratePerKg > 0 ? Math.round(activeEdit.ratePerKg * 100) / 100 : ""}
+                                value={activeEdit.ratePerKg}
                                 onChange={(e) => handleRatePerKgChange(e.target.value)}
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter") saveRow(v.id);

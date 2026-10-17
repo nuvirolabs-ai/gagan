@@ -486,7 +486,20 @@ export default function CatalogueSkuForm({
                 <select
                   aria-label="Rate basis"
                   value={rateBasis}
-                  onChange={(event) => setRateBasis(event.target.value as "case" | "quintal")}
+                  onChange={(event) => {
+                    const newBasis = event.target.value as "case" | "quintal";
+                    const num = Number(sellingPrice);
+                    if (Number.isFinite(num) && num > 0 && derivedCase && derivedCase > 0) {
+                      if (rateBasis === "case" && newBasis === "quintal") {
+                        const perKg = num / derivedCase;
+                        setSellingPrice(String(Math.round(perKg * 100 * 100) / 100));
+                      } else if (rateBasis === "quintal" && newBasis === "case") {
+                        const perKg = num / 100;
+                        setSellingPrice(String(Math.round(perKg * derivedCase * 100) / 100));
+                      }
+                    }
+                    setRateBasis(newBasis);
+                  }}
                   style={{ padding: "8px 10px", borderRadius: 6, width: 110 }}
                 >
                   <option value="case">/ case</option>

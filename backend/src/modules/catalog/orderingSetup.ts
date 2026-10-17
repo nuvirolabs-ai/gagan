@@ -117,10 +117,12 @@ export async function enableOrdering(variantId: string, revision: string, input:
     if (blockers.length) throw new OrderingSetupError("setup_blocked", 409, blockers);
     const before = state.effective;
     const isAlreadyActive = state.variant.catalogStatus === "active";
+    const firstPrice = values.prices[0];
     await tx.variant.update({ where: { id: variantId }, data: {
       catalogStatus: "active", sellingEntity: values.sellingEntity, gstPercent: values.gstPercent,
       gstPendingOrderAllowed: values.gstPercent === null && state.variant.gstPendingOrderAllowed,
       routingClass: values.routingClass, routingBagEquivalent: values.routingBagEquivalent,
+      ...(firstPrice ? { listRate: firstPrice.rate, listRateBasis: firstPrice.rateBasis } : {}),
     } });
     if (state.variant.product.catalogStatus === "pending_review" || state.variant.product.catalogStatus === "published") await tx.product.update({ where: { id: state.variant.productId }, data: { catalogStatus: "active" } });
     for (const price of values.prices) await tx.priceList.upsert({ where: { tierId_variantId: { tierId: price.tierId, variantId } }, create: { tierId: price.tierId, variantId, productId: state.variant.productId, price: price.rate, rateBasis: price.rateBasis }, update: { price: price.rate, rateBasis: price.rateBasis } });

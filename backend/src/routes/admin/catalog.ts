@@ -178,12 +178,15 @@ router.get("/products", async (req, res) => {
         listRateBasis: v.listRateBasis,
         routingClass: v.routingClass,
         routingBagEquivalent: v.routingBagEquivalent == null ? null : Number(v.routingBagEquivalent),
-        prices: tiers.map((t) => ({
-          tierId: t.id,
-          tierName: t.name,
-          price: prices.get(priceKey(t.id, v.id)) ?? null,
-          rateBasis:priceList.find(p=>p.tierId===t.id && p.variantId===v.id)?.rateBasis ?? "case",
-        })),
+        prices: tiers.map((t) => {
+          const pl = priceList.find((p) => p.tierId === t.id && p.variantId === v.id);
+          return {
+            tierId: t.id,
+            tierName: t.name,
+            price: prices.get(priceKey(t.id, v.id)) ?? (v.listRate != null ? Number(v.listRate) : null),
+            rateBasis: pl?.rateBasis ?? v.listRateBasis ?? "case",
+          };
+        }),
       })),
     })),
   });
@@ -193,6 +196,7 @@ const priceSchema = z.object({
   tierId: z.string(),
   variantId: z.string(),
   price: z.number().min(0),
+  rateBasis: z.enum(["case", "quintal"]).optional(),
 });
 
 router.post("/price-list", async (req, res) => {
@@ -202,32 +206,39 @@ router.post("/price-list", async (req, res) => {
   const variant = await prisma.variant.findUnique({ where: { id: parsed.data.variantId } });
   if (!variant) return res.status(404).json({ error: "Variant not found" });
 
+  const targetRateBasis = parsed.data.rateBasis ?? variant.listRateBasis ?? "case";
+
   // Update all tiers with this price so there is only one consistent price across the platform
   const tiers = await prisma.tier.findMany();
   await Promise.all(
     tiers.map((t) =>
       prisma.priceList.upsert({
         where: { tierId_variantId: { tierId: t.id, variantId: parsed.data.variantId } },
-        update: { price: parsed.data.price },
+        update: {
+          price: parsed.data.price,
+          ...(parsed.data.rateBasis ? { rateBasis: parsed.data.rateBasis } : {}),
+        },
         create: {
           tierId: t.id,
           variantId: parsed.data.variantId,
           productId: variant.productId,
           price: parsed.data.price,
+          rateBasis: targetRateBasis,
         },
       })
     )
   );
 
-  const row = await prisma.priceList.upsert({
-    where: { tierId_variantId: { tierId: parsed.data.tierId, variantId: parsed.data.variantId } },
-    update: { price: parsed.data.price },
-    create: {
-      tierId: parsed.data.tierId,
-      variantId: parsed.data.variantId,
-      productId: variant.productId,
-      price: parsed.data.price,
+  await prisma.variant.update({
+    where: { id: variant.id },
+    data: {
+      listRate: parsed.data.price,
+      ...(parsed.data.rateBasis ? { listRateBasis: parsed.data.rateBasis } : {}),
     },
+  });
+
+  const row = await prisma.priceList.findUnique({
+    where: { tierId_variantId: { tierId: parsed.data.tierId, variantId: parsed.data.variantId } },
   });
   res.json({ price: row });
 });
@@ -275,7 +286,9 @@ router.put("/variants/:id/quick-edit", async (req: AdminRequest, res) => {
   }
   if (parsed.data.price !== undefined) {
     updateData.listRate = parsed.data.price;
-    updateData.listRateBasis = parsed.data.rateBasis ?? "case";
+  }
+  if (parsed.data.rateBasis !== undefined) {
+    updateData.listRateBasis = parsed.data.rateBasis;
   }
 
   updateData.catalogStatus = "active";
@@ -285,21 +298,28 @@ router.put("/variants/:id/quick-edit", async (req: AdminRequest, res) => {
     data: updateData,
   });
 
-  if (parsed.data.price !== undefined) {
+  if (parsed.data.price !== undefined || parsed.data.rateBasis !== undefined) {
     const tiers = await prisma.tier.findMany();
+    const targetRateBasis = parsed.data.rateBasis ?? existing.listRateBasis ?? "case";
+    const targetPrice = parsed.data.price !== undefined ? parsed.data.price : (existing.listRate != null ? Number(existing.listRate) : 0);
+
     await Promise.all(
-      tiers.map((t) =>
-        prisma.priceList.upsert({
+      tiers.map((t) => {
+        const updateObj: Prisma.PriceListUpdateInput = {};
+        if (parsed.data.price !== undefined) updateObj.price = parsed.data.price;
+        if (parsed.data.rateBasis !== undefined) updateObj.rateBasis = parsed.data.rateBasis;
+        return prisma.priceList.upsert({
           where: { tierId_variantId: { tierId: t.id, variantId: existing.id } },
-          update: { price: parsed.data.price },
+          update: updateObj,
           create: {
             tierId: t.id,
             variantId: existing.id,
             productId: existing.productId,
-            price: parsed.data.price!,
+            price: targetPrice,
+            rateBasis: targetRateBasis,
           },
-        })
-      )
+        });
+      })
     );
   }
 

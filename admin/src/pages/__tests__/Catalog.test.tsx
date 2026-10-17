@@ -347,6 +347,67 @@ describe("Catalog commercial rate display", () => {
     })));
   });
 
+  it("updates pricing in quintal, per kg, and per quintal rate basis, persisting correctly without reverting to older price", async () => {
+    mocks.quickEditVariant.mockResolvedValue({ ok: true });
+    mocks.products.mockResolvedValueOnce({ tiers: [{ id: "gold", name: "Gold" }], products: [{
+      id: "prod-dal", name: "Laxmi Toor Dal", category: "Daal", catalogStatus: "active",
+      variants: [{
+        id: "var-dal-30", catalogStatus: "active",
+        unitSize: "30 kg", unit: "kg", unitsPerCase: 1, unitWeightKg: 30,
+        purchaseRate: 5000, listRate: 5400, listRateBasis: "case", gstPercent: 0, routingClass: "OTHER",
+        prices: [{ tierId: "gold", tierName: "Gold", price: 5400, rateBasis: "case" }],
+      }],
+    }] });
+
+    render(<Catalog />);
+    expect(await screen.findByText("₹5,400 / case")).toBeInTheDocument();
+    expect(screen.getByText("₹180 / kg")).toBeInTheDocument();
+
+    // Click Edit to enter quick-edit
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+
+    expect(screen.getByLabelText("Selling price")).toHaveValue(5400);
+    expect(screen.getByLabelText("Rate per kg")).toHaveValue("180");
+    expect(screen.getByLabelText("Rate basis")).toHaveValue("case");
+
+    // Change rate basis to quintal: price becomes 180 * 100 = 18000
+    fireEvent.change(screen.getByLabelText("Rate basis"), { target: { value: "quintal" } });
+    expect(screen.getByLabelText("Selling price")).toHaveValue(18000);
+    expect(screen.getByText("INR / quintal")).toBeInTheDocument();
+
+    // Change kg rate to 185: quintal price becomes 18500
+    fireEvent.change(screen.getByLabelText("Rate per kg"), { target: { value: "185" } });
+    expect(screen.getByLabelText("Selling price")).toHaveValue(18500);
+
+    // Mock products return for the reload after save
+    mocks.products.mockResolvedValueOnce({ tiers: [{ id: "gold", name: "Gold" }], products: [{
+      id: "prod-dal", name: "Laxmi Toor Dal", category: "Daal", catalogStatus: "active",
+      variants: [{
+        id: "var-dal-30", catalogStatus: "active",
+        unitSize: "30 kg", unit: "kg", unitsPerCase: 1, unitWeightKg: 30,
+        purchaseRate: 5000, listRate: 18500, listRateBasis: "quintal", gstPercent: 0, routingClass: "OTHER",
+        prices: [{ tierId: "gold", tierName: "Gold", price: 18500, rateBasis: "quintal" }],
+      }],
+    }] });
+
+    // Click save
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(mocks.quickEditVariant).toHaveBeenCalledWith("var-dal-30", expect.objectContaining({
+      price: 18500,
+      rateBasis: "quintal",
+      packSize: "30",
+      unit: "kg",
+      unitsPerCase: 1,
+    })));
+
+    // Confirm that the updated price in quintal is rendered
+    expect(await screen.findByText("₹18,500 / quintal")).toBeInTheDocument();
+    expect(screen.getByText("₹185 / kg")).toBeInTheDocument();
+    expect(screen.getByText("₹5,550 / 30 KG case")).toBeInTheDocument();
+    expect(screen.queryByText("₹5,400 / case")).not.toBeInTheDocument();
+  });
+
   it("allows editing product name, category, and image URL for an already listed product via Edit product modal", async () => {
     mocks.quickEditProduct.mockResolvedValue({ ok: true });
     mocks.products.mockResolvedValue({ tiers: [{ id: "gold", name: "Gold" }], products: [{

@@ -388,7 +388,7 @@ export default function Catalog() {
     const unitsPerCase = v.unitsPerCase != null ? String(v.unitsPerCase) : "1";
     const primaryPrice = v.prices?.[0];
     const currentPrice = primaryPrice?.price != null ? primaryPrice.price : v.listRate != null ? v.listRate : "";
-    const currentBasis: "case" | "quintal" = (primaryPrice?.rateBasis ?? v.listRateBasis ?? "case") === "quintal" ? "quintal" : "case";
+    const currentBasis: "case" | "quintal" = (v.listRateBasis === "quintal" || primaryPrice?.rateBasis === "quintal") ? "quintal" : "case";
 
     const initialWeight = getCaseWeightKg(packSize, unit, unitsPerCase, v.unitWeightKg);
     let initialRatePerKg = "";
@@ -682,9 +682,10 @@ export default function Catalog() {
                   const caseWeight = v.unitWeightKg * v.unitsPerCase;
                   const activeEdit = rowEdit?.variantId === v.id ? rowEdit : null;
                   const primaryPrice = v.prices?.[0] ?? { price: v.listRate, rateBasis: v.listRateBasis ?? "case", tierId: tiers[0]?.id ?? "default" };
-                  const basis = primaryPrice.rateBasis ?? "case";
-                  const perKg = primaryPrice.price == null ? null : basis === "quintal" ? primaryPrice.price / 100 : caseWeight > 0 ? primaryPrice.price / caseWeight : null;
-                  const equivalent = primaryPrice.price != null && caseWeight > 0 && basis === "quintal" ? Math.round(primaryPrice.price * caseWeight) / 100 : null;
+                  const basis: "case" | "quintal" = (v.listRateBasis === "quintal" || primaryPrice.rateBasis === "quintal") ? "quintal" : "case";
+                  const displayPrice = primaryPrice.price ?? v.listRate;
+                  const perKg = displayPrice == null ? null : basis === "quintal" ? displayPrice / 100 : caseWeight > 0 ? displayPrice / caseWeight : null;
+                  const equivalent = displayPrice != null && caseWeight > 0 && basis === "quintal" ? Math.round(displayPrice * caseWeight) / 100 : null;
                   const isFirst = index === 0;
 
                   return (
@@ -958,7 +959,7 @@ export default function Catalog() {
                           </div>
                         ) : p.catalogStatus === "pending_review" || v.catalogStatus === "pending_review" ? (
                           <span className="small">
-                            {primaryPrice.price == null ? "Not configured" : `${inr(primaryPrice.price)} / ${basis}`}
+                            {displayPrice == null ? "Not configured" : `${inr(displayPrice)} / ${basis}`}
                             {perKg != null && <span className="muted small" style={{ display: "block" }}>{inr(perKg)} / kg</span>}
                             {equivalent != null && <span className="muted small" style={{ display: "block" }}>{inr(equivalent)} / {caseWeight} KG case</span>}
                           </span>
@@ -970,7 +971,7 @@ export default function Catalog() {
                             title="Click to edit pack and price"
                             onClick={() => startEditingRow(p, v)}
                           >
-                            <span>{primaryPrice.price == null ? "Set price" : `${inr(primaryPrice.price)} / ${basis}`}</span>
+                            <span>{displayPrice == null ? "Set price" : `${inr(displayPrice)} / ${basis}`}</span>
                             {perKg != null && <span className="muted small" style={{ display: "block" }}>{inr(perKg)} / kg</span>}
                             {equivalent != null && <span className="muted small" style={{ display: "block" }}>{inr(equivalent)} / {caseWeight} KG case</span>}
                           </button>

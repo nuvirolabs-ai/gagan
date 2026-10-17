@@ -184,7 +184,7 @@ router.get("/products", async (req, res) => {
             tierId: t.id,
             tierName: t.name,
             price: prices.get(priceKey(t.id, v.id)) ?? (v.listRate != null ? Number(v.listRate) : null),
-            rateBasis: pl?.rateBasis ?? v.listRateBasis ?? "case",
+            rateBasis: (v.listRateBasis === "quintal" || pl?.rateBasis === "quintal") ? "quintal" : (pl?.rateBasis ?? v.listRateBasis ?? "case"),
           };
         }),
       })),

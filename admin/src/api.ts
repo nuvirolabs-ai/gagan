@@ -329,8 +329,8 @@ export const api = {
   addVariant: (productId: string, body: unknown) => post(`/admin/products/${productId}/variants`, body),
   publishCatalogue: (variantId: string, body: unknown) => post(`/admin/variants/${variantId}/publish-catalogue`, body),
   publishCatalogueFromBusiness: (variantId: string, body: unknown) => post(`/admin/variants/${variantId}/publish-catalogue-business`, body),
-  setPrice: (tierId: string, variantId: string, price: number) =>
-    post("/admin/price-list", { tierId, variantId, price }),
+  setPrice: (tierId: string, variantId: string, price: number, rateBasis?: "case" | "quintal") =>
+    post("/admin/price-list", { tierId, variantId, price, ...(rateBasis ? { rateBasis } : {}) }),
   quickEditVariant: (id: string, body: unknown) =>
     request(`/admin/variants/${id}/quick-edit`, { method: "PUT", body: JSON.stringify(body) }),
   quickEditProduct: (id: string, body: unknown) =>

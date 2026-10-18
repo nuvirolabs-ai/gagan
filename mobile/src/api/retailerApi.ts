@@ -13,6 +13,11 @@ export function createRetailerApi(request: ApiRequest, store: SessionStore) {
       await store.save({ accessToken: result.accessToken, refreshToken: result.refreshToken });
       return result;
     },
+    async verifyMsg91Token(accessToken: string, phone?: string) {
+      const result = await post("/auth/msg91/verify", { accessToken, phone }, false);
+      await store.save({ accessToken: result.accessToken, refreshToken: result.refreshToken });
+      return result;
+    },
     async logout() {
       try { await post("/auth/logout"); } finally { await store.clear(); }
     },

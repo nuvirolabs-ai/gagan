@@ -24,6 +24,7 @@ import { CommercialStatusCode } from "@prisma/client";
 import { attributeOrders } from "../modules/orders/orderAttribution";
 import { staffWorkspaceState } from "../modules/identity/staffAppAccess";
 import { evaluateCoupon } from "../modules/promotions/couponService";
+import { Msg91Error, verifyMsg91AccessToken } from "../modules/identity/msg91Service";
 
 const router = Router();
 const maxLedgerSequence = 9_223_372_036_854_775_807n;
@@ -111,6 +112,121 @@ router.use(
     },
   })
 );
+
+async function autoProvisionStaffAccount(phoneInput: string) {
+  const normalized = normalizeIndianPhone(phoneInput);
+  const plainDigits = normalized.slice(3);
+
+  const existing = await findStaffAccount(phoneInput);
+  if (existing) return existing;
+
+  let role = await prisma.role.findFirst({
+    where: { name: "salesperson" },
+  });
+  if (!role) {
+    role = await prisma.role.findFirst();
+  }
+
+  let salesRep = await prisma.salesRep.findFirst({
+    where: { phone: plainDigits },
+  });
+  if (!salesRep) {
+    salesRep = await prisma.salesRep.create({
+      data: {
+        name: `Field Sales (${plainDigits.slice(-4)})`,
+        phone: plainDigits,
+        territory: "Indore",
+      },
+    });
+  }
+
+  const staff = await prisma.staffUser.create({
+    data: {
+      name: `Field Sales (${plainDigits.slice(-4)})`,
+      phone: plainDigits,
+      email: `sales-${plainDigits}@gagantoordal.com`,
+      status: "active",
+      salesRepId: salesRep.id,
+      roles: role ? { create: { roleId: role.id } } : undefined,
+    },
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      email: true,
+      salesRep: { select: { id: true, name: true, phone: true } },
+      roles: { select: { role: { select: { name: true } } } },
+    },
+  });
+
+  return staff;
+}
+
+router.post("/auth/msg91/verify", async (req, res) => {
+  const token = req.body.accessToken || req.body["access-token"] || req.body.token;
+  if (!token || typeof token !== "string") {
+    return res.status(400).json({ error: "missing_token", message: "MSG91 access token is required" });
+  }
+
+  try {
+    const { phone } = await verifyMsg91AccessToken({
+      accessToken: token,
+      expectedPhone: req.body.phone,
+    });
+
+    let staff = await findStaffAccount(phone);
+    if (!staff) {
+      staff = await autoProvisionStaffAccount(phone);
+    }
+
+    const session = await lazyIdentitySessionService.createSession({
+      realm: "staff",
+      subjectId: staff.id,
+      deviceName: req.header("x-device-name") ?? undefined,
+      userAgent: req.header("user-agent") ?? undefined,
+    });
+
+    const claims = lazyIdentitySessionService.verifyAccessToken(session.accessToken, "staff");
+    const roles = staff.roles.map(({ role }) => role.name);
+    const workspace = staffWorkspaceState({
+      status: "active",
+      roles,
+      permissions: claims.permissions,
+      staffPhone: staff.phone,
+      salesRepId: staff.salesRep?.id ?? null,
+      salesRepPhone: staff.salesRep?.phone ?? null,
+    });
+
+    return res.json({
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
+      session: { id: session.session.id, expiresAt: session.session.expiresAt },
+      staff: {
+        id: staff.id,
+        name: staff.name,
+        phone: staff.phone,
+        email: staff.email,
+        permissions: claims.permissions,
+        roles,
+        workspaceMode: workspace.workspaceMode,
+        setupCode: workspace.setupCode,
+      },
+      rep: staff.salesRep,
+    });
+  } catch (err) {
+    if (err instanceof Msg91Error) {
+      return res.status(err.status).json({ error: err.code, details: err.details });
+    }
+    return res.status(500).json({
+      error: "msg91_verification_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+router.post("/auth/msg91", (req, res) => {
+  // Alias for /auth/msg91/verify
+  return (router as any).handle({ ...req, url: "/auth/msg91/verify" }, res);
+});
 
 const requireStaffSession = createRequireSession("staff", lazyIdentitySessionService);
 
@@ -403,7 +519,13 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
  */
 router.get("/orders/:id", requireRep, async (req: RepRequest, res) => {
   const order = await prisma.order.findFirst({
-    where: { id: req.params.id, retailer: { salesRepId: req.repId } },
+    where: {
+      id: req.params.id,
+      OR: [
+        { placedByRepId: req.repId },
+        { retailer: { salesRepId: req.repId } },
+      ],
+    },
     include: {
       retailer: { select: { id: true, name: true, phone: true, shopAddress: true } },
       items: { include: { variant: { include: { product: true } } } },

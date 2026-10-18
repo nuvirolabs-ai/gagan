@@ -19,6 +19,7 @@ import { useLanguage } from "../i18n/LanguageContext";
 import type { TranslationKey } from "../i18n/translations";
 import { KeyboardSafeScrollView } from "../components/ui";
 import { SALESPERSON_LOGIN_ARTWORK } from "./loginBranding";
+import { Msg91OtpModal } from "../components/auth/Msg91OtpModal";
 
 function loginAlertMessage(
   error: unknown,
@@ -45,12 +46,13 @@ const BRAND_INK = "#0D3821";
 const BRAND_GREEN = "#165A31";
 
 export default function RepLoginScreen() {
-  const { requestOtp, login } = useRep();
+  const { requestOtp, login, verifyMsg91Token } = useRep();
   const { t } = useLanguage();
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [stage, setStage] = useState<"phone" | "otp">("phone");
   const [busy, setBusy] = useState(false);
+  const [showMsg91, setShowMsg91] = useState(false);
 
   const handleRequestOtp = async () => {
     if (phone.length < 10) return Alert.alert("Enter a valid 10-digit phone number");
@@ -74,6 +76,26 @@ export default function RepLoginScreen() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleMsg91Success = async (token: string) => {
+    setShowMsg91(false);
+    setBusy(true);
+    try {
+      await verifyMsg91Token(token, phone.length === 10 ? phone : undefined);
+    } catch (e) {
+      Alert.alert("Couldn't sign in", loginAlertMessage(e, t("errors.generic"), t));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleMsg91Failure = (error: unknown) => {
+    console.warn("MSG91 OTP failure:", error);
+    Alert.alert(
+      "Verification notice",
+      "MSG91 OTP verification could not be completed. You can try again or use standard SMS OTP."
+    );
   };
 
   return (
@@ -132,6 +154,18 @@ export default function RepLoginScreen() {
               )}
             </TouchableOpacity>
 
+            <TouchableOpacity
+              style={styles.msg91Button}
+              onPress={() => setShowMsg91(true)}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel="Login with MSG91 OTP"
+              activeOpacity={0.85}
+            >
+              <Ionicons name="shield-checkmark" size={16} color={BRAND_GREEN} style={{ marginRight: 6 }} />
+              <Text style={styles.msg91ButtonText}>Login with MSG91 OTP</Text>
+            </TouchableOpacity>
+
             <Text style={styles.supportText}>
               New to GAGAN SALES? <Text style={styles.supportLink}>Contact your manager</Text>
             </Text>
@@ -178,12 +212,30 @@ export default function RepLoginScreen() {
               <Text style={styles.secondaryText}>Resend OTP</Text>
             </TouchableOpacity>
 
+            <TouchableOpacity
+              style={styles.msg91Link}
+              onPress={() => setShowMsg91(true)}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel="Verify via MSG91 OTP"
+            >
+              <Ionicons name="shield-checkmark-outline" size={15} color={BRAND_GREEN} style={{ marginRight: 4 }} />
+              <Text style={styles.msg91LinkText}>Verify via MSG91 OTP</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity onPress={() => setStage("phone")} accessibilityRole="button">
               <Text style={styles.changePhone}>Change mobile number</Text>
             </TouchableOpacity>
           </>
         )}
       </View>
+      <Msg91OtpModal
+        visible={showMsg91}
+        phone={phone}
+        onClose={() => setShowMsg91(false)}
+        onSuccess={handleMsg91Success}
+        onFailure={handleMsg91Failure}
+      />
     </KeyboardSafeScrollView>
   );
 }
@@ -318,5 +370,33 @@ const styles = StyleSheet.create({
   },
   disabled: {
     opacity: 0.72,
+  },
+  msg91Button: {
+    minHeight: 46,
+    borderRadius: 14,
+    backgroundColor: "rgba(22, 90, 49, 0.08)",
+    borderWidth: 1.2,
+    borderColor: "rgba(22, 90, 49, 0.25)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 10,
+  },
+  msg91ButtonText: {
+    color: BRAND_GREEN,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  msg91Link: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 12,
+    paddingVertical: 4,
+  },
+  msg91LinkText: {
+    color: BRAND_GREEN,
+    fontSize: 14,
+    fontWeight: "700",
   },
 });

@@ -33,6 +33,8 @@ const TEAM_PERFORMANCE = ["performance.view_team"] as const;
 const COMMERCIAL = ["staff.manage", "collection.confirm"] as const;
 const CORRECTIONS = ["financial.correct"] as const;
 const RECOVERY = ["recovery.view", "recovery.update"] as const;
+const LEDGER = ["staff.manage", "collection.confirm", "financial.correct", "recovery.view"] as const;
+const RETAILERS = ["staff.manage", "collection.confirm", "financial.correct", "recovery.view"] as const;
 const LEGAL = ["staff.manage", "legal.decide"] as const;
 const KYC = ["kyc.view", "kyc.review"] as const;
 const ATTENDANCE = ["attendance.review"] as const;
@@ -157,7 +159,7 @@ export const ADMIN_NAV_GROUPS: { id: AdminGroupId; label: string; destinations: 
         route: "/retailers",
         description: "Shops, stores, and customers",
         keywords: ["retailer", "customer", "shop", "store"],
-        permissions: STAFF,
+        permissions: RETAILERS,
         relatedTo: ["/retailers", "/retailer-approvals", "/orders"],
       },
       {
@@ -223,7 +225,7 @@ export const ADMIN_NAV_GROUPS: { id: AdminGroupId; label: string; destinations: 
         route: "/ledger",
         description: "Retailer ledger balances",
         keywords: ["ledger", "payment", "collection", "receipt", "balance"],
-        permissions: STAFF,
+        permissions: LEDGER,
         relatedTo: ["/ledger", "/collections"],
       },
       {

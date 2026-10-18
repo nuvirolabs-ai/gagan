@@ -1,15 +1,15 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,10 +18,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../context/AuthContext";
 import { ApiError } from "../api/client";
 import { otpErrorCode } from "../auth/otpErrors";
-import { colors } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
 import type { TranslationKey } from "../i18n/translations";
 import { RETAILER_LOGIN_ARTWORK } from "./loginBranding";
+import { Msg91OtpModal } from "../components/auth/Msg91OtpModal";
 
 function loginAlertMessage(
   error: unknown,
@@ -47,19 +47,37 @@ function loginAlertMessage(
 }
 
 const ARTWORK = require("../../assets/auth/gagan-retailer-login.png");
-const BRAND_INK = "#0D3821";
-const BRAND_GREEN = "#165A31";
-const CARD = "#FCFBF6";
+const BRAND_INK = RETAILER_LOGIN_ARTWORK.brandInk;
+const BRAND_GREEN = RETAILER_LOGIN_ARTWORK.brandGreen;
+const BG_YELLOW = RETAILER_LOGIN_ARTWORK.bgYellow;
 
 export default function LoginScreen() {
   const auth = useAuth();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
 
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [stage, setStage] = useState<"phone" | "otp">("phone");
   const [busy, setBusy] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [showMsg91, setShowMsg91] = useState(false);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardHeight(e.endCoordinates?.height ?? 0);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const handleRequestOtp = async () => {
     if (phone.length < 10) return Alert.alert(t("auth.validPhone"));
@@ -85,217 +103,351 @@ export default function LoginScreen() {
     }
   };
 
+  const handleMsg91Success = async (token: string) => {
+    setShowMsg91(false);
+    setBusy(true);
+    try {
+      await auth.verifyMsg91Token(token, phone.length === 10 ? phone : undefined);
+    } catch (e) {
+      Alert.alert("Couldn't sign in", loginAlertMessage(e, t("errors.generic"), t));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleMsg91Failure = (error: unknown) => {
+    console.warn("MSG91 OTP failure:", error);
+    Alert.alert(
+      "Verification notice",
+      "MSG91 OTP verification could not be completed. You can try again or use standard SMS OTP."
+    );
+  };
+
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, 18) }]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.artCanvas}>
-          <Image
-            source={ARTWORK}
-            style={StyleSheet.absoluteFill}
-            resizeMode="stretch"
-            accessibilityIgnoresInvertColors
-          />
+    <View style={styles.screen}>
+      <View style={[styles.canvas, { height: windowHeight }]}>
+        <Image
+          source={ARTWORK}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+          accessibilityIgnoresInvertColors
+        />
 
-          <View style={styles.card} accessibilityLabel="GAGAN retailer sign in">
-            {stage === "phone" ? (
-              <>
-                <Text style={styles.cardTitle}>Welcome to GAGAN</Text>
-                <Text style={styles.cardSubtitle}>Quality grains. Stronger communities.</Text>
+        <View
+          style={[
+            styles.formContainer,
+            {
+              bottom: keyboardHeight,
+              paddingBottom: Math.max(insets.bottom + 16, 28),
+            },
+          ]}
+          accessibilityLabel="GAGAN retailer sign in"
+        >
+          {stage === "phone" ? (
+                <>
+                  <View style={styles.field}>
+                    <Ionicons name="call" size={19} color={BRAND_GREEN} style={styles.fieldIcon} />
+                    <Text style={styles.countryCode}>+91</Text>
+                    <View style={styles.fieldDivider} />
+                    <TextInput
+                      style={styles.fieldInput}
+                      placeholder="Enter mobile number"
+                      placeholderTextColor="#8C938E"
+                      keyboardType="phone-pad"
+                      value={phone}
+                      onChangeText={setPhone}
+                      maxLength={10}
+                      returnKeyType="done"
+                      onSubmitEditing={() => void handleRequestOtp()}
+                      accessibilityLabel="Mobile number"
+                    />
+                  </View>
 
-                <View style={styles.field}>
-                  <Ionicons name="call-outline" size={21} color="#3E4540" />
-                  <TextInput
-                    style={styles.fieldInput}
-                    placeholder="Mobile number"
-                    placeholderTextColor="#717873"
-                    keyboardType="phone-pad"
-                    value={phone}
-                    onChangeText={setPhone}
-                    maxLength={10}
-                    returnKeyType="done"
-                    onSubmitEditing={() => void handleRequestOtp()}
-                    accessibilityLabel="Mobile number"
-                  />
-                </View>
+                  <TouchableOpacity
+                    style={[styles.primaryButton, busy && styles.disabled]}
+                    onPress={() => void handleRequestOtp()}
+                    disabled={busy}
+                    accessibilityRole="button"
+                    accessibilityLabel="Login"
+                    activeOpacity={0.88}
+                  >
+                    {busy ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <View style={styles.buttonInner}>
+                        <Text style={styles.primaryText}>Login with OTP</Text>
+                        <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={styles.buttonIcon} />
+                      </View>
+                    )}
+                  </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={[styles.primaryButton, busy && styles.disabled]}
-                  onPress={() => void handleRequestOtp()}
-                  disabled={busy}
-                  accessibilityRole="button"
-                  accessibilityLabel="Login"
-                >
-                  {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryText}>Login</Text>}
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.msg91Button}
+                    onPress={() => setShowMsg91(true)}
+                    disabled={busy}
+                    accessibilityRole="button"
+                    accessibilityLabel="Login with MSG91 OTP"
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="shield-checkmark" size={16} color={BRAND_GREEN} style={styles.msg91ButtonIcon} />
+                    <Text style={styles.msg91ButtonText}>Login with MSG91 OTP</Text>
+                  </TouchableOpacity>
 
-                <View style={styles.separator}>
-                  <View style={styles.separatorLine} />
-                  <Text style={styles.separatorText}>OR</Text>
-                  <View style={styles.separatorLine} />
-                </View>
+                  <Text style={styles.supportText}>
+                    New to GAGAN?{" "}
+                    <Text style={styles.supportLink}>Contact your distributor</Text>
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.otpTitle}>Enter OTP</Text>
+                  <Text style={styles.otpSubtitle}>Sent to +91 {phone}</Text>
 
-                <TouchableOpacity
-                  style={styles.secondaryButton}
-                  onPress={() => void handleRequestOtp()}
-                  disabled={busy}
-                  accessibilityRole="button"
-                  accessibilityLabel="Login with OTP"
-                >
-                  <Ionicons name="qr-code-outline" size={21} color={BRAND_INK} />
-                  <Text style={styles.secondaryText}>Login with OTP</Text>
-                </TouchableOpacity>
+                  <View style={styles.field}>
+                    <Ionicons name="keypad" size={19} color={BRAND_GREEN} style={styles.fieldIcon} />
+                    <TextInput
+                      style={[styles.fieldInput, styles.otpInput]}
+                      placeholder="000000"
+                      placeholderTextColor="#8C938E"
+                      keyboardType="number-pad"
+                      value={otp}
+                      onChangeText={setOtp}
+                      maxLength={6}
+                      returnKeyType="done"
+                      onSubmitEditing={() => void handleVerify()}
+                      accessibilityLabel="One-time password"
+                    />
+                  </View>
 
-                <Text style={styles.supportText}>
-                  New to GAGAN? <Text style={styles.supportLink}>Contact your distributor</Text>
-                </Text>
-              </>
-            ) : (
-              <>
-                <Text style={styles.cardTitle}>Enter the code</Text>
-                <Text style={styles.cardSubtitle}>Sent to {phone}</Text>
+                  <TouchableOpacity
+                    style={[styles.primaryButton, busy && styles.disabled]}
+                    onPress={() => void handleVerify()}
+                    disabled={busy}
+                    accessibilityRole="button"
+                    accessibilityLabel="Verify and sign in"
+                    activeOpacity={0.88}
+                  >
+                    {busy ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <View style={styles.buttonInner}>
+                        <Text style={styles.primaryText}>Verify & sign in</Text>
+                        <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" style={styles.buttonIcon} />
+                      </View>
+                    )}
+                  </TouchableOpacity>
 
-                <View style={styles.field}>
-                  <Ionicons name="keypad-outline" size={21} color="#3E4540" />
-                  <TextInput
-                    style={[styles.fieldInput, styles.otpInput]}
-                    placeholder="000000"
-                    placeholderTextColor="#717873"
-                    keyboardType="number-pad"
-                    value={otp}
-                    onChangeText={setOtp}
-                    maxLength={6}
-                    returnKeyType="done"
-                    onSubmitEditing={() => void handleVerify()}
-                    accessibilityLabel="One-time password"
-                  />
-                </View>
+                  <View style={styles.otpActions}>
+                    <TouchableOpacity
+                      onPress={() => void handleRequestOtp()}
+                      disabled={busy}
+                      accessibilityRole="button"
+                      accessibilityLabel="Resend OTP"
+                      style={styles.resendBtn}
+                    >
+                      <Ionicons name="refresh" size={16} color={BRAND_INK} />
+                      <Text style={styles.resendText}>Resend OTP</Text>
+                    </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={[styles.primaryButton, busy && styles.disabled]}
-                  onPress={() => void handleVerify()}
-                  disabled={busy}
-                  accessibilityRole="button"
-                  accessibilityLabel="Verify and sign in"
-                >
-                  {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryText}>Verify & sign in</Text>}
-                </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setShowMsg91(true)}
+                      disabled={busy}
+                      accessibilityRole="button"
+                      accessibilityLabel="Verify via MSG91 OTP"
+                      style={styles.msg91Link}
+                    >
+                      <Ionicons name="shield-checkmark-outline" size={15} color={BRAND_GREEN} />
+                      <Text style={styles.msg91LinkText}>Verify via MSG91 OTP</Text>
+                    </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.secondaryButton}
-                  onPress={() => void handleRequestOtp()}
-                  disabled={busy}
-                  accessibilityRole="button"
-                  accessibilityLabel="Resend OTP"
-                >
-                  <Ionicons name="refresh-outline" size={21} color={BRAND_INK} />
-                  <Text style={styles.secondaryText}>Resend OTP</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity onPress={() => setStage("phone")} accessibilityRole="button">
-                  <Text style={styles.changePhone}>Change mobile number</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+                    <TouchableOpacity onPress={() => setStage("phone")} accessibilityRole="button">
+                      <Text style={styles.changePhone}>Change mobile number</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
+        <Msg91OtpModal
+          visible={showMsg91}
+          onClose={() => setShowMsg91(false)}
+          phone={phone}
+          onSuccess={handleMsg91Success}
+          onFailure={handleMsg91Failure}
+        />
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.cream },
-  scrollContent: { flexGrow: 1 },
-  artCanvas: {
-    width: "100%",
-    aspectRatio: RETAILER_LOGIN_ARTWORK.width / RETAILER_LOGIN_ARTWORK.height,
-    position: "relative",
-    overflow: "hidden",
-    backgroundColor: colors.cream,
+  screen: {
+    flex: 1,
+    backgroundColor: BG_YELLOW,
   },
-  card: {
+  canvas: {
+    width: "100%",
+    position: "relative",
+    backgroundColor: BG_YELLOW,
+  },
+  formContainer: {
     position: "absolute",
-    top: RETAILER_LOGIN_ARTWORK.cardTopPercent,
-    height: RETAILER_LOGIN_ARTWORK.cardHeightPercent,
-    left: RETAILER_LOGIN_ARTWORK.cardSidePercent,
-    right: RETAILER_LOGIN_ARTWORK.cardSidePercent,
-    paddingHorizontal: 23,
-    paddingTop: 20,
-    paddingBottom: 14,
-    borderRadius: 18,
-    backgroundColor: CARD,
-    shadowColor: "#241C0C",
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 24,
     alignItems: "stretch",
   },
-  cardTitle: {
-    color: BRAND_INK,
-    fontSize: 22,
-    lineHeight: 27,
-    fontWeight: "800",
-    textAlign: "center",
-  },
-  cardSubtitle: {
-    color: "#5D625E",
-    fontSize: 15,
-    lineHeight: 20,
-    textAlign: "center",
-    marginTop: 5,
-    marginBottom: 16,
-  },
   field: {
-    minHeight: 51,
-    borderWidth: 1,
-    borderColor: "#D7D8D1",
-    backgroundColor: "#FFFFFFA8",
+    minHeight: 52,
+    borderWidth: 1.5,
+    borderColor: "rgba(0, 0, 0, 0.08)",
+    backgroundColor: "#FFFFFF",
     borderRadius: 14,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 14,
     marginBottom: 12,
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  fieldIcon: {
+    marginRight: 6,
+  },
+  countryCode: {
+    color: "#16241B",
+    fontSize: 16,
+    fontWeight: "700",
+    marginRight: 8,
+  },
+  fieldDivider: {
+    width: 1,
+    height: 22,
+    backgroundColor: "#DCD8C5",
+    marginRight: 10,
   },
   fieldInput: {
     flex: 1,
-    color: "#202A24",
+    color: "#16241B",
     fontSize: 16,
-    paddingVertical: 11,
-    paddingHorizontal: 12,
+    fontWeight: "600",
+    paddingVertical: 12,
   },
-  otpInput: { fontSize: 20, fontWeight: "700", letterSpacing: 4 },
+  otpInput: {
+    fontSize: 20,
+    fontWeight: "800",
+    letterSpacing: 6,
+    textAlign: "center",
+  },
   primaryButton: {
-    minHeight: 49,
+    minHeight: 52,
     borderRadius: 14,
     backgroundColor: BRAND_GREEN,
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#0D3821",
+    shadowOpacity: 0.24,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
-  primaryText: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
-  secondaryButton: {
-    minHeight: 49,
-    borderRadius: 14,
-    borderWidth: 1.2,
-    borderColor: BRAND_INK,
+  buttonInner: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+  },
+  buttonIcon: {
+    marginLeft: 8,
+  },
+  primaryText: {
+    color: "#FFFFFF",
+    fontSize: 16.5,
+    fontWeight: "800",
+  },
+  supportText: {
+    color: "#4A4016",
+    fontSize: 13.5,
+    lineHeight: 18,
+    textAlign: "center",
+    marginTop: 14,
+    fontWeight: "600",
+  },
+  supportLink: {
+    color: BRAND_GREEN,
+    fontWeight: "800",
+    textDecorationLine: "underline",
+  },
+  otpTitle: {
+    color: BRAND_INK,
+    fontSize: 22,
+    lineHeight: 27,
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  otpSubtitle: {
+    color: "#4A4016",
+    fontSize: 14,
+    lineHeight: 19,
+    textAlign: "center",
+    marginBottom: 16,
+    fontWeight: "600",
+  },
+  otpActions: {
+    marginTop: 14,
+    alignItems: "center",
     gap: 10,
   },
-  secondaryText: { color: BRAND_INK, fontSize: 15.5, fontWeight: "800" },
-  separator: { flexDirection: "row", alignItems: "center", marginVertical: 9 },
-  separatorLine: { height: 1, backgroundColor: "#D7D8D1", flex: 1 },
-  separatorText: { color: "#606762", fontSize: 14, marginHorizontal: 13 },
-  supportText: { color: "#5D625E", fontSize: 13.5, lineHeight: 18, textAlign: "center", marginTop: 15 },
-  supportLink: { color: BRAND_INK, fontWeight: "800" },
-  changePhone: { color: BRAND_INK, fontSize: 14, fontWeight: "700", textAlign: "center", marginTop: 13 },
-  disabled: { opacity: 0.72 },
+  resendBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  resendText: {
+    color: BRAND_INK,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  changePhone: {
+    color: BRAND_GREEN,
+    fontSize: 13.5,
+    fontWeight: "700",
+    textDecorationLine: "underline",
+  },
+  disabled: {
+    opacity: 0.72,
+  },
+  msg91Button: {
+    minHeight: 46,
+    borderRadius: 14,
+    backgroundColor: "rgba(22, 90, 49, 0.08)",
+    borderWidth: 1.5,
+    borderColor: "rgba(22, 90, 49, 0.22)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 10,
+  },
+  msg91ButtonIcon: {
+    marginRight: 6,
+  },
+  msg91ButtonText: {
+    color: BRAND_GREEN,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  msg91Link: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 4,
+  },
+  msg91LinkText: {
+    color: BRAND_GREEN,
+    fontSize: 13.5,
+    fontWeight: "700",
+  },
 });

@@ -11,10 +11,10 @@ describe("Retailer login artwork contract", () => {
   });
 
   it("preserves the supplied panel proportions and native card region", () => {
-    expect(RETAILER_LOGIN_ARTWORK.width / RETAILER_LOGIN_ARTWORK.height).toBeCloseTo(487 / 1401);
-    expect(Number.parseFloat(RETAILER_LOGIN_ARTWORK.cardTopPercent)).toBeGreaterThan(40);
-    expect(Number.parseFloat(RETAILER_LOGIN_ARTWORK.cardTopPercent)).toBeLessThan(50);
-    expect(Number.parseFloat(RETAILER_LOGIN_ARTWORK.cardHeightPercent)).toBeGreaterThan(35);
-    expect(Number.parseFloat(RETAILER_LOGIN_ARTWORK.cardHeightPercent)).toBeLessThan(50);
+    expect(RETAILER_LOGIN_ARTWORK.width / RETAILER_LOGIN_ARTWORK.height).toBeCloseTo(472 / 1024);
+    expect(Number.parseFloat(RETAILER_LOGIN_ARTWORK.cardTopPercent)).toBeGreaterThan(60);
+    expect(Number.parseFloat(RETAILER_LOGIN_ARTWORK.cardTopPercent)).toBeLessThan(75);
+    expect(Number.parseFloat(RETAILER_LOGIN_ARTWORK.cardHeightPercent)).toBeGreaterThan(20);
+    expect(Number.parseFloat(RETAILER_LOGIN_ARTWORK.cardHeightPercent)).toBeLessThan(40);
   });
 });

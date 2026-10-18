@@ -35,6 +35,7 @@ interface RepContextValue {
   staff: StaffIdentity | null;
   loading: boolean;
   login: (phone: string, otp: string) => Promise<void>;
+  verifyMsg91Token: (accessToken: string, phone?: string) => Promise<void>;
   requestOtp: (phone: string) => Promise<string>;
   logout: () => Promise<void>;
   refreshIdentity: () => Promise<void>;
@@ -162,6 +163,12 @@ export function RepProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const verifyMsg91Token = async (accessToken: string, phone?: string) => {
+    setRepAccount(null);
+    const result = await repApi.verifyMsg91Token(accessToken, phone);
+    await acceptSession(result);
+  };
+
   const logout = async () => {
     setRepAccount(null);
     try {
@@ -215,6 +222,7 @@ export function RepProvider({ children }: { children: React.ReactNode }) {
         staff,
         loading,
         login,
+        verifyMsg91Token,
         requestOtp,
         logout,
         refreshIdentity,

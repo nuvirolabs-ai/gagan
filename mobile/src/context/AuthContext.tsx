@@ -16,6 +16,7 @@ interface AuthContextValue {
   loading: boolean;
   requestOtp: (phone: string) => Promise<void>;
   verifyOtp: (phone: string, otp: string) => Promise<void>;
+  verifyMsg91Token: (accessToken: string, phone?: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -93,6 +94,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const verifyMsg91Token = async (accessToken: string, phone?: string) => {
+    const res = await api.verifyMsg91Token(accessToken, phone);
+    setChallengeId(null);
+    const next = { id: res.retailer.id, name: res.retailer.name, phone: res.retailer.phone || phone || "" };
+    setRetailer(next);
+    await retailerIdentityCache.save(next);
+    beginLoginSelection();
+  };
+
   const logout = async () => {
     try {
       await api.logout();
@@ -105,7 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ retailer, loading, requestOtp, verifyOtp, logout }}>
+    <AuthContext.Provider value={{ retailer, loading, requestOtp, verifyOtp, verifyMsg91Token, logout }}>
       {children}
     </AuthContext.Provider>
   );

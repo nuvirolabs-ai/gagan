@@ -73,3 +73,5 @@ export async function requireRep(req: RepRequest, res: Response, next: NextFunct
 export async function assignedRetailer(repId: string, retailerId: string) {
   return prisma.retailer.findFirst({ where: { id: retailerId, salesRepId: repId } });
 }
+
+

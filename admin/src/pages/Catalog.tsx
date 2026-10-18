@@ -48,8 +48,12 @@ export default function Catalog() {
   const [savingDraft, setSavingDraft] = useState(false);
   const [rowEdit, setRowEdit] = useState<RowEditState | null>(null);
   const [savingRow, setSavingRow] = useState(false);
-  const [productModal, setProductModal] = useState<{ id: string; name: string; category: string; imageUrl: string } | null>(null);
+  const [productModal, setProductModal] = useState<{ id: string; name: string; category: string; imageUrl: string; status: "active" | "inactive" } | null>(null);
   const [savingProductModal, setSavingProductModal] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [deletingProduct, setDeletingProduct] = useState<any | null>(null);
+  const [deletingVariant, setDeletingVariant] = useState<{ product: any; variant: any } | null>(null);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [publishing, setPublishing] = useState<any>(null);
   const [outerPack, setOuterPack] = useState<"Bag" | "Box">("Bag");
   const [fieldErrors, setFieldErrors] = useState<DraftPackFields>({});
@@ -327,14 +331,28 @@ export default function Catalog() {
 
   const query = search.trim().toLocaleLowerCase().replace(/\s+/g, " ");
   const rows = products.flatMap((product) => product.variants.map((variant: any) => ({ product, variant })));
-  const matchingRows = query ? rows.filter(({ product, variant }) => {
+
+  const activeRowsCount = rows.filter(({ product, variant }) =>
+    product.catalogStatus !== "inactive" && variant.catalogStatus !== "inactive"
+  ).length;
+  const inactiveRowsCount = rows.filter(({ product, variant }) =>
+    product.catalogStatus === "inactive" || variant.catalogStatus === "inactive"
+  ).length;
+
+  const filteredRows = statusFilter === "all"
+    ? rows
+    : statusFilter === "active"
+      ? rows.filter(({ product, variant }) => product.catalogStatus !== "inactive" && variant.catalogStatus !== "inactive")
+      : rows.filter(({ product, variant }) => product.catalogStatus === "inactive" || variant.catalogStatus === "inactive");
+
+  const matchingRows = query ? filteredRows.filter(({ product, variant }) => {
     const fields = [product.name, product.category, product.internalCode, product.catalogKey,
       variant.unitSize, variant.unit,
       variant.unitsPerCase, `${variant.unitSize ?? ""} x ${variant.unitsPerCase ?? ""}`,
       `${variant.unitSize ?? ""} × ${variant.unitsPerCase ?? ""}`,
       variant.internalCode, variant.catalogKey, variant.catalogIdentitySkuName, variant.id, product.id];
     return fields.some((value) => String(value ?? "").toLocaleLowerCase().replace(/\s+/g, " ").includes(query));
-  }) : rows;
+  }) : filteredRows;
 
   const matchingProducts = products
     .map((product) => ({
@@ -344,6 +362,68 @@ export default function Catalog() {
       ),
     }))
     .filter((product) => product.matchingVariants.length > 0);
+
+  const handleToggleProductStatus = async (p: any) => {
+    const nextStatus = p.catalogStatus === "inactive" ? "active" : "inactive";
+    setActionLoadingId(p.id);
+    setError(null);
+    try {
+      await api.updateProductStatus(p.id, nextStatus);
+      setNotice(`Product "${p.name}" marked as ${nextStatus}`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update product status");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const confirmDeleteProduct = async () => {
+    if (!deletingProduct) return;
+    setActionLoadingId(deletingProduct.id);
+    setError(null);
+    try {
+      await api.deleteProduct(deletingProduct.id);
+      setNotice(`Product "${deletingProduct.name}" deleted from catalog`);
+      setDeletingProduct(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete product");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleToggleVariantStatus = async (v: any) => {
+    const nextStatus = v.catalogStatus === "inactive" ? "active" : "inactive";
+    setActionLoadingId(v.id);
+    setError(null);
+    try {
+      await api.updateVariantStatus(v.id, nextStatus);
+      setNotice(`Pack ${v.unitSize} × ${v.unitsPerCase} marked as ${nextStatus}`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update pack status");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const confirmDeleteVariant = async () => {
+    if (!deletingVariant) return;
+    setActionLoadingId(deletingVariant.variant.id);
+    setError(null);
+    try {
+      await api.deleteVariant(deletingVariant.variant.id);
+      setNotice(`Pack ${deletingVariant.variant.unitSize} × ${deletingVariant.variant.unitsPerCase} deleted`);
+      setDeletingVariant(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete pack");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
 
   const publicationMessage = (body: any) => {
     if (body?.error === "canonical_pack_exists") return "A current catalogue pack already exists.";
@@ -592,9 +672,37 @@ export default function Catalog() {
 
       {tab === "skus" && (
         <>
-          <div className="row" style={{ marginBottom: 16 }}>
-        <button onClick={() => setEditor({ kind: "sku" })}>Add product</button>
-        <a href="/imports">Bulk import</a>
+          <div className="row" style={{ marginBottom: 16, justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <button onClick={() => setEditor({ kind: "sku" })}>Add product</button>
+          <a href="/imports">Bulk import</a>
+        </div>
+        <div style={{ display: "flex", gap: 6, background: "var(--bg-subtle, #f1f5f9)", padding: "3px 4px", borderRadius: 8 }}>
+          <button
+            type="button"
+            className={statusFilter === "all" ? "primary sm" : "ghost sm"}
+            style={{ borderRadius: 6, fontWeight: statusFilter === "all" ? 600 : 500 }}
+            onClick={() => setStatusFilter("all")}
+          >
+            All ({rows.length})
+          </button>
+          <button
+            type="button"
+            className={statusFilter === "active" ? "primary sm" : "ghost sm"}
+            style={{ borderRadius: 6, fontWeight: statusFilter === "active" ? 600 : 500, color: statusFilter === "active" ? undefined : "#15803d" }}
+            onClick={() => setStatusFilter("active")}
+          >
+            Active ({activeRowsCount})
+          </button>
+          <button
+            type="button"
+            className={statusFilter === "inactive" ? "primary sm" : "ghost sm"}
+            style={{ borderRadius: 6, fontWeight: statusFilter === "inactive" ? 600 : 500, color: statusFilter === "inactive" ? undefined : "#b45309" }}
+            onClick={() => setStatusFilter("inactive")}
+          >
+            Inactive ({inactiveRowsCount})
+          </button>
+        </div>
       </div>
 
       <div className="row" style={{ marginBottom: 16, alignItems: "end" }}>
@@ -602,7 +710,7 @@ export default function Catalog() {
           <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search product, pack or code…" />
         </label>
         {search && <button type="button" className="secondary" onClick={() => setSearch("")}>Clear search</button>}
-        <span role="status" className="muted small">{matchingRows.length} of {rows.length} SKUs</span>
+        <span role="status" className="muted small">{matchingRows.length} of {filteredRows.length} SKUs</span>
       </div>
 
       {publishing && <section aria-label="Publish catalogue" style={{ marginBottom: 20 }}>
@@ -744,7 +852,18 @@ export default function Catalog() {
                               </div>
                             )}
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontWeight: 600 }}>{p.name}</div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ fontWeight: 600 }}>{p.name}</span>
+                                {p.catalogStatus === "inactive" ? (
+                                  <span style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", padding: "1px 6px", borderRadius: 4, fontSize: 11, fontWeight: 700 }}>
+                                    Inactive
+                                  </span>
+                                ) : (
+                                  <span style={{ background: "#ecfdf5", color: "#065f46", border: "1px solid #a7f3d0", padding: "1px 6px", borderRadius: 4, fontSize: 11, fontWeight: 600 }}>
+                                    Active
+                                  </span>
+                                )}
+                              </div>
                               <div className="muted small" style={{ marginTop: 2 }}>
                                 <span>{p.category}</span>
                                 {" · "}
@@ -766,6 +885,7 @@ export default function Catalog() {
                                     name: p.name,
                                     category: p.category,
                                     imageUrl: p.imageUrl || "",
+                                    status: p.catalogStatus === "inactive" ? "inactive" : "active",
                                   })}
                                 >
                                   ✎ Edit product
@@ -780,6 +900,26 @@ export default function Catalog() {
                                     Add pack
                                   </button>
                                 )}
+                                <button
+                                  type="button"
+                                  className="ghost sm"
+                                  disabled={actionLoadingId === p.id}
+                                  style={{ color: p.catalogStatus === "inactive" ? "#16a34a" : "#d97706", fontWeight: 500, padding: "2px 6px" }}
+                                  title={p.catalogStatus === "inactive" ? "Make product active" : "Make product inactive"}
+                                  onClick={() => handleToggleProductStatus(p)}
+                                >
+                                  {p.catalogStatus === "inactive" ? "▶ Activate" : "⏸ Inactive"}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="ghost sm"
+                                  disabled={actionLoadingId === p.id}
+                                  style={{ color: "#dc2626", fontWeight: 500, padding: "2px 6px" }}
+                                  title="Delete product from catalog"
+                                  onClick={() => setDeletingProduct(p)}
+                                >
+                                  🗑 Delete
+                                </button>
                               </div>
                             </div>
                           </div>
@@ -865,8 +1005,20 @@ export default function Catalog() {
                                 <span style={{ fontSize: 11, color: "var(--primary, #2563eb)", fontWeight: 500 }}>✎ Edit</span>
                               </button>
                             </div>
-                            <div className="muted small">{caseWeight} kg case</div>
-                            <div className="muted small">{v.catalogStatus === "active" ? "Active" : v.catalogStatus === "pending_review" ? "Draft" : "Setup needed"}</div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <span className="muted small">{caseWeight} kg case</span>
+                              {v.catalogStatus === "inactive" ? (
+                                <span style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", padding: "1px 5px", borderRadius: 4, fontSize: 10, fontWeight: 700 }}>
+                                  Inactive
+                                </span>
+                              ) : v.catalogStatus === "active" ? (
+                                <span style={{ background: "#ecfdf5", color: "#065f46", border: "1px solid #a7f3d0", padding: "1px 5px", borderRadius: 4, fontSize: 10, fontWeight: 600 }}>
+                                  Active
+                                </span>
+                              ) : (
+                                <span className="muted small">{v.catalogStatus === "pending_review" ? "Draft" : "Setup needed"}</span>
+                              )}
+                            </div>
                             <div className="muted small">Variant ID: <code>{v.id}</code> <button type="button" className="ghost sm" onClick={() => copyId(v.id)}>Copy variant ID</button></div>
                             {v.catalogStatus === "pending_review" && <div><button className="ghost sm" onClick={() => setEditor({ kind: "variant", product: p, variant: v })}>Edit draft</button></div>}
                             {v.catalogStatus === "pending_review" && !v.catalogKey && (
@@ -998,13 +1150,46 @@ export default function Catalog() {
                             </button>
                           </div>
                         ) : (
-                          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>
                             <button
                               type="button"
                               className="sm"
                               onClick={() => startEditingRow(p, v)}
                             >
                               Edit
+                            </button>
+                            {v.catalogStatus === "inactive" ? (
+                              <button
+                                type="button"
+                                className="sm secondary"
+                                disabled={actionLoadingId === v.id}
+                                style={{ color: "#16a34a", borderColor: "#86efac", fontWeight: 600, padding: "3px 8px" }}
+                                title="Mark pack active"
+                                onClick={() => handleToggleVariantStatus(v)}
+                              >
+                                Activate
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="sm secondary"
+                                disabled={actionLoadingId === v.id}
+                                style={{ color: "#d97706", borderColor: "#fde68a", padding: "3px 8px" }}
+                                title="Mark pack inactive"
+                                onClick={() => handleToggleVariantStatus(v)}
+                              >
+                                Inactive
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className="sm ghost"
+                              disabled={actionLoadingId === v.id}
+                              style={{ color: "#dc2626", padding: "3px 6px", fontSize: 14 }}
+                              title="Delete pack"
+                              onClick={() => setDeletingVariant({ product: p, variant: v })}
+                            >
+                              🗑
                             </button>
                           </div>
                         )}
@@ -1079,6 +1264,7 @@ export default function Catalog() {
                     name: productModal.name.trim(),
                     category: productModal.category.trim(),
                     imageUrl: productModal.imageUrl.trim() || null,
+                    status: productModal.status,
                   });
                   setNotice("Product details updated successfully");
                   setProductModal(null);
@@ -1126,6 +1312,18 @@ export default function Catalog() {
                 </label>
 
                 <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, fontWeight: 600 }}>
+                  <span>Status</span>
+                  <select
+                    value={productModal.status}
+                    onChange={(e) => setProductModal({ ...productModal, status: e.target.value as "active" | "inactive" })}
+                    style={{ padding: "8px 12px", borderRadius: 6 }}
+                  >
+                    <option value="active">Active (Visible in Retailer & Sales apps)</option>
+                    <option value="inactive">Inactive (Hidden from apps)</option>
+                  </select>
+                </label>
+
+                <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, fontWeight: 600 }}>
                   <span>Image URL (optional)</span>
                   <input
                     type="url"
@@ -1150,24 +1348,156 @@ export default function Catalog() {
                 )}
               </div>
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20 }}>
                 <button
                   type="button"
-                  className="secondary"
-                  disabled={savingProductModal}
-                  onClick={() => setProductModal(null)}
+                  className="ghost sm"
+                  style={{ color: "#dc2626", fontWeight: 600, padding: "4px 8px" }}
+                  onClick={() => {
+                    const toDelete = { id: productModal.id, name: productModal.name };
+                    setProductModal(null);
+                    setDeletingProduct(toDelete);
+                  }}
                 >
-                  Cancel
+                  🗑 Delete product
                 </button>
-                <button
-                  type="submit"
-                  className="primary"
-                  disabled={savingProductModal}
-                >
-                  {savingProductModal ? "Saving…" : "Save Product"}
-                </button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={savingProductModal}
+                    onClick={() => setProductModal(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="primary"
+                    disabled={savingProductModal}
+                  >
+                    {savingProductModal ? "Saving…" : "Save Product"}
+                  </button>
+                </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {deletingProduct && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.6)",
+            backdropFilter: "blur(2px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: 16,
+          }}
+          onClick={() => !actionLoadingId && setDeletingProduct(null)}
+        >
+          <div
+            className="card"
+            style={{
+              width: "100%",
+              maxWidth: 460,
+              background: "#fff",
+              borderRadius: 12,
+              padding: 24,
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: "0 0 12px 0", fontSize: 18, color: "#dc2626" }}>Delete Product?</h3>
+            <p style={{ margin: "0 0 12px 0", fontSize: 14 }}>
+              Are you sure you want to delete <strong>{deletingProduct.name}</strong>?
+            </p>
+            <p className="muted small" style={{ margin: "0 0 20px 0" }}>
+              This will remove this product and all its packs from the catalog. Retailer and Salesperson apps will no longer see this product.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                type="button"
+                className="secondary"
+                disabled={Boolean(actionLoadingId)}
+                onClick={() => setDeletingProduct(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                style={{ background: "#dc2626", color: "#fff", borderColor: "#dc2626" }}
+                disabled={Boolean(actionLoadingId)}
+                onClick={confirmDeleteProduct}
+              >
+                {actionLoadingId === deletingProduct.id ? "Deleting…" : "Delete Product"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deletingVariant && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.6)",
+            backdropFilter: "blur(2px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: 16,
+          }}
+          onClick={() => !actionLoadingId && setDeletingVariant(null)}
+        >
+          <div
+            className="card"
+            style={{
+              width: "100%",
+              maxWidth: 460,
+              background: "#fff",
+              borderRadius: 12,
+              padding: 24,
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: "0 0 12px 0", fontSize: 18, color: "#dc2626" }}>Delete Pack / SKU?</h3>
+            <p style={{ margin: "0 0 12px 0", fontSize: 14 }}>
+              Are you sure you want to delete pack <strong>{deletingVariant.variant.unitSize} × {deletingVariant.variant.unitsPerCase}</strong> from <strong>{deletingVariant.product.name}</strong>?
+            </p>
+            <p className="muted small" style={{ margin: "0 0 20px 0" }}>
+              This pack will be removed from the catalog. Retailers and Sales reps will not be able to order this pack size.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                type="button"
+                className="secondary"
+                disabled={Boolean(actionLoadingId)}
+                onClick={() => setDeletingVariant(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                style={{ background: "#dc2626", color: "#fff", borderColor: "#dc2626" }}
+                disabled={Boolean(actionLoadingId)}
+                onClick={confirmDeleteVariant}
+              >
+                {actionLoadingId === deletingVariant.variant.id ? "Deleting…" : "Delete Pack"}
+              </button>
+            </div>
           </div>
         </div>
       )}

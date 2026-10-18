@@ -9,8 +9,13 @@ export function createMediaRouter() {
   router.get("/catalog/media", async (_req, res) => {
     try {
       const products = await prisma.product.findMany({
+        where: {
+          catalogStatus: { notIn: ["archived", "deleted"] },
+          variants: { some: { catalogStatus: { notIn: ["archived", "deleted"] } } },
+        },
         include: {
           variants: {
+            where: { catalogStatus: { notIn: ["archived", "deleted"] } },
             select: {
               id: true,
               unitSize: true,

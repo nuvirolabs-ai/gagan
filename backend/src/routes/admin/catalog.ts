@@ -123,8 +123,20 @@ router.get("/products", async (req, res) => {
   const includeInactive = req.query.view === "all";
   const [products, tiers, priceList] = await Promise.all([
     prisma.product.findMany({
-      ...(includeInactive ? {} : { where: { catalogStatus: catalogueStatusWhere(), variants: { some: { catalogStatus: catalogueStatusWhere() } } } }),
-      include: { variants: includeInactive ? true : { where: { catalogStatus: catalogueStatusWhere() } } },
+      where: includeInactive
+        ? {
+            catalogStatus: { notIn: ["archived", "deleted"] },
+            variants: { some: { catalogStatus: { notIn: ["archived", "deleted"] } } },
+          }
+        : {
+            catalogStatus: catalogueStatusWhere(),
+            variants: { some: { catalogStatus: catalogueStatusWhere() } },
+          },
+      include: {
+        variants: includeInactive
+          ? { where: { catalogStatus: { notIn: ["archived", "deleted"] } } }
+          : { where: { catalogStatus: catalogueStatusWhere() } },
+      },
       orderBy: { createdAt: "asc" },
     }),
     prisma.tier.findMany({ orderBy: { name: "asc" } }),
@@ -251,6 +263,7 @@ const quickEditSchema = z.object({
   unitsPerCase: z.coerce.number().int().positive().optional(),
   gstPercent: z.coerce.number().min(0).max(100).optional(),
   routingClass: z.enum(["LAXMI_TOOR", "INSTANT_MIX", "OTHER"]).optional(),
+  status: z.enum(["active", "inactive"]).optional(),
 });
 
 router.put("/variants/:id/quick-edit", async (req: AdminRequest, res) => {
@@ -291,12 +304,23 @@ router.put("/variants/:id/quick-edit", async (req: AdminRequest, res) => {
     updateData.listRateBasis = parsed.data.rateBasis;
   }
 
-  updateData.catalogStatus = "active";
+  if (parsed.data.status !== undefined) {
+    updateData.catalogStatus = parsed.data.status;
+  } else if (existing.catalogStatus === "pending_review") {
+    updateData.catalogStatus = "active";
+  }
 
   const updatedVariant = await prisma.variant.update({
     where: { id: existing.id },
     data: updateData,
   });
+
+  if (parsed.data.status === "active" && existing.product.catalogStatus === "inactive") {
+    await prisma.product.update({
+      where: { id: existing.productId },
+      data: { catalogStatus: "active" },
+    });
+  }
 
   if (parsed.data.price !== undefined || parsed.data.rateBasis !== undefined) {
     const tiers = await prisma.tier.findMany();
@@ -332,6 +356,7 @@ const quickEditProductSchema = z.object({
   imageUrl: z.string().trim().nullable().optional(),
   brandName: z.string().trim().optional(),
   groupName: z.string().trim().optional(),
+  status: z.enum(["active", "inactive"]).optional(),
 });
 
 router.put("/products/:id/quick-edit", async (req: AdminRequest, res) => {
@@ -359,10 +384,167 @@ router.put("/products/:id/quick-edit", async (req: AdminRequest, res) => {
       ...(parsed.data.imageUrl !== undefined ? { imageUrl: parsed.data.imageUrl || null } : {}),
       ...(parsed.data.brandName ? { catalogIdentityBrand: parsed.data.brandName.trim().toUpperCase() } : {}),
       ...(parsed.data.groupName ? { catalogIdentityGroup: parsed.data.groupName.trim().toUpperCase() } : {}),
+      ...(parsed.data.status ? { catalogStatus: parsed.data.status } : {}),
     },
   });
 
+  if (parsed.data.status) {
+    await prisma.variant.updateMany({
+      where: {
+        productId: existing.id,
+        catalogStatus: { notIn: ["archived", "deleted"] },
+      },
+      data: { catalogStatus: parsed.data.status },
+    });
+  }
+
   res.json({ success: true, product: updatedProduct });
+});
+
+const statusUpdateSchema = z.object({
+  status: z.enum(["active", "inactive"]),
+});
+
+router.put("/products/:id/status", async (req: AdminRequest, res) => {
+  const parsed = statusUpdateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid status", details: parsed.error.flatten() });
+
+  const existing = await prisma.product.findUnique({
+    where: { id: req.params.id },
+  });
+  if (!existing) return res.status(404).json({ error: "product_not_found" });
+
+  const [updatedProduct] = await prisma.$transaction([
+    prisma.product.update({
+      where: { id: existing.id },
+      data: { catalogStatus: parsed.data.status },
+    }),
+    prisma.variant.updateMany({
+      where: {
+        productId: existing.id,
+        catalogStatus: { notIn: ["archived", "deleted"] },
+      },
+      data: { catalogStatus: parsed.data.status },
+    }),
+  ]);
+
+  res.json({ success: true, product: updatedProduct });
+});
+
+router.delete("/products/:id", async (req: AdminRequest, res) => {
+  const existing = await prisma.product.findUnique({
+    where: { id: req.params.id },
+    include: { variants: true },
+  });
+  if (!existing) return res.status(404).json({ error: "product_not_found" });
+
+  const variantIds = existing.variants.map((v) => v.id);
+
+  const [orderItemsCount, intentItemsCount] = await Promise.all([
+    prisma.orderItem.count({ where: { variantId: { in: variantIds } } }),
+    prisma.retailerProposalOrderIntentItem.count({ where: { variantId: { in: variantIds } } }),
+  ]);
+
+  if (orderItemsCount > 0 || intentItemsCount > 0) {
+    await prisma.$transaction([
+      prisma.product.update({
+        where: { id: existing.id },
+        data: { catalogStatus: "archived" },
+      }),
+      prisma.variant.updateMany({
+        where: { productId: existing.id },
+        data: { catalogStatus: "archived" },
+      }),
+    ]);
+    return res.json({ success: true, mode: "archived", id: existing.id });
+  }
+
+  await prisma.$transaction([
+    prisma.catalogOrderingDraft.deleteMany({ where: { variantId: { in: variantIds } } }),
+    prisma.priceList.deleteMany({ where: { variantId: { in: variantIds } } }),
+    prisma.priceOverride.deleteMany({ where: { variantId: { in: variantIds } } }),
+    prisma.inventorySnapshot.deleteMany({ where: { productId: existing.id } }),
+    prisma.variant.deleteMany({ where: { productId: existing.id } }),
+    prisma.product.delete({ where: { id: existing.id } }),
+  ]);
+
+  res.json({ success: true, mode: "hard", id: existing.id });
+});
+
+router.put("/variants/:id/status", async (req: AdminRequest, res) => {
+  const parsed = statusUpdateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid status", details: parsed.error.flatten() });
+
+  const existing = await prisma.variant.findUnique({
+    where: { id: req.params.id },
+    include: { product: true },
+  });
+  if (!existing) return res.status(404).json({ error: "variant_not_found" });
+
+  const updatedVariant = await prisma.variant.update({
+    where: { id: existing.id },
+    data: { catalogStatus: parsed.data.status },
+  });
+
+  if (parsed.data.status === "active" && existing.product.catalogStatus === "inactive") {
+    await prisma.product.update({
+      where: { id: existing.productId },
+      data: { catalogStatus: "active" },
+    });
+  }
+
+  res.json({ success: true, variant: updatedVariant });
+});
+
+router.delete("/variants/:id", async (req: AdminRequest, res) => {
+  const existing = await prisma.variant.findUnique({
+    where: { id: req.params.id },
+  });
+  if (!existing) return res.status(404).json({ error: "variant_not_found" });
+
+  const [orderItemsCount, intentItemsCount] = await Promise.all([
+    prisma.orderItem.count({ where: { variantId: existing.id } }),
+    prisma.retailerProposalOrderIntentItem.count({ where: { variantId: existing.id } }),
+  ]);
+
+  if (orderItemsCount > 0 || intentItemsCount > 0) {
+    await prisma.variant.update({
+      where: { id: existing.id },
+      data: { catalogStatus: "archived" },
+    });
+  } else {
+    await prisma.$transaction([
+      prisma.catalogOrderingDraft.deleteMany({ where: { variantId: existing.id } }),
+      prisma.priceList.deleteMany({ where: { variantId: existing.id } }),
+      prisma.priceOverride.deleteMany({ where: { variantId: existing.id } }),
+      prisma.inventorySnapshot.deleteMany({ where: { variantId: existing.id } }),
+      prisma.variant.delete({ where: { id: existing.id } }),
+    ]);
+  }
+
+  const remainingVariantsCount = await prisma.variant.count({
+    where: {
+      productId: existing.productId,
+      catalogStatus: { notIn: ["archived", "deleted"] },
+    },
+  });
+
+  if (remainingVariantsCount === 0) {
+    const productOrdersCount = await prisma.orderItem.count({
+      where: { variant: { productId: existing.productId } },
+    });
+    if (productOrdersCount > 0) {
+      await prisma.product.update({
+        where: { id: existing.productId },
+        data: { catalogStatus: "archived" },
+      });
+    } else {
+      await prisma.inventorySnapshot.deleteMany({ where: { productId: existing.productId } });
+      await prisma.product.delete({ where: { id: existing.productId } }).catch(() => {});
+    }
+  }
+
+  res.json({ success: true, id: existing.id });
 });
 
 const productSchema = z.object({

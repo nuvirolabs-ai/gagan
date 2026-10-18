@@ -335,6 +335,14 @@ export const api = {
     request(`/admin/variants/${id}/quick-edit`, { method: "PUT", body: JSON.stringify(body) }),
   quickEditProduct: (id: string, body: unknown) =>
     request(`/admin/products/${id}/quick-edit`, { method: "PUT", body: JSON.stringify(body) }),
+  updateProductStatus: (id: string, status: "active" | "inactive") =>
+    request(`/admin/products/${id}/status`, { method: "PUT", body: JSON.stringify({ status }) }),
+  deleteProduct: (id: string) =>
+    request(`/admin/products/${id}`, { method: "DELETE" }),
+  updateVariantStatus: (id: string, status: "active" | "inactive") =>
+    request(`/admin/variants/${id}/status`, { method: "PUT", body: JSON.stringify({ status }) }),
+  deleteVariant: (id: string) =>
+    request(`/admin/variants/${id}`, { method: "DELETE" }),
   locations: () => request("/admin/locations"),
   location: (retailerId: string) => request(`/admin/locations/${retailerId}`),
   locationHistory: (retailerId: string) => request(`/admin/locations/${retailerId}/history`),

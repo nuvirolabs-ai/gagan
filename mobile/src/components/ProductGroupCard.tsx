@@ -52,7 +52,7 @@ export interface ProductGroupLike {
 
 function isOrderable(sku: Sku | undefined): boolean {
   if (!sku || sku.price == null) return false;
-  if (sku.orderable === false) return false;
+  if (sku.orderable === false && sku.orderingReason !== "Stock unavailable") return false;
   const availability = sku.availability;
   // Unknown stock is not a promise of stock, but it is not a block either:
   // the API says "unknown" when no warehouse feed covers the item.
@@ -126,7 +126,7 @@ export default function ProductGroupCard({
             {priceDisplay.caseEquivalent ? <Text style={[styles.rateLabel, row && styles.rateLabelRow]}>{priceDisplay.caseEquivalent}</Text> : null}
             {priceDisplay.gstLabel ? <Text style={[styles.rateLabel, row && styles.rateLabelRow]}>{priceDisplay.gstLabel}</Text> : null}
             {selected?.gstPending || selected?.taxStatus === "PENDING" ? <Text style={styles.outOfStock}>GST pending — final tax will be applied before invoicing.</Text> : null}
-            {!orderable && selected ? <Text style={styles.outOfStock}>{selected.orderingReason ?? "Out of stock"}</Text> : null}
+            {!orderable && selected && selected.orderingReason !== "Stock unavailable" ? <Text style={styles.outOfStock}>{selected.orderingReason ?? "Out of stock"}</Text> : null}
           </View>
         </TouchableOpacity>
         {aligned ? <View style={styles.actionSlot} accessibilityLabel="Quantity action position">

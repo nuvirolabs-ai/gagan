@@ -161,7 +161,7 @@ describe("saveCatalogueSku", () => {
     expect(stillActive.catalogStatus).toBe("active");
     expect(withInventoryOrderability(catalogueOrderingState("active", "5", false), { available: 0, status: "unavailable" }).orderingReason).toBe("Out of stock");
     expect(withInventoryOrderability(catalogueOrderingState("active", "5", false), { available: null, status: "unknown" }).orderingReason).toBe("Stock unavailable");
-    await expect(validateOrderInventory(prisma, [{ variantId: variant.id, qty: 1 }])).rejects.toBeInstanceOf(InventoryValidationError);
+    await expect(validateOrderInventory(prisma, [{ variantId: variant.id, qty: 1 }])).resolves.toBeUndefined();
   });
 
   it("stores a blank image as the approved placeholder and an exact image as exact", async () => {

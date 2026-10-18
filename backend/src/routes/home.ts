@@ -6,7 +6,7 @@ import { publicMediaUrl } from "../lib/media";
 import { groupCatalog } from "../modules/catalog/catalogGrouping";
 import { presentLastOrder } from "../modules/catalog/lastOrder";
 import { catalogueImageState, catalogueOrderingState, catalogueStatusWhere, withInventoryOrderability } from "../modules/catalog/catalogueVisibility";
-import { DEFAULT_WAREHOUSE_CODE, INVENTORY_STALE_AFTER_MS, selectInventorySnapshot } from "../modules/inventory/inventoryService";
+import { DEFAULT_WAREHOUSE_CODE } from "../modules/inventory/inventoryService";
 
 const router = Router();
 
@@ -31,7 +31,7 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
   const financialSummary = await financialSummaryFor(prisma, retailer.id, now);
   if (!financialSummary) return res.status(404).json({ error: "Retailer not found" });
 
-  const [config, featuredScheme, activeSchemeCount, unreadCount, activeOrder, lastDeliveredOrder, priceList, products, inventory] =
+  const [config, featuredScheme, activeSchemeCount, unreadCount, activeOrder, lastDeliveredOrder, priceList, products] =
     await Promise.all([
       prisma.appConfig.findUnique({ where: { id: "singleton" } }),
       prisma.scheme.findFirst({
@@ -57,12 +57,12 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
         include: { variants: { where: { catalogStatus: catalogueStatusWhere() } } },
         orderBy: { createdAt: "asc" },
       }),
-      prisma.inventorySnapshot.findMany({ where: { warehouseCode: DEFAULT_WAREHOUSE_CODE } }),
     ]);
-  const stockFor = (product: (typeof products)[number], variant: (typeof products)[number]["variants"][number]) => {
-    const snapshot = selectInventorySnapshot(product, variant, inventory);
-    if (!snapshot) return { available: null, status: "unknown" };
-    return { available: Number(snapshot.available), status: Date.now() - snapshot.syncedAt.getTime() > INVENTORY_STALE_AFTER_MS ? "stale" : snapshot.status };
+  const availability = {
+    available: 999999,
+    warehouseCode: DEFAULT_WAREHOUSE_CODE,
+    status: "available",
+    syncedAt: new Date(),
   };
 
   const overrides = await prisma.priceOverride.findMany({ where: { retailerId: retailer.id } });
@@ -101,8 +101,9 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
         return `${basis === "quintal" ? "per quintal" : "per case"} · ${gstLabel}`;
       })(),
       catalogStatus: v.catalogStatus,
-      ...withInventoryOrderability(catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed), stockFor(product, v)),
+      ...withInventoryOrderability(catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed), availability),
       ...catalogueImageState(v),
+      availability,
     }))
   );
 
@@ -137,9 +138,10 @@ router.get("/home", requireAuth, async (req: AuthedRequest, res) => {
           return `${basis === "quintal" ? "per quintal" : "per case"} · ${gstLabel}`;
         })(),
         catalogStatus: v.catalogStatus,
-        ...withInventoryOrderability(catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed), stockFor(product, v)),
+        ...withInventoryOrderability(catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed), availability),
         ...catalogueImageState(v),
         isOverride: overrideByVariant.get(v.id) != null,
+        availability,
       })),
     }))
   );

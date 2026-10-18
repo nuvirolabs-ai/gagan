@@ -13,7 +13,7 @@ export function canChangeCatalogQuantity(
 ): boolean {
   if (sku.price == null || next < 0) return false;
   if (next <= current) return true;
-  if (sku.orderable === false) return false;
+  if (sku.orderable === false && (sku as any).orderingReason !== "Stock unavailable") return false;
 
   const availability = sku.availability;
   if (!availability || availability.status == null || availability.status === "unknown") return true;

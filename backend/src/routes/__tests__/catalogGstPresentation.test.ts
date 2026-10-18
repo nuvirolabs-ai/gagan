@@ -195,6 +195,9 @@ describe("Catalog GST rateLabel & gstPercent presentation", () => {
     const sku5 = group.skus.find((s: any) => s.id === variantGst5Id);
     expect(sku5.gstPercent).toBe(5);
     expect(sku5.rateLabel).toBe("per quintal · Including 5% GST");
+    expect(sku5.orderable).toBe(true);
+    expect(sku5.orderingStatus).toBe("ready");
+    expect(sku5.orderingReason).toBeNull();
   });
 
   it("GET /rep/retailers/:id/catalog returns gstPercent and rateLabel for salesperson", async () => {

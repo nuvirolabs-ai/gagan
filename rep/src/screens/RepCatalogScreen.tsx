@@ -214,7 +214,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
                     {priceDisplay.gstLabel ? <Text style={styles.rateLabel}>{priceDisplay.gstLabel}</Text> : null}
                   </View>}
                   {variant.gstPending || variant.taxStatus === "PENDING" ? <Text style={styles.pendingOrder}>GST pending — final tax will be applied before invoicing.</Text> : null}
-                  {variant.orderable === false ? <Text style={styles.pendingOrder}>{variant.orderingReason ?? "Ordering setup pending"}</Text> : null}
+                  {variant.orderable === false && (variant as any).orderingReason !== "Stock unavailable" ? <Text style={styles.pendingOrder}>{variant.orderingReason ?? "Ordering setup pending"}</Text> : null}
                   {variant.isOverride && <Text style={styles.override}>{t("catalog.specialRate")}</Text>}
                 </View>
                 {qty === 0 && (proposalDemandMode || canChangeRepCatalogQuantity(variant, qty, qty + 1)) ? <QtyStepper qty={qty} onChange={(next) => setQty(product, variant, next)} compact /> : null}

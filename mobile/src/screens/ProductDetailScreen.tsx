@@ -181,7 +181,7 @@ export default function ProductDetailScreen({ route, navigation }: any) {
           {priceDisplay.caseEquivalent ? <Text style={styles.rateLabel}>{priceDisplay.caseEquivalent}</Text> : null}
           {priceDisplay.gstLabel ? <Text style={styles.rateLabel}>{priceDisplay.gstLabel}</Text> : null}
           {selected?.gstPending || selected?.taxStatus === "PENDING" ? <Text style={styles.pendingOrder}>GST pending — final tax will be applied before invoicing.</Text> : null}
-          {selected?.orderable === false ? <Text style={styles.pendingOrder}>{selected.orderingReason ?? "Ordering setup pending"}</Text> : null}
+          {selected?.orderable === false && selected?.orderingReason !== "Stock unavailable" ? <Text style={styles.pendingOrder}>{selected.orderingReason ?? "Ordering setup pending"}</Text> : null}
           {selected?.isOverride ? (
             <View style={styles.override}>
               <Ionicons name="pricetag" size={11} color={colors.green} />

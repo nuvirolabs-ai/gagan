@@ -261,7 +261,7 @@ export async function createOrderForRetailer(
       variants,
       effectivePricePerCase,
       retailer.tierId || undefined,
-      retailer.territory || undefined
+      retailer.deliveryCity || undefined
     );
     for (const freeItem of dynamicSchemeResult.freeItems) {
       lineItems.push({

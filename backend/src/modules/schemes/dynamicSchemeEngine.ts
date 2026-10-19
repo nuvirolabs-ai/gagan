@@ -45,7 +45,7 @@ export async function evaluateDynamicSchemesForOrder(
     productId: string;
     unitsPerCase: number;
     unitWeightKg: Prisma.Decimal;
-    unitSize: string;
+    unitSize?: string;
     product: { id: string; name: string; category: string };
   }>,
   effectivePricePerCase: Map<string, number>,

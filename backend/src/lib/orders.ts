@@ -13,6 +13,7 @@ import { recordCommercialStatusEvent } from "../modules/commercialStatus/statusS
 import { CommercialStatusCode } from "@prisma/client";
 import { evaluateCoupon } from "../modules/promotions/couponService";
 import { evaluateRiceScheme } from "../modules/schemes/riceScheme";
+import { evaluateDynamicSchemesForOrder } from "../modules/schemes/dynamicSchemeEngine";
 
 export interface OrderLineInput {
   variantId: string;
@@ -254,22 +255,30 @@ export async function createOrderForRetailer(
     for (const li of lineItems) {
       effectivePricePerCase.set(li.variantId, li.unitPrice);
     }
-    const riceScheme = await evaluateRiceScheme(tx, items, variants, effectivePricePerCase);
-    if (riceScheme) {
+    const dynamicSchemeResult = await evaluateDynamicSchemesForOrder(
+      tx,
+      items,
+      variants,
+      effectivePricePerCase,
+      retailer.tierId || undefined,
+      retailer.territory || undefined
+    );
+    for (const freeItem of dynamicSchemeResult.freeItems) {
       lineItems.push({
-        variantId: riceScheme.freeVariantId,
-        qtyOrdered: riceScheme.freePacksCount,
+        variantId: freeItem.variantId,
+        qtyOrdered: freeItem.qtyOrdered,
         unitPrice: 0,
-        caseWeightKgSnapshot: new Prisma.Decimal(riceScheme.packUnitKg),
+        caseWeightKgSnapshot: new Prisma.Decimal(freeItem.packUnitKg || 1),
         commercialSnapshot: json({
           isFreeItem: true,
-          scheme: riceScheme.schemeCode,
-          schemeName: riceScheme.schemeName,
-          schemeDescription: riceScheme.schemeDescription,
-          freeWeightKg: riceScheme.freeWeightKg,
-          packUnitKg: riceScheme.packUnitKg,
-          packDescription: `${riceScheme.freePacksCount} × ${riceScheme.packUnitKg} KG`,
-          productName: riceScheme.freeVariantName,
+          scheme: freeItem.schemeCode,
+          schemeId: freeItem.schemeId,
+          schemeName: freeItem.schemeName,
+          schemeDescription: freeItem.schemeDescription,
+          freeWeightKg: freeItem.freeWeightKg,
+          packUnitKg: freeItem.packUnitKg,
+          packDescription: freeItem.packDescription,
+          productName: freeItem.variantName,
         }),
       });
     }
@@ -377,7 +386,12 @@ export async function createOrderForRetailer(
     const snapshotData: Record<string, unknown> = {
       ...(couponMetadata ? { coupon: couponMetadata } : {}),
       ...(quote && accepted ? { quote: asJson(accepted) } : {}),
-      ...(riceScheme ? { riceScheme } : {}),
+      ...(dynamicSchemeResult.freeItems.length > 0 ? { schemes: dynamicSchemeResult.freeItems } : {}),
+      ...(dynamicSchemeResult.riceScheme
+        ? { riceScheme: dynamicSchemeResult.riceScheme }
+        : dynamicSchemeResult.freeItems.length > 0
+        ? { riceScheme: dynamicSchemeResult.freeItems[0] }
+        : {}),
       ...(options?.remarks ? { remarks: options.remarks.trim() } : {}),
       ...(options?.transportName ? { transportName: options.transportName.trim() } : {}),
       ...(options?.dispatchDate ? { dispatchDate: options.dispatchDate } : {}),

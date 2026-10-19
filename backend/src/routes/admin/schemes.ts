@@ -16,6 +16,24 @@ export function createSchemesRouter() {
         await prisma.scheme.createMany({
           data: [
             {
+              name: "Rice 210 KG Trade Scheme",
+              headline: "Buy 210 kg Rice, Get 10 kg Free",
+              description: "Buy 210 kg of any rice SKU and get 10 kg of the lowest-priced rice SKU purchased for free (in 1 kg or 5 kg packaging).",
+              targetAmount: 0,
+              discountAmount: 0,
+              ruleType: "category_weight",
+              qualifyingCategory: "Rice",
+              qualifyingWeightKg: 210,
+              rewardType: "lowest_priced_category_sku",
+              rewardValue: 10,
+              freePackagingUnits: "5,1",
+              targetAudience: "all_retailers",
+              featured: true,
+              active: true,
+              startsAt: now,
+              endsAt: nextMonth,
+            },
+            {
               name: "Mega Diwali Wholesale Dhamaka",
               headline: "Flat ₹750 Off on ₹20,000 Order",
               description: "Special seasonal trade rebate applied automatically at checkout on orders exceeding ₹20,000 across all staples.",
@@ -76,14 +94,15 @@ export function createSchemesRouter() {
   // GET /admin/promotions/schemes
   router.get("/promotions/schemes", async (_req, res) => {
     try {
-      const [schemes, tiers, variants] = await Promise.all([
+      const [schemes, tiers, variants, categoryRows] = await Promise.all([
         prisma.scheme.findMany({
           orderBy: [{ active: "desc" }, { createdAt: "desc" }],
         }),
         prisma.tier.findMany({ select: { id: true, name: true } }),
         prisma.variant.findMany({
-          select: { id: true, unitSize: true, unitsPerCase: true, product: { select: { name: true } } },
+          select: { id: true, unitSize: true, unitsPerCase: true, product: { select: { name: true, category: true } } },
         }),
+        prisma.product.findMany({ select: { category: true }, distinct: ["category"] }),
       ]);
 
       const tierMap = new Map(tiers.map((t) => [t.id, t.name]));
@@ -100,10 +119,13 @@ export function createSchemesRouter() {
         minQuantity: s.minQuantity,
         qualifyingVariantId: s.qualifyingVariantId,
         qualifyingVariantName: s.qualifyingVariantId ? varMap.get(s.qualifyingVariantId) || null : null,
+        qualifyingCategory: s.qualifyingCategory,
+        qualifyingWeightKg: s.qualifyingWeightKg ? Number(s.qualifyingWeightKg) : null,
         rewardType: s.rewardType,
         rewardValue: s.rewardValue ? Number(s.rewardValue) : null,
         freeVariantId: s.freeVariantId,
         freeVariantName: s.freeVariantId ? varMap.get(s.freeVariantId) || null : null,
+        freePackagingUnits: s.freePackagingUnits,
         targetAudience: s.targetAudience,
         targetTierId: s.targetTierId,
         targetTierName: s.targetTierId ? tierMap.get(s.targetTierId) || null : null,
@@ -124,6 +146,7 @@ export function createSchemesRouter() {
       res.json({
         stats,
         schemes: enriched,
+        categories: categoryRows.map((c) => c.category).filter(Boolean),
       });
     } catch (err) {
       res.status(500).json({ error: "Failed to list promotional schemes", detail: String(err) });
@@ -139,12 +162,15 @@ export function createSchemesRouter() {
         description: z.string().trim().optional(),
         targetAmount: z.number().finite().nonnegative().default(0),
         discountAmount: z.number().finite().nonnegative().default(0),
-        ruleType: z.enum(["order_value", "product_qty", "volume_slab"]).default("order_value"),
+        ruleType: z.enum(["order_value", "product_qty", "volume_slab", "category_weight"]).default("order_value"),
         minQuantity: z.number().int().positive().optional(),
         qualifyingVariantId: z.string().uuid().optional(),
-        rewardType: z.enum(["flat_discount", "percentage_discount", "free_goods"]).default("flat_discount"),
+        qualifyingCategory: z.string().trim().optional(),
+        qualifyingWeightKg: z.number().finite().nonnegative().optional(),
+        rewardType: z.enum(["flat_discount", "percentage_discount", "free_goods", "lowest_priced_category_sku"]).default("flat_discount"),
         rewardValue: z.number().finite().nonnegative().optional(),
         freeVariantId: z.string().uuid().optional(),
+        freePackagingUnits: z.string().trim().optional(),
         targetAudience: z.enum(["all_retailers", "tier", "territory"]).default("all_retailers"),
         targetTierId: z.string().uuid().optional(),
         targetTerritory: z.string().trim().optional(),
@@ -171,9 +197,12 @@ export function createSchemesRouter() {
           ruleType: data.ruleType,
           minQuantity: data.minQuantity || null,
           qualifyingVariantId: data.qualifyingVariantId || null,
+          qualifyingCategory: data.qualifyingCategory || null,
+          qualifyingWeightKg: data.qualifyingWeightKg ? data.qualifyingWeightKg : null,
           rewardType: data.rewardType,
           rewardValue: data.rewardValue || null,
           freeVariantId: data.freeVariantId || null,
+          freePackagingUnits: data.freePackagingUnits || null,
           targetAudience: data.targetAudience,
           targetTierId: data.targetTierId || null,
           targetTerritory: data.targetTerritory || null,
@@ -199,12 +228,15 @@ export function createSchemesRouter() {
         description: z.string().trim().optional(),
         targetAmount: z.number().finite().nonnegative().optional(),
         discountAmount: z.number().finite().nonnegative().optional(),
-        ruleType: z.enum(["order_value", "product_qty", "volume_slab"]).optional(),
+        ruleType: z.enum(["order_value", "product_qty", "volume_slab", "category_weight"]).optional(),
         minQuantity: z.number().int().positive().nullable().optional(),
         qualifyingVariantId: z.string().uuid().nullable().optional(),
-        rewardType: z.enum(["flat_discount", "percentage_discount", "free_goods"]).optional(),
+        qualifyingCategory: z.string().trim().nullable().optional(),
+        qualifyingWeightKg: z.number().finite().nonnegative().nullable().optional(),
+        rewardType: z.enum(["flat_discount", "percentage_discount", "free_goods", "lowest_priced_category_sku"]).optional(),
         rewardValue: z.number().finite().nonnegative().nullable().optional(),
         freeVariantId: z.string().uuid().nullable().optional(),
+        freePackagingUnits: z.string().trim().nullable().optional(),
         targetAudience: z.enum(["all_retailers", "tier", "territory"]).optional(),
         targetTierId: z.string().uuid().nullable().optional(),
         targetTerritory: z.string().trim().nullable().optional(),

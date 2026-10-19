@@ -1092,9 +1092,12 @@ model Scheme {
   ruleType            String   @default("order_value")
   minQuantity         Int?
   qualifyingVariantId String?
+  qualifyingCategory  String?
+  qualifyingWeightKg  Decimal? @db.Decimal(12, 2)
   rewardType          String   @default("flat_discount")
   rewardValue         Decimal? @db.Decimal(12, 2)
   freeVariantId       String?
+  freePackagingUnits  String?
   targetAudience      String   @default("all_retailers")
   targetTierId        String?
   targetTerritory     String?

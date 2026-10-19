@@ -82,6 +82,7 @@ interface CreateAppOptions {
 
 export function createApp(options: CreateAppOptions = {}) {
   const app = express();
+  app.set("trust proxy", true);
 
   app.use(requestId);
   app.use(helmet());

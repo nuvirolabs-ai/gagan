@@ -7,6 +7,7 @@ type RateLimitOptions = {
   windowMs: number;
   now?: () => number;
   key?: (req: any) => string;
+  skip?: (req: any) => boolean;
 };
 
 type Bucket = { count: number; resetAt: number };
@@ -15,6 +16,9 @@ const buckets = new Map<string, Bucket>();
 export function createRateLimiter(options: RateLimitOptions): RequestHandler {
   const now = options.now ?? Date.now;
   return (req, res, next) => {
+    if (options.skip?.(req)) {
+      return next();
+    }
     const authedReq = req as any;
     const identity = options.key?.(req) ?? authedReq.retailerId ?? authedReq.staffId ?? authedReq.adminId ?? req.ip ?? "unknown";
     const bucketKey = `${options.name}:${identity}`;

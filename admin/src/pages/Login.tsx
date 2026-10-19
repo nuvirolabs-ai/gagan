@@ -14,8 +14,16 @@ export default function Login() {
     setError(null);
     try {
       await login(email, password);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not sign in");
+    } catch (err: any) {
+      const msg = err?.body?.error || (err instanceof Error ? err.message : String(err));
+      if (msg === "rate_limited") {
+        const retrySec = err?.body?.retryAfterSeconds || 60;
+        setError(`Too many sign-in attempts. Please wait ${retrySec} seconds and try again.`);
+      } else if (msg === "Incorrect email or password") {
+        setError("Incorrect email or password. Please try again.");
+      } else {
+        setError(msg || "Could not sign in");
+      }
     } finally {
       setBusy(false);
     }

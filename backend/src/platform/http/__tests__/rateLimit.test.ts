@@ -29,4 +29,22 @@ describe("sensitive route rate limiter", () => {
     expect(third.headers.get("x-request-id")).toBeTruthy();
     expect(third.headers.get("retry-after")).toBe("60");
   });
+
+  it("skips rate limiting when skip function returns true", () => {
+    const limiter = createRateLimiter({
+      name: "login",
+      limit: 1,
+      windowMs: 60_000,
+      skip: (req) => req.body?.email?.endsWith("@gagan.test"),
+    });
+    const req = { ip: "127.0.0.1", body: { email: "admin@gagan.test" } } as any;
+    let nextCalls = 0;
+    const next = () => { nextCalls += 1; };
+    const res = response();
+    limiter(req, res, next);
+    limiter(req, res, next);
+    limiter(req, res, next);
+    expect(nextCalls).toBe(3);
+    expect(res.statusCode).toBe(200);
+  });
 });

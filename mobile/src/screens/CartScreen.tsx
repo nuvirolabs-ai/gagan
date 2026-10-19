@@ -40,10 +40,45 @@ export default function CartScreen({ navigation }: any) {
   const [appliedCoupon, setAppliedCoupon] = useState<CouponDefinition | null>(null);
   const [couponDiscount, setCouponDiscount] = useState(0);
   const [couponError, setCouponError] = useState("");
+  const [dispatchDateOption, setDispatchDateOption] = useState<"any" | "today" | "tomorrow" | "in_2_days" | "in_3_days">("any");
+  const [transportName, setTransportName] = useState("");
+  const [remarks, setRemarks] = useState("");
   const quoteRef=useRef<any>(null);
   const refreshInFlight=useRef(false);
   const appState=useRef<AppStateStatus>(AppState.currentState);
   const basket=JSON.stringify(lines.map(l=>({variantId:l.variantId,qty:l.qty})));
+
+  const getSelectedDispatchDate = () => {
+    if (dispatchDateOption === "any") return null;
+    const d = new Date();
+    if (dispatchDateOption === "tomorrow") d.setDate(d.getDate() + 1);
+    else if (dispatchDateOption === "in_2_days") d.setDate(d.getDate() + 2);
+    else if (dispatchDateOption === "in_3_days") d.setDate(d.getDate() + 3);
+    return d.toISOString();
+  };
+
+  // Rice Scheme: Buy 210 kg rice get 10 kg free (Point 1)
+  const totalRiceKg = lines.reduce((sum: number, line: any) => {
+    const name = (line.productName || "").toLowerCase();
+    const isRice = name.includes("rice") || name.includes("basmati") || name.includes("sehmat");
+    if (!isRice) return sum;
+    const quoteLine = quote?.snapshot?.lines?.find((candidate: any) => candidate.variantId === line.variantId);
+    let caseWeight = quoteLine ? Number(quoteLine.caseWeightKg) : 0;
+    if (!caseWeight && line.packSize) {
+      const match = line.packSize.match(/(\d+(?:\.\d+)?)\s*(?:kg|KG)/);
+      if (match) {
+        const unitWeight = parseFloat(match[1]);
+        const countMatch = line.packSize.match(/[x×]\s*(\d+)/i);
+        const units = countMatch ? parseInt(countMatch[1], 10) : 1;
+        caseWeight = unitWeight * units;
+      }
+    }
+    return sum + (caseWeight || 30) * line.qty;
+  }, 0);
+
+  const qualifiesForRiceScheme = totalRiceKg >= 210;
+  const riceSchemeMultiplier = Math.floor(totalRiceKg / 210);
+  const freeRiceKg = riceSchemeMultiplier * 10;
   const applyQuote=useCallback((nextQuote:any)=>{
     quoteRef.current=nextQuote;
     setQuote(nextQuote);
@@ -185,7 +220,12 @@ export default function CartScreen({ navigation }: any) {
         freshLines.map((l) => ({ variantId: l.variantId, qty: l.qty })),
         checkoutKey.current,
         quote ? {quoteId:quote.id,revision:quote.revision}:undefined,
-        appliedCoupon?.code
+        appliedCoupon?.code,
+        {
+          dispatchDate: getSelectedDispatchDate(),
+          transportName: transportName.trim() || null,
+          remarks: remarks.trim() || null,
+        }
       );
       clear();
       checkoutKey.current = null;
@@ -276,6 +316,26 @@ export default function CartScreen({ navigation }: any) {
           </TouchableOpacity>
         )}
 
+        {qualifiesForRiceScheme ? (
+          <View style={styles.schemeCard}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <Text style={{ fontSize: 24 }}>🎉</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.schemeTitle}>Rice Scheme Applied!</Text>
+                <Text style={styles.schemeSubtitle}>
+                  Buy 210 kg rice, get 10 kg free. Cart has {totalRiceKg} kg rice.
+                </Text>
+              </View>
+              <View style={styles.schemeBadge}>
+                <Text style={styles.schemeBadgeText}>+{freeRiceKg} KG FREE</Text>
+              </View>
+            </View>
+            <Text style={styles.schemeNote}>
+              10 kg free rice of the lowest-priced rice SKU will be automatically dispatched in 1 kg or 5 kg packaging.
+            </Text>
+          </View>
+        ) : null}
+
         {lines.map((l) => (
           <View key={l.variantId} style={styles.line}>
             <View style={{ flex: 1, minWidth: 0 }}>
@@ -347,6 +407,88 @@ export default function CartScreen({ navigation }: any) {
               {couponError ? <Text style={styles.couponErrorText}>{couponError}</Text> : null}
             </View>
           )}
+        </View>
+
+        {/* Dispatch & Delivery Details (Points 2, 3, 4) */}
+        <View style={styles.dispatchCard}>
+          <View style={styles.dispatchHeader}>
+            <Ionicons name="calendar-outline" size={18} color={colors.accentStrong} />
+            <Text style={styles.dispatchTitle}>Dispatch & Delivery Options</Text>
+          </View>
+
+          {/* Point 2: Dispatch Date */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>📅 Preferred Dispatch / Delivery Date</Text>
+            <Text style={styles.inputHint}>
+              Select a delivery date. If no date is selected, the order can be delivered at any time (same day eligible).
+            </Text>
+            <View style={styles.chipsRow}>
+              {[
+                { key: "any", label: "Any time (Same day)" },
+                { key: "today", label: "Today" },
+                { key: "tomorrow", label: "Tomorrow" },
+                { key: "in_2_days", label: "In 2 Days" },
+                { key: "in_3_days", label: "In 3 Days" },
+              ].map((opt) => (
+                <TouchableOpacity
+                  key={opt.key}
+                  style={[styles.chip, dispatchDateOption === opt.key && styles.chipActive]}
+                  onPress={() => setDispatchDateOption(opt.key as any)}
+                  disabled={placing}
+                >
+                  <Text style={[styles.chipText, dispatchDateOption === opt.key && styles.chipTextActive]}>
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Point 4: Transport Name */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>🚚 Transport Name</Text>
+            <Text style={styles.inputHint}>
+              Preferred transport or carrier name.
+            </Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="e.g. VRL Logistics, TCI Express, Local Tempo..."
+              placeholderTextColor={colors.inkMuted}
+              value={transportName}
+              onChangeText={setTransportName}
+              editable={!placing}
+            />
+            <View style={styles.quickChipsRow}>
+              {["VRL Logistics", "TCI Express", "Local Tempo", "Self Pickup"].map((name) => (
+                <TouchableOpacity
+                  key={name}
+                  style={styles.smallChip}
+                  onPress={() => setTransportName(name)}
+                  disabled={placing}
+                >
+                  <Text style={styles.smallChipText}>{name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Point 3: Remarks */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>💬 Remarks / Special Instructions</Text>
+            <Text style={styles.inputHint}>
+              Instructions for the warehouse dispatch team.
+            </Text>
+            <TextInput
+              style={[styles.textInput, styles.textArea]}
+              placeholder="e.g. Deliver before 2 PM, call owner before loading..."
+              placeholderTextColor={colors.inkMuted}
+              value={remarks}
+              onChangeText={setRemarks}
+              multiline
+              numberOfLines={3}
+              editable={!placing}
+            />
+          </View>
         </View>
 
         {!quote && <SectionTitle>{t("cart.summary")}</SectionTitle>}
@@ -669,4 +811,80 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginLeft: 2,
   },
+  schemeCard: {
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1.5,
+    borderColor: "#6EE7B7",
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    gap: spacing.xs,
+  },
+  schemeTitle: { color: "#065F46", fontSize: 15, fontWeight: "800" },
+  schemeSubtitle: { color: "#047857", fontSize: 12, marginTop: 2 },
+  schemeBadge: { backgroundColor: "#059669", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  schemeBadgeText: { color: "#FFFFFF", fontSize: 10.5, fontWeight: "800", letterSpacing: 0.5 },
+  schemeNote: { color: "#065F46", fontSize: 11, fontStyle: "italic", marginTop: 4 },
+  dispatchCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.lg,
+    marginTop: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.md,
+  },
+  dispatchHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  dispatchTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.ink,
+  },
+  inputGroup: { gap: 4 },
+  inputLabel: { color: colors.ink, fontSize: 12.5, fontWeight: "700" },
+  inputHint: { color: colors.inkMuted, fontSize: 11, lineHeight: 15 },
+  chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
+  chip: {
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  chipActive: {
+    backgroundColor: colors.green,
+    borderColor: colors.green,
+  },
+  chipText: { fontSize: 11.5, fontWeight: "600", color: colors.ink },
+  chipTextActive: { color: colors.onDark, fontWeight: "700" },
+  textInput: {
+    minHeight: 40,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    fontSize: 13,
+    color: colors.ink,
+  },
+  textArea: {
+    minHeight: 65,
+    paddingTop: 8,
+    textAlignVertical: "top",
+  },
+  quickChipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
+  smallChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+  },
+  smallChipText: { fontSize: 10.5, fontWeight: "600", color: "#334155" },
 });

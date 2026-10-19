@@ -70,6 +70,9 @@ const createOrderSchema = z.object({
   items: z
     .array(z.object({ variantId: z.string(), qty: z.number().int().positive() }))
     .min(1),
+  dispatchDate: z.string().trim().optional().nullable(),
+  remarks: z.string().trim().max(500).optional().nullable(),
+  transportName: z.string().trim().max(100).optional().nullable(),
 });
 
 router.post("/orders/validate-coupon", requireAuth, (req: AuthedRequest, res) => {
@@ -90,7 +93,21 @@ router.post("/orders", requireAuth, createRateLimiter({ name: "retailer-order", 
   const parsed = createOrderSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
 
-  const result = await createOrderForRetailer(req.retailerId!, parsed.data.items, "retailer", undefined, undefined, idempotencyKey, parsed.data.commercial, parsed.data.couponCode);
+  const result = await createOrderForRetailer(
+    req.retailerId!,
+    parsed.data.items,
+    "retailer",
+    undefined,
+    undefined,
+    idempotencyKey,
+    parsed.data.commercial,
+    parsed.data.couponCode,
+    {
+      dispatchDate: parsed.data.dispatchDate,
+      remarks: parsed.data.remarks,
+      transportName: parsed.data.transportName,
+    }
+  );
   if (!result.ok) return res.status(result.status).json(result.body);
 
   res.status(201).json(retailerOrderCreatedResponse(result));

@@ -1553,6 +1553,8 @@ model Order {
   status                    OrderStatus                  @default(placed)
   orderTotal                Decimal                      @db.Decimal(12, 2)
   expectedDeliveryAt        DateTime?
+  remarks                   String?
+  transportName             String?
   sapSalesOrderId           String?
   sapDocEntry               Int?
   sapDocNum                 Int?

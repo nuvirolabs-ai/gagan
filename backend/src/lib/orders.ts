@@ -12,10 +12,17 @@ import { InventoryValidationError, validateOrderInventory } from "../modules/inv
 import { recordCommercialStatusEvent } from "../modules/commercialStatus/statusService";
 import { CommercialStatusCode } from "@prisma/client";
 import { evaluateCoupon } from "../modules/promotions/couponService";
+import { evaluateRiceScheme } from "../modules/schemes/riceScheme";
 
 export interface OrderLineInput {
   variantId: string;
   qty: number;
+}
+
+export interface CreateOrderOptions {
+  dispatchDate?: string | null;
+  remarks?: string | null;
+  transportName?: string | null;
 }
 
 /** Canonical case quantities: one row per SKU, within the database Int range. */
@@ -86,7 +93,11 @@ async function replayExistingOrder(
 
   // Accepted rows are the durable request identity, including legacy orders.
   // Do not compare against today's price/master data on a lost-response retry.
-  const acceptedItems = normalizeItems(order.items.map(item => ({ variantId: item.variantId, qty: item.qtyOrdered })));
+  const userItems = order.items.filter((item: any) => {
+    const cs = item.commercialSnapshot as any;
+    return !cs || !cs.isFreeItem;
+  });
+  const acceptedItems = normalizeItems(userItems.map(item => ({ variantId: item.variantId, qty: item.qtyOrdered })));
   if (order.placedBy !== placedBy
     || order.placedByRepId !== (placedBy === "rep" ? placedByRepId ?? null : null)
     || JSON.stringify(acceptedItems) !== JSON.stringify(items)) {
@@ -134,7 +145,8 @@ export async function createOrderForRetailer(
   placedByStaffId?: string,
   idempotencyKey?: string,
   commercial?: { quoteId: string; revision: number },
-  couponCode?: string
+  couponCode?: string,
+  options?: CreateOrderOptions
 ): Promise<CreateOrderResult> {
   const normalizedItems = normalizeItems(items);
   if (!normalizedItems) return { ok: false, status: 400, body: { error: "invalid_order_items" } };
@@ -174,11 +186,19 @@ export async function createOrderForRetailer(
         },
         select: {
           id: true,
+          productId: true,
           unitsPerCase: true,
           unitWeightKg: true,
           sellingEntity: true,
           routingClass: true,
           gstPendingOrderAllowed: true,
+          product: {
+            select: {
+              id: true,
+              name: true,
+              category: true,
+            },
+          },
         },
       }),
     ]);
@@ -228,6 +248,30 @@ export async function createOrderForRetailer(
       }
       orderAmount = orderAmount.add(unitPrice.mul(item.qty));
       lineItems.push({ variantId: item.variantId, qtyOrdered: item.qty, unitPrice: unitPrice.toNumber(), caseWeightKgSnapshot });
+    }
+
+    const effectivePricePerCase = new Map<string, number>();
+    for (const li of lineItems) {
+      effectivePricePerCase.set(li.variantId, li.unitPrice);
+    }
+    const riceScheme = await evaluateRiceScheme(tx, items, variants, effectivePricePerCase);
+    if (riceScheme) {
+      lineItems.push({
+        variantId: riceScheme.freeVariantId,
+        qtyOrdered: riceScheme.freePacksCount,
+        unitPrice: 0,
+        caseWeightKgSnapshot: new Prisma.Decimal(riceScheme.packUnitKg),
+        commercialSnapshot: json({
+          isFreeItem: true,
+          scheme: riceScheme.schemeCode,
+          schemeName: riceScheme.schemeName,
+          schemeDescription: riceScheme.schemeDescription,
+          freeWeightKg: riceScheme.freeWeightKg,
+          packUnitKg: riceScheme.packUnitKg,
+          packDescription: `${riceScheme.freePacksCount} × ${riceScheme.packUnitKg} KG`,
+          productName: riceScheme.freeVariantName,
+        }),
+      });
     }
 
     // Persisted prices have two decimal places. Keep multiplication/addition
@@ -326,6 +370,19 @@ export async function createOrderForRetailer(
       };
     }
 
+    const parsedDeliveryDate = options?.dispatchDate && !isNaN(new Date(options.dispatchDate).getTime())
+      ? new Date(options.dispatchDate)
+      : null;
+
+    const snapshotData: Record<string, unknown> = {
+      ...(couponMetadata ? { coupon: couponMetadata } : {}),
+      ...(quote && accepted ? { quote: asJson(accepted) } : {}),
+      ...(riceScheme ? { riceScheme } : {}),
+      ...(options?.remarks ? { remarks: options.remarks.trim() } : {}),
+      ...(options?.transportName ? { transportName: options.transportName.trim() } : {}),
+      ...(options?.dispatchDate ? { dispatchDate: options.dispatchDate } : {}),
+    };
+
     const order = await tx.order.create({
       data: {
         retailerId,
@@ -336,9 +393,10 @@ export async function createOrderForRetailer(
         status: (placedBy === "rep" && effectiveDecision.result === "allowed") ? "confirmed" : "placed",
         orderTotal,
         items: { create: lineItems },
-        commercialSnapshot: couponMetadata
-          ? json({ coupon: couponMetadata, ...(quote && accepted ? { quote: asJson(accepted) } : {}) })
-          : (quote && accepted ? asJson(accepted) : undefined),
+        expectedDeliveryAt: parsedDeliveryDate,
+        remarks: options?.remarks?.trim() || null,
+        transportName: options?.transportName?.trim() || null,
+        commercialSnapshot: Object.keys(snapshotData).length > 0 ? json(snapshotData) : (quote && accepted ? asJson(accepted) : undefined),
       },
       include: { items: true },
     });

@@ -27,13 +27,26 @@ export function createRetailerApi(request: ApiRequest, store: SessionStore) {
     getProduct: (id: string) => request(`/products/${id}`),
     commercialQuote: (items: {variantId:string;qty:number}[]) => post("/commercial/quotes",{items}),
     refreshCommercialQuote: (id:string) => request(`/commercial/quotes/${id}`),
-    createOrder: (items: { variantId: string; qty: number }[], idempotencyKey: string, commercial?:{quoteId:string;revision:number}, couponCode?: string) =>
+    createOrder: (
+      items: { variantId: string; qty: number }[],
+      idempotencyKey: string,
+      commercial?: { quoteId: string; revision: number },
+      couponCode?: string,
+      options?: { dispatchDate?: string | null; remarks?: string | null; transportName?: string | null }
+    ) =>
       request(
         "/orders",
         {
           method: "POST",
           headers: { "Idempotency-Key": idempotencyKey },
-          body: JSON.stringify({ items, ...(commercial ? {commercial}:{}), ...(couponCode ? {couponCode}:{}) }),
+          body: JSON.stringify({
+            items,
+            ...(commercial ? { commercial } : {}),
+            ...(couponCode ? { couponCode } : {}),
+            ...(options?.dispatchDate ? { dispatchDate: options.dispatchDate } : {}),
+            ...(options?.remarks ? { remarks: options.remarks } : {}),
+            ...(options?.transportName ? { transportName: options.transportName } : {}),
+          }),
         }
       ),
     validateCoupon: (code: string, subtotal: number) =>

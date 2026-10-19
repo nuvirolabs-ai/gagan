@@ -11,6 +11,10 @@ type WarehouseOrder = {
   status: "confirmed" | "packed" | "out_for_delivery" | "delivered";
   orderTotal?: number;
   createdAt: string;
+  expectedDeliveryAt?: string | null;
+  remarks?: string | null;
+  transportName?: string | null;
+  commercialSnapshot?: any;
   retailer: {
     id: string;
     name: string;
@@ -27,6 +31,7 @@ type WarehouseOrder = {
     qtyOrdered: number;
     unitPrice?: number;
     caseWeightKg?: number;
+    commercialSnapshot?: any;
     variant: {
       unitSize: string;
       unit: string;
@@ -1151,6 +1156,16 @@ export default function WarehouseOrders() {
                       <small className="retailer-addr">
                         {order.retailer?.shopAddress ? `📍 ${order.retailer.shopAddress}` : ""}
                         {order.retailer?.deliveryCity ? ` · ${order.retailer.deliveryCity}` : ""}
+                        {order.transportName ? (
+                          <span style={{ display: "inline-block", marginLeft: 6, padding: "1px 5px", background: "#f1f5f9", borderRadius: 4, fontSize: 10, color: "#334155", fontWeight: 600 }}>
+                            🚚 {order.transportName}
+                          </span>
+                        ) : null}
+                        {order.remarks ? (
+                          <span style={{ display: "inline-block", marginLeft: 6, padding: "1px 5px", background: "#fef9c3", borderRadius: 4, fontSize: 10, color: "#854d0e", fontWeight: 600 }}>
+                            💬 Remarks
+                          </span>
+                        ) : null}
                       </small>
                     </span>
                     <span className="td-items">
@@ -1719,6 +1734,89 @@ export default function WarehouseOrders() {
                 ) : null}
               </section>
 
+              {/* Dispatch Instructions, Date & Transport (Points 2, 3, 4, 5) */}
+              {(modalOrder.expectedDeliveryAt || modalOrder.transportName || modalOrder.remarks || modalOrder.commercialSnapshot?.riceScheme) && (
+                <section
+                  className="warehouse-modal-dispatch-info"
+                  aria-label="Dispatch instructions and transport"
+                  style={{
+                    background: "#f8fafc",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: 8,
+                    padding: "12px 14px",
+                    marginBottom: 16,
+                  }}
+                >
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, letterSpacing: 0.5 }}>
+                        📅 Dispatch / Delivery Date
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginTop: 2 }}>
+                        {modalOrder.expectedDeliveryAt
+                          ? new Date(modalOrder.expectedDeliveryAt).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" })
+                          : "Any time (Same day eligible)"}
+                      </div>
+                    </div>
+
+                    {modalOrder.transportName ? (
+                      <div>
+                        <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, letterSpacing: 0.5 }}>
+                          🚚 Transport Name
+                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginTop: 2 }}>
+                          {modalOrder.transportName}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {modalOrder.remarks ? (
+                    <div
+                      style={{
+                        marginTop: 10,
+                        padding: "8px 12px",
+                        background: "#fefce8",
+                        border: "1px solid #fef08a",
+                        borderRadius: 6,
+                      }}
+                    >
+                      <div style={{ fontSize: 11, color: "#854d0e", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                        💬 Dispatch Remarks / Special Instructions
+                      </div>
+                      <div style={{ fontSize: 13, color: "#713f12", marginTop: 2, whiteSpace: "pre-wrap", fontWeight: 500 }}>
+                        {modalOrder.remarks}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {modalOrder.commercialSnapshot?.riceScheme ? (
+                    <div
+                      style={{
+                        marginTop: 10,
+                        padding: "8px 12px",
+                        background: "#ecfdf5",
+                        border: "1px solid #a7f3d0",
+                        borderRadius: 6,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <span style={{ fontSize: 16 }}>🎁</span>
+                      <div>
+                        <strong style={{ fontSize: 12, color: "#065f46", display: "block" }}>
+                          {modalOrder.commercialSnapshot.riceScheme.schemeName || "Rice Scheme Applied"}
+                        </strong>
+                        <span style={{ fontSize: 11, color: "#047857" }}>
+                          {modalOrder.commercialSnapshot.riceScheme.schemeDescription || "Free rice added to dispatch"}
+                        </span>
+                      </div>
+                    </div>
+                  ) : null}
+                </section>
+              )}
+
               {/* Items picking table */}
               <section className="warehouse-modal-items-section" aria-label="Items checklist">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
@@ -1737,21 +1835,31 @@ export default function WarehouseOrders() {
                     <span style={{ textAlign: "right" }}>Quantity</span>
                   </div>
                   <div className="warehouse-modal-items-body">
-                    {modalOrder.items.map((item) => (
-                      <div className="warehouse-modal-item-row" key={item.id}>
-                        <strong className="item-product-name">
-                          {item.variant?.product?.name ?? "Product unavailable"}
-                        </strong>
-                        <span className="item-presentation">
-                          {item.variant
-                            ? `${item.variant.unitsPerCase} × ${item.variant.unitSize}`
-                            : "Standard Pack"}
-                        </span>
-                        <b className="item-qty" style={{ textAlign: "right", fontSize: 14, color: "#111827" }}>
-                          {item.qtyOrdered} cases
-                        </b>
-                      </div>
-                    ))}
+                    {modalOrder.items.map((item) => {
+                      const isFree = item.commercialSnapshot?.isFreeItem || (item.unitPrice === 0 && item.commercialSnapshot?.scheme);
+                      return (
+                        <div
+                          className="warehouse-modal-item-row"
+                          key={item.id}
+                          style={isFree ? { background: "#f0fdf4", borderLeft: "3px solid #10b981" } : undefined}
+                        >
+                          <strong className="item-product-name" style={isFree ? { color: "#065f46" } : undefined}>
+                            {isFree ? "🎁 [FREE SCHEME] " : ""}
+                            {item.variant?.product?.name ?? "Product unavailable"}
+                          </strong>
+                          <span className="item-presentation">
+                            {item.commercialSnapshot?.packDescription
+                              ? item.commercialSnapshot.packDescription
+                              : item.variant
+                                ? `${item.variant.unitsPerCase} × ${item.variant.unitSize}`
+                                : "Standard Pack"}
+                          </span>
+                          <b className="item-qty" style={{ textAlign: "right", fontSize: 14, color: isFree ? "#047857" : "#111827" }}>
+                            {item.qtyOrdered} {isFree ? "packs (FREE)" : "cases"}
+                          </b>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </section>

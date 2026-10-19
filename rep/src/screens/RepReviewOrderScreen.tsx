@@ -40,6 +40,9 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
   const [appliedCoupon, setAppliedCoupon] = useState<CouponDefinition | null>(null);
   const [couponDiscount, setCouponDiscount] = useState(0);
   const [couponError, setCouponError] = useState("");
+  const [dispatchDateOption, setDispatchDateOption] = useState<"any" | "today" | "tomorrow" | "in_2_days" | "in_3_days">("any");
+  const [transportName, setTransportName] = useState("");
+  const [remarks, setRemarks] = useState("");
   const quoteRef = useRef<any>(null);
   const refreshInFlight = useRef(false);
   const checkoutKey = useRef<string | null>(null);
@@ -67,6 +70,38 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
   const quoteTotal = quote ? Number(quote.snapshot?.total) : undefined;
   const rawTotal = quoteTotal ?? displayTotal;
   const finalTotal = Math.max(0, rawTotal - couponDiscount);
+
+  const getSelectedDispatchDate = () => {
+    if (dispatchDateOption === "any") return null;
+    const d = new Date();
+    if (dispatchDateOption === "tomorrow") d.setDate(d.getDate() + 1);
+    else if (dispatchDateOption === "in_2_days") d.setDate(d.getDate() + 2);
+    else if (dispatchDateOption === "in_3_days") d.setDate(d.getDate() + 3);
+    return d.toISOString();
+  };
+
+  // Rice Scheme: Buy 210 kg of any rice SKU -> get 10 kg free (Point 1)
+  const totalRiceKg = activeLines.reduce((sum: number, line: any) => {
+    const name = (line.productName || "").toLowerCase();
+    const isRice = name.includes("rice") || name.includes("basmati") || name.includes("sehmat");
+    if (!isRice) return sum;
+    const quoteLine = quote?.snapshot?.lines?.find((candidate: any) => candidate.variantId === line.variantId);
+    let caseWeight = quoteLine ? Number(quoteLine.caseWeightKg) : 0;
+    if (!caseWeight && line.packSize) {
+      const match = line.packSize.match(/(\d+(?:\.\d+)?)\s*(?:kg|KG)/);
+      if (match) {
+        const unitWeight = parseFloat(match[1]);
+        const countMatch = line.packSize.match(/[x×]\s*(\d+)/i);
+        const units = countMatch ? parseInt(countMatch[1], 10) : 1;
+        caseWeight = unitWeight * units;
+      }
+    }
+    return sum + (caseWeight || 30) * line.qty;
+  }, 0);
+
+  const qualifiesForRiceScheme = totalRiceKg >= 210;
+  const riceSchemeMultiplier = Math.floor(totalRiceKg / 210);
+  const freeRiceKg = riceSchemeMultiplier * 10;
 
   const applyCouponCode = () => {
     setCouponError("");
@@ -257,6 +292,11 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
           checkoutKey.current,
           checkoutCommercialReference(quote),
           appliedCoupon?.code,
+          {
+            dispatchDate: getSelectedDispatchDate(),
+            transportName: transportName.trim() || null,
+            remarks: remarks.trim() || null,
+          }
         );
       }
       if (!result.order?.id) throw new Error("order_response_missing_id");
@@ -283,7 +323,7 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
       submitLock.current = false;
       setPlacing(false);
     }
-  }, [activeLines, appliedCoupon, clearCart, intentId, navigation, proposalDemandMode, proposalIntent, quote, quoteError, quoteReady, refreshQuote, retailerId, retailerName, t, placing]);
+  }, [activeLines, appliedCoupon, clearCart, intentId, navigation, proposalDemandMode, proposalIntent, quote, quoteError, quoteReady, refreshQuote, retailerId, retailerName, t, placing, dispatchDateOption, transportName, remarks]);
 
   if (proposalDemandMode && intentLoading) {
     return <AppScreen><View style={styles.empty}><ActivityIndicator color={colors.blue} /></View></AppScreen>;
@@ -313,6 +353,26 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
             ? "This demand was punched before retailer approval. Confirm the current pricing and continue through the normal order checks."
             : "Check quantities and the manager-confirmed commercial quote before placing."}</Text>
         </View>
+
+        {qualifiesForRiceScheme ? (
+          <View style={styles.schemeCard}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <Text style={{ fontSize: 24 }}>🎉</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.schemeTitle}>Rice Scheme Applied!</Text>
+                <Text style={styles.schemeSubtitle}>
+                  Buy 210 kg rice, get 10 kg free. Order has {totalRiceKg} kg rice.
+                </Text>
+              </View>
+              <View style={styles.schemeBadge}>
+                <Text style={styles.schemeBadgeText}>+{freeRiceKg} KG FREE</Text>
+              </View>
+            </View>
+            <Text style={styles.schemeNote}>
+              10 kg free rice of the lowest-priced rice SKU will be automatically dispatched in 1 kg or 5 kg packaging.
+            </Text>
+          </View>
+        ) : null}
 
         <Surface>
           <SectionHeader title={`${activeLines.length} line${activeLines.length === 1 ? "" : "s"}`} />
@@ -404,6 +464,85 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
               </View>
             </View>
           ) : null}
+        </Surface>
+
+        {/* Dispatch & Delivery Details (Points 2, 3, 4) */}
+        <Surface style={styles.dispatchSurface}>
+          <SectionHeader title="Dispatch & Delivery Details" />
+
+          {/* Point 2: Dispatch Date */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>📅 Preferred Dispatch / Delivery Date</Text>
+            <Text style={styles.inputHint}>
+              Select a preferred delivery date. If no date is selected, the order can be delivered at any time (same day eligible).
+            </Text>
+            <View style={styles.chipsRow}>
+              {[
+                { key: "any", label: "Any time (Same day)" },
+                { key: "today", label: "Today" },
+                { key: "tomorrow", label: "Tomorrow" },
+                { key: "in_2_days", label: "In 2 Days" },
+                { key: "in_3_days", label: "In 3 Days" },
+              ].map((opt) => (
+                <TouchableOpacity
+                  key={opt.key}
+                  style={[styles.chip, dispatchDateOption === opt.key && styles.chipActive]}
+                  onPress={() => setDispatchDateOption(opt.key as any)}
+                  disabled={placing}
+                >
+                  <Text style={[styles.chipText, dispatchDateOption === opt.key && styles.chipTextActive]}>
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Point 4: Transport Name */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>🚚 Transport Name</Text>
+            <Text style={styles.inputHint}>
+              Specify which transport or carrier should be used for dispatch.
+            </Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="e.g. VRL Logistics, TCI Express, Local Tempo..."
+              placeholderTextColor={colors.inkMuted}
+              value={transportName}
+              onChangeText={setTransportName}
+              editable={!placing}
+            />
+            <View style={styles.quickChipsRow}>
+              {["VRL Logistics", "TCI Express", "Local Tempo", "Self Pickup"].map((name) => (
+                <TouchableOpacity
+                  key={name}
+                  style={styles.smallChip}
+                  onPress={() => setTransportName(name)}
+                  disabled={placing}
+                >
+                  <Text style={styles.smallChipText}>{name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Point 3: Remarks */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>💬 Remarks / Special Instructions</Text>
+            <Text style={styles.inputHint}>
+              Specific instructions for the dispatch team (visible on warehouse portal review).
+            </Text>
+            <TextInput
+              style={[styles.textInput, styles.textArea]}
+              placeholder="e.g. Deliver before 2 PM, call shop owner before loading..."
+              placeholderTextColor={colors.inkMuted}
+              value={remarks}
+              onChangeText={setRemarks}
+              multiline
+              numberOfLines={3}
+              editable={!placing}
+            />
+          </View>
         </Surface>
 
         <View style={styles.freightNoticeCard}>
@@ -502,4 +641,61 @@ const styles = StyleSheet.create({
   couponTotalLabel: { color: colors.ink, fontSize: 15, fontWeight: "700" },
   couponTotalVal: { color: colors.ink, fontSize: 16, fontWeight: "800" },
   couponErrorText: { color: colors.danger, fontSize: 12, marginTop: 4 },
+  schemeCard: {
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1.5,
+    borderColor: "#6EE7B7",
+    borderRadius: spacing.md,
+    padding: spacing.md,
+    gap: spacing.xs,
+  },
+  schemeTitle: { color: "#065F46", fontSize: 15, fontWeight: "800" },
+  schemeSubtitle: { color: "#047857", fontSize: 12.5, marginTop: 2 },
+  schemeBadge: { backgroundColor: "#059669", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  schemeBadgeText: { color: "#FFFFFF", fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
+  schemeNote: { color: "#065F46", fontSize: 11.5, fontStyle: "italic", marginTop: 4 },
+  dispatchSurface: { gap: spacing.md },
+  inputGroup: { gap: spacing.xs },
+  inputLabel: { color: colors.ink, fontSize: 13, fontWeight: "700" },
+  inputHint: { color: colors.inkMuted, fontSize: 11.5, lineHeight: 16 },
+  chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginTop: spacing.xs },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: spacing.sm,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.separator,
+  },
+  chipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  chipText: { fontSize: 12, fontWeight: "600", color: colors.ink },
+  chipTextActive: { color: colors.onDark, fontWeight: "700" },
+  textInput: {
+    minHeight: 44,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.separator,
+    paddingHorizontal: spacing.md,
+    fontSize: 13.5,
+    color: colors.ink,
+  },
+  textArea: {
+    minHeight: 70,
+    paddingTop: 10,
+    textAlignVertical: "top",
+  },
+  quickChipsRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginTop: 6 },
+  smallChip: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 4,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+  },
+  smallChipText: { fontSize: 11, fontWeight: "600", color: "#334155" },
 });

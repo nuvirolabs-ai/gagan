@@ -126,7 +126,10 @@ export function storedLineValue(order: { commercialSnapshot?: { lines?: unknown 
   return Number(item.unitPrice ?? 0) * Number(item.qtyOrdered ?? 0);
 }
 
-export function packLabel(order: { commercialSnapshot?: { lines?: unknown } | null }, item: { variantId?: string | null; variant?: { unitSize?: string | null; unitsPerCase?: number | null } | null }) {
+export function packLabel(order: { commercialSnapshot?: { lines?: unknown } | null }, item: { variantId?: string | null; variant?: { unitSize?: string | null; unitsPerCase?: number | null } | null; commercialSnapshot?: any }) {
+  if (item?.commercialSnapshot?.packDescription) {
+    return item.commercialSnapshot.packDescription;
+  }
   const snapshotLine = matchingSnapshotLine(order, item);
   if (snapshotLine?.pack) return snapshotLine.pack;
   const variant = item.variant;
@@ -134,8 +137,13 @@ export function packLabel(order: { commercialSnapshot?: { lines?: unknown } | nu
   return variant?.unitSize || "Pack unavailable";
 }
 
-export function productLabel(item: { variant?: { product?: { name?: string | null } | null } | null }) {
-  return item.variant?.product?.name || "Product unavailable";
+export function productLabel(item: { variant?: { product?: { name?: string | null } | null } | null; commercialSnapshot?: any; unitPrice?: string | number | null }) {
+  const isFree = Boolean(item?.commercialSnapshot?.isFreeItem) || (Number(item?.unitPrice ?? 0) === 0 && Boolean(item?.commercialSnapshot?.scheme));
+  const baseName = item.variant?.product?.name || "Product unavailable";
+  if (isFree) {
+    return `🎁 [FREE SCHEME] ${baseName}`;
+  }
+  return baseName;
 }
 
 /** Apply only fields the backend returned. Missing fields stay as they were. */

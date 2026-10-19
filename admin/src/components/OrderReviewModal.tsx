@@ -198,6 +198,80 @@ export default function OrderReviewModal({
           <div className="section-head"><div><h3>Order health</h3></div></div>
           <div className="health-matrix compact">{health.map((cell) => <div className={`health-cell ${cell.tone}`} key={cell.label}><Icon name={cell.icon} /><span><b>{cell.label}</b><small>{cell.value}</small></span></div>)}</div>
         </section>
+        {/* Salesperson Order Instructions: Dispatch Date, Transport Name, Remarks (Points 2, 3, 4, 5) */}
+        {(order.expectedDeliveryAt || order.transportName || order.remarks || order.commercialSnapshot?.riceScheme) && (
+          <section className="order-review-dispatch-card" aria-label="Dispatch and transport instructions" style={{
+            background: "#f8fafc",
+            border: "1px solid #cbd5e1",
+            borderRadius: 8,
+            padding: "12px 16px",
+            marginBottom: 16,
+          }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, alignItems: "start" }}>
+              <div>
+                <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, letterSpacing: 0.5, display: "block" }}>
+                  📅 Dispatch / Delivery Date
+                </span>
+                <strong style={{ fontSize: 13, color: "#0f172a", marginTop: 2, display: "block" }}>
+                  {order.expectedDeliveryAt
+                    ? new Date(order.expectedDeliveryAt).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" })
+                    : "Any time (Same day eligible)"}
+                </strong>
+              </div>
+
+              {order.transportName ? (
+                <div>
+                  <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, letterSpacing: 0.5, display: "block" }}>
+                    🚚 Transport Name
+                  </span>
+                  <strong style={{ fontSize: 13, color: "#0f172a", marginTop: 2, display: "block" }}>
+                    {order.transportName}
+                  </strong>
+                </div>
+              ) : null}
+            </div>
+
+            {order.remarks ? (
+              <div style={{
+                marginTop: 10,
+                background: "#fefce8",
+                border: "1px solid #fef08a",
+                borderRadius: 6,
+                padding: "8px 12px",
+              }}>
+                <span style={{ fontSize: 11, color: "#854d0e", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, display: "block" }}>
+                  💬 Sales Remarks / Dispatch Instructions
+                </span>
+                <p style={{ margin: "2px 0 0", fontSize: 13, color: "#713f12", whiteSpace: "pre-wrap", fontWeight: 500 }}>
+                  {order.remarks}
+                </p>
+              </div>
+            ) : null}
+
+            {order.commercialSnapshot?.riceScheme ? (
+              <div style={{
+                marginTop: 10,
+                background: "#ecfdf5",
+                border: "1px solid #a7f3d0",
+                borderRadius: 6,
+                padding: "8px 12px",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}>
+                <span style={{ fontSize: 16 }}>🎁</span>
+                <div>
+                  <strong style={{ fontSize: 12, color: "#065f46", display: "block" }}>
+                    {order.commercialSnapshot.riceScheme.schemeName || "Rice Scheme Applied"}
+                  </strong>
+                  <span style={{ fontSize: 11, color: "#047857" }}>
+                    {order.commercialSnapshot.riceScheme.schemeDescription || "Free rice added to dispatch"}
+                  </span>
+                </div>
+              </div>
+            ) : null}
+          </section>
+        )}
         <section className="order-review-lines" aria-label="Commercial lines">
           <div className="section-head"><div><h3>Items <em>{lines.length} lines</em></h3></div><span className="small-note">stored order values</span></div>
           <div className="order-review-line-table">

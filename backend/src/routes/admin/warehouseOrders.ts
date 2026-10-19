@@ -20,6 +20,10 @@ const warehouseOrderSelect = {
   status: true,
   orderTotal: true,
   createdAt: true,
+  expectedDeliveryAt: true,
+  remarks: true,
+  transportName: true,
+  commercialSnapshot: true,
   retailer: {
     select: {
       id: true,
@@ -41,6 +45,7 @@ const warehouseOrderSelect = {
       qtyOrdered: true,
       unitPrice: true,
       caseWeightKgSnapshot: true,
+      commercialSnapshot: true,
       variant: {
         select: {
           unitSize: true,
@@ -83,6 +88,10 @@ function projectWarehouseOrder(order: any) {
     status: order.status,
     orderTotal: order.orderTotal ? Number(order.orderTotal) : 0,
     createdAt: order.createdAt,
+    expectedDeliveryAt: order.expectedDeliveryAt,
+    remarks: order.remarks,
+    transportName: order.transportName,
+    commercialSnapshot: order.commercialSnapshot,
     retailer: order.retailer ? {
       id: order.retailer.id,
       name: order.retailer.name,
@@ -98,6 +107,7 @@ function projectWarehouseOrder(order: any) {
       id: item.id,
       qtyOrdered: item.qtyOrdered,
       unitPrice: Number(item.unitPrice ?? 0),
+      commercialSnapshot: item.commercialSnapshot,
       caseWeightKg: Number(item.caseWeightKgSnapshot ?? (item.variant ? Number(item.variant.unitWeightKg ?? 0) * item.variant.unitsPerCase : 0)),
       variant: item.variant ? {
         unitSize: item.variant.unitSize,

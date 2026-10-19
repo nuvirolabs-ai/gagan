@@ -553,6 +553,9 @@ const repOrderSchema = z.object({
   couponCode: z.string().trim().max(30).optional(),
   retailerId: z.string(),
   items: z.array(z.object({ variantId: z.string(), qty: z.number().int().positive() })).min(1),
+  dispatchDate: z.string().trim().optional().nullable(),
+  remarks: z.string().trim().max(500).optional().nullable(),
+  transportName: z.string().trim().max(100).optional().nullable(),
 });
 
 router.post("/orders/validate-coupon", requireRep, (req: RepRequest, res) => {
@@ -586,7 +589,12 @@ router.post("/orders", requireRep, createRateLimiter({ name: "rep-order", limit:
     req.staffId,
     idempotencyKey,
     parsed.data.commercial,
-    parsed.data.couponCode
+    parsed.data.couponCode,
+    {
+      dispatchDate: parsed.data.dispatchDate,
+      remarks: parsed.data.remarks,
+      transportName: parsed.data.transportName,
+    }
   );
   if (!result.ok) return res.status(result.status).json(result.body);
 

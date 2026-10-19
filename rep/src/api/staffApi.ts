@@ -73,13 +73,28 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
     catalogFor: (id: string) => request(`/rep/retailers/${id}/catalog`),
     commercialQuote: (retailerId:string,items:{variantId:string;qty:number}[]) => post("/rep/commercial/quotes",{retailerId,items}),
     refreshCommercialQuote: (id:string) => request(`/rep/commercial/quotes/${id}`),
-    createOrder: (retailerId: string, items: { variantId: string; qty: number }[], idempotencyKey: string, commercial?:{quoteId:string;revision:number}, couponCode?: string) =>
+    createOrder: (
+      retailerId: string,
+      items: { variantId: string; qty: number }[],
+      idempotencyKey: string,
+      commercial?: { quoteId: string; revision: number },
+      couponCode?: string,
+      options?: { dispatchDate?: string | null; remarks?: string | null; transportName?: string | null }
+    ) =>
       request(
         "/rep/orders",
         {
           method: "POST",
           headers: { "Idempotency-Key": idempotencyKey },
-          body: JSON.stringify({ retailerId, items, ...(commercial ? {commercial}:{}), ...(couponCode ? {couponCode}:{}) }),
+          body: JSON.stringify({
+            retailerId,
+            items,
+            ...(commercial ? { commercial } : {}),
+            ...(couponCode ? { couponCode } : {}),
+            ...(options?.dispatchDate ? { dispatchDate: options.dispatchDate } : {}),
+            ...(options?.remarks ? { remarks: options.remarks } : {}),
+            ...(options?.transportName ? { transportName: options.transportName } : {}),
+          }),
         }
       ),
     validateCoupon: (code: string, subtotal: number) =>

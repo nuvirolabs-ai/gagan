@@ -9,7 +9,12 @@ import {
 } from "../../modules/invoicing/invoiceService";
 import { renderInvoicePdf } from "../../modules/invoicing/invoicePdf";
 import { ensureKycApprovedForDispatch, KycGateError } from "../../modules/kyc/kycGate";
-import { attributeOrders } from "../../modules/orders/orderAttribution";
+import {
+  attributeOrders,
+  attributeOrdersWithWarehouses,
+  orderAttribution,
+  resolveWarehouse,
+} from "../../modules/orders/orderAttribution";
 
 const router = Router();
 router.use(["/orders", "/dispatch"], requireAdmin);
@@ -33,9 +38,32 @@ function assertTransition(from: OrderStatus, to: OrderStatus): string | null {
 }
 
 const orderInclude = {
-  retailer: { select: { id: true, name: true, phone: true, shopAddress: true } },
+  retailer: {
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      shopAddress: true,
+      deliveryCity: true,
+      salesRepId: true,
+      salesRep: { select: { id: true, name: true, phone: true } },
+    },
+  },
   items: { include: { variant: { include: { product: true } } } },
   delivery: true,
+  invoice: {
+    select: {
+      id: true,
+      invoiceNumber: true,
+      invoiceDate: true,
+      dueDate: true,
+      currency: true,
+      subtotal: true,
+      taxTotal: true,
+      total: true,
+      outstandingAmount: true,
+    },
+  },
   commercialStatusEvents: {
     where: { code: CommercialStatusCode.SALES_ORDER_PUNCHED },
     select: { code: true, actorStaff: { select: { name: true } } },
@@ -55,6 +83,9 @@ function jsonSafe<T>(value: T): T {
 router.get("/orders", async (req, res) => {
   const status = typeof req.query.status === "string" ? req.query.status : undefined;
   const valid = status && (Object.keys(ALLOWED_NEXT) as string[]).includes(status);
+  const warehouseCode = typeof req.query.warehouseCode === "string" && req.query.warehouseCode !== "all"
+    ? req.query.warehouseCode.trim()
+    : undefined;
 
   const orders = await prisma.order.findMany({
     where: valid ? { status: status as OrderStatus } : undefined,
@@ -62,14 +93,20 @@ router.get("/orders", async (req, res) => {
     orderBy: { createdAt: "desc" },
     take: 200,
   });
-  res.json({ orders: await attributeOrders(orders) });
+
+  const { attributed, warehouses } = await attributeOrdersWithWarehouses(orders);
+  const filtered = warehouseCode
+    ? attributed.filter((o) => o.warehouseCode.toLowerCase() === warehouseCode.toLowerCase())
+    : attributed;
+
+  res.json({ orders: filtered, warehouses });
 });
 
 router.get("/orders/:id", async (req, res) => {
   const order = await prisma.order.findUnique({ where: { id: req.params.id }, include: orderInclude });
   if (!order) return res.status(404).json({ error: "Order not found" });
-  const [attributedOrder] = await attributeOrders([order]);
-  res.json({ order: attributedOrder });
+  const { attributed } = await attributeOrdersWithWarehouses([order]);
+  res.json({ order: attributed[0] });
 });
 
 /** Generic forward transition used by approve / reject / pack. */
@@ -281,7 +318,15 @@ router.get("/orders/:id/invoice-pdf", async (req, res) => {
   const order = await prisma.order.findUnique({
     where: { id: req.params.id },
     include: {
-      retailer: true,
+      retailer: {
+        include: {
+          salesRep: true,
+        },
+      },
+      commercialStatusEvents: {
+        where: { code: CommercialStatusCode.SALES_ORDER_PUNCHED },
+        select: { code: true, actorStaff: { select: { name: true } } },
+      },
       invoice: {
         include: {
           lines: true,
@@ -298,6 +343,9 @@ router.get("/orders/:id/invoice-pdf", async (req, res) => {
     (l) => l.descriptionSnapshot.toLowerCase().includes("freight") || l.descriptionSnapshot.toLowerCase().includes("transport")
   );
 
+  const attribution = orderAttribution(order);
+  const warehouse = resolveWarehouse(order);
+
   const pdfBuffer = renderInvoicePdf({
     invoiceNumber: order.invoice.invoiceNumber,
     orderNo: order.orderNo,
@@ -308,6 +356,8 @@ router.get("/orders/:id/invoice-pdf", async (req, res) => {
     taxTotal: Number(order.invoice.taxTotal),
     total: Number(order.invoice.total),
     transportationAmount: freightLine ? Number(freightLine.lineTotal) : undefined,
+    salespersonName: attribution.salespersonName,
+    warehouseName: `${warehouse.name} (${warehouse.code})`,
     retailer: {
       name: order.retailer.name,
       shopAddress: order.retailer.shopAddress,

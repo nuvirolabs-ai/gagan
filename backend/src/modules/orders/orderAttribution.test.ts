@@ -54,4 +54,52 @@ describe("order attribution read model", () => {
     expect(order).toMatchObject({ source: "RETAILER_APP", creatorName: null });
     expect(salesRep.findMany).not.toHaveBeenCalled();
   });
+
+  it("resolves multi-warehouse origin and salesperson tracking", async () => {
+    const [indoreOrder, bhopalOrder] = await attributeOrders([
+      {
+        id: "order-indore",
+        placedBy: "rep",
+        retailer: {
+          name: "Indore Store",
+          deliveryCity: "Indore",
+          salesRep: { name: "Vikram Singh", phone: "9800000001" },
+        },
+        commercialStatusEvents: [{
+          code: CommercialStatusCode.SALES_ORDER_PUNCHED,
+          actorStaff: { name: "Vikram Singh" },
+        }],
+      },
+      {
+        id: "order-bhopal",
+        placedBy: "retailer",
+        retailer: {
+          name: "Bhopal Kirana",
+          deliveryCity: "Bhopal",
+          salesRep: { name: "Priya Deshmukh", phone: "9812345671" },
+        },
+        commercialStatusEvents: [],
+      },
+    ]);
+
+    expect(indoreOrder).toMatchObject({
+      salespersonName: "Vikram Singh",
+      punchedByName: "Vikram Singh",
+      punchedByRole: "Salesperson",
+      punchedByLabel: "Punched by Sales Rep: Vikram Singh",
+      warehouseCode: "WH-001",
+      warehouseName: "Indore Central Fulfillment Hub",
+      warehouseCity: "Indore",
+    });
+
+    expect(bhopalOrder).toMatchObject({
+      salespersonName: "Priya Deshmukh",
+      punchedByName: "Bhopal Kirana",
+      punchedByRole: "Retailer",
+      punchedByLabel: "Placed by Retailer: Bhopal Kirana (Assigned Rep: Priya Deshmukh)",
+      warehouseCode: "WH-002",
+      warehouseName: "Bhopal Regional Hub",
+      warehouseCity: "Bhopal",
+    });
+  });
 });

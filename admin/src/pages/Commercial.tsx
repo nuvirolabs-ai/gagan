@@ -92,7 +92,17 @@ function Invoice({ invoice, reload }: { invoice: Row; reload: () => Promise<void
 
   return (
     <details>
-      <summary>Invoice #{invoice.invoiceNumber} · {invoice.retailer?.name ?? "Retailer"} · ₹{invoice.total} · Outstanding ₹{invoice.outstandingAmount}</summary>
+      <summary style={{ cursor: "pointer", fontWeight: 600 }}>
+        Invoice #{invoice.invoiceNumber} · {invoice.retailer?.name ?? "Retailer"} · 👤 Salesperson: {invoice.salespersonName || invoice.retailer?.salesRep?.name || "Direct"} · 🏢 {invoice.warehouseName || (invoice.warehouseCode === "WH-002" ? "Bhopal Regional Hub" : "Indore Central Hub")} ({invoice.warehouseCode || "WH-001"}) · ₹{invoice.total} · Outstanding ₹{invoice.outstandingAmount}
+      </summary>
+      <div style={{ display: "flex", gap: 10, margin: "8px 0 12px", flexWrap: "wrap" }}>
+        <span style={{ padding: "3px 8px", background: "#e0f2fe", borderRadius: 4, fontSize: 12, color: "#0369a1", fontWeight: 600 }}>
+          👤 Punched By: {invoice.salespersonName || invoice.punchedByName || "Field Sales Rep"} ({invoice.punchedByLabel || "Salesperson App"})
+        </span>
+        <span style={{ padding: "3px 8px", background: "#f3e8ff", borderRadius: 4, fontSize: 12, color: "#6b21a8", fontWeight: 600 }}>
+          🏢 Origin Warehouse: {invoice.warehouseName || "Indore Central Fulfillment Hub"} ({invoice.warehouseCode || "WH-001"})
+        </span>
+      </div>
       <Breakdown value={invoice.commercialSnapshot} />
       <button onClick={() => api.requestAdminStepUp().then((r: any) => setChallenge(r.challengeId)).catch((e: any) => setError(String(e)))}>
         Verify payment permission

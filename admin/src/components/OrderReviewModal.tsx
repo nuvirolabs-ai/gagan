@@ -198,6 +198,42 @@ export default function OrderReviewModal({
           <div className="section-head"><div><h3>Order health</h3></div></div>
           <div className="health-matrix compact">{health.map((cell) => <div className={`health-cell ${cell.tone}`} key={cell.label}><Icon name={cell.icon} /><span><b>{cell.label}</b><small>{cell.value}</small></span></div>)}</div>
         </section>
+
+        {/* Multi-Warehouse & Salesperson Attribution */}
+        <section className="order-review-attribution-card" aria-label="Order attribution and warehouse details" style={{
+          background: "#f1f5f9",
+          border: "1px solid #cbd5e1",
+          borderRadius: 8,
+          padding: "12px 16px",
+          marginBottom: 16,
+        }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, alignItems: "start" }}>
+            <div>
+              <span style={{ fontSize: 11, color: "#475569", textTransform: "uppercase", fontWeight: 700, letterSpacing: 0.5, display: "block" }}>
+                👤 Punched By / Salesperson
+              </span>
+              <strong style={{ fontSize: 13, color: "#0f172a", marginTop: 2, display: "block" }}>
+                {order.salespersonName || order.retailer?.salesRep?.name || (order.placedBy === "rep" ? "Field Sales Rep" : "Direct Retailer")}
+              </strong>
+              <span style={{ fontSize: 12, color: "#64748b", display: "block", marginTop: 2 }}>
+                {order.punchedByLabel || (order.placedBy === "rep" ? "Salesperson App" : "Retailer Direct")}
+              </span>
+            </div>
+
+            <div>
+              <span style={{ fontSize: 11, color: "#475569", textTransform: "uppercase", fontWeight: 700, letterSpacing: 0.5, display: "block" }}>
+                🏢 Fulfillment Warehouse
+              </span>
+              <strong style={{ fontSize: 13, color: "#0f172a", marginTop: 2, display: "block" }}>
+                {order.warehouseName || (order.warehouseCode === "WH-002" ? "Bhopal Regional Hub" : "Indore Central Fulfillment Hub")}
+              </strong>
+              <span style={{ fontSize: 12, color: "#64748b", display: "block", marginTop: 2 }}>
+                Code: <strong>{order.warehouseCode || "WH-001"}</strong> {order.warehouseCity ? `· ${order.warehouseCity}` : "· Indore"}
+              </span>
+            </div>
+          </div>
+        </section>
+
         {/* Salesperson Order Instructions: Dispatch Date, Transport Name, Remarks (Points 2, 3, 4, 5) */}
         {(order.expectedDeliveryAt || order.transportName || order.remarks || order.commercialSnapshot?.riceScheme) && (
           <section className="order-review-dispatch-card" aria-label="Dispatch and transport instructions" style={{

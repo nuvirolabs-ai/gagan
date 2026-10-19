@@ -57,6 +57,14 @@ type WarehouseOrder = {
       lineTotal: number;
     }>;
   } | null;
+  salespersonName?: string | null;
+  salespersonPhone?: string | null;
+  punchedByName?: string | null;
+  punchedByRole?: string | null;
+  punchedByLabel?: string | null;
+  warehouseCode?: string;
+  warehouseName?: string;
+  warehouseCity?: string;
 };
 
 type FleetVehicle = {
@@ -198,6 +206,12 @@ export default function WarehouseOrders() {
   const [modalOrder, setModalOrder] = useState<WarehouseOrder | null>(null);
   const [modalDetailLoading, setModalDetailLoading] = useState(false);
 
+  const [warehouseFilter, setWarehouseFilter] = useState<string>("all");
+  const [availableWarehouses, setAvailableWarehouses] = useState<Array<{ code: string; name: string; city: string }>>([
+    { code: "WH-001", name: "Indore Central Fulfillment Hub", city: "Indore" },
+    { code: "WH-002", name: "Bhopal Regional Hub", city: "Bhopal" },
+  ]);
+
   // Dispatch fields inside modal
   const [routePresets, setRoutePresets] = useState<string[]>(DEFAULT_ROUTE_PRESETS);
   const [warehouseCity, setWarehouseCity] = useState("Indore");
@@ -213,6 +227,9 @@ export default function WarehouseOrders() {
         if (res?.warehouseCity) {
           setWarehouseCity(res.warehouseCity);
         }
+        if (res?.warehouses && Array.isArray(res.warehouses) && res.warehouses.length > 0) {
+          setAvailableWarehouses(res.warehouses);
+        }
       })
       .catch(() => {});
   }, []);
@@ -223,17 +240,21 @@ export default function WarehouseOrders() {
   const [transportationAmount, setTransportationAmount] = useState<number>(0);
   const [downloadingInvoice, setDownloadingInvoice] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (targetWarehouse = warehouseFilter) => {
     setLoading(true);
     try {
       const [filterResult, allResult] = await Promise.all([
-        api.warehouseOrders(filter === "all" ? undefined : filter),
-        api.warehouseOrders("all").catch(() => null),
+        api.warehouseOrders(filter === "all" ? undefined : filter, targetWarehouse),
+        api.warehouseOrders("all", targetWarehouse).catch(() => null),
       ]);
       const nextFiltered = Array.isArray(filterResult?.orders) ? (filterResult.orders as WarehouseOrder[]) : [];
       const nextAll = Array.isArray(allResult?.orders) ? (allResult.orders as WarehouseOrder[]) : [];
       const completeList = nextAll.length > 0 ? nextAll : nextFiltered;
       setAllOrders(completeList);
+
+      if (Array.isArray(filterResult?.warehouses) && filterResult.warehouses.length > 0) {
+        setAvailableWarehouses(filterResult.warehouses);
+      }
 
       if (filter === "all") {
         setOrders(completeList);
@@ -246,11 +267,11 @@ export default function WarehouseOrders() {
     } finally {
       setLoading(false);
     }
-  }, [filter]);
+  }, [filter, warehouseFilter]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void load(warehouseFilter);
+  }, [load, warehouseFilter]);
 
   // Compute live analytics, aging hours, and hourly fulfillment infographics
   const metrics = useMemo(() => {
@@ -1060,19 +1081,38 @@ export default function WarehouseOrders() {
           marginBottom: 16,
         }}
       >
-        <div className="warehouse-filters" role="group" aria-label="Order status filter tabs">
-          {FILTERS.map((item) => (
-            <button
-              key={item.value}
-              type="button"
-              className={`warehouse-filter ${filter === item.value ? "selected" : ""}`}
-              aria-pressed={filter === item.value}
-              onClick={() => setFilter(item.value)}
-              style={{ fontWeight: filter === item.value ? 600 : 400 }}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div className="warehouse-filters" role="group" aria-label="Order status filter tabs">
+            {FILTERS.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                className={`warehouse-filter ${filter === item.value ? "selected" : ""}`}
+                aria-pressed={filter === item.value}
+                onClick={() => setFilter(item.value)}
+                style={{ fontWeight: filter === item.value ? 600 : 400 }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: 6, padding: "5px 10px" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#475569" }}>🏢 Warehouse:</span>
+            <select
+              value={warehouseFilter}
+              onChange={(e) => setWarehouseFilter(e.target.value)}
+              style={{ fontSize: 13, border: "none", background: "transparent", fontWeight: 600, color: "#0f172a", cursor: "pointer", outline: "none" }}
+              aria-label="Filter by warehouse"
             >
-              {item.label}
-            </button>
-          ))}
+              <option value="all">All Warehouses (All Hubs)</option>
+              {availableWarehouses.map((wh) => (
+                <option key={wh.code} value={wh.code}>
+                  {wh.code} · {wh.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 300 }}>
           <input
@@ -1156,17 +1196,25 @@ export default function WarehouseOrders() {
                       <small className="retailer-addr">
                         {order.retailer?.shopAddress ? `📍 ${order.retailer.shopAddress}` : ""}
                         {order.retailer?.deliveryCity ? ` · ${order.retailer.deliveryCity}` : ""}
+                      </small>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 6px", background: "#e0f2fe", borderRadius: 4, fontSize: 11, color: "#0369a1", fontWeight: 600 }}>
+                          👤 {order.salespersonName || "Direct"}
+                        </span>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 6px", background: order.warehouseCode === "WH-002" ? "#fef3c7" : "#f1f5f9", borderRadius: 4, fontSize: 11, color: order.warehouseCode === "WH-002" ? "#92400e" : "#334155", fontWeight: 600 }}>
+                          🏢 {order.warehouseCode || "WH-001"} · {order.warehouseCity || "Indore"}
+                        </span>
                         {order.transportName ? (
-                          <span style={{ display: "inline-block", marginLeft: 6, padding: "1px 5px", background: "#f1f5f9", borderRadius: 4, fontSize: 10, color: "#334155", fontWeight: 600 }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "1px 5px", background: "#f1f5f9", borderRadius: 4, fontSize: 10, color: "#334155", fontWeight: 600 }}>
                             🚚 {order.transportName}
                           </span>
                         ) : null}
                         {order.remarks ? (
-                          <span style={{ display: "inline-block", marginLeft: 6, padding: "1px 5px", background: "#fef9c3", borderRadius: 4, fontSize: 10, color: "#854d0e", fontWeight: 600 }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "1px 5px", background: "#fef9c3", borderRadius: 4, fontSize: 10, color: "#854d0e", fontWeight: 600 }}>
                             💬 Remarks
                           </span>
                         ) : null}
-                      </small>
+                      </div>
                     </span>
                     <span className="td-items">
                       <strong className="items-count">
@@ -1285,7 +1333,9 @@ export default function WarehouseOrders() {
           {/* Action Row */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <span style={{ fontSize: 13, color: "#6b7280" }}>Indore Regional Logistics Hub (WH-001)</span>
+              <span style={{ fontSize: 13, color: "#374151", fontWeight: 600 }}>
+                🏢 Hub: {warehouseFilter === "all" ? "All Fulfillment Hubs" : (availableWarehouses.find((w) => w.code === warehouseFilter)?.name ?? warehouseFilter)}
+              </span>
               <button
                 type="button"
                 className="button secondary compact"
@@ -1714,6 +1764,32 @@ export default function WarehouseOrders() {
                     <div style={{ fontSize: 12, fontWeight: 500, color: "#374151", marginTop: 2 }}>
                       {createdLabel(modalOrder.createdAt)}
                     </div>
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginTop: 12, paddingTop: 10, borderTop: "1px solid #e2e8f0" }}>
+                  <div>
+                    <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, letterSpacing: 0.5, display: "block" }}>
+                      👤 Punched By / Salesperson
+                    </span>
+                    <strong style={{ fontSize: 13, color: "#0f172a", marginTop: 2, display: "block" }}>
+                      {modalOrder.salespersonName || "Field Sales Rep"}
+                    </strong>
+                    <span style={{ fontSize: 12, color: "#64748b" }}>
+                      {modalOrder.punchedByLabel || (modalOrder.salespersonPhone ? `Phone: ${modalOrder.salespersonPhone}` : "Salesperson App")}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, letterSpacing: 0.5, display: "block" }}>
+                      🏢 Fulfillment Warehouse
+                    </span>
+                    <strong style={{ fontSize: 13, color: "#0f172a", marginTop: 2, display: "block" }}>
+                      {modalOrder.warehouseName || (modalOrder.warehouseCode === "WH-002" ? "Bhopal Regional Hub" : "Indore Central Fulfillment Hub")}
+                    </strong>
+                    <span style={{ fontSize: 12, color: "#64748b" }}>
+                      Code: <strong>{modalOrder.warehouseCode || "WH-001"}</strong> · {modalOrder.warehouseCity || "Indore"}
+                    </span>
                   </div>
                 </div>
 
@@ -2194,6 +2270,14 @@ export default function WarehouseOrders() {
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                           <span style={{ color: "#4b5563" }}>Invoice Number:</span>
                           <strong>INV-{modalOrder.invoice.invoiceNumber}</strong>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                          <span style={{ color: "#4b5563" }}>👤 Salesperson:</span>
+                          <strong style={{ color: "#0284c7" }}>{modalOrder.salespersonName || "Field Sales Rep"}</strong>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                          <span style={{ color: "#4b5563" }}>🏢 Origin Warehouse:</span>
+                          <strong style={{ color: "#6b21a8" }}>{modalOrder.warehouseName || (modalOrder.warehouseCode === "WH-002" ? "Bhopal Regional Hub" : "Indore Central Fulfillment Hub")} ({modalOrder.warehouseCode || "WH-001"})</strong>
                         </div>
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                           <span style={{ color: "#4b5563" }}>Invoice Date:</span>

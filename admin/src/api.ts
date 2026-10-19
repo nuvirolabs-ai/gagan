@@ -219,10 +219,21 @@ export const api = {
     post(`/admin/staff/${delegateeId}/delegations`, data),
   revokeDelegation: (id: string) => remove(`/admin/staff/delegations/${id}`),
 
-  orders: (status?: string) => request(`/admin/orders${status ? `?status=${status}` : ""}`),
+  orders: (status?: string, warehouseCode?: string) => {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    if (warehouseCode && warehouseCode !== "all") params.set("warehouseCode", warehouseCode);
+    const qs = params.toString();
+    return request(`/admin/orders${qs ? `?${qs}` : ""}`);
+  },
   order: (id: string) => request(`/admin/orders/${id}`),
-  warehouseOrders: (status?: string) =>
-    request(`/admin/warehouse-orders${status ? `?status=${status}` : ""}`),
+  warehouseOrders: (status?: string, warehouseCode?: string) => {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    if (warehouseCode && warehouseCode !== "all") params.set("warehouseCode", warehouseCode);
+    const qs = params.toString();
+    return request(`/admin/warehouse-orders${qs ? `?${qs}` : ""}`);
+  },
   warehouseOrder: (id: string) => request(`/admin/warehouse-orders/${id}`),
   warehouseRoutes: () => request("/admin/warehouse-orders/routes"),
   packWarehouseOrder: (id: string) => post(`/admin/warehouse-orders/${id}/pack`),

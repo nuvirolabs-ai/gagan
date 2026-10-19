@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { OrderStatus } from "@prisma/client";
+import { CommercialStatusCode, OrderStatus } from "@prisma/client";
 import { z } from "zod";
 import { requireAnyAdminPermission, AdminRequest } from "../../lib/adminAuth";
 import { prisma } from "../../lib/prisma";
@@ -9,6 +9,12 @@ import { ensureKycApprovedForDispatch, KycGateError } from "../../modules/kyc/ky
 import { createInvoiceForDelivery, InvoiceCreationError } from "../../modules/invoicing/invoiceService";
 import { renderInvoicePdf } from "../../modules/invoicing/invoicePdf";
 import { DEFAULT_WAREHOUSE_CODE } from "../../modules/inventory/inventoryService";
+import {
+  orderAttribution,
+  resolveWarehouse,
+  STATIC_WAREHOUSES,
+  ResolvedWarehouse,
+} from "../../modules/orders/orderAttribution";
 
 const router = Router();
 const defaultStatuses: OrderStatus[] = ["confirmed", "packed"];
@@ -24,6 +30,8 @@ const warehouseOrderSelect = {
   remarks: true,
   transportName: true,
   commercialSnapshot: true,
+  placedBy: true,
+  placedByRepId: true,
   retailer: {
     select: {
       id: true,
@@ -31,6 +39,8 @@ const warehouseOrderSelect = {
       phone: true,
       shopAddress: true,
       deliveryCity: true,
+      salesRepId: true,
+      salesRep: { select: { id: true, name: true, phone: true } },
     },
   },
   delivery: {
@@ -38,6 +48,10 @@ const warehouseOrderSelect = {
       routeId: true,
       deliverySlot: true,
     },
+  },
+  commercialStatusEvents: {
+    where: { code: CommercialStatusCode.SALES_ORDER_PUNCHED },
+    select: { code: true, actorStaff: { select: { name: true } } },
   },
   items: {
     select: {
@@ -63,6 +77,7 @@ const warehouseOrderSelect = {
       invoiceNumber: true,
       invoiceDate: true,
       dueDate: true,
+      currency: true,
       subtotal: true,
       taxTotal: true,
       total: true,
@@ -81,7 +96,14 @@ const warehouseOrderSelect = {
   },
 } as const;
 
-function projectWarehouseOrder(order: any) {
+function projectWarehouseOrder(
+  order: any,
+  warehouses: ResolvedWarehouse[] = STATIC_WAREHOUSES,
+  routings: any[] = []
+) {
+  const attribution = orderAttribution(order);
+  const wh = resolveWarehouse(order, warehouses, routings);
+
   return {
     id: order.id,
     orderNo: order.orderNo,
@@ -92,12 +114,31 @@ function projectWarehouseOrder(order: any) {
     remarks: order.remarks,
     transportName: order.transportName,
     commercialSnapshot: order.commercialSnapshot,
+    placedBy: order.placedBy,
+    placedByRepId: order.placedByRepId,
+    salespersonName: attribution.salespersonName,
+    salespersonPhone: attribution.salespersonPhone,
+    punchedByName: attribution.punchedByName,
+    punchedByRole: attribution.punchedByRole,
+    punchedByLabel: attribution.punchedByLabel,
+    source: attribution.source,
+    creatorName: attribution.creatorName,
+    warehouseCode: wh.code,
+    warehouseName: wh.name,
+    warehouseCity: wh.city,
+    warehouse: wh,
     retailer: order.retailer ? {
       id: order.retailer.id,
       name: order.retailer.name,
       phone: order.retailer.phone,
       shopAddress: order.retailer.shopAddress,
       deliveryCity: order.retailer.deliveryCity,
+      salesRepId: order.retailer.salesRepId,
+      salesRep: order.retailer.salesRep ? {
+        id: order.retailer.salesRep.id,
+        name: order.retailer.salesRep.name,
+        phone: order.retailer.salesRep.phone,
+      } : null,
     } : null,
     delivery: order.delivery ? {
       routeId: order.delivery.routeId,
@@ -122,6 +163,7 @@ function projectWarehouseOrder(order: any) {
       invoiceNumber: order.invoice.invoiceNumber,
       invoiceDate: order.invoice.invoiceDate,
       dueDate: order.invoice.dueDate,
+      currency: order.invoice.currency ?? "INR",
       subtotal: Number(order.invoice.subtotal),
       taxTotal: Number(order.invoice.taxTotal),
       total: Number(order.invoice.total),
@@ -154,13 +196,35 @@ router.get("/warehouse-orders", async (req, res) => {
       ? (requestedStatus as OrderStatus)
       : { in: defaultStatuses };
 
-  const orders = await prisma.order.findMany({
-    where: { status: statusFilter },
-    select: warehouseOrderSelect,
-    orderBy: { createdAt: "desc" },
-    take: 200,
-  });
-  res.json({ orders: orders.map(projectWarehouseOrder) });
+  const warehouseCode = typeof req.query.warehouseCode === "string" && req.query.warehouseCode !== "all"
+    ? req.query.warehouseCode.trim()
+    : undefined;
+
+  const [orders, dbWarehouses, dbRoutings] = await Promise.all([
+    prisma.order.findMany({
+      where: { status: statusFilter },
+      select: warehouseOrderSelect,
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    }),
+    prisma.warehouse.findMany({
+      where: { isActive: true },
+      select: { code: true, name: true, city: true, address: true },
+    }).catch(() => STATIC_WAREHOUSES),
+    prisma.cityRouting.findMany({
+      where: { isActive: true },
+      select: { city: true, primaryWarehouseCode: true },
+    }).catch(() => []),
+  ]);
+
+  const activeWarehouses = dbWarehouses.length > 0 ? dbWarehouses : STATIC_WAREHOUSES;
+  const projected = orders.map((o) => projectWarehouseOrder(o, activeWarehouses, dbRoutings));
+
+  const filtered = warehouseCode
+    ? projected.filter((o) => o.warehouseCode.toLowerCase() === warehouseCode.toLowerCase())
+    : projected;
+
+  res.json({ orders: filtered, warehouses: activeWarehouses });
 });
 
 router.get("/warehouse-orders/routes", async (_req, res) => {
@@ -172,6 +236,13 @@ router.get("/warehouse-orders/routes", async (_req, res) => {
         "ROUTE-VIJAYNAGAR-SCHEME78",
         "ROUTE-EXPRESS",
       ];
+
+  const dbWarehouses = await prisma.warehouse.findMany({
+    where: { isActive: true },
+    select: { code: true, name: true, city: true, address: true },
+  }).catch(() => STATIC_WAREHOUSES);
+
+  const activeWarehouses = dbWarehouses.length > 0 ? dbWarehouses : STATIC_WAREHOUSES;
 
   try {
     const pastDeliveries = await prisma.delivery.findMany({
@@ -188,6 +259,7 @@ router.get("/warehouse-orders/routes", async (_req, res) => {
       defaultRoute: configuredRoutes[0] ?? "ROUTE-INDORE-CENTRAL",
       warehouseCode: process.env.WAREHOUSE_CODE ?? DEFAULT_WAREHOUSE_CODE,
       warehouseCity: process.env.WAREHOUSE_CITY ?? "Indore",
+      warehouses: activeWarehouses,
     });
   } catch {
     res.json({
@@ -195,6 +267,7 @@ router.get("/warehouse-orders/routes", async (_req, res) => {
       defaultRoute: configuredRoutes[0] ?? "ROUTE-INDORE-CENTRAL",
       warehouseCode: process.env.WAREHOUSE_CODE ?? DEFAULT_WAREHOUSE_CODE,
       warehouseCity: process.env.WAREHOUSE_CITY ?? "Indore",
+      warehouses: activeWarehouses,
     });
   }
 });
@@ -205,7 +278,19 @@ router.get("/warehouse-orders/:id", async (req, res) => {
     select: warehouseOrderSelect,
   });
   if (!order) return res.status(404).json({ error: "Order not found" });
-  res.json({ order: projectWarehouseOrder(order) });
+
+  const [dbWarehouses, dbRoutings] = await Promise.all([
+    prisma.warehouse.findMany({
+      where: { isActive: true },
+      select: { code: true, name: true, city: true, address: true },
+    }).catch(() => STATIC_WAREHOUSES),
+    prisma.cityRouting.findMany({
+      where: { isActive: true },
+      select: { city: true, primaryWarehouseCode: true },
+    }).catch(() => []),
+  ]);
+
+  res.json({ order: projectWarehouseOrder(order, dbWarehouses, dbRoutings) });
 });
 
 router.post("/warehouse-orders/:id/pack", (req: AdminRequest, res) =>

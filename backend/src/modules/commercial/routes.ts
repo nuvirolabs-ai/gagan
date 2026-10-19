@@ -1,7 +1,8 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
+import { Prisma, CommercialStatusCode } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
+import { resolveWarehouse, orderAttribution, STATIC_WAREHOUSES } from "../orders/orderAttribution";
 import { requireAuth, AuthedRequest } from "../../lib/auth";
 import { requireRep, assignedRetailer, RepRequest } from "../../lib/repAuth";
 import { requireAdmin, AdminRequest, requireAdminIdentity } from "../../lib/adminAuth";
@@ -49,15 +50,73 @@ router.get("/rep/commercial/quotes/:id",requireRep,async(req:RepRequest,res)=>{
 });
 router.get("/admin/commercial",requireAdminIdentity,async(req:AdminRequest,res)=>{
   if(!req.staffAuth!.permissions.some(p=>p===Permissions.STAFF_MANAGE || p===Permissions.COLLECTION_CONFIRM)) return res.status(403).json({error:"permission_required"});
-  const [variants,tiers,prices,quotes,invoices]=await Promise.all([
+  const [variants,tiers,prices,quotes,invoices,warehousesList,cityRoutings]=await Promise.all([
     prisma.variant.findMany({include:{product:true}}),prisma.tier.findMany(),prisma.priceList.findMany(),
     prisma.commercialQuote.findMany({where:{acceptedAt:null,expiresAt:{gt:new Date()}},orderBy:{createdAt:"desc"},take:50,include:{retailer:{select:{id:true,name:true}}}}),
-    prisma.invoice.findMany({where:{commercialSnapshot:{not: Prisma.DbNull}},orderBy:{createdAt:"desc"},take:100,include:{retailer:{select:{id:true,name:true}},order:{select:{orderNo:true}},lines:true,allocations:{include:{payment:true}}}}),
+    prisma.invoice.findMany({
+      where:{commercialSnapshot:{not: Prisma.DbNull}},
+      orderBy:{createdAt:"desc"},
+      take:100,
+      include:{
+        retailer:{
+          select:{
+            id:true,
+            name:true,
+            deliveryCity:true,
+            shopAddress:true,
+            salesRepId:true,
+            salesRep:{select:{id:true,name:true,phone:true}}
+          }
+        },
+        order:{
+          select:{
+            id:true,
+            orderNo:true,
+            placedBy:true,
+            placedByRepId:true,
+            commercialSnapshot:true,
+            commercialStatusEvents:{
+              where:{code:CommercialStatusCode.SALES_ORDER_PUNCHED},
+              select:{code:true,actorStaff:{select:{name:true}}}
+            }
+          }
+        },
+        lines:true,
+        allocations:{include:{payment:true}}
+      }
+    }),
+    prisma.warehouse.findMany({where:{isActive:true},select:{code:true,name:true,city:true,address:true}}).catch(()=>[]),
+    prisma.cityRouting.findMany({select:{city:true,primaryWarehouseCode:true}}).catch(()=>[])
   ]);
-  res.json({variants,tiers,prices,quotes:await Promise.all(quotes.map(async quote=>({
-    ...quote,
-    commercialStatus: await internalStatusForQuote(quote.id),
-  }))),invoices:invoices.filter(i=>i.commercialSnapshot!==null)});
+
+  const warehouses = (warehousesList && warehousesList.length > 0) ? warehousesList : STATIC_WAREHOUSES;
+  const enrichedInvoices = invoices.filter(i=>i.commercialSnapshot!==null).map(inv => {
+    const invoiceOrder = inv.order ? { ...inv.order, retailer: inv.retailer } : { retailer: inv.retailer };
+    const attribution = orderAttribution(invoiceOrder);
+    const wh = resolveWarehouse(invoiceOrder, warehouses, cityRoutings);
+    return {
+      ...inv,
+      salespersonName: attribution.salespersonName,
+      salespersonPhone: attribution.salespersonPhone,
+      punchedByName: attribution.punchedByName,
+      punchedByRole: attribution.punchedByRole,
+      punchedByLabel: attribution.punchedByLabel,
+      warehouseCode: wh.code,
+      warehouseName: wh.name,
+      warehouseCity: wh.city,
+    };
+  });
+
+  res.json({
+    variants,
+    tiers,
+    prices,
+    quotes:await Promise.all(quotes.map(async quote=>({
+      ...quote,
+      commercialStatus: await internalStatusForQuote(quote.id),
+    }))),
+    invoices: enrichedInvoices
+  });
 });
 router.get("/admin/commercial/retailers/:id/outstanding",requireAdminIdentity,async(req:AdminRequest,res)=>{
   if(!req.staffAuth!.permissions.some(p=>p===Permissions.STAFF_MANAGE || p===Permissions.COLLECTION_CONFIRM)) return res.status(403).json({error:"permission_required"});

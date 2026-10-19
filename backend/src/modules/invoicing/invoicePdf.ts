@@ -8,6 +8,8 @@ export interface InvoicePdfData {
   taxTotal: number;
   total: number;
   transportationAmount?: number;
+  salespersonName?: string | null;
+  warehouseName?: string | null;
   retailer: {
     name: string;
     shopAddress?: string | null;
@@ -57,8 +59,15 @@ export function renderInvoicePdf(data: InvoicePdfData): Buffer {
   // Invoice & Customer Info Box
   lines.push({ text: `Invoice No: INV-${data.invoiceNumber}`, size: 11, y, bold: true });
   lines.push({ text: `Date: ${dateLabel(data.invoiceDate)}    Due Date: ${dateLabel(data.dueDate)}`, size: 9, y: y - 14 });
-  if (data.orderNo) {
-    lines.push({ text: `Order Ref: ORD-${data.orderNo}`, size: 9, y: y - 28 });
+  let orderInfo = data.orderNo ? `Order Ref: ORD-${data.orderNo}` : "";
+  if (data.salespersonName) {
+    orderInfo += `${orderInfo ? "    " : ""}Salesperson: ${data.salespersonName}`;
+  }
+  if (data.warehouseName) {
+    orderInfo += `${orderInfo ? "    " : ""}Warehouse: ${data.warehouseName}`;
+  }
+  if (orderInfo) {
+    lines.push({ text: orderInfo, size: 9, y: y - 28 });
   }
   y -= 44;
 

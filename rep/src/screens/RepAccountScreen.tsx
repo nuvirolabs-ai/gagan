@@ -45,6 +45,12 @@ export default function RepAccountScreen({ navigation }: any) {
       subtitle: t("more.dayHistory"),
       screen: "MyDay",
     },
+    capabilities.canOrderForRetailers && {
+      icon: "receipt-outline",
+      label: "My Orders",
+      subtitle: "Track, review & cancel orders",
+      screen: "RepOrders",
+    },
     capabilities.canRunFieldDay && {
       icon: "navigate-outline",
       label: t("route.title"),

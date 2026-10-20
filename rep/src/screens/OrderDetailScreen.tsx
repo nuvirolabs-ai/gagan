@@ -1,14 +1,25 @@
 import React, { useCallback, useState } from "react";
 import CommercialBreakdown from "../components/CommercialBreakdown";
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 
 import { AppScreen, EmptyState, OrderTimeline, PrimaryButton, SectionHeader, StatusPill, Surface } from "../components/ui";
 import { repApi } from "../api/repClient";
 import { formatOrderRef } from "../lib/orderRef";
 import { hasOrderAmountMismatch } from "../lib/orderAmountMismatch";
-import { colors, inr, spacing } from "../theme";
+import { colors, inr, radius, spacing } from "../theme";
 import { nextOrderVisitAction, type OrderVisitAction } from "./orderVisitAction";
+
+function isSameDay(dateInput: string | Date) {
+  const d1 = new Date(dateInput);
+  const d2 = new Date();
+  return (
+    d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate()
+  );
+}
 
 const STATUS_LABELS: Record<string, string> = {
   placed: "Order placed",
@@ -48,6 +59,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
   const [data, setData] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [visitAction, setVisitAction] = useState<OrderVisitAction | null>(null);
 
   const load = useCallback(async () => {
@@ -105,6 +117,19 @@ export default function OrderDetailScreen({ route, navigation }: any) {
           </View>
           <Text style={styles.muted}>{order.source === "SALESPERSON_APP" || order.placedBy === "rep" ? `Order punched by ${order.creatorName ?? "Salesperson"}` : "Order placed via Retailer App"} · {new Date(order.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</Text>
           {order.retailer?.shopAddress ? <Text style={styles.muted}>{order.retailer.shopAddress}</Text> : null}
+          {(order.expectedDeliveryAt || order.transportName || order.remarks) ? (
+            <View style={{ marginTop: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.separator, gap: 4 }}>
+              {order.expectedDeliveryAt ? (
+                <Text style={styles.muted}>📅 Dispatch Date: <Text style={{ fontWeight: "600", color: colors.ink }}>{new Date(order.expectedDeliveryAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</Text></Text>
+              ) : null}
+              {order.transportName ? (
+                <Text style={styles.muted}>🚚 Transport: <Text style={{ fontWeight: "600", color: colors.ink }}>{order.transportName}</Text></Text>
+              ) : null}
+              {order.remarks ? (
+                <Text style={styles.muted}>💬 Remarks: <Text style={{ fontWeight: "600", color: colors.ink }}>{order.remarks}</Text></Text>
+              ) : null}
+            </View>
+          ) : null}
           <OrderTimeline status={order.status} />
         </Surface>
 
@@ -128,6 +153,57 @@ export default function OrderDetailScreen({ route, navigation }: any) {
         </Surface>
 
         {order.invoice ? <Surface><SectionHeader title="Invoice" /><View style={styles.invoiceRow}><Text style={styles.muted}>Invoice #{order.invoice.invoiceNumber}</Text><Text style={styles.totalValue}>{inr(Number(order.invoice.total))}</Text></View>{order.invoice.commercialSnapshot && <CommercialBreakdown value={order.invoice.commercialSnapshot}/>}<Text style={styles.muted}>{order.invoice.outstandingAmount > 0 ? `${inr(Number(order.invoice.outstandingAmount))} outstanding` : "Settled"}</Text></Surface> : null}
+
+        {isSameDay(order.createdAt) && (order.status === "placed" || order.status === "confirmed") ? (
+          <Surface style={{ borderColor: "#fecaca", backgroundColor: "#fff5f5" }}>
+            <SectionHeader title="Order Cancellation" />
+            <Text style={{ fontSize: 13, color: colors.inkMuted, marginBottom: spacing.md, lineHeight: 18 }}>
+              This order was punched today and has not been dispatched yet. You can cancel it if necessary.
+            </Text>
+            <Pressable
+              disabled={cancelling}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                backgroundColor: colors.danger,
+                paddingVertical: 12,
+                borderRadius: radius.md,
+              }}
+              onPress={() => {
+                Alert.alert(
+                  "Cancel Order",
+                  `Are you sure you want to cancel order ${formatOrderRef(order)}? This cannot be undone.`,
+                  [
+                    { text: "Keep Order", style: "cancel" },
+                    {
+                      text: "Yes, Cancel Order",
+                      style: "destructive",
+                      onPress: async () => {
+                        setCancelling(true);
+                        try {
+                          await repApi.cancelOrder(order.id);
+                          Alert.alert("Order Cancelled", "This order has been cancelled.");
+                          await load();
+                        } catch (err: any) {
+                          Alert.alert("Could not cancel", err?.message ?? "Cancellation failed.");
+                        } finally {
+                          setCancelling(false);
+                        }
+                      },
+                    },
+                  ]
+                );
+              }}
+            >
+              <Ionicons name="close-circle-outline" size={18} color="#ffffff" />
+              <Text style={{ color: "#ffffff", fontWeight: "700", fontSize: 14 }}>
+                {cancelling ? "Cancelling Order…" : "Cancel Order"}
+              </Text>
+            </Pressable>
+          </Surface>
+        ) : null}
 
         {visitAction?.kind === "continue_visit" ? (
           <PrimaryButton

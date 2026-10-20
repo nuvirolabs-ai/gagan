@@ -36,6 +36,7 @@ import ExpensesScreen from "./src/screens/ExpensesScreen";
 import IssuesScreen from "./src/screens/IssuesScreen";
 import IssueDetailScreen from "./src/screens/IssueDetailScreen";
 import OrderDetailScreen from "./src/screens/OrderDetailScreen";
+import RepOrdersScreen from "./src/screens/RepOrdersScreen";
 import OpportunitiesScreen from "./src/screens/OpportunitiesScreen";
 import AddRetailerScreen from "./src/screens/AddRetailerScreen";
 import { resolveWorkspaceMode, staffCapabilities, workspaceTabs } from "./src/auth/staffCapabilities";
@@ -201,11 +202,18 @@ function RootNavigator() {
             </>
           )}
           {(capabilities.canOrderForRetailers || capabilities.canRunFieldDay) && (
-            <Stack.Screen
-              name="OrderDetail"
-              component={OrderDetailScreen}
-              options={{ title: "Order detail", headerBackTitle: t("common.back") }}
-            />
+            <>
+              <Stack.Screen
+                name="RepOrders"
+                component={RepOrdersScreen}
+                options={{ title: "My Orders", headerBackTitle: t("common.back") }}
+              />
+              <Stack.Screen
+                name="OrderDetail"
+                component={OrderDetailScreen}
+                options={{ title: "Order detail", headerBackTitle: t("common.back") }}
+              />
+            </>
           )}
           {capabilities.canRunFieldDay && (
             <>

@@ -121,7 +121,7 @@ router.put("/catalogue-skus/:variantId", async (req: AdminRequest, res) => {
 
 router.get("/products", async (req, res) => {
   const includeInactive = req.query.view === "all";
-  const [products, tiers, priceList] = await Promise.all([
+  const [products, tiers, priceList, drafts] = await Promise.all([
     prisma.product.findMany({
       where: includeInactive
         ? {
@@ -141,8 +141,10 @@ router.get("/products", async (req, res) => {
     }),
     prisma.tier.findMany({ orderBy: { name: "asc" } }),
     prisma.priceList.findMany(),
+    prisma.catalogOrderingDraft.findMany(),
   ]);
 
+  const draftsMap = new Map((drafts || []).map((d) => [d.variantId, Number((d.values as any)?.discount || 0)]));
   const priceKey = (tierId: string, variantId: string) => `${tierId}:${variantId}`;
   const prices = new Map(priceList.map((p) => [priceKey(p.tierId, p.variantId), Number(p.price)]));
   const snapshots = await prisma.inventorySnapshot.findMany({ where: { warehouseCode: DEFAULT_WAREHOUSE_CODE, productId: { in: products.map(product => product.id) } } });
@@ -188,6 +190,7 @@ router.get("/products", async (req, res) => {
         purchaseRateBasis: v.purchaseRateBasis,
         listRate: v.listRate == null ? null : Number(v.listRate),
         listRateBasis: v.listRateBasis,
+        discount: draftsMap.get(v.id) ?? 0,
         routingClass: v.routingClass,
         routingBagEquivalent: v.routingBagEquivalent == null ? null : Number(v.routingBagEquivalent),
         prices: tiers.map((t) => {
@@ -257,6 +260,7 @@ router.post("/price-list", async (req, res) => {
 
 const quickEditSchema = z.object({
   price: z.coerce.number().min(0).optional(),
+  discount: z.coerce.number().min(0).optional(),
   rateBasis: z.enum(["case", "quintal"]).optional(),
   packSize: z.coerce.string().trim().optional(),
   unit: z.string().trim().optional(),
@@ -302,6 +306,21 @@ router.put("/variants/:id/quick-edit", async (req: AdminRequest, res) => {
   }
   if (parsed.data.rateBasis !== undefined) {
     updateData.listRateBasis = parsed.data.rateBasis;
+  }
+
+  if (parsed.data.discount !== undefined) {
+    await prisma.catalogOrderingDraft.upsert({
+      where: { variantId: existing.id },
+      update: {
+        values: { discount: parsed.data.discount },
+        updatedByStaffId: (req as any).staffAuth?.staffId ?? (req as any).admin?.id ?? "admin",
+      },
+      create: {
+        variantId: existing.id,
+        values: { discount: parsed.data.discount },
+        updatedByStaffId: (req as any).staffAuth?.staffId ?? (req as any).admin?.id ?? "admin",
+      },
+    });
   }
 
   if (parsed.data.status !== undefined) {

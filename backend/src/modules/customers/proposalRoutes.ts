@@ -48,6 +48,11 @@ const submitSchema = z.object({
     bodyBase64: z.string().min(4).max(14_000_000),
     checksum: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   }),
+  aadhaarPhotoBack: z.object({
+    contentType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+    bodyBase64: z.string().min(4).max(14_000_000),
+    checksum: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  }).optional(),
   paymentTerms: z.string().trim().min(2).max(120),
   upiId: optionalPattern(UPI_ID_RE, "upi_id_invalid"),
   latitude: z.number().finite().min(-90).max(90).optional(),

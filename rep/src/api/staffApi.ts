@@ -99,7 +99,9 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
       ),
     validateCoupon: (code: string, subtotal: number) =>
       post("/rep/orders/validate-coupon", { code, subtotal }),
+    orders: () => request("/rep/orders"),
     order: (id: string) => request(`/rep/orders/${id}`),
+    cancelOrder: (id: string) => post(`/rep/orders/${id}/cancel`),
     commercialStatusOrder: (id: string) => request(`/rep/commercial-status/orders/${id}`),
     commercialStatusRetailer: (id: string) => request(`/rep/commercial-status/retailers/${id}`),
     requestRateApproval: (quoteId: string, reason?: string, reference?: string) => post(`/rep/commercial-status/quotes/${quoteId}/rate-approval`, { reason, reference }),

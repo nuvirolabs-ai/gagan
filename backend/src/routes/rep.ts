@@ -444,7 +444,7 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
   const retailer = await assignedRetailer(req.repId!, req.params.id);
   if (!retailer) return res.status(404).json({ error: "Retailer not found" });
 
-  const [products, priceList, overrides, inventory] = await Promise.all([
+  const [products, priceList, overrides, inventory, drafts] = await Promise.all([
     prisma.product.findMany({
       where: { catalogStatus: catalogueStatusWhere(), variants: { some: { catalogStatus: catalogueStatusWhere() } } },
       include: { variants: { where: { catalogStatus: catalogueStatusWhere() } } },
@@ -453,10 +453,12 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
     prisma.priceList.findMany({ where: { tierId: retailer.tierId } }),
     prisma.priceOverride.findMany({ where: { retailerId: retailer.id } }),
     prisma.inventorySnapshot.findMany({ where: { warehouseCode: DEFAULT_WAREHOUSE_CODE } }),
+    prisma.catalogOrderingDraft.findMany(),
   ]);
 
   const tierPrice = new Map(priceList.map((p) => [p.variantId, Number(p.price)]));
   const overridePrice = new Map(overrides.map((o) => [o.variantId, Number(o.price)]));
+  const draftsMap = new Map((drafts || []).map((d) => [d.variantId, Number((d.values as any)?.discount || 0)]));
 
   const catalog = products.map((product) => ({
     id: product.id,
@@ -471,6 +473,7 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
       const caseWeightKg = Number(v.unitWeightKg) * v.unitsPerCase;
       const rateBasis=(overrides.find(p=>p.variantId===v.id) ?? priceList.find(p=>p.variantId===v.id))?.rateBasis ?? "case";
       const price=rate===null?null:rateBasis==="quintal"?Math.round(rate*caseWeightKg)/100:rate;
+      const discount = draftsMap.get(v.id) ?? 0;
       const availability = {
         available: 999999,
         warehouseCode: DEFAULT_WAREHOUSE_CODE,
@@ -485,6 +488,7 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
         unitsPerCase: v.unitsPerCase,
         caseWeightKg,
         commercialRate:rate,rateBasis,...retailerCommercialFields(v),
+        discount,
         price,
         catalogStatus: v.catalogStatus,
         ...withInventoryOrderability(catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed), availability),
@@ -546,6 +550,85 @@ router.get("/orders/:id", requireRep, async (req: RepRequest, res) => {
     select: { id: true, action: true, metadata: true, createdAt: true },
   });
   res.json({ order: attributedOrder, events, commercialStatus: await internalStatusForOrder(order.id) });
+});
+
+/**
+ * List all orders punched by this salesperson or assigned to their retailers.
+ */
+router.get("/orders", requireRep, async (req: RepRequest, res) => {
+  const orders = await prisma.order.findMany({
+    where: {
+      OR: [
+        { placedByRepId: req.repId },
+        { retailer: { salesRepId: req.repId } },
+      ],
+    },
+    include: {
+      retailer: { select: { id: true, name: true, phone: true, shopAddress: true, deliveryCity: true } },
+      items: { include: { variant: { include: { product: true } } } },
+      delivery: true,
+      invoice: { select: { id: true, invoiceNumber: true, invoiceDate: true, total: true } },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+  });
+
+  const attributed = await attributeOrders(orders);
+  res.json({ orders: attributed });
+});
+
+/**
+ * Cancel an order punched by this salesperson.
+ * Permitted only on the same calendar day, and only if status has not advanced past placed/confirmed.
+ */
+router.post("/orders/:id/cancel", requireRep, async (req: RepRequest, res) => {
+  const order = await prisma.order.findFirst({
+    where: {
+      id: req.params.id,
+      OR: [
+        { placedByRepId: req.repId },
+        { retailer: { salesRepId: req.repId } },
+      ],
+    },
+    include: { retailer: true },
+  });
+
+  if (!order) {
+    return res.status(404).json({ error: "Order not found or not punched by you" });
+  }
+
+  // 1. Same-day check
+  const todayStr = new Date().toDateString();
+  const orderDateStr = new Date(order.createdAt).toDateString();
+  if (todayStr !== orderDateStr) {
+    return res.status(400).json({ error: "Orders can only be cancelled on the same day they were punched" });
+  }
+
+  // 2. Status progression check
+  if (order.status !== "placed" && order.status !== "confirmed") {
+    return res.status(400).json({
+      error: `Order cannot be cancelled because its fulfillment status has already changed to ${order.status}`,
+    });
+  }
+
+  const updated = await prisma.order.update({
+    where: { id: order.id },
+    data: {
+      status: "rejected",
+    },
+  });
+
+  await prisma.auditEvent.create({
+    data: {
+      subjectType: "order",
+      subjectId: order.id,
+      action: "order.cancelled_by_rep",
+      actorStaffId: req.staffId ?? null,
+      metadata: { reason: "Cancelled by sales representative on same day" },
+    },
+  });
+
+  res.json({ ok: true, order: updated });
 });
 
 const repOrderSchema = z.object({

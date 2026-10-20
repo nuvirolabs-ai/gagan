@@ -122,6 +122,18 @@ export default function ProductGroupCard({
             <Text style={[styles.price, row && styles.priceRow]} numberOfLines={aligned ? undefined : 1} adjustsFontSizeToFit={!aligned} minimumFontScale={0.8}>
               {priceDisplay.primary}
             </Text>
+            {priceDisplay.originalPrice && priceDisplay.discountBadge ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2, marginBottom: 2 }}>
+                <Text style={{ fontSize: 12, color: colors.inkMuted, textDecorationLine: "line-through" }}>
+                  {priceDisplay.originalPrice}
+                </Text>
+                <View style={{ backgroundColor: "#dcfce7", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                  <Text style={{ fontSize: 10, fontWeight: "700", color: "#16a34a" }}>
+                    {priceDisplay.discountBadge}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
             {priceDisplay.perKg ? <Text style={[styles.rateLabel, row && styles.rateLabelRow]}>{priceDisplay.perKg}</Text> : null}
             {priceDisplay.caseEquivalent ? <Text style={[styles.rateLabel, row && styles.rateLabelRow]}>{priceDisplay.caseEquivalent}</Text> : null}
             {priceDisplay.gstLabel ? <Text style={[styles.rateLabel, row && styles.rateLabelRow]}>{priceDisplay.gstLabel}</Text> : null}

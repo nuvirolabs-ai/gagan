@@ -110,11 +110,11 @@ type DeliveryRunSummary = {
 };
 
 const FILTERS: Array<{ value: QueueFilter; label: string; step: string; icon: string }> = [
-  { value: "all", label: "All", step: "All stages", icon: "table" },
+  { value: "all", label: "Active Orders", step: "Active fulfillment", icon: "table" },
   { value: "confirmed", label: "Confirmed", step: "1. To Pack", icon: "box" },
   { value: "packed", label: "Packed", step: "2. To Dispatch", icon: "arrow" },
   { value: "out_for_delivery", label: "Out for delivery", step: "3. On the road", icon: "clock" },
-  { value: "delivered", label: "Delivered", step: "4. Delivered", icon: "check" },
+  { value: "delivered", label: "🧾 INVOICES", step: "Delivered & Invoiced", icon: "check" },
 ];
 
 const DEFAULT_ROUTE_PRESETS = [
@@ -194,6 +194,8 @@ export default function WarehouseOrders() {
   const [filter, setFilter] = useState<QueueFilter>("all");
   const [orders, setOrders] = useState<WarehouseOrder[]>([]);
   const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<"date_desc" | "date_asc" | "value_desc" | "value_asc">("date_desc");
+  const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month">("all");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -257,7 +259,7 @@ export default function WarehouseOrders() {
       }
 
       if (filter === "all") {
-        setOrders(completeList);
+        setOrders(completeList.filter((o) => o.status !== "delivered"));
       } else {
         setOrders(nextFiltered);
       }
@@ -383,16 +385,52 @@ export default function WarehouseOrders() {
   }, [modalOrder, busy]);
 
   const filteredOrders = useMemo(() => {
-    if (!search.trim()) return orders;
-    const q = search.toLowerCase();
-    return orders.filter(
-      (o) =>
-        formatOrderRef(o).toLowerCase().includes(q) ||
-        (o.retailer?.name ?? "").toLowerCase().includes(q) ||
-        (o.retailer?.shopAddress ?? "").toLowerCase().includes(q) ||
-        (o.retailer?.deliveryCity ?? "").toLowerCase().includes(q)
-    );
-  }, [orders, search]);
+    let result = orders;
+
+    // Remove delivered orders from "all" active view
+    if (filter === "all") {
+      result = result.filter((o) => o.status !== "delivered");
+    }
+
+    // Date range filter
+    if (dateFilter === "today") {
+      const todayStr = new Date().toDateString();
+      result = result.filter((o) => new Date(o.createdAt).toDateString() === todayStr);
+    } else if (dateFilter === "week") {
+      const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      result = result.filter((o) => new Date(o.createdAt).getTime() >= oneWeekAgo);
+    } else if (dateFilter === "month") {
+      const oneMonthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      result = result.filter((o) => new Date(o.createdAt).getTime() >= oneMonthAgo);
+    }
+
+    // Search query
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (o) =>
+          formatOrderRef(o).toLowerCase().includes(q) ||
+          (o.retailer?.name ?? "").toLowerCase().includes(q) ||
+          (o.retailer?.shopAddress ?? "").toLowerCase().includes(q) ||
+          (o.retailer?.deliveryCity ?? "").toLowerCase().includes(q) ||
+          (o.salespersonName ?? "").toLowerCase().includes(q) ||
+          (o.invoice?.invoiceNumber ? String(o.invoice.invoiceNumber).includes(q) : false)
+      );
+    }
+
+    // Sorting by value or date
+    return [...result].sort((a, b) => {
+      const valA = Number(a.orderTotal ?? a.invoice?.total ?? 0);
+      const valB = Number(b.orderTotal ?? b.invoice?.total ?? 0);
+      const dateA = new Date(a.createdAt).getTime();
+      const dateB = new Date(b.createdAt).getTime();
+
+      if (sortBy === "value_desc") return valB - valA;
+      if (sortBy === "value_asc") return valA - valB;
+      if (sortBy === "date_asc") return dateA - dateB;
+      return dateB - dateA;
+    });
+  }, [orders, filter, dateFilter, search, sortBy]);
 
   // Open Pop-up Modal on order click
   const openOrderModal = useCallback(async (order: WarehouseOrder) => {
@@ -1113,6 +1151,36 @@ export default function WarehouseOrders() {
               ))}
             </select>
           </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: 6, padding: "5px 10px" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#475569" }}>📅 Date:</span>
+            <select
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value as any)}
+              style={{ fontSize: 13, border: "none", background: "transparent", fontWeight: 600, color: "#0f172a", cursor: "pointer", outline: "none" }}
+              aria-label="Filter by date"
+            >
+              <option value="all">All Dates</option>
+              <option value="today">Today</option>
+              <option value="week">Last 7 Days</option>
+              <option value="month">This Month</option>
+            </select>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: 6, padding: "5px 10px" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#475569" }}>⚡ Sort:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              style={{ fontSize: 13, border: "none", background: "transparent", fontWeight: 600, color: "#0f172a", cursor: "pointer", outline: "none" }}
+              aria-label="Sort orders"
+            >
+              <option value="date_desc">Date: Newest First</option>
+              <option value="date_asc">Date: Oldest First</option>
+              <option value="value_desc">Value: High to Low</option>
+              <option value="value_asc">Value: Low to High</option>
+            </select>
+          </div>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 300 }}>
           <input
@@ -1190,6 +1258,11 @@ export default function WarehouseOrders() {
                   >
                     <span className="td-ref">
                       <strong>{formatOrderRef(order)}</strong>
+                      {order.invoice?.invoiceNumber ? (
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#15803d", marginTop: 2 }}>
+                          🧾 INV-{order.invoice.invoiceNumber}
+                        </div>
+                      ) : null}
                     </span>
                     <span className="td-retailer">
                       <strong className="retailer-name">{order.retailer?.name ?? "Retailer unavailable"}</strong>
@@ -1218,9 +1291,11 @@ export default function WarehouseOrders() {
                     </span>
                     <span className="td-items">
                       <strong className="items-count">
-                        {order.items.length} {order.items.length === 1 ? "product" : "products"}
+                        {order.items.length} {order.items.length === 1 ? "product" : "products"} · {totalCases} cases
                       </strong>
-                      <small className="cases-count">{totalCases} cases</small>
+                      <div style={{ color: "#15803d", fontWeight: 700, fontSize: 13, marginTop: 2 }}>
+                        {inr(order.orderTotal || order.invoice?.total || order.items.reduce((sum, item) => sum + (item.qtyOrdered * (item.unitPrice || 0)), 0))}
+                      </div>
                     </span>
                     <span className="td-time">
                       <time>{createdLabel(order.createdAt)}</time>
@@ -1908,11 +1983,15 @@ export default function WarehouseOrders() {
                   <div className="warehouse-modal-items-header" aria-hidden="true">
                     <span>Product</span>
                     <span>Presentation / Pack</span>
+                    <span style={{ textAlign: "right" }}>Rate</span>
                     <span style={{ textAlign: "right" }}>Quantity</span>
+                    <span style={{ textAlign: "right" }}>Line Total</span>
                   </div>
                   <div className="warehouse-modal-items-body">
                     {modalOrder.items.map((item) => {
                       const isFree = item.commercialSnapshot?.isFreeItem || (item.unitPrice === 0 && item.commercialSnapshot?.scheme);
+                      const unitRate = item.unitPrice ?? 0;
+                      const lineTotal = isFree ? 0 : item.qtyOrdered * unitRate;
                       return (
                         <div
                           className="warehouse-modal-item-row"
@@ -1930,12 +2009,29 @@ export default function WarehouseOrders() {
                                 ? `${item.variant.unitsPerCase} × ${item.variant.unitSize}`
                                 : "Standard Pack"}
                           </span>
+                          <span style={{ textAlign: "right", fontSize: 13, color: isFree ? "#047857" : "#475569" }}>
+                            {isFree ? "₹0 (FREE)" : (item.unitPrice != null ? inr(item.unitPrice) : "—")}
+                          </span>
                           <b className="item-qty" style={{ textAlign: "right", fontSize: 14, color: isFree ? "#047857" : "#111827" }}>
-                            {item.qtyOrdered} {isFree ? "packs (FREE)" : "cases"}
+                            {item.qtyOrdered} {isFree ? "packs" : "cases"}
                           </b>
+                          <strong style={{ textAlign: "right", fontSize: 13, color: isFree ? "#047857" : "#111827" }}>
+                            {isFree ? "₹0" : inr(lineTotal)}
+                          </strong>
                         </div>
                       );
                     })}
+                  </div>
+                  <div className="warehouse-modal-items-footer">
+                    <span style={{ fontWeight: 500 }}>
+                      Total items: <strong>{modalOrder.items.length}</strong> · Cases: <strong>{modalOrder.items.reduce((sum, it) => sum + (it.qtyOrdered || 0), 0)}</strong>
+                    </span>
+                    <span className="modal-total-amount">
+                      Total Order Amount:{" "}
+                      <strong style={{ fontSize: 16, color: "#15803d", marginLeft: 4 }}>
+                        {inr(modalOrder.orderTotal || modalOrder.items.reduce((sum, it) => sum + (it.qtyOrdered * (it.unitPrice || 0)), 0))}
+                      </strong>
+                    </span>
                   </div>
                 </div>
               </section>

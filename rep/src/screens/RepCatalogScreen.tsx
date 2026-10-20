@@ -190,7 +190,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
                   size={72}
                 />
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.name} numberOfLines={1}>
+                  <Text style={styles.name} numberOfLines={3}>
                     {product.name}
                   </Text>
                   <Text style={styles.pack}>
@@ -209,6 +209,18 @@ export default function RepCatalogScreen({ route, navigation }: any) {
                         {priceDisplay.primary}
                       </Text>
                     </View>
+                    {priceDisplay.originalPrice && priceDisplay.discountBadge ? (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2, marginBottom: 2 }}>
+                        <Text style={{ fontSize: 13, color: "#64748b", textDecorationLine: "line-through" }}>
+                          {priceDisplay.originalPrice}
+                        </Text>
+                        <View style={{ backgroundColor: "#dcfce7", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                          <Text style={{ fontSize: 11, fontWeight: "700", color: "#16a34a" }}>
+                            {priceDisplay.discountBadge}
+                          </Text>
+                        </View>
+                      </View>
+                    ) : null}
                     {priceDisplay.perKg ? <Text style={styles.perKg}>{priceDisplay.perKg}</Text> : null}
                     {priceDisplay.caseEquivalent ? <Text style={styles.rateLabel}>{priceDisplay.caseEquivalent}</Text> : null}
                     {priceDisplay.gstLabel ? <Text style={styles.rateLabel}>{priceDisplay.gstLabel}</Text> : null}

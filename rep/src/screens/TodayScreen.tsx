@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import TaskEvidenceSheet from "../components/TaskEvidenceSheet";
 import {
@@ -190,6 +191,7 @@ function CompactDayStatus({ minutes, onPress }: { minutes: number | null | undef
 }
 
 export default function TodayScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const { today, celebrations, dismissCelebration, loading, error, refresh, tracking, outbox, startDay, endDay } = useField();
   const { staff } = useRep();
   const { t } = useLanguage();
@@ -446,7 +448,8 @@ export default function TodayScreen({ navigation }: any) {
           <SectionHeader title="Quick actions" />
           <View style={styles.actionSurface}>
             <ActionTile icon="calendar-outline" label="Attendance" onPress={handleAttendancePress} />
-            <ActionTile icon="cart-outline" label="Order" onPress={() => navigation.navigate("Retailers")} />
+            <ActionTile icon="cart-outline" label="New Order" onPress={() => navigation.navigate("Retailers")} />
+            <ActionTile icon="receipt-outline" label="My Orders" onPress={() => navigation.navigate("RepOrders")} />
             <ActionTile icon="cube-outline" label="Sales Kit" onPress={() => navigation.navigate("SalesKit")} />
             <ActionTile icon="ellipsis-horizontal" label="More" onPress={() => navigation.navigate("More")} />
           </View>
@@ -484,7 +487,7 @@ export default function TodayScreen({ navigation }: any) {
         <Modal visible transparent animationType="slide" onRequestClose={() => setEodOpen(false)}>
           <View style={styles.sheetOverlay}>
             <KeyboardSafeScrollView containerStyle={styles.sheetKeyboard} contentContainerStyle={styles.sheetScroll}>
-            <View style={styles.eodSheet}>
+            <View style={[styles.eodSheet, { paddingBottom: Math.max(insets.bottom, 24) + 16 }]}>
               <View style={styles.between}><Text style={styles.sheetTitle}>End-of-day summary</Text><TextButton label="Close" onPress={() => setEodOpen(false)} /></View>
               <Text style={styles.sheetMessage}>Review your sales day before sending the handoff.</Text>
               <MetricStrip items={[{ label: "Visits", value: String(safeCount(metrics.visits)) }, { label: "Orders", value: String(safeCount(metrics.orders)) }, { label: "Order value", value: inr(safeCount(metrics.orderValue)) }]} />

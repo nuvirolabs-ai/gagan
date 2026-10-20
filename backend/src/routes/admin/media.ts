@@ -86,7 +86,17 @@ export function createMediaRouter() {
   router.post("/catalog/products/:id/image", async (req, res) => {
     const parsed = z
       .object({
-        imageUrl: z.string().trim().url().or(z.literal("")),
+        imageUrl: z.string().trim().refine((val) => {
+          if (val === "") return true;
+          if (val.startsWith("data:image/")) return true;
+          if (val.startsWith("http://") || val.startsWith("https://") || val.startsWith("/")) return true;
+          try {
+            new URL(val);
+            return true;
+          } catch {
+            return false;
+          }
+        }, { message: "Invalid image URL" }),
         cascadeToVariants: z.boolean().default(false),
       })
       .safeParse(req.body);
@@ -116,7 +126,17 @@ export function createMediaRouter() {
   router.post("/catalog/variants/:id/image", async (req, res) => {
     const parsed = z
       .object({
-        imageUrl: z.string().trim().url().or(z.literal("")),
+        imageUrl: z.string().trim().refine((val) => {
+          if (val === "") return true;
+          if (val.startsWith("data:image/")) return true;
+          if (val.startsWith("http://") || val.startsWith("https://") || val.startsWith("/")) return true;
+          try {
+            new URL(val);
+            return true;
+          } catch {
+            return false;
+          }
+        }, { message: "Invalid image URL" }),
         catalogImageLabel: z.string().trim().optional(),
       })
       .safeParse(req.body);

@@ -58,7 +58,7 @@ type Draft = {
   notes: string;
 };
 
-type FieldKey = keyof Draft | "aadhaarNumber" | "aadhaarPhoto";
+type FieldKey = keyof Draft | "aadhaarNumber" | "aadhaarPhoto" | "aadhaarPhotoBack";
 type Photo = { uri: string; contentType: string; name?: string; size?: number };
 
 const EMPTY_DRAFT: Draft = {
@@ -112,7 +112,8 @@ export default function AddRetailerScreen({ navigation }: any) {
   const canOrderForRetailers = staffCapabilities(staff?.permissions ?? []).canOrderForRetailers;
   const [form, setForm] = useState<Draft>(EMPTY_DRAFT);
   const [aadhaarNumber, setAadhaarNumber] = useState("");
-  const [photo, setPhoto] = useState<Photo | null>(null);
+  const [photoFront, setPhotoFront] = useState<Photo | null>(null);
+  const [photoBack, setPhotoBack] = useState<Photo | null>(null);
   const [step, setStep] = useState(0);
   const [proposals, setProposals] = useState<any[]>([]);
   const [expandedProposalId, setExpandedProposalId] = useState<string | null>(null);
@@ -182,12 +183,13 @@ export default function AddRetailerScreen({ navigation }: any) {
     setLocation({ latitude: reading.latitude, longitude: reading.longitude, accuracyMeters: reading.accuracyMeters });
   };
 
-  const choosePhoto = async (source: "camera" | "library") => {
+  const choosePhoto = async (side: "front" | "back", source: "camera" | "library") => {
     setError("");
-    setFieldErrors((current) => ({ ...current, aadhaarPhoto: undefined }));
+    const errorKey = side === "front" ? "aadhaarPhoto" : "aadhaarPhotoBack";
+    setFieldErrors((current) => ({ ...current, [errorKey]: undefined }));
     if (source === "camera") {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) return Alert.alert("Camera permission needed", "Allow camera access to capture the Aadhaar card photo.");
+      if (!permission.granted) return Alert.alert("Camera permission needed", `Allow camera access to capture the Aadhaar card ${side} photo.`);
     }
     const result =
       source === "camera"
@@ -195,8 +197,13 @@ export default function AddRetailerScreen({ navigation }: any) {
         : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images" as any], quality: 0.78, allowsEditing: false });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
-    if (asset.fileSize && asset.fileSize > 10_000_000) return setFieldErrors((current) => ({ ...current, aadhaarPhoto: "Photo must be smaller than 10 MB." }));
-    setPhoto({ uri: asset.uri, contentType: asset.mimeType ?? "image/jpeg", name: asset.fileName ?? undefined, size: asset.fileSize });
+    if (asset.fileSize && asset.fileSize > 10_000_000) return setFieldErrors((current) => ({ ...current, [errorKey]: "Photo must be smaller than 10 MB." }));
+    const pickedPhoto = { uri: asset.uri, contentType: asset.mimeType ?? "image/jpeg", name: asset.fileName ?? undefined, size: asset.fileSize };
+    if (side === "front") {
+      setPhotoFront(pickedPhoto);
+    } else {
+      setPhotoBack(pickedPhoto);
+    }
   };
 
   const errorsForStep = (candidateStep: number): Partial<Record<FieldKey, string>> => {
@@ -223,7 +230,8 @@ export default function AddRetailerScreen({ navigation }: any) {
     }
     if (candidateStep === 3) {
       if (!/^\d{12}$/.test(aadhaarNumber.replace(/[\s-]/g, ""))) issues.aadhaarNumber = "Aadhaar Number must contain 12 digits.";
-      if (!photo) issues.aadhaarPhoto = "Aadhaar Card Photo is required.";
+      if (!photoFront) issues.aadhaarPhoto = "Aadhaar Card Front photo is required.";
+      if (!photoBack) issues.aadhaarPhotoBack = "Aadhaar Card Back photo is required.";
     }
     return issues;
   };
@@ -243,11 +251,12 @@ export default function AddRetailerScreen({ navigation }: any) {
         return;
       }
     }
-    if (!photo) return;
+    if (!photoFront) return;
     setSaving(true);
     setError("");
     try {
-      const base64 = await new File(photo.uri).base64();
+      const base64Front = await new File(photoFront.uri).base64();
+      const base64Back = photoBack ? await new File(photoBack.uri).base64() : undefined;
       const digits = form.phone.replace(/\D/g, "").replace(/^91(?=\d{10}$)/, "");
       const result = await repApi.proposeRetailer({
         businessName: form.businessName.trim(),
@@ -265,7 +274,8 @@ export default function AddRetailerScreen({ navigation }: any) {
         shopDurationYears: Number(form.shopDurationYears),
         gstin: form.gstin.trim().toUpperCase() || undefined,
         aadhaarNumber: aadhaarNumber.replace(/[\s-]/g, ""),
-        aadhaarPhoto: { contentType: photo.contentType, bodyBase64: base64 },
+        aadhaarPhoto: { contentType: photoFront.contentType, bodyBase64: base64Front },
+        ...(photoBack && base64Back ? { aadhaarPhotoBack: { contentType: photoBack.contentType, bodyBase64: base64Back } } : {}),
         paymentTerms: form.paymentTerms.trim(),
         upiId: form.upiId.trim() || undefined,
         notes: form.notes.trim() || undefined,
@@ -273,7 +283,8 @@ export default function AddRetailerScreen({ navigation }: any) {
       });
       setForm(EMPTY_DRAFT);
       setAadhaarNumber("");
-      setPhoto(null);
+      setPhotoFront(null);
+      setPhotoBack(null);
       setLocation(null);
       setStep(0);
       setFieldErrors({});
@@ -355,11 +366,11 @@ export default function AddRetailerScreen({ navigation }: any) {
       ["Shop duration", form.shopDurationYears ? `${form.shopDurationYears} years` : ""],
       ["Payment Terms", form.paymentTerms],
       ["GSTIN No.", form.gstin],
-      ["Aadhaar Number", aadhaarNumber ? "Will be encrypted · ending in " + aadhaarNumber.replace(/[\s-]/g, "").slice(-4) : ""],
-      ["Aadhaar Card Photo", photo ? "Ready for private upload" : ""],
+      ["Aadhaar Number", aadhaarNumber ? aadhaarNumber.replace(/(\d{4})(?=\d)/g, "$1 ") : ""],
+      ["Aadhaar Card Photos", photoFront ? (photoBack ? "Front & Back photos attached" : "Front photo attached") : ""],
       ["UPI ID", form.upiId],
     ],
-    [aadhaarNumber, form, photo, rep?.name, staff?.name]
+    [aadhaarNumber, form, photoFront, photoBack, rep?.name, staff?.name]
   );
 
   const stepContent = useMemo(() => {
@@ -411,24 +422,34 @@ export default function AddRetailerScreen({ navigation }: any) {
     return (
       <>
         <View style={styles.securityNote}><Ionicons name="shield-checkmark-outline" size={18} color={colors.primary} /><Text style={styles.securityText}>Identity details are encrypted and visible only to authorised reviewers. They are not saved in your draft.</Text></View>
-        <Field label="Aadhaar Number*" hint="12 digits · encrypted on submit" error={fieldErrors.aadhaarNumber}>
-          <TextInput value={aadhaarNumber} onChangeText={(value) => { setAadhaarNumber(value.replace(/\D/g, "").slice(0, 12)); setFieldErrors((current) => ({ ...current, aadhaarNumber: undefined })); setError(""); }} placeholder="1234 5678 9012" placeholderTextColor={colors.inkFaint} style={[styles.input, fieldErrors.aadhaarNumber && styles.inputError]} keyboardType="number-pad" secureTextEntry accessibilityLabel="Aadhaar Number" />
+        <Field label="Aadhaar Number*" hint="12 digits · visible as entered" error={fieldErrors.aadhaarNumber}>
+          <TextInput value={aadhaarNumber} onChangeText={(value) => { setAadhaarNumber(value.replace(/\D/g, "").slice(0, 12)); setFieldErrors((current) => ({ ...current, aadhaarNumber: undefined })); setError(""); }} placeholder="1234 5678 9012" placeholderTextColor={colors.inkFaint} style={[styles.input, fieldErrors.aadhaarNumber && styles.inputError]} keyboardType="number-pad" accessibilityLabel="Aadhaar Number" />
         </Field>
-        <Field label="Aadhaar Card Photo*" hint="Required for manager review" error={fieldErrors.aadhaarPhoto}>
-          {photo ? (
+        <Field label="Aadhaar Card Front Side*" hint="Required for manager review" error={fieldErrors.aadhaarPhoto}>
+          {photoFront ? (
             <View style={styles.photoPreview}>
-              <Image source={{ uri: photo.uri }} style={styles.photo} />
-              <View style={styles.photoMeta}><Text style={styles.photoName} numberOfLines={1}>{photo.name ?? "Aadhaar photo ready"}</Text><Text style={styles.fieldHint}>Private upload on submit</Text><View style={styles.photoActions}><Pressable onPress={() => void choosePhoto("camera")}><Text style={styles.link}>Replace</Text></Pressable><Pressable onPress={() => { setPhoto(null); setFieldErrors((current) => ({ ...current, aadhaarPhoto: "Aadhaar Card Photo is required." })); }}><Text style={styles.remove}>Remove</Text></Pressable></View></View>
+              <Image source={{ uri: photoFront.uri }} style={styles.photo} />
+              <View style={styles.photoMeta}><Text style={styles.photoName} numberOfLines={1}>{photoFront.name ?? "Front side photo ready"}</Text><Text style={styles.fieldHint}>Front side attached</Text><View style={styles.photoActions}><Pressable onPress={() => void choosePhoto("front", "camera")}><Text style={styles.link}>Replace</Text></Pressable><Pressable onPress={() => { setPhotoFront(null); setFieldErrors((current) => ({ ...current, aadhaarPhoto: "Aadhaar Card Front photo is required." })); }}><Text style={styles.remove}>Remove</Text></Pressable></View></View>
             </View>
           ) : (
-            <View style={styles.photoButtons}><Pressable style={styles.photoButton} onPress={() => void choosePhoto("camera")}><Ionicons name="camera-outline" size={20} color={colors.primary} /><Text style={styles.photoButtonText}>Take photo</Text></Pressable><Pressable style={styles.photoButton} onPress={() => void choosePhoto("library")}><Ionicons name="images-outline" size={20} color={colors.primary} /><Text style={styles.photoButtonText}>Choose from gallery</Text></Pressable></View>
+            <View style={styles.photoButtons}><Pressable style={styles.photoButton} onPress={() => void choosePhoto("front", "camera")}><Ionicons name="camera-outline" size={20} color={colors.primary} /><Text style={styles.photoButtonText}>Take front photo</Text></Pressable><Pressable style={styles.photoButton} onPress={() => void choosePhoto("front", "library")}><Ionicons name="images-outline" size={20} color={colors.primary} /><Text style={styles.photoButtonText}>Gallery (Front)</Text></Pressable></View>
+          )}
+        </Field>
+        <Field label="Aadhaar Card Back Side*" hint="Required for manager review" error={fieldErrors.aadhaarPhotoBack}>
+          {photoBack ? (
+            <View style={styles.photoPreview}>
+              <Image source={{ uri: photoBack.uri }} style={styles.photo} />
+              <View style={styles.photoMeta}><Text style={styles.photoName} numberOfLines={1}>{photoBack.name ?? "Back side photo ready"}</Text><Text style={styles.fieldHint}>Back side attached</Text><View style={styles.photoActions}><Pressable onPress={() => void choosePhoto("back", "camera")}><Text style={styles.link}>Replace</Text></Pressable><Pressable onPress={() => { setPhotoBack(null); setFieldErrors((current) => ({ ...current, aadhaarPhotoBack: "Aadhaar Card Back photo is required." })); }}><Text style={styles.remove}>Remove</Text></Pressable></View></View>
+            </View>
+          ) : (
+            <View style={styles.photoButtons}><Pressable style={styles.photoButton} onPress={() => void choosePhoto("back", "camera")}><Ionicons name="camera-outline" size={20} color={colors.primary} /><Text style={styles.photoButtonText}>Take back photo</Text></Pressable><Pressable style={styles.photoButton} onPress={() => void choosePhoto("back", "library")}><Ionicons name="images-outline" size={20} color={colors.primary} /><Text style={styles.photoButtonText}>Gallery (Back)</Text></Pressable></View>
           )}
         </Field>
         <Field label="Review"><View style={styles.reviewList}>{reviewValues.map(([label, value]) => <View style={styles.reviewRow} key={label}><Text style={styles.reviewLabel}>{label}</Text><Text style={styles.reviewValue} numberOfLines={2}>{value || "—"}</Text></View>)}</View></Field>
         <Field label="Notes" hint="Optional">{input("notes", "Useful context for the reviewer", { multiline: true })}</Field>
       </>
     );
-  }, [aadhaarNumber, fieldErrors, form, location, photo, rep?.name, reviewValues, staff?.name, step]);
+  }, [aadhaarNumber, fieldErrors, form, location, photoFront, photoBack, rep?.name, reviewValues, staff?.name, step]);
 
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={colors.primary} /></View>;
 

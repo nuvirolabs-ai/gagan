@@ -25,7 +25,7 @@ function priceResolver(
   };
 }
 
-function shapeVariant(v: any, resolve: ReturnType<typeof priceResolver>, inventory?: any, req?: AuthedRequest, fallbackImageUrl?: string | null) {
+function shapeVariant(v: any, resolve: ReturnType<typeof priceResolver>, inventory?: any, req?: AuthedRequest, fallbackImageUrl?: string | null, discount = 0) {
   const { price:rate, isOverride,rateBasis } = resolve(v.id);
   const caseWeightKg = Number(v.unitWeightKg) * v.unitsPerCase;
   const price=rate===null?null:rateBasis==="quintal"?Math.round(rate*caseWeightKg)/100:rate;
@@ -43,6 +43,7 @@ function shapeVariant(v: any, resolve: ReturnType<typeof priceResolver>, invento
     unitsPerCase: v.unitsPerCase,
     caseWeightKg,
     commercialRate:rate,rateBasis,...retailerCommercialFields(v),
+    discount,
     price,
     isOverride,
     catalogStatus: v.catalogStatus,
@@ -63,7 +64,7 @@ router.get("/catalog", requireAuth, async (req: AuthedRequest, res) => {
   const retailer = await prisma.retailer.findUnique({ where: { id: req.retailerId } });
   if (!retailer) return res.status(404).json({ error: "Retailer not found" });
 
-  const [products, priceList, overrides, config, inventory] = await Promise.all([
+  const [products, priceList, overrides, config, inventory, drafts] = await Promise.all([
     prisma.product.findMany({
       where: { catalogStatus: catalogueStatusWhere(), variants: { some: { catalogStatus: catalogueStatusWhere() } } },
       include: { variants: { where: { catalogStatus: catalogueStatusWhere() } } },
@@ -73,9 +74,11 @@ router.get("/catalog", requireAuth, async (req: AuthedRequest, res) => {
     prisma.priceOverride.findMany({ where: { retailerId: retailer.id } }),
     prisma.appConfig.findUnique({ where: { id: "singleton" } }),
     prisma.inventorySnapshot.findMany({ where: { warehouseCode: DEFAULT_WAREHOUSE_CODE } }),
+    prisma.catalogOrderingDraft.findMany(),
   ]);
 
   const resolve = priceResolver(priceList, overrides);
+  const draftsMap = new Map((drafts || []).map((d) => [d.variantId, Number((d.values as any)?.discount || 0)]));
 
   const catalog = products.map((product) => ({
     id: product.id,
@@ -83,7 +86,7 @@ router.get("/catalog", requireAuth, async (req: AuthedRequest, res) => {
     category: product.category,
     imageUrl: publicMediaUrl(req, product.imageUrl),
     description: product.description,
-    variants: product.variants.map((v) => shapeVariant(v, resolve, selectInventorySnapshot(product, v, inventory), req, product.imageUrl)),
+    variants: product.variants.map((v) => shapeVariant(v, resolve, selectInventorySnapshot(product, v, inventory), req, product.imageUrl, draftsMap.get(v.id) ?? 0)),
   }));
 
   const categories = [...new Set(products.map((p) => p.category))].sort();
@@ -101,7 +104,7 @@ router.get("/catalog", requireAuth, async (req: AuthedRequest, res) => {
       description: product.description,
       sapMaterialId: product.sapMaterialId,
       variants: product.variants.map((v) =>
-        shapeVariant(v, resolve, selectInventorySnapshot(product, v, inventory), req, product.imageUrl)
+        shapeVariant(v, resolve, selectInventorySnapshot(product, v, inventory), req, product.imageUrl, draftsMap.get(v.id) ?? 0)
       ),
     }))
   );

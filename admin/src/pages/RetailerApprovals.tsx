@@ -638,25 +638,49 @@ export default function RetailerApprovals() {
               <div className="small muted">
                 Full Aadhaar is encrypted and is never returned to this page.
               </div>
-              {selectedProposal.aadhaarPhoto?.signedUrl ? (
-                <img
-                  src={selectedProposal.aadhaarPhoto.signedUrl}
-                  alt="Authorised Aadhaar document preview"
-                  style={{
-                    display: "block",
-                    marginTop: 10,
-                    maxWidth: 240,
-                    maxHeight: 150,
-                    objectFit: "contain",
-                    border: "1px solid var(--border)",
-                    borderRadius: 6,
-                  }}
-                />
-              ) : (
-                <div className="small muted" style={{ marginTop: 10 }}>
-                  Photo preview unavailable until private storage is configured.
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 10 }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-muted)", marginBottom: 4 }}>
+                    FRONT SIDE
+                  </div>
+                  {selectedProposal.aadhaarPhoto?.signedUrl ? (
+                    <img
+                      src={selectedProposal.aadhaarPhoto.signedUrl}
+                      alt="Aadhaar Front Side Preview"
+                      style={{
+                        display: "block",
+                        maxWidth: 200,
+                        maxHeight: 130,
+                        objectFit: "contain",
+                        border: "1px solid var(--border)",
+                        borderRadius: 6,
+                      }}
+                    />
+                  ) : (
+                    <div className="small muted">Front photo unavailable</div>
+                  )}
                 </div>
-              )}
+
+                {selectedProposal.aadhaarPhotoBack?.signedUrl ? (
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-muted)", marginBottom: 4 }}>
+                      BACK SIDE
+                    </div>
+                    <img
+                      src={selectedProposal.aadhaarPhotoBack.signedUrl}
+                      alt="Aadhaar Back Side Preview"
+                      style={{
+                        display: "block",
+                        maxWidth: 200,
+                        maxHeight: 130,
+                        objectFit: "contain",
+                        border: "1px solid var(--border)",
+                        borderRadius: 6,
+                      }}
+                    />
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
 

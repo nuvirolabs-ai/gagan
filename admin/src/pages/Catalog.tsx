@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiError, api } from "../api";
 import { buildDraftPack, canonicalUnit, caseWeightKg, humanizePackFailure, massPreview, parseStoredPack, type DraftPackFields } from "../draftPackForm";
 import CatalogueSkuForm, { billingLabel } from "../components/CatalogueSkuForm";
@@ -11,6 +11,7 @@ interface RowEditState {
   gstPercent: string;
   routingClass: string;
   price: string;
+  discount: string;
   rateBasis: "case" | "quintal";
   ratePerKg: string;
 }
@@ -48,6 +49,27 @@ export default function Catalog() {
   const [savingDraft, setSavingDraft] = useState(false);
   const [rowEdit, setRowEdit] = useState<RowEditState | null>(null);
   const [savingRow, setSavingRow] = useState(false);
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  const handleInlineImageUpload = async (productId: string, file?: File) => {
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      setError("Image must be smaller than 10MB");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      try {
+        await api.updateProductImage(productId, dataUrl);
+        setNotice("Product image uploaded successfully!");
+        await load();
+      } catch (err: any) {
+        setError(err.message ?? "Failed to upload product image");
+      }
+    };
+    reader.readAsDataURL(file);
+  };
   const [productModal, setProductModal] = useState<{ id: string; name: string; category: string; imageUrl: string; status: "active" | "inactive" } | null>(null);
   const [savingProductModal, setSavingProductModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
@@ -489,6 +511,7 @@ export default function Catalog() {
       gstPercent: v.gstPercent != null ? String(v.gstPercent) : "5",
       routingClass: v.routingClass ?? "LAXMI_TOOR",
       price: currentPrice !== "" ? String(currentPrice) : "",
+      discount: v.discount != null && v.discount > 0 ? String(v.discount) : "",
       rateBasis: currentBasis,
       ratePerKg: initialRatePerKg,
     });
@@ -621,6 +644,7 @@ export default function Catalog() {
     try {
       await api.quickEditVariant(variantId, {
         price: priceVal,
+        discount: Number(rowEdit.discount) || 0,
         rateBasis: rowEdit.rateBasis,
         packSize: rowEdit.packSize,
         unit: rowEdit.unit,
@@ -815,42 +839,65 @@ export default function Catalog() {
                           }}
                         >
                           <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                            {(p.imageUrl || v.imageUrl) ? (
-                              <img
-                                src={p.imageUrl || v.imageUrl}
-                                alt={p.name}
-                                style={{
-                                  width: 44,
-                                  height: 44,
-                                  objectFit: "cover",
-                                  borderRadius: 6,
-                                  border: "1px solid var(--border, #e2e8f0)",
-                                  background: "#fff",
-                                  flexShrink: 0,
-                                }}
-                                onError={(e) => {
-                                  (e.currentTarget as HTMLElement).style.display = "none";
-                                }}
-                              />
-                            ) : (
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flexShrink: 0 }}>
                               <div
-                                style={{
-                                  width: 44,
-                                  height: 44,
-                                  borderRadius: 6,
-                                  background: "var(--bg-subtle, #f1f5f9)",
-                                  border: "1px dashed var(--border, #cbd5e1)",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  color: "var(--muted, #94a3b8)",
-                                  fontSize: 10,
-                                  flexShrink: 0,
-                                }}
+                                style={{ position: "relative", cursor: "pointer", width: 48, height: 48 }}
+                                title="Click to upload or change product image"
+                                onClick={() => fileInputRefs.current[p.id]?.click()}
                               >
-                                No img
+                                {(p.imageUrl || v.imageUrl) ? (
+                                  <img
+                                    src={p.imageUrl || v.imageUrl}
+                                    alt={p.name}
+                                    style={{
+                                      width: 48,
+                                      height: 48,
+                                      objectFit: "cover",
+                                      borderRadius: 6,
+                                      border: "1px solid var(--border, #e2e8f0)",
+                                      background: "#fff",
+                                    }}
+                                    onError={(e) => {
+                                      (e.currentTarget as HTMLElement).style.display = "none";
+                                    }}
+                                  />
+                                ) : (
+                                  <div
+                                    style={{
+                                      width: 48,
+                                      height: 48,
+                                      borderRadius: 6,
+                                      background: "var(--bg-subtle, #f1f5f9)",
+                                      border: "1px dashed var(--border, #cbd5e1)",
+                                      display: "flex",
+                                      flexDirection: "column",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      color: "var(--muted, #94a3b8)",
+                                      fontSize: 9,
+                                      textAlign: "center",
+                                    }}
+                                  >
+                                    📷 Upload
+                                  </div>
+                                )}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  ref={(el) => { if (el) fileInputRefs.current[p.id] = el; }}
+                                  style={{ display: "none" }}
+                                  onChange={(e) => void handleInlineImageUpload(p.id, e.target.files?.[0])}
+                                />
                               </div>
-                            )}
+                              <button
+                                type="button"
+                                className="ghost sm"
+                                style={{ fontSize: 10, padding: "2px 4px", color: "#2563eb", fontWeight: 600 }}
+                                onClick={() => fileInputRefs.current[p.id]?.click()}
+                              >
+                                {p.imageUrl ? "Change" : "Upload"}
+                              </button>
+                            </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                 <span style={{ fontWeight: 600 }}>{p.name}</span>
@@ -1099,6 +1146,24 @@ export default function Catalog() {
                               />
                               <span className="muted">/ kg</span>
                             </div>
+                            <div style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 12 }}>
+                              <span style={{ color: "#16a34a", fontWeight: 600 }}>Discount: ₹</span>
+                              <input
+                                aria-label="Discount amount"
+                                type="number"
+                                min="0"
+                                step="any"
+                                value={activeEdit.discount}
+                                onChange={(e) => updateRowEdit({ discount: e.target.value })}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") saveRow(v.id);
+                                  if (e.key === "Escape") setRowEdit(null);
+                                }}
+                                style={{ width: 65, padding: "2px 4px", fontSize: 12, textAlign: "right" }}
+                                placeholder="0"
+                              />
+                              <span style={{ color: "#16a34a", fontSize: 10, fontWeight: 700 }}>OFF</span>
+                            </div>
                             <select
                               aria-label="Rate basis"
                               value={activeEdit.rateBasis}
@@ -1112,6 +1177,7 @@ export default function Catalog() {
                         ) : p.catalogStatus === "pending_review" || v.catalogStatus === "pending_review" ? (
                           <span className="small">
                             {displayPrice == null ? "Not configured" : `${inr(displayPrice)} / ${basis}`}
+                            {v.discount > 0 && <span style={{ display: "inline-block", background: "#dcfce7", color: "#16a34a", padding: "1px 5px", borderRadius: 4, fontSize: 10, fontWeight: 700, marginLeft: 4 }}>₹{v.discount} OFF</span>}
                             {perKg != null && <span className="muted small" style={{ display: "block" }}>{inr(perKg)} / kg</span>}
                             {equivalent != null && <span className="muted small" style={{ display: "block" }}>{inr(equivalent)} / {caseWeight} KG case</span>}
                           </span>
@@ -1120,10 +1186,28 @@ export default function Catalog() {
                             type="button"
                             className="ghost sm"
                             style={{ color: "var(--ink)", fontWeight: 600, textAlign: "right", cursor: "pointer" }}
-                            title="Click to edit pack and price"
+                            title="Click to edit pack, price, and discount"
                             onClick={() => startEditingRow(p, v)}
                           >
-                            <span>{displayPrice == null ? "Set price" : `${inr(displayPrice)} / ${basis}`}</span>
+                            <div>
+                              {v.discount > 0 && displayPrice != null ? (
+                                <>
+                                  <div style={{ color: "#0f172a", fontSize: 13, fontWeight: 700 }}>
+                                    {inr(Math.max(0, displayPrice - v.discount))} / {basis}
+                                  </div>
+                                  <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", alignItems: "center", marginTop: 2 }}>
+                                    <span style={{ textDecoration: "line-through", color: "#64748b", fontSize: 11 }}>
+                                      {inr(displayPrice)}
+                                    </span>
+                                    <span style={{ background: "#dcfce7", color: "#16a34a", padding: "1px 4px", borderRadius: 4, fontSize: 10, fontWeight: 700 }}>
+                                      ₹{v.discount} OFF
+                                    </span>
+                                  </div>
+                                </>
+                              ) : (
+                                <span>{displayPrice == null ? "Set price" : `${inr(displayPrice)} / ${basis}`}</span>
+                              )}
+                            </div>
                             {perKg != null && <span className="muted small" style={{ display: "block" }}>{inr(perKg)} / kg</span>}
                             {equivalent != null && <span className="muted small" style={{ display: "block" }}>{inr(equivalent)} / {caseWeight} KG case</span>}
                           </button>

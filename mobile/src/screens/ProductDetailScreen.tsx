@@ -170,6 +170,18 @@ export default function ProductDetailScreen({ route, navigation }: any) {
                 >
                   {priceDisplay.primary}
                 </Text>
+                {priceDisplay.originalPrice && priceDisplay.discountBadge ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
+                    <Text style={{ fontSize: 13, color: colors.inkMuted, textDecorationLine: "line-through" }}>
+                      {priceDisplay.originalPrice}
+                    </Text>
+                    <View style={{ backgroundColor: "#dcfce7", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                      <Text style={{ fontSize: 11, fontWeight: "700", color: "#16a34a" }}>
+                        {priceDisplay.discountBadge}
+                      </Text>
+                    </View>
+                  </View>
+                ) : null}
               </View>
               {priceDisplay.perKg && (
                 <View style={styles.perKgBox}>

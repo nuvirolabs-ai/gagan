@@ -53,6 +53,11 @@ export interface SubmitProposalInput {
     bodyBase64: string;
     checksum?: string;
   };
+  aadhaarPhotoBack?: {
+    contentType: string;
+    bodyBase64: string;
+    checksum?: string;
+  };
   paymentTerms: string;
   upiId?: string;
   latitude?: number;
@@ -106,16 +111,19 @@ function decodePhoto(bodyBase64: string) {
   return body;
 }
 
-function publicProposal(proposal: any, photoUrl?: string | null) {
+function publicProposal(proposal: any, photoUrl?: string | null, photoBackUrl?: string | null) {
   const {
     aadhaarEncrypted: _encrypted,
     aadhaarLast4,
     aadhaarPhotoAsset,
     aadhaarPhotoAssetId: _photoAssetId,
+    notes,
     ...safe
   } = proposal;
+  const cleanNotes = notes ? notes.replace(/\s*\[AADHAAR_BACK_ASSET_ID:[a-zA-Z0-9_-]+\]/, "").trim() || null : null;
   return {
     ...safe,
+    notes: cleanNotes,
     aadhaarNumberMasked: maskAadhaar(aadhaarLast4),
     aadhaarPhoto: aadhaarPhotoAsset
       ? {
@@ -123,6 +131,12 @@ function publicProposal(proposal: any, photoUrl?: string | null) {
           contentType: aadhaarPhotoAsset.contentType,
           sizeBytes: aadhaarPhotoAsset.sizeBytes,
           ...(photoUrl ? { signedUrl: photoUrl } : {}),
+        }
+      : null,
+    aadhaarPhotoBack: photoBackUrl
+      ? {
+          available: true,
+          signedUrl: photoBackUrl,
         }
       : null,
   };
@@ -227,6 +241,15 @@ export class RetailerProposalService {
       body: decodePhoto(input.aadhaarPhoto.bodyBase64),
       checksum: input.aadhaarPhoto.checksum,
     });
+    let storedBack: any = null;
+    if (input.aadhaarPhotoBack) {
+      storedBack = await storage.put({
+        purpose: EvidencePurpose.retailer_proposal_aadhaar,
+        contentType: input.aadhaarPhotoBack.contentType,
+        body: decodePhoto(input.aadhaarPhotoBack.bodyBase64),
+        checksum: input.aadhaarPhotoBack.checksum,
+      });
+    }
     try {
       const proposal = await this.prisma.$transaction(async (tx: Db) => {
         const asset = await tx.evidenceAsset.create({
@@ -239,6 +262,19 @@ export class RetailerProposalService {
             createdByStaffId: input.submittedByStaffId,
           },
         });
+        let assetBack: any = null;
+        if (storedBack) {
+          assetBack = await tx.evidenceAsset.create({
+            data: {
+              objectKey: storedBack.objectKey,
+              checksum: storedBack.checksum,
+              contentType: storedBack.contentType,
+              sizeBytes: storedBack.sizeBytes,
+              purpose: EvidencePurpose.retailer_proposal_aadhaar,
+              createdByStaffId: input.submittedByStaffId,
+            },
+          });
+        }
         return tx.retailerProposal.create({
           data: {
             businessName,
@@ -264,7 +300,9 @@ export class RetailerProposalService {
             longitude: input.longitude ?? null,
             accuracyMeters: input.accuracyMeters ?? null,
             proposedTierId: input.proposedTierId ?? null,
-            notes: clean(input.notes),
+            notes: assetBack
+              ? `${clean(input.notes) || ""}\n[AADHAAR_BACK_ASSET_ID:${assetBack.id}]`.trim()
+              : clean(input.notes),
             submittedByStaffId: input.submittedByStaffId,
           },
         });
@@ -272,6 +310,7 @@ export class RetailerProposalService {
       return publicProposal(proposal);
     } catch (error) {
       await storage.delete(stored.objectKey).catch(() => undefined);
+      if (storedBack) await storage.delete(storedBack.objectKey).catch(() => undefined);
       throw error;
     }
   }
@@ -627,8 +666,20 @@ export class RetailerProposalService {
             photoUrl = null;
           }
         }
+        let photoBackUrl: string | null = null;
+        const match = proposal.notes?.match(/\[AADHAAR_BACK_ASSET_ID:([a-zA-Z0-9_-]+)\]/);
+        if (match && match[1]) {
+          try {
+            const backAsset = await this.prisma.evidenceAsset.findUnique({ where: { id: match[1] } });
+            if (backAsset && !backAsset.deletedAt) {
+              photoBackUrl = await this.objectStorage().signedReadUrl(backAsset.objectKey, 300);
+            }
+          } catch {
+            photoBackUrl = null;
+          }
+        }
         return {
-          ...publicProposal(proposal, photoUrl),
+          ...publicProposal(proposal, photoUrl, photoBackUrl),
           orderIntents: (proposal.orderIntents ?? []).map((intent: any) =>
             attributedOrderIntent(proposal, intent)
           ),

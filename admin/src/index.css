@@ -1778,7 +1778,7 @@ button.warehouse-order-row:hover .warehouse-view-cta {
 
 .warehouse-modal-items-header {
   display: grid;
-  grid-template-columns: minmax(140px, 1.4fr) minmax(120px, 1fr) 90px;
+  grid-template-columns: minmax(130px, 1.4fr) minmax(100px, 1fr) 95px 80px 105px;
   gap: 12px;
   padding: 10px 14px;
   background: #f8fafc;
@@ -1792,7 +1792,7 @@ button.warehouse-order-row:hover .warehouse-view-cta {
 
 .warehouse-modal-item-row {
   display: grid;
-  grid-template-columns: minmax(140px, 1.4fr) minmax(120px, 1fr) 90px;
+  grid-template-columns: minmax(130px, 1.4fr) minmax(100px, 1fr) 95px 80px 105px;
   gap: 12px;
   align-items: center;
   padding: 12px 14px;
@@ -1802,6 +1802,22 @@ button.warehouse-order-row:hover .warehouse-view-cta {
 
 .warehouse-modal-item-row:last-child {
   border-bottom: 0;
+}
+
+.warehouse-modal-items-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  font-size: 13px;
+  color: #475569;
+}
+
+.warehouse-modal-items-footer .modal-total-amount {
+  font-size: 14px;
+  color: #0f172a;
 }
 
 .warehouse-modal-item-row .item-product-name {

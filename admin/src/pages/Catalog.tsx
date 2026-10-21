@@ -38,6 +38,43 @@ const inr = (value: number) => `₹${Number(value).toLocaleString("en-IN", { max
 const visibleStatus = (status?: string) => !status || ["active", "published", "pending_review", "inactive"].includes(status);
 type Editor = { kind: "create" | "product" | "variant" | "add" | "sku"; product?: any; variant?: any };
 
+async function compressImageFile(file: File, maxWidth = 1000, maxHeight = 1000, quality = 0.82): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Failed to read image file"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Failed to process image"));
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth || height > maxHeight) {
+          if (width / height > maxWidth / maxHeight) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          } else {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(reader.result as string);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        const format = file.type === "image/png" && file.size < 400 * 1024 ? "image/png" : "image/jpeg";
+        resolve(canvas.toDataURL(format, quality));
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function Catalog() {
   const [products, setProducts] = useState<any[]>([]);
   const [search, setSearch] = useState("");
@@ -53,22 +90,19 @@ export default function Catalog() {
 
   const handleInlineImageUpload = async (productId: string, file?: File) => {
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      setError("Image must be smaller than 10MB");
+    if (file.size > 15 * 1024 * 1024) {
+      setError("Image must be smaller than 15MB");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const dataUrl = reader.result as string;
-      try {
-        await api.updateProductImage(productId, dataUrl);
-        setNotice("Product image uploaded successfully!");
-        await load();
-      } catch (err: any) {
-        setError(err.message ?? "Failed to upload product image");
-      }
-    };
-    reader.readAsDataURL(file);
+    setNotice("Optimizing and uploading image…");
+    try {
+      const compressedDataUrl = await compressImageFile(file);
+      await api.updateProductImage(productId, compressedDataUrl);
+      setNotice("Product image uploaded successfully!");
+      await load();
+    } catch (err: any) {
+      setError(err.message ?? "Failed to upload product image");
+    }
   };
   const [productModal, setProductModal] = useState<{ id: string; name: string; category: string; imageUrl: string; status: "active" | "inactive" } | null>(null);
   const [savingProductModal, setSavingProductModal] = useState(false);

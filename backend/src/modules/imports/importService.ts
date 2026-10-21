@@ -493,12 +493,12 @@ export async function applyImport(database: PrismaClient, jobId: string, actorSt
   await db.$queryRaw`SELECT 1 FROM "ImportJob" WHERE "id" = ${jobId} FOR UPDATE`;
   const job = await db.importJob.findUnique({ where: { id: jobId } });
   if (!job) throw new ImportServiceError("import_not_found", 404);
-  if (job.status === "completed" || job.status === "applying") {
+  if (job.status === "completed") {
     const saved = job.result as JsonObject ?? {};
     return { ...saved, job, errors: Array.isArray(saved.rows) ? (saved.rows as JsonObject[]).filter(row => row.status === "failed") : [] };
   }
   if (!isImportType(job.importType) || !job.mode || !allowedModes(job.importType).includes(job.mode as ImportMode)) throw new ImportServiceError("invalid_import_job", 409);
-  if (!["preview", "completed_with_errors"].includes(job.status)) throw new ImportServiceError("import_not_applyable", 409);
+  if (!["preview", "completed_with_errors", "applying"].includes(job.status)) throw new ImportServiceError("import_not_applyable", 409);
   const mode = job.mode as ImportMode;
   const rawRows = ((job.preview as JsonObject | null)?.rawRows ?? []) as RawImportRow[];
   const previousRows = ((job.result as JsonObject | null)?.rows ?? []) as JsonObject[];

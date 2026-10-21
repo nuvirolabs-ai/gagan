@@ -70,12 +70,13 @@ function previewDetail(preview: any, retailerId: string) {
     retailer: {
       id: retailerId, name: preview.name, phone: preview.phone,
       shopAddress: preview.shopAddress, tier: preview.tier,
-      internalSegment: preview.internalSegment, lifecycle: null,
+      internalSegment: preview.internalSegment, lifecycle: "active",
     },
     credit: {
       outstanding: preview.outstanding, overdue: preview.overdue,
       available: preview.available, creditLimit: preview.creditLimit,
     },
+    location: preview.location ?? null,
     financialSummary: { reconciliationRequired: preview.financialSummary?.reconciliationRequired === true },
     kyc: null, recentOrders: [], recentLedger: [],
   };
@@ -91,8 +92,10 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   const cached = stored && Date.now() - stored.at < DETAIL_CACHE_MS ? stored : null;
   const { t } = useLanguage();
   const capabilities = staffCapabilities(staff?.permissions ?? []);
-  const [data, setData] = useState<any | null>(() => cached?.data ?? previewDetail(route.params?.retailerPreview, retailerId));
-  const [location, setLocation] = useState<any | null>(null);
+  const preview = previewDetail(route.params?.retailerPreview, retailerId);
+  const [data, setData] = useState<any | null>(() => cached?.data ?? preview);
+  const initialLocation = cached?.data?.location ?? route.params?.retailerPreview?.location ?? null;
+  const [location, setLocation] = useState<any | null>(initialLocation);
   const [activeVisit, setActiveVisit] = useState<any | null>(null);
   const [activeVisitElsewhere, setActiveVisitElsewhere] = useState<any | null>(null);
   const [recentVisits, setRecentVisits] = useState<any[]>([]);
@@ -121,7 +124,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   const fullDetailRequest = useRef(0);
   const [criticalReady, setCriticalReady] = useState(Boolean(cached));
   const [visitReady, setVisitReady] = useState(false);
-  const [locationReady, setLocationReady] = useState(false);
+  const [locationReady, setLocationReady] = useState(Boolean(initialLocation != null));
   const [historyReady, setHistoryReady] = useState(Boolean(cached?.complete));
   const [historyFailed, setHistoryFailed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -141,6 +144,10 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
     const critical = repApi.retailerSummary(retailerId).then((summary) => {
       if (!isCurrent() || fullDetailRequest.current === currentRequest) return;
       setData((existing: any) => ({ ...summary, recentOrders: existing?.recentOrders ?? [], recentLedger: existing?.recentLedger ?? [] }));
+      if (summary.location) {
+        setLocation(summary.location);
+        setLocationReady(true);
+      }
       saveDetailCache(cacheKey, summary, false);
       setCriticalReady(true);
       if (!criticalLogged.current) { criticalLogged.current = true; logOpenTiming("critical_ready"); }
@@ -160,6 +167,10 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
         if (!isCurrent()) return;
         fullDetailRequest.current = currentRequest;
         setData(result);
+        if (result.location) {
+          setLocation(result.location);
+          setLocationReady(true);
+        }
         saveDetailCache(cacheKey, result, true);
         setCriticalReady(true);
         setHistoryReady(true);
@@ -185,15 +196,17 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
       firstUsefulLogged.current = false;
       criticalLogged.current = Boolean(saved);
     }
-    setData(saved?.data ?? previewDetail(route.params?.retailerPreview, retailerId));
+    const currentPreview = previewDetail(route.params?.retailerPreview, retailerId);
+    const previewLoc = saved?.data?.location ?? currentPreview?.location ?? null;
+    setData(saved?.data ?? currentPreview);
     setCriticalReady(Boolean(saved));
     setVisitReady(false);
-    setLocationReady(false);
+    setLocation(previewLoc);
+    setLocationReady(Boolean(previewLoc != null));
     setHistoryReady(Boolean(saved?.complete));
     setHistoryFailed(false);
     setActiveVisit(null);
     setActiveVisitElsewhere(null);
-    setLocation(null);
     setLoading(!saved && !route.params?.retailerPreview);
   }, [retailerId, cacheKey]);
 

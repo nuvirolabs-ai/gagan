@@ -28,8 +28,10 @@ const TABS = [
   { key: "rejected", label: "Cancelled" },
 ];
 
-function isSameDay(dateInput: string | Date) {
+function isSameDay(dateInput: string | Date | null | undefined) {
+  if (!dateInput) return false;
   const d1 = new Date(dateInput);
+  if (isNaN(d1.getTime())) return false;
   const d2 = new Date();
   return (
     d1.getFullYear() === d2.getFullYear() &&
@@ -188,10 +190,12 @@ export default function RepOrdersScreen({ navigation }: any) {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.orderRef}>{formatOrderRef(order)}</Text>
                   <Text style={styles.dateText}>
-                    {new Date(order.createdAt).toLocaleString("en-IN", {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    })}
+                    {order.createdAt && !isNaN(new Date(order.createdAt).getTime())
+                      ? new Date(order.createdAt).toLocaleString("en-IN", {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        })
+                      : "—"}
                   </Text>
                 </View>
                 <StatusPill status={order.status} />
@@ -220,7 +224,7 @@ export default function RepOrdersScreen({ navigation }: any) {
 
               {/* Delivery & Remarks tags */}
               <View style={styles.tagsRow}>
-                {order.expectedDeliveryAt ? (
+                {order.expectedDeliveryAt && !isNaN(new Date(order.expectedDeliveryAt).getTime()) ? (
                   <View style={styles.tag}>
                     <Text style={styles.tagText}>
                       📅 {new Date(order.expectedDeliveryAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}

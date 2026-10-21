@@ -66,32 +66,39 @@ router.get("/imports/:id", async (req, res) => {
   });
 });
 
-router.post("/imports/preview", express.raw({ type: ["application/octet-stream", "text/csv", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"], limit: "10mb" }), async (req: StaffAuthedRequest, res) => {
-  const type = req.header("x-import-type");
-  const fileName = req.header("x-file-name") ?? "import.csv";
-  const mode = (req.header("x-import-mode") ?? "upsert") as ImportMode;
-  if (!isImportType(type)) return res.status(400).json({ error: "unsupported_import_type" });
-  if (!allowedModes(type).includes(mode)) return res.status(400).json({ error: "unsupported_import_mode" });
-  if (!Buffer.isBuffer(req.body)) return res.status(400).json({ error: "file_body_required" });
-  try {
-    const result = await previewImport(prisma, { type, fileName, buffer: req.body, mode, actorStaffId: req.staffAuth!.staffId });
-    return res.status(201).json({ job: result.job, summary: result.summary, headers: result.headers, rows: result.rows.map(({ resolved: _resolved, ...row }) => row) });
-  } catch (error) {
-    if (error instanceof ImportServiceError || (error && typeof error === "object" && "code" in error)) {
-      const typed = error as { code: string; status?: number; details?: unknown };
-      return res.status(typed.status ?? 400).json({ error: typed.code, details: typed.details });
+router.post(
+  "/imports/preview",
+  express.raw({ type: () => true, limit: "25mb" }),
+  async (req: StaffAuthedRequest, res) => {
+    try {
+      const type = (req.header("x-import-type") || req.query.type) as string;
+      const fileName = req.header("x-file-name") || (req.query.fileName as string) || "import.csv";
+      const mode = ((req.header("x-import-mode") || req.query.mode || "upsert") as string) as ImportMode;
+      if (!isImportType(type)) return res.status(400).json({ error: "unsupported_import_type" });
+      if (!allowedModes(type).includes(mode)) return res.status(400).json({ error: "unsupported_import_mode" });
+      if (!Buffer.isBuffer(req.body) || req.body.length === 0) return res.status(400).json({ error: "file_body_required" });
+
+      const result = await previewImport(prisma, { type, fileName, buffer: req.body, mode, actorStaffId: req.staffAuth!.staffId });
+      return res.status(201).json({ job: result.job, summary: result.summary, headers: result.headers, rows: result.rows.map(({ resolved: _resolved, ...row }) => row) });
+    } catch (error: any) {
+      console.error("Import preview error:", error);
+      if (error instanceof ImportServiceError || (error && typeof error === "object" && "code" in error)) {
+        const typed = error as { code: string; status?: number; details?: unknown };
+        return res.status(typed.status ?? 400).json({ error: typed.code, details: typed.details });
+      }
+      return res.status(500).json({ error: "import_preview_failed", message: error?.message || "Failed to preview import file" });
     }
-    throw error;
   }
-});
+);
 
 router.post("/imports/:id/apply", async (req: StaffAuthedRequest, res) => {
   try {
     const result = await applyImport(prisma, req.params.id, req.staffAuth!.staffId, req.body?.confirm === true);
     return res.json(result);
-  } catch (error) {
+  } catch (error: any) {
+    console.error("Import apply error:", error);
     if (error instanceof ImportServiceError) return res.status(error.status).json({ error: error.code, details: error.details });
-    throw error;
+    return res.status(500).json({ error: "import_apply_failed", message: error?.message || "Failed to apply import" });
   }
 });
 

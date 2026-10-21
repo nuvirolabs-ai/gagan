@@ -262,30 +262,75 @@ router.get("/me", requireStaffSession, async (req: IdentityAuthedRequest, res) =
 router.get("/retailers", requireRep, async (req: RepRequest, res) => {
   const retailers = await prisma.retailer.findMany({
     where: { salesRepId: req.repId },
-    include: { tier: true },
+    include: { tier: true, location: true },
     orderBy: { name: "asc" },
   });
 
-  const summary = await Promise.all(retailers.map(async (r) => {
-    const financial = (await financialSummaryFor(prisma, r.id))!;
-    const limit = financial.creditLimit;
-    const balance = financial.creditUsed;
+  const retailerIds = retailers.map((r) => r.id);
+  const openInvoices = await prisma.invoice.findMany({
+    where: {
+      retailerId: { in: retailerIds },
+      status: { in: ["open", "partially_paid"] },
+    },
+    select: {
+      retailerId: true,
+      outstandingAmount: true,
+      dueDate: true,
+    },
+  });
+
+  const now = new Date();
+  const invoicesByRetailer = new Map<string, { count: number; outstanding: number; overdue: number }>();
+  for (const inv of openInvoices) {
+    const existing = invoicesByRetailer.get(inv.retailerId) ?? { count: 0, outstanding: 0, overdue: 0 };
+    const amount = Number(inv.outstandingAmount || 0);
+    existing.count += 1;
+    existing.outstanding += amount;
+    if (new Date(inv.dueDate) < now) {
+      existing.overdue += amount;
+    }
+    invoicesByRetailer.set(inv.retailerId, existing);
+  }
+
+  const summary = retailers.map((r) => {
+    const invData = invoicesByRetailer.get(r.id);
+    const hasLocalInvoices = (invData?.count ?? 0) > 0;
+    const limit = Number(r.creditLimit || 0);
+    const outstanding = hasLocalInvoices ? invData!.outstanding : Number(r.currentBalance || 0);
+    const overdue = hasLocalInvoices ? invData!.overdue : Number(r.overdueAmount || 0);
+    const reconciliationRequired = hasLocalInvoices && Math.abs(Number(r.currentBalance || 0) - outstanding) > 0.01;
+    const balance = outstanding;
+
     return {
       id: r.id,
       name: r.name,
       phone: r.phone,
       shopAddress: r.shopAddress,
+      deliveryCity: (r as any).deliveryCity ?? null,
       tier: r.tier.name,
       internalSegment: r.internalSegment,
+      location: r.location ? {
+        status: r.location.status,
+        latitude: r.location.latitude ? Number(r.location.latitude) : null,
+        longitude: r.location.longitude ? Number(r.location.longitude) : null,
+        accuracyMeters: r.location.accuracyMeters ? Number(r.location.accuracyMeters) : null,
+      } : null,
       creditLimit: limit,
       outstanding: balance,
-      overdue: financial.overdue,
-      available: financial.availableCredit,
+      overdue,
+      available: Math.max(limit - balance, 0),
       utilisationPct: limit > 0 ? Math.round((balance / limit) * 100) : 0,
-      reconciliationRequired: financial.reconciliationRequired,
-      financialSummary: financial,
+      reconciliationRequired,
+      financialSummary: {
+        outstanding,
+        overdue,
+        creditLimit: limit,
+        creditUsed: balance,
+        availableCredit: Math.max(limit - balance, 0),
+        reconciliationRequired,
+      },
     };
-  }));
+  });
 
   res.json({
     retailers: summary,
@@ -305,6 +350,7 @@ router.get("/retailers/:id/summary", requireRep, async (req: RepRequest, res) =>
       id: true, name: true, phone: true, shopAddress: true, status: true,
       internalSegment: true, creditLimit: true, currentBalance: true, overdueAmount: true,
       tier: { select: { name: true } },
+      location: true,
     },
   });
   if (!retailer) return res.status(404).json({ error: "Retailer not found" });
@@ -322,6 +368,12 @@ router.get("/retailers/:id/summary", requireRep, async (req: RepRequest, res) =>
       shopAddress: retailer.shopAddress, tier: retailer.tier.name,
       internalSegment: retailer.internalSegment, lifecycle: retailer.status,
     },
+    location: retailer.location ? {
+      status: retailer.location.status,
+      latitude: retailer.location.latitude ? Number(retailer.location.latitude) : null,
+      longitude: retailer.location.longitude ? Number(retailer.location.longitude) : null,
+      accuracyMeters: retailer.location.accuracyMeters ? Number(retailer.location.accuracyMeters) : null,
+    } : null,
     kyc: { status: kycCase?.status ?? null, legacyVerified: creditProfile?.kycVerifiedAt != null },
     credit: {
       creditLimit: limit, outstanding: balance,
@@ -360,7 +412,7 @@ router.get("/retailers/:id", requireRep, async (req: RepRequest, res) => {
   const retailer = await assignedRetailer(req.repId!, req.params.id);
   if (!retailer) return res.status(404).json({ error: "Retailer not found" });
 
-  const [tier, orders, entries, kycCase, creditProfile, financialSummary] = await Promise.all([
+  const [tier, orders, entries, kycCase, creditProfile, financialSummary, location] = await Promise.all([
     prisma.tier.findUnique({ where: { id: retailer.tierId } }),
     prisma.order.findMany({
       where: { retailerId: retailer.id },
@@ -379,6 +431,7 @@ router.get("/retailers/:id", requireRep, async (req: RepRequest, res) => {
     prisma.kycCase.findUnique({ where: { retailerId: retailer.id }, select: { id: true, status: true, submittedAt: true, reviewedAt: true, rejectionReason: true } }),
     prisma.creditProfile.findUnique({ where: { retailerId: retailer.id }, select: { kycVerifiedAt: true } }),
     financialSummaryFor(prisma, retailer.id),
+    prisma.retailerLocation.findUnique({ where: { retailerId: retailer.id } }),
   ]);
 
   const limit = financialSummary?.creditLimit ?? Number(retailer.creditLimit);
@@ -399,6 +452,12 @@ router.get("/retailers/:id", requireRep, async (req: RepRequest, res) => {
       internalSegment: retailer.internalSegment,
       lifecycle: retailer.status,
     },
+    location: location ? {
+      status: location.status,
+      latitude: location.latitude ? Number(location.latitude) : null,
+      longitude: location.longitude ? Number(location.longitude) : null,
+      accuracyMeters: location.accuracyMeters ? Number(location.accuracyMeters) : null,
+    } : null,
     kyc: { ...kycCase, legacyVerified: creditProfile?.kycVerifiedAt != null },
     credit: {
       creditLimit: limit,

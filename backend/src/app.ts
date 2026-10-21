@@ -104,10 +104,13 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/rep/collections", express.json({ limit: "15mb" }));
   // Only payment-proof uploads receive the larger parser limit.
   app.use("/payments/:id/evidence", express.json({ limit: "15mb" }));
-  // New-retailer Aadhaar evidence is a bounded image payload. It remains
-  // behind the staff session and is never accepted by the default parser.
-  app.use("/rep/retailer-proposals", express.json({ limit: "15mb" }));
+  // New-retailer Aadhaar evidence has two high-res photos (front and back).
+  app.use("/rep/retailer-proposals", express.json({ limit: "25mb" }));
   app.use("/admin/kyc", express.json({ limit: "15mb" }));
+  // Admin catalogue direct photo uploads, variant edits, and bulk import data.
+  app.use("/admin/catalog", express.json({ limit: "25mb" }));
+  app.use("/admin/media", express.json({ limit: "25mb" }));
+  app.use("/admin/imports", express.json({ limit: "25mb" }));
   app.use(express.json({ limit: "100kb" }));
 
   // The demo catalog ships with local product photography. SAP/CDN image

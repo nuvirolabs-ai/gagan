@@ -171,143 +171,105 @@ function RootNavigator() {
             component={RepTabs}
             options={{ headerShown: false, title: t("tabs.retailers") }}
           />
-          {capabilities.canOrderForRetailers && (
-            <>
-              <Stack.Screen
-                name="RepRetailerDetail"
-                component={RepRetailerDetailScreen}
-                options={{ title: t("retailer.title"), headerBackTitle: t("tabs.retailers") }}
-              />
-              <Stack.Screen
-                name="RepRetailerOutstanding"
-                component={RepRetailerOutstandingScreen}
-                options={{ title: t("retailer.outstandingLedger"), headerBackTitle: t("retailer.title") }}
-              />
-              <Stack.Screen
-                name="RepCatalog"
-                component={RepCatalogScreen}
-                options={{ title: t("orders.new"), headerBackTitle: t("common.back") }}
-              />
-              <Stack.Screen
-                name="RepReviewOrder"
-                component={RepReviewOrderScreen}
-                options={{ title: "Review order", headerBackTitle: t("common.back") }}
-              />
-              <Stack.Screen name="KycCapture" component={KycCaptureScreen} options={{ title: t("kyc.title"), headerBackTitle: t("retailer.title") }} />
-              <Stack.Screen
-                name="Visit"
-                component={VisitScreen}
-                options={{ title: t("visit.title"), headerBackTitle: t("common.back") }}
-              />
-            </>
-          )}
-          {(capabilities.canOrderForRetailers || capabilities.canRunFieldDay) && (
-            <>
-              <Stack.Screen
-                name="RepOrders"
-                component={RepOrdersScreen}
-                options={{ title: "My Orders", headerBackTitle: t("common.back") }}
-              />
-              <Stack.Screen
-                name="OrderDetail"
-                component={OrderDetailScreen}
-                options={{ title: "Order detail", headerBackTitle: t("common.back") }}
-              />
-            </>
-          )}
-          {capabilities.canRunFieldDay && (
-            <>
-              <Stack.Screen
-                name="Route"
-                component={RouteScreen}
-                options={{ title: t("route.title"), headerBackTitle: t("tabs.today") }}
-              />
-              <Stack.Screen
-                name="Opportunities"
-                component={OpportunitiesScreen}
-                options={{ title: t("opportunities.title"), headerBackTitle: t("tabs.today") }}
-              />
-            </>
-          )}
-          {capabilities.canViewTeamPerformance && (
-            <>
-              <Stack.Screen
-                name="TeamPerformance"
-                component={TeamPerformanceScreen}
-                options={{ title: t("team.title"), headerBackTitle: t("tabs.more") }}
-              />
-              <Stack.Screen
-                name="TeamMemberDetail"
-                component={TeamMemberDetailScreen}
-                options={{ title: t("team.members"), headerBackTitle: t("team.title") }}
-              />
-            </>
-          )}
-          {capabilities.canProposeRetailers && (
-            <Stack.Screen
-              name="AddRetailer"
-              component={AddRetailerScreen}
-              options={{ title: t("addRetailer.title"), headerBackTitle: t("tabs.customers") }}
-            />
-          )}
-          {capabilities.canManageAttendance && (
-            <Stack.Screen
-              name="MyDay"
-              component={MyDayScreen}
-              options={{ title: t("myday.title"), headerBackTitle: t("tabs.more") }}
-            />
-          )}
-          {capabilities.canRunFieldDay && (
-            <Stack.Screen name="SalesKit" component={SalesKitScreen} options={{ title: "Sales Kit", headerBackTitle: t("tabs.more") }} />
-          )}
-          {canOpenMarketSurveys(staff?.permissions ?? []) && (
-            <Stack.Screen name={MARKET_SURVEY_ROUTE} component={MarketSurveysScreen} options={{ title: MARKET_SURVEY_LABEL, headerBackTitle: t("tabs.more") }} />
-          )}
-          {capabilities.canSeeCustomerMap && (
-            <Stack.Screen
-              name="CustomerMap"
-              component={CustomerMapScreen}
-              options={{ title: t("map.title"), headerBackTitle: t("tabs.more") }}
-            />
-          )}
-          {capabilities.canSubmitExpenses && (
-            <Stack.Screen
-              name="Expenses"
-              component={ExpensesScreen}
-              options={{ title: t("expenses.title"), headerBackTitle: t("tabs.more") }}
-            />
-          )}
-          {capabilities.canRaiseIssues && (
-            <Stack.Screen
-              name="Issues"
-              component={IssuesScreen}
-              options={{ title: t("issues.title"), headerBackTitle: t("tabs.more") }}
-            />
-          )}
-          {capabilities.canRaiseIssues && (
-            <Stack.Screen
-              name="IssueDetail"
-              component={IssueDetailScreen}
-              options={{ title: "Issue detail", headerBackTitle: t("issues.title") }}
-            />
-          )}
-          {(capabilities.canCollect || capabilities.canOrderForRetailers) && (
-            <Stack.Screen
-              name="Collections"
-              component={StaffHomeScreen}
-              options={{ title: t("more.collections"), headerBackTitle: t("tabs.more") }}
-            />
-          )}
-          {capabilities.canApprove && (
-            <Stack.Screen
-              name="ApprovalDetail"
-              component={ApprovalDetailScreen}
-              options={{ title: t("approval.title"), headerBackTitle: t("tabs.approvals") }}
-            />
-          )}
-          {capabilities.canReviewRatings && (
-            <Stack.Screen name="RatingReviews" component={RatingReviewsScreen} options={{ title: t("rating.title"), headerBackTitle: t("tabs.approvals") }} />
-          )}
+          <Stack.Screen
+            name="RepRetailerDetail"
+            component={RepRetailerDetailScreen}
+            options={{ title: t("retailer.title"), headerBackTitle: t("tabs.retailers") }}
+          />
+          <Stack.Screen
+            name="RepRetailerOutstanding"
+            component={RepRetailerOutstandingScreen}
+            options={{ title: t("retailer.outstandingLedger"), headerBackTitle: t("retailer.title") }}
+          />
+          <Stack.Screen
+            name="RepCatalog"
+            component={RepCatalogScreen}
+            options={{ title: t("orders.new"), headerBackTitle: t("common.back") }}
+          />
+          <Stack.Screen
+            name="RepReviewOrder"
+            component={RepReviewOrderScreen}
+            options={{ title: "Review order", headerBackTitle: t("common.back") }}
+          />
+          <Stack.Screen name="KycCapture" component={KycCaptureScreen} options={{ title: t("kyc.title"), headerBackTitle: t("retailer.title") }} />
+          <Stack.Screen
+            name="Visit"
+            component={VisitScreen}
+            options={{ title: t("visit.title"), headerBackTitle: t("common.back") }}
+          />
+          <Stack.Screen
+            name="RepOrders"
+            component={RepOrdersScreen}
+            options={{ title: "My Orders", headerBackTitle: t("common.back") }}
+          />
+          <Stack.Screen
+            name="OrderDetail"
+            component={OrderDetailScreen}
+            options={{ title: "Order detail", headerBackTitle: t("common.back") }}
+          />
+          <Stack.Screen
+            name="Route"
+            component={RouteScreen}
+            options={{ title: t("route.title"), headerBackTitle: t("tabs.today") }}
+          />
+          <Stack.Screen
+            name="Opportunities"
+            component={OpportunitiesScreen}
+            options={{ title: t("opportunities.title"), headerBackTitle: t("tabs.today") }}
+          />
+          <Stack.Screen
+            name="TeamPerformance"
+            component={TeamPerformanceScreen}
+            options={{ title: t("team.title"), headerBackTitle: t("tabs.more") }}
+          />
+          <Stack.Screen
+            name="TeamMemberDetail"
+            component={TeamMemberDetailScreen}
+            options={{ title: t("team.members"), headerBackTitle: t("team.title") }}
+          />
+          <Stack.Screen
+            name="AddRetailer"
+            component={AddRetailerScreen}
+            options={{ title: t("addRetailer.title"), headerBackTitle: t("tabs.customers") }}
+          />
+          <Stack.Screen
+            name="MyDay"
+            component={MyDayScreen}
+            options={{ title: t("myday.title"), headerBackTitle: t("tabs.more") }}
+          />
+          <Stack.Screen name="SalesKit" component={SalesKitScreen} options={{ title: "Sales Kit", headerBackTitle: t("tabs.more") }} />
+          <Stack.Screen name={MARKET_SURVEY_ROUTE} component={MarketSurveysScreen} options={{ title: MARKET_SURVEY_LABEL, headerBackTitle: t("tabs.more") }} />
+          <Stack.Screen
+            name="CustomerMap"
+            component={CustomerMapScreen}
+            options={{ title: t("map.title"), headerBackTitle: t("tabs.more") }}
+          />
+          <Stack.Screen
+            name="Expenses"
+            component={ExpensesScreen}
+            options={{ title: t("expenses.title"), headerBackTitle: t("tabs.more") }}
+          />
+          <Stack.Screen
+            name="Issues"
+            component={IssuesScreen}
+            options={{ title: t("issues.title"), headerBackTitle: t("tabs.more") }}
+          />
+          <Stack.Screen
+            name="IssueDetail"
+            component={IssueDetailScreen}
+            options={{ title: "Issue detail", headerBackTitle: t("issues.title") }}
+          />
+          <Stack.Screen
+            name="Collections"
+            component={StaffHomeScreen}
+            options={{ title: t("more.collections"), headerBackTitle: t("tabs.more") }}
+          />
+          <Stack.Screen
+            name="ApprovalDetail"
+            component={ApprovalDetailScreen}
+            options={{ title: t("approval.title"), headerBackTitle: t("tabs.approvals") }}
+          />
+          <Stack.Screen name="RatingReviews" component={RatingReviewsScreen} options={{ title: t("rating.title"), headerBackTitle: t("tabs.approvals") }} />
         </>
       )}
     </Stack.Navigator>

@@ -57,11 +57,7 @@ function getPackagingType(v: any, category?: string): "Bag" | "Box" {
   return "Bag";
 }
 
-const inr = (value: number) => {
-  const parts = Number(value).toFixed(2).split(".");
-  const intPart = Number(parts[0]).toLocaleString("en-IN");
-  return parts[1] === "00" ? `₹${intPart}` : `₹${intPart}.${parts[1]}`;
-};
+const inr = (value: number) => `₹${Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 const visibleStatus = (status?: string) => !status || ["active", "published", "pending_review", "inactive"].includes(status);
 type Editor = { kind: "create" | "product" | "variant" | "add" | "sku"; product?: any; variant?: any };
 
@@ -102,11 +98,15 @@ async function compressImageFile(file: File, maxWidth = 1000, maxHeight = 1000, 
   });
 }
 
+let cachedProducts: any[] | null = null;
+let cachedTiers: any[] | null = null;
+
 export default function Catalog() {
-  const [products, setProducts] = useState<any[]>([]);
+  const isTest = import.meta.env.MODE === "test";
+  const [products, setProducts] = useState<any[]>(() => (!isTest ? cachedProducts : null) ?? []);
   const [search, setSearch] = useState("");
-  const [tiers, setTiers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [tiers, setTiers] = useState<any[]>(() => (!isTest ? cachedTiers : null) ?? []);
+  const [loading, setLoading] = useState(() => (isTest ? true : !cachedProducts));
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -308,10 +308,15 @@ export default function Catalog() {
       : null;
 
   const load = async () => {
-    setLoading(true);
+    if (isTest || !cachedProducts) setLoading(true);
     try {
       const res = await api.products("all");
-      setProducts(res.products.filter((product: any) => visibleStatus(product.catalogStatus)).map((product: any) => ({ ...product, variants: product.variants.filter((variant: any) => visibleStatus(variant.catalogStatus)) })).filter((product: any) => product.variants.length));
+      const filtered = res.products.filter((product: any) => visibleStatus(product.catalogStatus)).map((product: any) => ({ ...product, variants: product.variants.filter((variant: any) => visibleStatus(variant.catalogStatus)) })).filter((product: any) => product.variants.length);
+      if (!isTest) {
+        cachedProducts = filtered;
+        cachedTiers = res.tiers;
+      }
+      setProducts(filtered);
       setTiers(res.tiers);
       setError(null);
     } catch (err) {
@@ -775,7 +780,7 @@ export default function Catalog() {
             style={{ borderRadius: 6, fontWeight: statusFilter === "all" ? 600 : 500 }}
             onClick={() => setStatusFilter("all")}
           >
-            All ({rows.length})
+            All SKUs ({rows.length})
           </button>
           <button
             type="button"
@@ -783,7 +788,7 @@ export default function Catalog() {
             style={{ borderRadius: 6, fontWeight: statusFilter === "active" ? 600 : 500, color: statusFilter === "active" ? undefined : "#15803d" }}
             onClick={() => setStatusFilter("active")}
           >
-            Active ({activeRowsCount})
+            Active SKUs ({activeRowsCount})
           </button>
           <button
             type="button"
@@ -791,7 +796,7 @@ export default function Catalog() {
             style={{ borderRadius: 6, fontWeight: statusFilter === "inactive" ? 600 : 500, color: statusFilter === "inactive" ? undefined : "#b45309" }}
             onClick={() => setStatusFilter("inactive")}
           >
-            Inactive ({inactiveRowsCount})
+            Inactive SKUs ({inactiveRowsCount})
           </button>
         </div>
       </div>
@@ -977,11 +982,11 @@ export default function Catalog() {
                                 <span style={{ fontWeight: 600 }}>{p.name}</span>
                                 {p.catalogStatus === "inactive" ? (
                                   <span style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", padding: "1px 6px", borderRadius: 4, fontSize: 11, fontWeight: 700 }}>
-                                    Inactive
+                                    Product Inactive
                                   </span>
                                 ) : (
                                   <span style={{ background: "#ecfdf5", color: "#065f46", border: "1px solid #a7f3d0", padding: "1px 6px", borderRadius: 4, fontSize: 11, fontWeight: 600 }}>
-                                    Active
+                                    Product Active
                                   </span>
                                 )}
                               </div>
@@ -1098,7 +1103,7 @@ export default function Catalog() {
                               return w > 0 ? (
                                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
                                   <span className="muted small" style={{ fontWeight: 500 }}>
-                                    Weight: ~{w} kg
+                                    Case: ~{w} kg
                                   </span>
                                   <select
                                     aria-label="Packaging"
@@ -1246,7 +1251,8 @@ export default function Catalog() {
                               </select>
                               <input
                                 aria-label="Discount amount"
-                                type="number"
+                                type="text"
+                                inputMode="decimal"
                                 min="0"
                                 max={activeEdit.discountType === "percent" ? "100" : undefined}
                                 step="any"
@@ -1302,13 +1308,13 @@ export default function Catalog() {
                               </span>
                             )}
                             {perKg != null && (
-                              <span style={{ display: "block", fontSize: 11, color: "#1e293b", marginTop: 2 }}>
-                                <strong style={{ fontWeight: 800 }}>{inr(perKg)}</strong> / kg
+                              <span style={{ display: "block", fontSize: 11, color: "#1e293b", marginTop: 2, fontWeight: 700 }}>
+                                {inr(perKg)} / kg
                               </span>
                             )}
                             {equivalent != null && (
-                              <span style={{ display: "block", fontSize: 11, color: "#1e293b", marginTop: 1 }}>
-                                <strong style={{ fontWeight: 800 }}>{inr(equivalent)}</strong> / {caseWeight} KG {pkgType}
+                              <span style={{ display: "block", fontSize: 11, color: "#1e293b", marginTop: 1, fontWeight: 700 }}>
+                                {inr(equivalent)} / {caseWeight} KG {basis === "quintal" ? "case" : pkgType}
                               </span>
                             )}
                           </span>
@@ -1349,13 +1355,13 @@ export default function Catalog() {
                               )}
                             </div>
                             {perKg != null && (
-                              <span style={{ display: "block", fontSize: 11, color: "#1e293b", marginTop: 2 }}>
-                                <strong style={{ fontWeight: 800 }}>{inr(perKg)}</strong> / kg
+                              <span style={{ display: "block", fontSize: 11, color: "#1e293b", marginTop: 2, fontWeight: 700 }}>
+                                {inr(perKg)} / kg
                               </span>
                             )}
                             {equivalent != null && (
-                              <span style={{ display: "block", fontSize: 11, color: "#1e293b", marginTop: 1 }}>
-                                <strong style={{ fontWeight: 800 }}>{inr(equivalent)}</strong> / {caseWeight} KG {pkgType}
+                              <span style={{ display: "block", fontSize: 11, color: "#1e293b", marginTop: 1, fontWeight: 700 }}>
+                                {inr(equivalent)} / {caseWeight} KG {basis === "quintal" ? "case" : pkgType}
                               </span>
                             )}
                           </button>

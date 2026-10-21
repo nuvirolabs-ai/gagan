@@ -118,18 +118,22 @@ function LoadingHome() {
   return <div className="page-shell home-page instrument-loading" aria-label="Loading live operating picture"><div className="page-header"><div><div className="skeleton skeleton-label" /><div className="skeleton skeleton-title" /><div className="skeleton skeleton-copy" /></div><div className="skeleton skeleton-status" /></div><div className="skeleton skeleton-flow" /><div className="instrument-grid-skeleton"><div className="skeleton skeleton-panel" /><div className="skeleton skeleton-panel" /><div className="skeleton skeleton-panel" /></div><div className="skeleton skeleton-queue" /></div>;
 }
 
+let cachedDashboardQueues: Queue[] | null = null;
+let cachedOrdersByStatus: Record<string, OrderRecord[]> | null = null;
+let cachedSapState: { failed: number; pending: number } | null = null;
+
 export default function Dashboard() {
   const { admin } = useAuth();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !cachedDashboardQueues);
   const [error, setError] = useState<string | null>(null);
-  const [queues, setQueues] = useState<Queue[]>([]);
-  const [ordersByStatus, setOrdersByStatus] = useState<Record<string, OrderRecord[]>>({});
-  const [sapState, setSapState] = useState<{ failed: number; pending: number } | null>(null);
+  const [queues, setQueues] = useState<Queue[]>(() => cachedDashboardQueues ?? []);
+  const [ordersByStatus, setOrdersByStatus] = useState<Record<string, OrderRecord[]>>(() => cachedOrdersByStatus ?? {});
+  const [sapState, setSapState] = useState<{ failed: number; pending: number } | null>(() => cachedSapState);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setLoading(true);
+      if (!cachedDashboardQueues) setLoading(true);
       const countsPromise = typeof api.orderCounts === "function" ? api.orderCounts().catch(() => null) : Promise.resolve(null);
       const [countsResult, placedResult, approvals, collections, proposals, expenses, issues, leave, sap] = await Promise.all([
         countsPromise,
@@ -170,9 +174,13 @@ export default function Dashboard() {
         { label: "Leave requests", count: leave?.requests?.length ?? leave?.length ?? 0, to: "/field-team", tone: "active" },
         { label: "SAP outbox failures", count: sap?.outbox?.failed ?? 0, to: "/sap", tone: "critical" },
       ].filter((row) => Number.isFinite(row.count)) as Queue[];
+      const nextSapState = sap ? { failed: Number(sap.outbox?.failed ?? 0), pending: Number(sap.outbox?.pending ?? 0) } : null;
+      cachedDashboardQueues = next;
+      cachedOrdersByStatus = byStatus;
+      cachedSapState = nextSapState;
       setQueues(next);
       setOrdersByStatus(byStatus);
-      setSapState(sap ? { failed: Number(sap.outbox?.failed ?? 0), pending: Number(sap.outbox?.pending ?? 0) } : null);
+      setSapState(nextSapState);
       setError(!countsResult?.counts && Object.values(byStatus).every((item) => item.length === 0) && next.every((item) => item.count === 0) ? "The live operating queues could not be reached." : null);
       setLoading(false);
     })().catch((caught) => {

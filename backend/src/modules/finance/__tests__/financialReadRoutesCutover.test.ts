@@ -20,6 +20,7 @@ vi.mock("../../../lib/auth", () => ({
 }));
 vi.mock("../../../lib/adminAuth", () => ({
   requireAdmin: (_req: unknown, _res: unknown, next: () => void) => next(),
+  requireAnyAdminPermission: (..._perms: unknown[]) => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 vi.mock("../financialQueries", () => ({
   financialAgeingFor: mocks.financialAgeing,

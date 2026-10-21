@@ -29,7 +29,19 @@ router.use(["/retailers", "/ageing", "/payments"], requireAdmin);
 
 router.get("/retailers", async (_req, res) => {
   const retailers = await prisma.retailer.findMany({
-    include: { tier: true, salesRep: true },
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      shopAddress: true,
+      deliveryCity: true,
+      creditLimit: true,
+      currentBalance: true,
+      overdueAmount: true,
+      internalSegment: true,
+      tier: { select: { id: true, name: true } },
+      salesRep: { select: { id: true, name: true } },
+    },
     orderBy: { name: "asc" },
   });
 

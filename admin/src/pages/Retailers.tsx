@@ -3,12 +3,16 @@ import { Link } from "react-router-dom";
 import { api, inr } from "../api";
 import { useAuth } from "../useAuth";
 
+let cachedRetailers: any[] | null = null;
+let cachedTiers: any[] | null = null;
+let cachedSalesReps: { salesRepId: string; name: string; phone: string; territory?: string }[] | null = null;
+
 export default function Retailers() {
   const { permissions } = useAuth();
   const canViewFieldHistory = permissions.includes("route.manage");
-  const [retailers, setRetailers] = useState<any[]>([]);
-  const [tiers, setTiers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [retailers, setRetailers] = useState<any[]>(() => cachedRetailers ?? []);
+  const [tiers, setTiers] = useState<any[]>(() => cachedTiers ?? []);
+  const [loading, setLoading] = useState(() => !cachedRetailers);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -18,7 +22,7 @@ export default function Retailers() {
   const [expandedExecutionId, setExpandedExecutionId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", phone: "", shopAddress: "", deliveryCity: "", tierId: "", creditLimit: "" });
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [salesReps, setSalesReps] = useState<{ salesRepId: string; name: string; phone: string; territory?: string }[]>([]);
+  const [salesReps, setSalesReps] = useState<{ salesRepId: string; name: string; phone: string; territory?: string }[]>(() => cachedSalesReps ?? []);
   const [targetRepId, setTargetRepId] = useState("");
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [reassigning, setReassigning] = useState(false);
@@ -165,10 +169,12 @@ export default function Retailers() {
     }
   };
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (silent = Boolean(cachedRetailers)) => {
+    if (!silent) setLoading(true);
     try {
       const [r, t] = await Promise.all([api.retailers(), api.tiers()]);
+      cachedRetailers = r.retailers;
+      cachedTiers = t.tiers;
       setRetailers(r.retailers);
       setTiers(t.tiers);
       setLoading(false);
@@ -187,6 +193,7 @@ export default function Retailers() {
       });
       if (existingReps.size > 0) {
         const repList = Array.from(existingReps.values());
+        cachedSalesReps = repList;
         setSalesReps(repList);
         if (!targetRepId && repList[0]) setTargetRepId(repList[0].salesRepId);
       }
@@ -202,6 +209,7 @@ export default function Retailers() {
             territory: member.salesRep?.territory,
           }));
         if (reps.length > 0) {
+          cachedSalesReps = reps;
           setSalesReps(reps);
           if (!targetRepId && reps[0]) setTargetRepId(reps[0].salesRepId);
         }

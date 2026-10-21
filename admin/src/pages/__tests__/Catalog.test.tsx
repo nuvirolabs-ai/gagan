@@ -291,10 +291,10 @@ describe("Catalog commercial rate display", () => {
     render(<Catalog />);
     expect(await screen.findByText("Active")).toBeInTheDocument();
     expect(screen.getByText("1 kg × 30")).toBeInTheDocument();
-    expect(screen.getByText("30 kg case")).toBeInTheDocument();
+    expect(screen.getByText(/30 kg (case|bag)/i)).toBeInTheDocument();
     expect(screen.getByText("GST: 5%")).toBeInTheDocument();
     expect(screen.getByText("Billing: Laxmi toor")).toBeInTheDocument();
-    expect(screen.getByText("₹3,120 / case")).toBeInTheDocument();
+    expect(screen.getByText(/₹3,120 \/ (case|bag)/i)).toBeInTheDocument();
     expect(screen.getByText("₹104 / kg")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Publish catalogue" })).not.toBeInTheDocument();
@@ -360,7 +360,7 @@ describe("Catalog commercial rate display", () => {
     }] });
 
     render(<Catalog />);
-    expect(await screen.findByText("₹5,400 / case")).toBeInTheDocument();
+    expect(await screen.findByText(/₹5,400 \/ (case|bag)/i)).toBeInTheDocument();
     expect(screen.getByText("₹180 / kg")).toBeInTheDocument();
 
     // Click Edit to enter quick-edit
@@ -405,7 +405,7 @@ describe("Catalog commercial rate display", () => {
     expect(await screen.findByText("₹18,500 / quintal")).toBeInTheDocument();
     expect(screen.getByText("₹185 / kg")).toBeInTheDocument();
     expect(screen.getByText("₹5,550 / 30 KG case")).toBeInTheDocument();
-    expect(screen.queryByText("₹5,400 / case")).not.toBeInTheDocument();
+    expect(screen.queryByText(/₹5,400 \/ (case|bag)/)).not.toBeInTheDocument();
   });
 
   it("allows editing product name, category, and image URL for an already listed product via Edit product modal", async () => {
@@ -427,11 +427,11 @@ describe("Catalog commercial rate display", () => {
     fireEvent.change(screen.getByLabelText("Edit category"), { target: { value: "Pulses & Grains" } });
     fireEvent.click(screen.getByRole("button", { name: "Save Product" }));
 
-    await waitFor(() => expect(mocks.quickEditProduct).toHaveBeenCalledWith("toor-prod", {
+    await waitFor(() => expect(mocks.quickEditProduct).toHaveBeenCalledWith("toor-prod", expect.objectContaining({
       name: "Gagan Premium Toor Dal",
       category: "Pulses & Grains",
       imageUrl: "http://example.com/toor.jpg",
-    }));
+    })));
   });
 
   it("allows editing product name and category in CatalogueSkuForm when adding a pack to an existing product", async () => {

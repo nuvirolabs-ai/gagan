@@ -167,23 +167,29 @@ function focusQueueElement(orderId: string | null) {
   document.querySelector<HTMLElement>('input[aria-label="Search order or retailer"]')?.focus();
 }
 
+let cachedQueueData: Record<string, any[]> = {};
+let cachedStatusByOrderId: Map<string, any> = new Map();
+let cachedTabSummaries: Record<string, { count: number; value: number }> = {};
+let cachedAdminWarehouses: Array<{ code: string; name: string; city: string }> = [
+  { code: "WH-001", name: "Indore Central Fulfillment Hub", city: "Indore" },
+  { code: "WH-002", name: "Bhopal Regional Hub", city: "Bhopal" },
+];
+
 function AdminOrders() {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("status");
   const [tab, setTab] = useState(TABS.some((item) => item.key === requestedTab) ? requestedTab! : "placed");
-  const [orders, setOrders] = useState<any[]>([]);
+  const [queueData, setQueueData] = useState<Record<string, any[]>>(() => cachedQueueData);
+  const [statusByOrderId, setStatusByOrderId] = useState<Map<string, any>>(() => cachedStatusByOrderId);
+  const [tabSummaries, setTabSummaries] = useState<Record<string, { count: number; value: number }>>(() => cachedTabSummaries);
+  const [orders, setOrders] = useState<any[]>(() => withInternalStatus(cachedQueueData[TABS.some((item) => item.key === requestedTab) ? requestedTab! : "placed"] ?? [], cachedStatusByOrderId));
   const [warehouseFilter, setWarehouseFilter] = useState<string>("all");
   const [salespersonFilter, setSalespersonFilter] = useState<string>("all");
-  const [warehouses, setWarehouses] = useState<Array<{ code: string; name: string; city: string }>>([
-    { code: "WH-001", name: "Indore Central Fulfillment Hub", city: "Indore" },
-    { code: "WH-002", name: "Bhopal Regional Hub", city: "Bhopal" },
-  ]);
-  const [queueData, setQueueData] = useState<Record<string, any[]>>({});
-  const [statusByOrderId, setStatusByOrderId] = useState<Map<string, any>>(new Map());
+  const [warehouses, setWarehouses] = useState<Array<{ code: string; name: string; city: string }>>(() => cachedAdminWarehouses);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reviewId, setReviewId] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !cachedQueueData[TABS.some((item) => item.key === requestedTab) ? requestedTab! : "placed"]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -202,7 +208,6 @@ function AdminOrders() {
 
   const [folderCategory, setFolderCategory] = useState<"salesman" | "status" | "date" | "none">("salesman");
   const [activeFolderLabel, setActiveFolderLabel] = useState<string | null>(null);
-  const [tabSummaries, setTabSummaries] = useState<Record<string, { count: number; value: number }>>({});
 
   const clearDeparture = () => {
     if (departureTimer.current != null) {
@@ -217,9 +222,12 @@ function AdminOrders() {
   }, [internalFilter, tab]);
 
   const publishQueues = useCallback((queues: Record<string, any[]>, statuses: Map<string, any>, preserve?: any) => {
-    setQueueData(queues);
+    cachedQueueData = { ...cachedQueueData, ...queues };
+    cachedStatusByOrderId = statuses;
+    setQueueData((prev) => ({ ...prev, ...queues }));
     setStatusByOrderId(statuses);
-    const filtered = filterTab(queues, statuses);
+    const merged = { ...cachedQueueData, ...queues };
+    const filtered = filterTab(merged, statuses);
     const visible = !preserve
       ? filtered
       : filtered.some((order) => order.id === preserve.id)
@@ -247,6 +255,7 @@ function AdminOrders() {
     let fetchedWarehouses: any[] = [];
 
     if (countsResult?.counts) {
+      cachedTabSummaries = countsResult.counts;
       setTabSummaries(countsResult.counts);
       queues = {
         [activeTab]: Array.isArray(activeResult?.orders) ? activeResult.orders : [],
@@ -272,6 +281,7 @@ function AdminOrders() {
       fetchedWarehouses = activeResult.warehouses;
     }
     if (fetchedWarehouses.length > 0) {
+      cachedAdminWarehouses = fetchedWarehouses;
       setWarehouses(fetchedWarehouses);
     }
     const statuses = new Map<string, any>(((commercial?.orders ?? []) as any[]).map((order) => [order.id, order.internalStatus]));
@@ -279,7 +289,9 @@ function AdminOrders() {
   }, [warehouseFilter, tab]);
 
   const load = useCallback(async (targetWarehouse = warehouseFilter, activeTab: string = tab) => {
-    setLoading(true);
+    if (!cachedQueueData[activeTab]) {
+      setLoading(true);
+    }
     try {
       const { queues, statuses } = await fetchQueues(targetWarehouse, activeTab);
       publishQueues(queues, statuses);
@@ -293,6 +305,7 @@ function AdminOrders() {
     try {
       const result = await api.orders(targetTab, warehouseFilter);
       const nextOrders = Array.isArray(result?.orders) ? result.orders : [];
+      cachedQueueData[targetTab] = nextOrders;
       setQueueData((prev) => {
         const nextQueues = { ...prev, [targetTab]: nextOrders };
         const visible = filterTab(nextQueues, statusByOrderId, targetTab);
@@ -491,6 +504,11 @@ function AdminOrders() {
     setReviewId(null);
     setTab(key);
     setSearchParams({ status: key });
+    if (queueData[key]) {
+      const visible = filterTab(queueData, statusByOrderId, key);
+      setOrders(visible);
+      setSelectedId((current) => current && visible.some((order) => order.id === current) ? current : visible[0]?.id ?? null);
+    }
     if (!queueData[key] || queueData[key].length === 0) {
       void loadTab(key);
     }

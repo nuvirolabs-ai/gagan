@@ -268,10 +268,12 @@ export const api = {
     window.URL.revokeObjectURL(url);
   },
   approve: (id: string) => post(`/admin/orders/${id}/approve`),
-  reject: (id: string) => post(`/admin/orders/${id}/reject`),
+  reject: (id: string, reason?: string) => post(`/admin/orders/${id}/reject`, { reason }),
   pack: (id: string) => post(`/admin/orders/${id}/pack`),
   commercialStatuses: (code?: string) => request(`/admin/commercial-status/orders${code ? `?code=${encodeURIComponent(code)}` : ""}`),
   commercialStatus: (id: string) => request(`/admin/commercial-status/orders/${id}`),
+  toggleCommercialStatus: (id: string, code: string, active: boolean, reason?: string) =>
+    post(`/admin/commercial-status/orders/${id}/toggle-code`, { code, active, reason }),
   holdOrder: (id: string, reason: string, idempotencyKey?: string) => request(`/admin/commercial-status/orders/${id}/hold`, { method: "POST", headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined, body: JSON.stringify({ reason }) }),
   releaseOrderHold: (id: string, reason?: string, idempotencyKey?: string) => request(`/admin/commercial-status/orders/${id}/release-hold`, { method: "POST", headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined, body: JSON.stringify({ reason }) }),
   assign: (id: string, routeId: string, deliverySlot?: string) =>

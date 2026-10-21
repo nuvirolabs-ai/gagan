@@ -1,5 +1,5 @@
-import { useEffect, useRef, type ReactNode } from "react";
-import { inr } from "../api";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { api, inr } from "../api";
 import { ageLabel } from "./operationalUtils";
 import { Icon } from "./OperationalPrimitives";
 import { formatOrderRef } from "../orderRef";
@@ -16,6 +16,15 @@ import {
 } from "../orderReviewModel";
 
 const FOCUSABLE = "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])";
+
+const UNDER_PROCESS_CHECKBOXES = [
+  { code: "ACCOUNT_OPENED", label: "#️⃣ New Account Opening (New Account)" },
+  { code: "RATE_APPROVAL_SENT", label: "🍓 Order Sent for Rate Approval" },
+  { code: "SALES_ORDER_APPROVAL_SENT", label: "❤️ Sales Order Sent for Approval" },
+  { code: "SALES_ORDER_CREATED", label: "👍 Sales Order Created" },
+  { code: "SALES_ORDER_ON_HOLD", label: "❌ Sales Order on Hold" },
+  { code: "ADVANCE_PAYMENT_RECEIVED", label: "✍️ Advance Payment Required for Sales Order" },
+];
 
 function focusable(root: HTMLElement) {
   return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((element) => {
@@ -93,6 +102,9 @@ export default function OrderReviewModal({
   onClose,
   onOpenDetails,
   actions,
+  duplicateInfo,
+  onCancelDuplicate,
+  onStatusChange,
 }: {
   order: any;
   busy: boolean;
@@ -100,12 +112,69 @@ export default function OrderReviewModal({
   onClose: () => void;
   onOpenDetails: () => void;
   actions: ReactNode;
+  duplicateInfo?: { isDuplicate: boolean; duplicateOfOrderRef?: string; duplicateOrderId?: string; reason?: string };
+  onCancelDuplicate?: (orderId: string, remarks: string) => Promise<void> | void;
+  onStatusChange?: (orderId: string) => void;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const busyRef = useRef(busy);
   const onCloseRef = useRef(onClose);
   busyRef.current = busy;
   onCloseRef.current = onClose;
+
+  const [checkedCodes, setCheckedCodes] = useState<Set<string>>(() => {
+    const set = new Set<string>();
+    const timeline = order.internalStatus?.timeline || [];
+    timeline.forEach((t: any) => { if (t.code) set.add(t.code); });
+    if (order.internalStatus?.currentCode) set.add(order.internalStatus.currentCode);
+    if (order.internalStatus?.isOnHold || order.isOnHold) set.add("SALES_ORDER_ON_HOLD");
+    return set;
+  });
+  const [savingCode, setSavingCode] = useState<string | null>(null);
+  const [duplicateCancelOpen, setDuplicateCancelOpen] = useState(false);
+  const [duplicateRemarks, setDuplicateRemarks] = useState(
+    duplicateInfo?.duplicateOfOrderRef
+      ? `Duplicate order of ${duplicateInfo.duplicateOfOrderRef} confirmed by operations`
+      : "Duplicate order cancelled by operations"
+  );
+  const [cancellingDuplicate, setCancellingDuplicate] = useState(false);
+
+  const toggleCode = async (code: string) => {
+    const isCurrentlyChecked = checkedCodes.has(code);
+    const nextChecked = !isCurrentlyChecked;
+    setSavingCode(code);
+    try {
+      await api.toggleCommercialStatus(order.id, code, nextChecked);
+      setCheckedCodes((prev) => {
+        const next = new Set(prev);
+        if (nextChecked) next.add(code);
+        else next.delete(code);
+        return next;
+      });
+      if (onStatusChange) onStatusChange(order.id);
+    } catch (err) {
+      console.error("Failed to toggle status code:", err);
+    } finally {
+      setSavingCode(null);
+    }
+  };
+
+  const handleCancelDuplicate = async () => {
+    setCancellingDuplicate(true);
+    try {
+      if (onCancelDuplicate) {
+        await onCancelDuplicate(order.id, duplicateRemarks);
+      } else {
+        await api.reject(order.id, duplicateRemarks);
+      }
+      if (onStatusChange) onStatusChange(order.id);
+      onClose();
+    } catch (err) {
+      console.error("Failed to cancel duplicate order:", err);
+    } finally {
+      setCancellingDuplicate(false);
+    }
+  };
 
   useEffect(() => {
     const root = dialogRef.current;
@@ -197,6 +266,163 @@ export default function OrderReviewModal({
         <section className="order-review-health" aria-label="Order health">
           <div className="section-head"><div><h3>Order health</h3></div></div>
           <div className="health-matrix compact">{health.map((cell) => <div className={`health-cell ${cell.tone}`} key={cell.label}><Icon name={cell.icon} /><span><b>{cell.label}</b><small>{cell.value}</small></span></div>)}</div>
+        </section>
+
+        {/* Duplicate Order Warning (Point 5) */}
+        {duplicateInfo?.isDuplicate && (
+          <section className="order-duplicate-banner" aria-label="Duplicate order warning" style={{
+            background: "#fffbeb",
+            border: "2px solid #f59e0b",
+            borderRadius: 8,
+            padding: "14px 16px",
+            marginBottom: 16,
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+              <div>
+                <strong style={{ fontSize: 14, color: "#92400e", display: "flex", alignItems: "center", gap: 6 }}>
+                  ⚠️ Potential Duplicate Order Detected
+                </strong>
+                <p style={{ margin: "4px 0 0", fontSize: 13, color: "#b45309" }}>
+                  {duplicateInfo.reason || `This order matches order ${duplicateInfo.duplicateOfOrderRef} with identical items and party details.`}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="button danger compact"
+                onClick={() => setDuplicateCancelOpen(true)}
+                style={{ whiteSpace: "nowrap" }}
+              >
+                Cancel Duplicate Order
+              </button>
+            </div>
+
+            {duplicateCancelOpen && (
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #fde68a" }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: "#92400e", display: "block", marginBottom: 4 }}>
+                  Cancellation Remarks / Reason
+                </label>
+                <textarea
+                  value={duplicateRemarks}
+                  onChange={(e) => setDuplicateRemarks(e.target.value)}
+                  rows={2}
+                  style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 13 }}
+                />
+                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                  <button
+                    type="button"
+                    className="button danger compact"
+                    disabled={cancellingDuplicate}
+                    onClick={handleCancelDuplicate}
+                  >
+                    {cancellingDuplicate ? "Cancelling…" : "Confirm Cancel & Add Remarks"}
+                  </button>
+                  <button
+                    type="button"
+                    className="button ghost compact"
+                    onClick={() => setDuplicateCancelOpen(false)}
+                  >
+                    Back
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Party Details: Name, Mobile, Address, City/Station (Point 1) */}
+        <section className="order-review-party-card" aria-label="Customer party details" style={{
+          background: "#f8fafc",
+          border: "1px solid #cbd5e1",
+          borderRadius: 8,
+          padding: "12px 16px",
+          marginBottom: 16,
+        }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, alignItems: "start" }}>
+            <div>
+              <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, letterSpacing: 0.5, display: "block" }}>
+                🏪 Party Details
+              </span>
+              <strong style={{ fontSize: 14, color: "#0f172a", marginTop: 2, display: "block" }}>
+                {order.retailer?.name ?? "Retailer unavailable"}
+              </strong>
+              <span style={{ fontSize: 13, color: "#334155", display: "block", marginTop: 2 }}>
+                📞 Mobile: <strong>{order.retailer?.phone || "Phone not provided"}</strong>
+              </span>
+              {checkedCodes.has("ACCOUNT_OPENED") && (
+                <span style={{ display: "inline-block", marginTop: 6, padding: "2px 8px", background: "#ecfdf5", color: "#047857", border: "1px solid #a7f3d0", borderRadius: 4, fontSize: 11, fontWeight: 700 }}>
+                  #️⃣ New Account
+                </span>
+              )}
+            </div>
+
+            <div>
+              <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, letterSpacing: 0.5, display: "block" }}>
+                📍 Address & Station
+              </span>
+              <div style={{ fontSize: 13, color: "#334155", marginTop: 2 }}>
+                {order.retailer?.shopAddress || "Shop address not provided"}
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#0369a1", marginTop: 4 }}>
+                Station / City: <strong>{order.retailer?.deliveryCity || order.retailer?.city || "Indore"}</strong>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Under Process Statuses & Internal Checkboxes (Points 3 & 6) */}
+        <section className="order-review-checkboxes-card" aria-label="Internal order status checkboxes" style={{
+          background: "#f0fdf4",
+          border: "1px solid #bbf7d0",
+          borderRadius: 8,
+          padding: "14px 16px",
+          marginBottom: 16,
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div>
+              <strong style={{ fontSize: 13, color: "#166534", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                📋 Internal Status Checkboxes
+              </strong>
+              <span style={{ fontSize: 11, color: "#15803d", display: "block", marginTop: 2 }}>
+                Tick to route order under appropriate operational stage (saved automatically)
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8 }}>
+            {UNDER_PROCESS_CHECKBOXES.map((chk) => {
+              const isChecked = checkedCodes.has(chk.code);
+              const isSaving = savingCode === chk.code;
+              return (
+                <label
+                  key={chk.code}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "8px 10px",
+                    background: isChecked ? "#dcfce7" : "#ffffff",
+                    border: isChecked ? "1px solid #86efac" : "1px solid #e2e8f0",
+                    borderRadius: 6,
+                    cursor: busy ? "not-allowed" : "pointer",
+                    fontSize: 12,
+                    fontWeight: isChecked ? 600 : 500,
+                    color: isChecked ? "#14532d" : "#334155",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    disabled={busy || isSaving}
+                    onChange={() => toggleCode(chk.code)}
+                    style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#15803d" }}
+                  />
+                  <span>{chk.label}</span>
+                  {isSaving && <span style={{ fontSize: 10, color: "#6b7280" }}>…</span>}
+                </label>
+              );
+            })}
+          </div>
         </section>
 
         {/* Multi-Warehouse & Salesperson Attribution */}

@@ -3,10 +3,10 @@ import type { VisualTone } from "./components/operationalUtils";
 export const ORDER_DEPARTURE_MS = 700;
 
 export const STATUS_LABEL: Record<string, string> = {
-  placed: "Placed",
+  placed: "Sales Order Created",
   confirmed: "Confirmed",
   packed: "Packed",
-  out_for_delivery: "Out for delivery",
+  out_for_delivery: "Order Dispatched",
   delivered: "Delivered",
   rejected: "Rejected",
 };
@@ -15,7 +15,7 @@ export const NEXT_ACTION: Record<string, string> = {
   placed: "Approve or reject this order.",
   confirmed: "Mark packed when the warehouse has picked it.",
   packed: "Assign a dispatch route.",
-  out_for_delivery: "Capture proof of delivery.",
+  out_for_delivery: "Order dispatched. Capture proof of delivery.",
   delivered: "Complete. Invoice is on the ledger.",
   rejected: "Closed. No further fulfilment.",
 };

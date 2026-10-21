@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, inr } from "../api";
 import { Icon, SectionLabel } from "../components/OperationalPrimitives";
 import { formatOrderRef } from "../orderRef";
+import { detectDuplicateOrders } from "./Orders";
 
 type QueueFilter = "all" | "confirmed" | "packed" | "out_for_delivery" | "delivered";
 
@@ -123,7 +124,7 @@ const FILTERS: Array<{ value: QueueFilter; label: string; step: string; icon: st
   { value: "all", label: "Active Orders", step: "Active fulfillment", icon: "table" },
   { value: "confirmed", label: "Confirmed", step: "1. To Pack", icon: "box" },
   { value: "packed", label: "Packed", step: "2. To Dispatch", icon: "arrow" },
-  { value: "out_for_delivery", label: "Out for delivery", step: "3. On the road", icon: "clock" },
+  { value: "out_for_delivery", label: "🚚 Order Dispatched", step: "3. Order Dispatched", icon: "clock" },
   { value: "delivered", label: "🧾 INVOICES", step: "Delivered & Invoiced", icon: "check" },
 ];
 
@@ -464,6 +465,8 @@ export default function WarehouseOrders() {
       return dateB - dateA;
     });
   }, [orders, filter, dateFilter, search, sortBy]);
+
+  const duplicateMap = useMemo(() => detectDuplicateOrders(orders), [orders]);
 
   // Open Pop-up Modal on order click
   const openOrderModal = useCallback(async (order: WarehouseOrder) => {
@@ -1314,6 +1317,11 @@ export default function WarehouseOrders() {
                           🧾 INV-{order.invoice.invoiceNumber}
                         </div>
                       ) : null}
+                      {duplicateMap.has(order.id) && (
+                        <div style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", background: "#fef3c7", color: "#b45309", border: "1px solid #fde68a", borderRadius: 4, marginTop: 3 }}>
+                          ⚠️ Duplicate: {duplicateMap.get(order.id)?.duplicateOfOrderRef}
+                        </div>
+                      )}
                     </span>
                     <span className="td-retailer">
                       <strong className="retailer-name">{order.retailer?.name ?? "Retailer unavailable"}</strong>
@@ -1863,6 +1871,22 @@ export default function WarehouseOrders() {
               {notice && (
                 <div className="banner success" role="status" style={{ marginBottom: 14 }}>
                   {notice}
+                </div>
+              )}
+
+              {/* Duplicate Order Warning (Point 5) */}
+              {duplicateMap.has(modalOrder.id) && (
+                <div style={{
+                  padding: "10px 14px",
+                  background: "#fffbeb",
+                  border: "2px solid #f59e0b",
+                  borderRadius: 8,
+                  marginBottom: 14,
+                  color: "#92400e",
+                  fontSize: 13,
+                }}>
+                  <strong style={{ display: "block", marginBottom: 2 }}>⚠️ Potential Duplicate Order Detected</strong>
+                  <span>{duplicateMap.get(modalOrder.id)?.reason}</span>
                 </div>
               )}
 

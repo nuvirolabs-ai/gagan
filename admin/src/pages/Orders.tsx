@@ -25,13 +25,74 @@ import {
 } from "../orderReviewModel";
 
 const TABS = [
-  { key: "placed", label: "Awaiting approval" },
+  { key: "placed", label: "📝 Sales Order Created (Awaiting approval)" },
   { key: "confirmed", label: "Confirmed" },
   { key: "packed", label: "Packed" },
-  { key: "out_for_delivery", label: "Out for delivery" },
+  { key: "out_for_delivery", label: "🚚 Order Dispatched" },
   { key: "delivered", label: "🧾 Invoices" },
   { key: "rejected", label: "Rejected" },
 ] as const;
+
+export type DuplicateMatch = {
+  isDuplicate: boolean;
+  duplicateOfOrderRef: string;
+  duplicateOrderId: string;
+  reason: string;
+};
+
+export function detectDuplicateOrders(orders: any[]): Map<string, DuplicateMatch> {
+  const duplicates = new Map<string, DuplicateMatch>();
+  for (let i = 0; i < orders.length; i++) {
+    const a = orders[i];
+    if (a.status === "rejected") continue;
+    for (let j = i + 1; j < orders.length; j++) {
+      const b = orders[j];
+      if (b.status === "rejected") continue;
+
+      const sameParty = (a.retailerId && b.retailerId && a.retailerId === b.retailerId) ||
+        (a.retailer?.phone && b.retailer?.phone && a.retailer.phone.trim() === b.retailer.phone.trim()) ||
+        (a.retailer?.name && b.retailer?.name && a.retailer.name.trim().toLowerCase() === b.retailer.name.trim().toLowerCase());
+
+      if (!sameParty) continue;
+
+      const cityA = (a.retailer?.deliveryCity || a.retailer?.city || "").trim().toLowerCase();
+      const cityB = (b.retailer?.deliveryCity || b.retailer?.city || "").trim().toLowerCase();
+      const stationMatches = !cityA || !cityB || cityA === cityB;
+      if (!stationMatches) continue;
+
+      const itemsA = a.items || [];
+      const itemsB = b.items || [];
+      const sameItemsCount = itemsA.length === itemsB.length && itemsA.length > 0;
+      const sameTotal = Math.abs(Number(a.orderTotal || 0) - Number(b.orderTotal || 0)) < 1;
+
+      let itemsMatch = sameTotal && sameItemsCount;
+      if (sameItemsCount) {
+        const sigA = itemsA.map((it: any) => `${it.variantId || it.id}_${it.qtyOrdered}`).sort().join("|");
+        const sigB = itemsB.map((it: any) => `${it.variantId || it.id}_${it.qtyOrdered}`).sort().join("|");
+        if (sigA === sigB) itemsMatch = true;
+      }
+
+      if (!itemsMatch) continue;
+
+      const timeA = new Date(a.createdAt || 0).getTime();
+      const timeB = new Date(b.createdAt || 0).getTime();
+      const diffHours = Math.abs(timeA - timeB) / (1000 * 60 * 60);
+      if (diffHours > 168) continue;
+
+      const newer = timeA >= timeB ? a : b;
+      const older = timeA >= timeB ? b : a;
+      const olderRef = formatOrderRef(older);
+
+      duplicates.set(newer.id, {
+        isDuplicate: true,
+        duplicateOfOrderRef: olderRef,
+        duplicateOrderId: older.id,
+        reason: `Matches order ${olderRef} (identical ${itemsA.length} items, total ₹${Number(newer.orderTotal || 0).toLocaleString("en-IN")}) placed for ${newer.retailer?.name || "Party"} at ${cityA || "Indore"}.`,
+      });
+    }
+  }
+  return duplicates;
+}
 
 const INTERNAL_STATUS_FILTERS = [
   { key: "", label: "All internal status" },
@@ -127,6 +188,9 @@ function AdminOrders() {
   const [holdError, setHoldError] = useState<string | null>(null);
   const inFlight = useRef(false);
   const departureTimer = useRef<number | null>(null);
+
+  const [folderCategory, setFolderCategory] = useState<"salesman" | "status" | "date" | "none">("salesman");
+  const [activeFolderLabel, setActiveFolderLabel] = useState<string | null>(null);
 
   const clearDeparture = () => {
     if (departureTimer.current != null) {
@@ -261,6 +325,8 @@ function AdminOrders() {
   const ages = useMemo(() => ageCounts(metricOrders), [metricOrders]);
   const oldest = useMemo(() => metricOrders.slice().sort((a, b) => (ageHours(b.createdAt) ?? -1) - (ageHours(a.createdAt) ?? -1))[0], [metricOrders]);
   const outsideSla = ages[3];
+
+  const duplicateMap = useMemo(() => detectDuplicateOrders(metricOrders.length > 0 ? metricOrders : orders), [metricOrders, orders]);
 
   const closeReview = (focusId = reviewId) => {
     setReviewId(null);
@@ -420,6 +486,241 @@ function AdminOrders() {
     <div className="internal-status-rail" aria-label="Internal commercial status filters">{INTERNAL_STATUS_FILTERS.map((filter) => <button key={filter.key} className={internalFilter === filter.key ? "selected" : ""} onClick={() => setInternalFilter(filter.key)}>{filter.label}</button>)}</div>
     <section className="queue-summary" aria-label="Queue health"><div><span>active queue</span><strong>{selectedTab}</strong></div><div><span>oldest order</span><strong>{ageLabel(oldest?.createdAt)}</strong></div><div><span>outside SLA</span><strong className={outsideSla > 0 ? "red-text" : "green-text"}>{outsideSla} orders</strong></div><div><span>queue value</span><strong>{loading ? "—" : inr(queueValue)}</strong></div><AgeDistribution counts={ages} /></section>
     {error && !reviewOrder && <div className="banner error" role="alert">{error}</div>}{notice && <div className="banner success" role="status">{notice}</div>}
+    
+    {/* Folders Navigation: Salesman, Under Process Status, Date-wise (Points 1 & 3) */}
+    <section className="order-folders-section" aria-label="Order folder directories" style={{
+      background: "#f8fafc",
+      border: "1px solid #e2e8f0",
+      borderRadius: 8,
+      padding: "12px 14px",
+      marginBottom: 16,
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <strong style={{ fontSize: 13, color: "#1e293b", textTransform: "uppercase", letterSpacing: 0.5, display: "flex", alignItems: "center", gap: 6 }}>
+            📁 Order Folders
+          </strong>
+          {activeFolderLabel && (
+            <span style={{ fontSize: 11, background: "#dbeafe", color: "#1e40af", padding: "2px 8px", borderRadius: 12, fontWeight: 700 }}>
+              Active: {activeFolderLabel} ({displayedOrders.length} orders)
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          <span style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>Folder view:</span>
+          <button
+            type="button"
+            className={`button compact ${folderCategory === "salesman" ? "primary" : "ghost"}`}
+            style={{ fontSize: 12, padding: "3px 10px", height: "auto" }}
+            onClick={() => setFolderCategory("salesman")}
+          >
+            👤 Salesman Folders
+          </button>
+          <button
+            type="button"
+            className={`button compact ${folderCategory === "status" ? "primary" : "ghost"}`}
+            style={{ fontSize: 12, padding: "3px 10px", height: "auto" }}
+            onClick={() => setFolderCategory("status")}
+          >
+            📋 Under Process Folders
+          </button>
+          <button
+            type="button"
+            className={`button compact ${folderCategory === "date" ? "primary" : "ghost"}`}
+            style={{ fontSize: 12, padding: "3px 10px", height: "auto" }}
+            onClick={() => setFolderCategory("date")}
+          >
+            📅 Date Folders
+          </button>
+          {activeFolderLabel && (
+            <button
+              type="button"
+              className="button ghost compact"
+              style={{ fontSize: 11, color: "#dc2626", padding: "3px 8px", height: "auto" }}
+              onClick={() => {
+                setSalespersonFilter("all");
+                setInternalFilter("");
+                setDateFilter("all");
+                setActiveFolderLabel(null);
+              }}
+            >
+              ✕ Reset Filters
+            </button>
+          )}
+        </div>
+      </div>
+
+      {folderCategory === "salesman" && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={() => { setSalespersonFilter("all"); setActiveFolderLabel(null); }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 12px",
+              borderRadius: 6,
+              border: salespersonFilter === "all" ? "1px solid #0284c7" : "1px solid #cbd5e1",
+              background: salespersonFilter === "all" ? "#e0f2fe" : "#ffffff",
+              color: salespersonFilter === "all" ? "#0369a1" : "#334155",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            <span>📁 All Salespeople</span>
+            <span style={{ padding: "1px 6px", background: "rgba(0,0,0,0.06)", borderRadius: 10, fontSize: 11 }}>
+              {metricOrders.length}
+            </span>
+          </button>
+          {salespersons.map((rep) => {
+            const count = metricOrders.filter((o) => (o.salespersonName || o.punchedByName || o.creatorName) === rep).length;
+            const isSelected = salespersonFilter.toLowerCase() === rep.toLowerCase();
+            return (
+              <button
+                type="button"
+                key={rep}
+                onClick={() => { setSalespersonFilter(rep); setActiveFolderLabel(`Salesman: ${rep}`); }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  border: isSelected ? "1px solid #0284c7" : "1px solid #cbd5e1",
+                  background: isSelected ? "#e0f2fe" : "#ffffff",
+                  color: isSelected ? "#0369a1" : "#334155",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                <span>📁 {rep}</span>
+                <span style={{ padding: "1px 6px", background: "rgba(0,0,0,0.06)", borderRadius: 10, fontSize: 11 }}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => { setSalespersonFilter("retailer_direct"); setActiveFolderLabel("Salesman: Retailer Direct"); }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 12px",
+              borderRadius: 6,
+              border: salespersonFilter === "retailer_direct" ? "1px solid #0284c7" : "1px solid #cbd5e1",
+              background: salespersonFilter === "retailer_direct" ? "#e0f2fe" : "#ffffff",
+              color: salespersonFilter === "retailer_direct" ? "#0369a1" : "#334155",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            <span>📁 Retailer Direct</span>
+            <span style={{ padding: "1px 6px", background: "rgba(0,0,0,0.06)", borderRadius: 10, fontSize: 11 }}>
+              {metricOrders.filter((o) => o.punchedByRole === "Retailer" || (!o.placedByRepId && !o.salespersonName)).length}
+            </span>
+          </button>
+        </div>
+      )}
+
+      {folderCategory === "status" && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={() => { setInternalFilter(""); setActiveFolderLabel(null); }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 12px",
+              borderRadius: 6,
+              border: internalFilter === "" ? "1px solid #16a34a" : "1px solid #cbd5e1",
+              background: internalFilter === "" ? "#dcfce7" : "#ffffff",
+              color: internalFilter === "" ? "#15803d" : "#334155",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            <span>📁 All Statuses</span>
+            <span style={{ padding: "1px 6px", background: "rgba(0,0,0,0.06)", borderRadius: 10, fontSize: 11 }}>
+              {metricOrders.length}
+            </span>
+          </button>
+          {INTERNAL_STATUS_FILTERS.filter((f) => f.key).map((filter) => {
+            const count = metricOrders.filter((o) => o.internalStatus?.currentCode === filter.key).length;
+            const isSelected = internalFilter === filter.key;
+            return (
+              <button
+                type="button"
+                key={filter.key}
+                onClick={() => { setInternalFilter(filter.key); setActiveFolderLabel(`Status: ${filter.label}`); }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  border: isSelected ? "1px solid #16a34a" : "1px solid #cbd5e1",
+                  background: isSelected ? "#dcfce7" : "#ffffff",
+                  color: isSelected ? "#15803d" : "#334155",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                <span>📁 {filter.label}</span>
+                <span style={{ padding: "1px 6px", background: "rgba(0,0,0,0.06)", borderRadius: 10, fontSize: 11 }}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {folderCategory === "date" && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {[
+            { key: "all", label: "📁 All Dates" },
+            { key: "today", label: "📁 Today" },
+            { key: "week", label: "📁 Last 7 Days" },
+            { key: "month", label: "📁 This Month" },
+          ].map((d) => {
+            const isSelected = dateFilter === d.key;
+            return (
+              <button
+                type="button"
+                key={d.key}
+                onClick={() => { setDateFilter(d.key as any); setActiveFolderLabel(d.key === "all" ? null : `Date: ${d.label}`); }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  border: isSelected ? "1px solid #7c3aed" : "1px solid #cbd5e1",
+                  background: isSelected ? "#f3e8ff" : "#ffffff",
+                  color: isSelected ? "#6d28d9" : "#334155",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                <span>{d.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </section>
+
     <div className="orders-layout"><section className="order-table-zone"><div className="table-toolbar"><div><SectionLabel>Operational queue</SectionLabel><h2>{selectedTab} <em>{displayedOrders.length} orders</em></h2></div><div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
   <select value={salespersonFilter} onChange={(e) => setSalespersonFilter(e.target.value)} style={{ fontSize: 12, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--surface)", fontWeight: 600, color: "#0f172a" }} aria-label="Filter via sales person">
     <option value="all">👤 All Salespersons</option>
@@ -430,7 +731,25 @@ function AdminOrders() {
       </option>
     ))}
   </select>
-  <select value={dateFilter} onChange={(e) => setDateFilter(e.target.value as any)} style={{ fontSize: 12, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--surface)" }} aria-label="Filter by date"><option value="all">📅 All Dates</option><option value="today">Today</option><option value="week">Last 7 Days</option><option value="month">This Month</option></select><select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} style={{ fontSize: 12, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--surface)" }} aria-label="Sort orders"><option value="date_desc">⚡ Date: Newest First</option><option value="date_asc">Date: Oldest First</option><option value="value_desc">Value: High to Low</option><option value="value_asc">Value: Low to High</option></select><label className="search" style={{ margin: 0 }}><span>⌕</span><input aria-label="Search order, retailer, or rep" placeholder="Search order, retailer, rep…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></label></div></div><div className="order-table"><div className="order-table-header"><span>order / retailer</span><span>salesperson</span><span>warehouse</span><span>age</span><span>items</span><span>value</span><span>state</span><span>owner / next</span><span /></div>{loading ? <div className="table-loading"><div className="skeleton skeleton-row" /><div className="skeleton skeleton-row" /><div className="skeleton skeleton-row" /></div> : displayedOrders.length === 0 ? <div className="empty-state quiet">No orders match the selected filters or state.</div> : displayedOrders.map((order) => <button type="button" key={order.id} data-order-id={order.id} className={`order-table-row row-${rowSurface(order)} ${selectedId === order.id ? "selected" : ""}`} aria-pressed={selectedId === order.id} aria-haspopup="dialog" onClick={(event) => { event.currentTarget.focus(); openReview(order.id); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.focus(); openReview(order.id); } }}><span className="table-order"><i className={`status-rail ${toneFor(order)}`} /><b>{formatOrderRef(order)}</b><small>{order.retailer?.name ?? "Retailer unavailable"}</small></span><span className="table-salesperson" style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}><strong style={{ fontSize: 12, color: "#0284c7", display: "inline-flex", alignItems: "center", gap: 3 }}>👤 {order.salespersonName || "Direct"}</strong><small style={{ fontSize: 10, color: "#64748b" }}>{order.punchedByRole === "Salesperson" ? (order.salespersonPhone ? `Rep · ${order.salespersonPhone}` : "Sales Rep") : "Retailer Direct"}</small></span><span className="table-warehouse" style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}><span style={{ fontSize: 11, fontWeight: 700, padding: "2px 6px", background: order.warehouseCode === "WH-002" ? "#fef3c7" : "#f1f5f9", color: order.warehouseCode === "WH-002" ? "#92400e" : "#334155", borderRadius: 4, width: "fit-content" }}>🏢 {order.warehouseCode || "WH-001"}</span><small style={{ fontSize: 10, color: "#64748b" }}>{order.warehouseCity || "Indore"}</small></span><span className={`table-age ${(ageHours(order.createdAt) ?? 0) > 12 ? "critical" : ""}`}><Icon name="clock" size={13} />{ageLabel(order.createdAt)}</span><span className="tabular">{order.items?.length ?? 0} lines</span><strong className="tabular">{inr(Number(order.orderTotal ?? 0))}</strong><span className={`constraint ${toneFor(order)}`}>{queueStatusLabel(order)}</span><span className="table-next"><b>{order.delivery?.routeId ?? "Operations"}</b><small>{NEXT_ACTION[order.status] ?? "Inspect order"} <Icon name="arrow" size={13} /></small></span><Icon name="chevron" size={15} /></button>)}</div></section>
+  <select value={dateFilter} onChange={(e) => setDateFilter(e.target.value as any)} style={{ fontSize: 12, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--surface)" }} aria-label="Filter by date"><option value="all">📅 All Dates</option><option value="today">Today</option><option value="week">Last 7 Days</option><option value="month">This Month</option></select><select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} style={{ fontSize: 12, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--surface)" }} aria-label="Sort orders"><option value="date_desc">⚡ Date: Newest First</option><option value="date_asc">Date: Oldest First</option><option value="value_desc">Value: High to Low</option><option value="value_asc">Value: Low to High</option></select><label className="search" style={{ margin: 0 }}><span>⌕</span><input aria-label="Search order, retailer, or rep" placeholder="Search order, retailer, rep…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></label></div></div><div className="order-table"><div className="order-table-header"><span>order / retailer</span><span>salesperson</span><span>warehouse</span><span>age</span><span>items</span><span>value</span><span>state</span><span>owner / next</span><span /></div>{loading ? <div className="table-loading"><div className="skeleton skeleton-row" /><div className="skeleton skeleton-row" /><div className="skeleton skeleton-row" /></div> : displayedOrders.length === 0 ? <div className="empty-state quiet">No orders match the selected filters or state.</div> : displayedOrders.map((order) => {
+        const isDuplicate = duplicateMap.has(order.id);
+        const dupMatch = duplicateMap.get(order.id);
+        return (
+          <button type="button" key={order.id} data-order-id={order.id} className={`order-table-row row-${rowSurface(order)} ${selectedId === order.id ? "selected" : ""}`} aria-pressed={selectedId === order.id} aria-haspopup="dialog" onClick={(event) => { event.currentTarget.focus(); openReview(order.id); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.focus(); openReview(order.id); } }}>
+            <span className="table-order">
+              <i className={`status-rail ${toneFor(order)}`} />
+              <b>{formatOrderRef(order)}</b>
+              <small>{order.retailer?.name ?? "Retailer unavailable"}</small>
+              {isDuplicate && (
+                <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", background: "#fef3c7", color: "#b45309", border: "1px solid #fde68a", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 3, marginTop: 3, width: "fit-content" }}>
+                  ⚠️ Duplicate: {dupMatch?.duplicateOfOrderRef}
+                </span>
+              )}
+            </span>
+            <span className="table-salesperson" style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}><strong style={{ fontSize: 12, color: "#0284c7", display: "inline-flex", alignItems: "center", gap: 3 }}>👤 {order.salespersonName || "Direct"}</strong><small style={{ fontSize: 10, color: "#64748b" }}>{order.punchedByRole === "Salesperson" ? (order.salespersonPhone ? `Rep · ${order.salespersonPhone}` : "Sales Rep") : "Retailer Direct"}</small></span><span className="table-warehouse" style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}><span style={{ fontSize: 11, fontWeight: 700, padding: "2px 6px", background: order.warehouseCode === "WH-002" ? "#fef3c7" : "#f1f5f9", color: order.warehouseCode === "WH-002" ? "#92400e" : "#334155", borderRadius: 4, width: "fit-content" }}>🏢 {order.warehouseCode || "WH-001"}</span><small style={{ fontSize: 10, color: "#64748b" }}>{order.warehouseCity || "Indore"}</small></span><span className={`table-age ${(ageHours(order.createdAt) ?? 0) > 12 ? "critical" : ""}`}><Icon name="clock" size={13} />{ageLabel(order.createdAt)}</span><span className="tabular">{order.items?.length ?? 0} lines</span><strong className="tabular">{inr(Number(order.orderTotal ?? 0))}</strong><span className={`constraint ${toneFor(order)}`}>{queueStatusLabel(order)}</span><span className="table-next"><b>{order.delivery?.routeId ?? "Operations"}</b><small>{NEXT_ACTION[order.status] ?? "Inspect order"} <Icon name="arrow" size={13} /></small></span><Icon name="chevron" size={15} />
+          </button>
+        );
+      })}</div></section>
       <aside className="order-side-note"><SectionLabel>Queue read</SectionLabel><strong>{outsideSla > 0 ? `${outsideSla} orders have crossed the twelve-hour band.` : "No order has crossed the twelve-hour band."}</strong><p>{selected ? `${formatOrderRef(selected)} is ${ageLabel(selected.createdAt)} old. Review and act from the queue. Open the full workspace only for ledger, retailer, or SAP detail.` : "Open an order to review the next safe action without leaving this list."}</p>{selected ? <button className="text-button" onClick={() => { setSelectedId(null); setReviewId(null); setDetailId(null); }}>clear selection <Icon name="arrow" size={14} /></button> : null}</aside>
     </div>
     {detailOrder ? <section className="order-workspace" id="order-workspace" aria-label="Selected order workspace"><div className="workspace-heading"><div><SectionLabel>Order workspace / selected object</SectionLabel><h2>{formatOrderRef(detailOrder)}</h2><p>{detailOrder.retailer?.name ?? "Retailer unavailable"} · placed {ageLabel(detailOrder.createdAt)} ago{detailOrder.retailer?.phone ? ` · ${detailOrder.retailer.phone}` : ""}</p></div><div className={`workspace-status ${toneFor(detailOrder)}`}><span className="status-dot" />{STATUS_LABEL[detailOrder.status] ?? detailOrder.status}<strong>{inr(Number(detailOrder.orderTotal ?? 0))}</strong></div></div><div className="workspace-hero"><div className="hero-value"><span>order value</span><strong>{inr(Number(detailOrder.orderTotal ?? 0))}</strong><small>{detailOrder.items?.length ?? 0} lines · {detailOrder.delivery?.routeId ? `route ${detailOrder.delivery.routeId}` : "route not assigned"}</small><div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}><span style={{ padding: "2px 8px", background: "#e0f2fe", borderRadius: 4, fontSize: 12, color: "#0369a1", fontWeight: 600 }}>👤 Salesperson: {detailOrder.salespersonName || "Direct"} ({detailOrder.punchedByLabel || "Retailer Direct"})</span><span style={{ padding: "2px 8px", background: "#f3e8ff", borderRadius: 4, fontSize: 12, color: "#6b21a8", fontWeight: 600 }}>🏢 Fulfillment Warehouse: {detailOrder.warehouseName || "Indore Central Fulfillment Hub"} ({detailOrder.warehouseCode || "WH-001"})</span></div></div><div className={`hero-decision ${detailOrder.status === "placed" || detailOrder.sapSyncStatus === "failed" ? "critical" : ""}`}><span className="decision-kicker"><i className="status-dot" /> next safe action</span><strong>{NEXT_ACTION[detailOrder.status] ?? "Inspect order"}</strong><p>{dependencyCopy(detailOrder)}</p>{actionControls(detailOrder, "workspace")}</div></div><div className="workspace-columns"><main><section className="diagnostic-section"><div className="section-head"><div><SectionLabel>Diagnostic instrument</SectionLabel><h2>Order health</h2></div><span className="small-note">canonical fields only</span></div><HealthMatrix order={detailOrder} /><Journey order={detailOrder} /></section><section className="items-section"><div className="section-head"><div><SectionLabel>Commercial lines</SectionLabel><h2>Items <em>{detailOrder.items?.length ?? 0} lines</em></h2></div><span className="small-note">unit prices from order</span></div>{detailOrder.commercialSnapshot ? <Breakdown value={detailOrder.commercialSnapshot}/> : null}<div className="item-ledger" hidden={!!detailOrder.commercialSnapshot}><div><span>item</span><span>ordered</span><span>unit price</span><span>line value</span></div>{(detailOrder.items ?? []).map((item: any) => {
@@ -442,7 +761,23 @@ function AdminOrders() {
   const quintalRate = item.ratePerQuintal != null ? item.ratePerQuintal : (isQuintal && caseWeightKg > 0 ? Math.round((unitRate / caseWeightKg) * 100 * 100) / 100 : null);
   return <div key={item.id}><b>{item.variant?.product?.name ?? "Product unavailable"}</b><span>{item.qtyOrdered ?? 0} {isBox ? "boxes" : "bags"}</span><span>{isQuintal && quintalRate != null && quintalRate > 0 ? <div><strong>{inr(quintalRate)} / quintal</strong><small style={{ color: "#64748b", display: "block" }}>{inr(unitRate)} / {unitLabel.toLowerCase()}</small></div> : inr(unitRate)}</span><strong>{inr(storedLineValue(detailOrder, item))}</strong></div>;
 })}</div></section></main><aside className="inspector-context"><div className="context-block"><SectionLabel>Dependency</SectionLabel><h3>{detailOrder.status === "placed" ? "This order cannot move yet." : detailOrder.sapSyncStatus === "failed" ? "The ERP hand-off is blocked." : "This order has a clear next step."}</h3><p>{detailOrder.status === "placed" ? "Approval is required before warehouse work can begin." : detailOrder.sapSyncStatus === "failed" ? "The order remains in its current state until synchronization succeeds." : NEXT_ACTION[detailOrder.status]}</p><dl><div><dt>owner</dt><dd>{detailOrder.delivery?.routeId ?? "Operations"}</dd></div><div><dt>waiting</dt><dd>{ageLabel(detailOrder.createdAt)}</dd></div><div><dt>state</dt><dd className={toneFor(detailOrder) === "critical" ? "red-text" : "green-text"}>{STATUS_LABEL[detailOrder.status] ?? detailOrder.status}</dd></div></dl></div><div className="context-block related"><SectionLabel>Related context</SectionLabel><a href="/retailers">Retailer account <Icon name="arrow" size={13} /></a><a href="/ledger">Financial ledger <Icon name="arrow" size={13} /></a><a href="/sap">SAP state · {sapLabel(detailOrder)} <Icon name="arrow" size={13} /></a></div><div className="context-block activity"><SectionLabel>Activity ledger</SectionLabel><p><time>{detailOrder.createdAt ? new Date(detailOrder.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</time> order received <small>{detailOrder.retailer?.name ?? "Retailer unavailable"}</small></p><p><time>now</time> current state evaluated <small>Admin read model</small></p></div></aside></div><div className="action-dock"><span><i className="pulse" /> next safe action</span><strong>{NEXT_ACTION[detailOrder.status] ?? "Inspect order"}</strong>{actionControls(detailOrder, "dock")}</div></section> : null}
-    {reviewOrder ? <OrderReviewModal order={reviewOrder} busy={busyId === reviewOrder.id} error={error} onClose={() => closeReview(reviewOrder.id)} onOpenDetails={() => openDetails(reviewOrder)} actions={actionControls(reviewOrder, "review")} /> : null}
+    {reviewOrder ? (
+      <OrderReviewModal
+        order={reviewOrder}
+        busy={busyId === reviewOrder.id}
+        error={error}
+        onClose={() => closeReview(reviewOrder.id)}
+        onOpenDetails={() => openDetails(reviewOrder)}
+        actions={actionControls(reviewOrder, "review")}
+        duplicateInfo={duplicateMap.get(reviewOrder.id)}
+        onCancelDuplicate={async (orderId, remarks) => {
+          await api.reject(orderId, remarks);
+          setNotice(`Order ${formatOrderRef(reviewOrder)} cancelled as duplicate`);
+          void load();
+        }}
+        onStatusChange={() => void load()}
+      />
+    ) : null}
     {assignOrder && <AssignModal order={assignOrder} onClose={() => setAssignOrder(null)} onDone={(msg) => { setAssignOrder(null); setNotice(msg); void load(); }} />}{podOrder && <PodModal order={podOrder} onClose={() => setPodOrder(null)} onDone={(msg) => { setPodOrder(null); setNotice(msg); void load(); }} />}
   </div>;
 }

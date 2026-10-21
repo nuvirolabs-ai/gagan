@@ -12,6 +12,7 @@ import {
   internalStatusForRetailer,
   requestRateApproval,
   recordOrderApprovalRequest,
+  recordCommercialStatusEvent,
   setOrderHold,
   releaseOrderHold,
   serializeCommercialStatusEvent,
@@ -136,6 +137,50 @@ router.get("/admin/commercial-status/orders/:id", requireAdminIdentity, async (r
   if (!denyUnless(req, res, Permissions.COMMERCIAL_STATUS_VIEW)) return;
   try {
     res.json({ status: await internalStatusForOrder(req.params.id) });
+  } catch (error) {
+    return sendError(error, res);
+  }
+});
+
+router.post("/admin/commercial-status/orders/:id/toggle-code", requireAdminIdentity, async (req: AdminRequest, res) => {
+  if (!denyUnless(req, res, Permissions.COMMERCIAL_STATUS_VIEW)) return;
+  const body = z.object({
+    code: z.nativeEnum(CommercialStatusCode),
+    active: z.boolean(),
+    reason: z.string().trim().max(240).optional(),
+  }).safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: "invalid_input", details: body.error.flatten() });
+
+  const order = await prisma.order.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, retailerId: true, isOnHold: true },
+  });
+  if (!order) return res.status(404).json({ error: "order_not_found" });
+
+  const { code, active, reason } = body.data;
+
+  try {
+    if (code === CommercialStatusCode.SALES_ORDER_ON_HOLD) {
+      if (active) {
+        await setOrderHold({ orderId: order.id, actorStaffId: req.staffAuth!.staffId, reason: reason || "Marked on hold via checklist" });
+      } else {
+        await releaseOrderHold({ orderId: order.id, actorStaffId: req.staffAuth!.staffId, reason: reason || "Released hold via checklist" });
+      }
+    } else if (active) {
+      await recordCommercialStatusEvent(prisma, {
+        code,
+        orderId: order.id,
+        retailerId: order.retailerId,
+        actorStaffId: req.staffAuth!.staffId,
+        reason: reason || undefined,
+      });
+    } else {
+      await prisma.commercialStatusEvent.deleteMany({
+        where: { orderId: order.id, code },
+      });
+    }
+
+    res.json({ status: await internalStatusForOrder(order.id) });
   } catch (error) {
     return sendError(error, res);
   }

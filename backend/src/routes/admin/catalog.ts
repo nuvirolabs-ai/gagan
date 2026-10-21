@@ -149,6 +149,7 @@ router.get("/products", async (req, res) => {
     return [d.variantId, {
       discount: Number(val.discount || 0),
       discountType: (val.discountType === "percent" ? "percent" : "flat") as "flat" | "percent",
+      outerPack: (val.outerPack === "Box" ? "Box" : val.outerPack === "Bag" ? "Bag" : undefined) as "Bag" | "Box" | undefined,
     }];
   }));
   const priceKey = (tierId: string, variantId: string) => `${tierId}:${variantId}`;
@@ -198,6 +199,11 @@ router.get("/products", async (req, res) => {
         listRateBasis: v.listRateBasis,
         discount: draftsMap.get(v.id)?.discount ?? 0,
         discountType: draftsMap.get(v.id)?.discountType ?? "flat",
+        outerPack: draftsMap.get(v.id)?.outerPack ?? (
+          (v.catalogIdentityMasterPack && v.catalogIdentityMasterPack.toUpperCase().endsWith("BOX"))
+            ? "Box"
+            : (p.category?.toLowerCase().includes("breakfast") || p.category?.toLowerCase().includes("instant") ? "Box" : "Bag")
+        ),
         routingClass: v.routingClass,
         routingBagEquivalent: v.routingBagEquivalent == null ? null : Number(v.routingBagEquivalent),
         prices: tiers.map((t) => {
@@ -270,6 +276,7 @@ const quickEditSchema = z.object({
   discount: z.coerce.number().min(0).optional(),
   discountType: z.enum(["flat", "percent"]).optional(),
   rateBasis: z.enum(["case", "quintal"]).optional(),
+  outerPack: z.enum(["Bag", "Box"]).optional(),
   packSize: z.coerce.string().trim().optional(),
   unit: z.string().trim().optional(),
   unitsPerCase: z.coerce.number().int().positive().optional(),
@@ -302,6 +309,12 @@ router.put("/variants/:id/quick-edit", async (req: AdminRequest, res) => {
   if (parsed.data.unitsPerCase) {
     updateData.unitsPerCase = parsed.data.unitsPerCase;
   }
+  if (parsed.data.outerPack) {
+    const currentWeight = updateData.unitWeightKg ?? (existing.unitWeightKg ? Number(existing.unitWeightKg) : 1);
+    const currentUnits = updateData.unitsPerCase ?? existing.unitsPerCase;
+    const totalWeight = Math.round(currentWeight * currentUnits * 1000) / 1000;
+    updateData.catalogIdentityMasterPack = `${totalWeight}KG ${parsed.data.outerPack}`;
+  }
   if (parsed.data.gstPercent !== undefined) {
     updateData.gstPercent = parsed.data.gstPercent;
     updateData.gstPendingOrderAllowed = false;
@@ -316,17 +329,24 @@ router.put("/variants/:id/quick-edit", async (req: AdminRequest, res) => {
     updateData.listRateBasis = parsed.data.rateBasis;
   }
 
-  if (parsed.data.discount !== undefined) {
-    const discountType = parsed.data.discountType ?? "flat";
+  if (parsed.data.discount !== undefined || parsed.data.outerPack !== undefined) {
+    const existingDraft = await prisma.catalogOrderingDraft.findUnique({ where: { variantId: existing.id } });
+    const existingVals = (existingDraft?.values as any) || {};
+    const discountType = parsed.data.discountType ?? existingVals.discountType ?? "flat";
+    const newVals = {
+      ...existingVals,
+      ...(parsed.data.discount !== undefined ? { discount: parsed.data.discount, discountType } : {}),
+      ...(parsed.data.outerPack !== undefined ? { outerPack: parsed.data.outerPack } : {}),
+    };
     await prisma.catalogOrderingDraft.upsert({
       where: { variantId: existing.id },
       update: {
-        values: { discount: parsed.data.discount, discountType },
+        values: newVals,
         updatedByStaffId: (req as any).staffAuth?.staffId ?? (req as any).admin?.id ?? "admin",
       },
       create: {
         variantId: existing.id,
-        values: { discount: parsed.data.discount, discountType },
+        values: newVals,
         updatedByStaffId: (req as any).staffAuth?.staffId ?? (req as any).admin?.id ?? "admin",
       },
     });

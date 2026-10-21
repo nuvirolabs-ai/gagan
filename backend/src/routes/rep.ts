@@ -522,6 +522,7 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
     return [d.variantId, {
       discount: Number(val.discount || 0),
       discountType: (val.discountType === "percent" ? "percent" : "flat") as "flat" | "percent",
+      outerPack: (val.outerPack === "Box" ? "Box" : val.outerPack === "Bag" ? "Bag" : undefined) as "Bag" | "Box" | undefined,
     }];
   }));
 
@@ -541,6 +542,11 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
       const draft = draftsMap.get(v.id);
       const discount = draft?.discount ?? 0;
       const discountType = draft?.discountType ?? "flat";
+      const outerPack: "Bag" | "Box" = draft?.outerPack ?? (
+        (v.catalogIdentityMasterPack && v.catalogIdentityMasterPack.toUpperCase().endsWith("BOX"))
+          ? "Box"
+          : (product.category?.toLowerCase().includes("breakfast") || product.category?.toLowerCase().includes("instant") ? "Box" : "Bag")
+      );
       let effectivePrice = price;
       if (price != null && discount > 0) {
         if (discountType === "percent") {
@@ -563,6 +569,7 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
         unit: v.unit,
         unitsPerCase: v.unitsPerCase,
         caseWeightKg,
+        outerPack,
         commercialRate:rate,rateBasis,...retailerCommercialFields(v),
         discount,
         discountType,
@@ -575,7 +582,7 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
           if (rate === null) return null;
           const gst = v.gstPercent == null ? null : Number(v.gstPercent);
           const gstLabel = gst != null && Number.isFinite(gst) ? (gst === 0 ? "Including 0% GST (Nil)" : `Including ${gst}% GST`) : "Excluding GST";
-          return `${rateBasis === "quintal" ? "per quintal" : "per case"} · ${gstLabel}`;
+          return `${rateBasis === "quintal" ? "per quintal" : `per ${outerPack.toLowerCase()}`} · ${gstLabel}`;
         })(),
         isOverride: override != null,
         pricePerKg:

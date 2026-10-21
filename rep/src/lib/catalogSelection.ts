@@ -2,6 +2,7 @@ export interface CatalogSku {
   id: string; unitSize: string; unitsPerCase: number; price: number | null;
   commercialRate?: number | null; rateBasis?: string; rateLabel?: string | null;
   caseWeightKg?: number | null; gstPercent?: number | null;
+  outerPack?: "Bag" | "Box" | string;
   catalogStatus?: string; orderable?: boolean; orderingStatus?: string; orderingReason?: string | null;
   gstPending?: boolean; taxStatus?: "PENDING" | "READY" | "NOT_READY";
   pricePerKg?: number | null; isOverride?: boolean;

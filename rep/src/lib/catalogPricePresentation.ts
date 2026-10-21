@@ -8,14 +8,20 @@ type PriceInput = {
   gstPercent?: number | null;
   discount?: number | null;
   discountType?: "flat" | "percent" | string | null;
+  outerPack?: "Bag" | "Box" | string | null;
 };
 
-const money = (value: number) => `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+const money = (value: number) =>
+  `₹${value.toLocaleString("en-IN", {
+    minimumFractionDigits: value % 1 !== 0 ? 2 : 0,
+    maximumFractionDigits: 2,
+  })}`;
 
 /** Display-only derived amounts. The stored/backend rate and cart price are unchanged. */
 export function catalogPricePresentation(sku: PriceInput | null | undefined) {
   if (!sku) return { primary: "Price on request", originalPrice: null, discountBadge: null, perKg: null, caseEquivalent: null, gstLabel: null };
   const weight = sku.caseWeightKg;
+  const pkgName = sku.outerPack || "Bag";
   const gst = sku.gstPercent == null || !Number.isFinite(Number(sku.gstPercent)) ? null : Number(sku.gstPercent);
   const gstMultiplier = gst != null && gst > 0 ? 1 + gst / 100 : 1;
   const gstLabel = gst != null
@@ -42,7 +48,7 @@ export function catalogPricePresentation(sku: PriceInput | null | undefined) {
       discountBadge,
       perKg: `${money(effectivePerKg)} / kg`,
       caseEquivalent: effectiveCase != null
-        ? `${money(effectiveCase)} / ${weight} KG case`
+        ? `${money(effectiveCase)} / ${weight} KG ${pkgName}`
         : null,
       gstLabel,
     };
@@ -68,7 +74,7 @@ export function catalogPricePresentation(sku: PriceInput | null | undefined) {
   const perKg = rawPerKg != null && Number.isFinite(rawPerKg) ? Math.round(rawPerKg * 100) / 100 : null;
 
   return {
-    primary: `${money(effectivePrice)} / case`,
+    primary: `${money(effectivePrice)} / ${pkgName.toLowerCase()}`,
     originalPrice: discountVal > 0 ? money(originalPriceWithGst) : null,
     discountBadge,
     perKg: perKg == null || !Number.isFinite(perKg) ? null : `${money(perKg)} / kg`,

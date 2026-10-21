@@ -14,6 +14,7 @@ interface RowEditState {
   discount: string;
   discountType: "flat" | "percent";
   rateBasis: "case" | "quintal";
+  outerPack: "Bag" | "Box";
   ratePerKg: string;
 }
 
@@ -35,7 +36,32 @@ function getCaseWeightKg(packSize: string, unit: string, unitsPerCase: string, m
   return 0;
 }
 
-const inr = (value: number) => `₹${Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+function getPackagingType(v: any, category?: string): "Bag" | "Box" {
+  if (v?.outerPack === "Box" || v?.outerPack === "Bag") return v.outerPack;
+  if (v?.catalogIdentityMasterPack) {
+    const upper = String(v.catalogIdentityMasterPack).toUpperCase();
+    if (upper.includes("BOX")) return "Box";
+    if (upper.includes("BAG")) return "Bag";
+  }
+  const cat = String(category || "").toLowerCase();
+  if (cat.includes("rice") || cat.includes("daal") || cat.includes("dal") || cat.includes("sugar") || cat.includes("pulse") || cat.includes("grain")) {
+    return "Bag";
+  }
+  if (cat.includes("breakfast") || cat.includes("mix") || cat.includes("instant")) {
+    return "Box";
+  }
+  const caseWeight = (Number(v?.unitWeightKg) || 1) * (Number(v?.unitsPerCase) || 1);
+  if (caseWeight >= 10 || Number(v?.unitsPerCase) === 1) {
+    return "Bag";
+  }
+  return "Bag";
+}
+
+const inr = (value: number) =>
+  `₹${Number(value).toLocaleString("en-IN", {
+    minimumFractionDigits: Number(value) % 1 !== 0 ? 2 : 0,
+    maximumFractionDigits: 2,
+  })}`;
 const visibleStatus = (status?: string) => !status || ["active", "published", "pending_review", "inactive"].includes(status);
 type Editor = { kind: "create" | "product" | "variant" | "add" | "sku"; product?: any; variant?: any };
 
@@ -549,6 +575,7 @@ export default function Catalog() {
       discount: v.discount != null && v.discount > 0 ? String(v.discount) : "",
       discountType: v.discountType === "percent" ? "percent" : "flat",
       rateBasis: currentBasis,
+      outerPack: getPackagingType(v, _p?.category),
       ratePerKg: initialRatePerKg,
     });
   };
@@ -683,6 +710,7 @@ export default function Catalog() {
         discount: Number(rowEdit.discount) || 0,
         discountType: rowEdit.discountType,
         rateBasis: rowEdit.rateBasis,
+        outerPack: rowEdit.outerPack,
         packSize: rowEdit.packSize,
         unit: rowEdit.unit,
         unitsPerCase: unitsPerCaseVal,
@@ -853,8 +881,15 @@ export default function Catalog() {
                   const primaryPrice = v.prices?.[0] ?? { price: v.listRate, rateBasis: v.listRateBasis ?? "case", tierId: tiers[0]?.id ?? "default" };
                   const basis: "case" | "quintal" = (v.listRateBasis === "quintal" || primaryPrice.rateBasis === "quintal") ? "quintal" : "case";
                   const displayPrice = primaryPrice.price ?? v.listRate;
-                  const perKg = displayPrice == null ? null : basis === "quintal" ? displayPrice / 100 : caseWeight > 0 ? displayPrice / caseWeight : null;
-                  const equivalent = displayPrice != null && caseWeight > 0 && basis === "quintal" ? Math.round(displayPrice * caseWeight) / 100 : null;
+                  const pkgType = getPackagingType(v, p.category);
+
+                  const discountVal = Number(v.discount) || 0;
+                  const isPct = v.discountType === "percent";
+                  const deduction = isPct ? (displayPrice != null ? (displayPrice * discountVal) / 100 : 0) : discountVal;
+                  const effectivePrice = displayPrice != null ? (discountVal > 0 ? Math.max(0, displayPrice - deduction) : displayPrice) : null;
+
+                  const perKg = effectivePrice == null ? null : basis === "quintal" ? effectivePrice / 100 : caseWeight > 0 ? effectivePrice / caseWeight : null;
+                  const equivalent = effectivePrice != null && caseWeight > 0 && basis === "quintal" ? Math.round(effectivePrice * caseWeight * 100) / 10000 : null;
                   const isFirst = index === 0;
 
                   return (
@@ -1059,9 +1094,20 @@ export default function Catalog() {
                             {(() => {
                               const w = getCaseWeightKg(activeEdit.packSize, activeEdit.unit, activeEdit.unitsPerCase);
                               return w > 0 ? (
-                                <span className="muted small" style={{ fontWeight: 500 }}>
-                                  Case: ~{w} kg
-                                </span>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+                                  <span className="muted small" style={{ fontWeight: 500 }}>
+                                    Weight: ~{w} kg
+                                  </span>
+                                  <select
+                                    aria-label="Packaging"
+                                    value={activeEdit.outerPack || "Bag"}
+                                    onChange={(e) => updateRowEdit({ outerPack: e.target.value as "Bag" | "Box" })}
+                                    style={{ padding: "2px 6px", fontSize: 11, borderRadius: 4, border: "1px solid #cbd5e1", background: "#fff" }}
+                                  >
+                                    <option value="Bag">Bag</option>
+                                    <option value="Box">Box</option>
+                                  </select>
+                                </div>
                               ) : null;
                             })()}
                           </div>
@@ -1090,7 +1136,7 @@ export default function Catalog() {
                               </button>
                             </div>
                             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                              <span className="muted small">{caseWeight} kg case</span>
+                              <span className="muted small">{caseWeight} kg {pkgType.toLowerCase()}</span>
                               {v.catalogStatus === "inactive" ? (
                                 <span style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", padding: "1px 5px", borderRadius: 4, fontSize: 10, fontWeight: 700 }}>
                                   Inactive
@@ -1219,20 +1265,40 @@ export default function Catalog() {
                               onChange={(e) => handleRateBasisChange(e.target.value as "case" | "quintal")}
                               style={{ padding: "2px 6px", fontSize: 11 }}
                             >
-                              <option value="case">per case</option>
+                              <option value="case">per {activeEdit.outerPack?.toLowerCase() || "bag"}</option>
                               <option value="quintal">per quintal</option>
                             </select>
+                            {(() => {
+                              const pVal = Number(activeEdit.price);
+                              const dVal = Number(activeEdit.discount) || 0;
+                              const isP = activeEdit.discountType === "percent";
+                              const w = getCaseWeightKg(activeEdit.packSize, activeEdit.unit, activeEdit.unitsPerCase);
+                              if (pVal > 0 && dVal > 0) {
+                                const ded = isP ? (pVal * dVal) / 100 : dVal;
+                                const eff = Math.max(0, pVal - ded);
+                                const effPerKg = activeEdit.rateBasis === "quintal" ? eff / 100 : (w > 0 ? eff / w : null);
+                                const effEq = activeEdit.rateBasis === "quintal" && w > 0 ? (eff * w) / 100 : null;
+                                return (
+                                  <div style={{ fontSize: 10, color: "#16a34a", fontWeight: 600, marginTop: 4, textAlign: "right" }}>
+                                    After discount: {inr(eff)} / {activeEdit.rateBasis === "quintal" ? "quintal" : (activeEdit.outerPack || "bag").toLowerCase()}
+                                    {effPerKg != null ? ` · ${inr(effPerKg)}/kg` : ""}
+                                    {effEq != null ? ` · ${inr(effEq)}/${w} KG ${activeEdit.outerPack || "Bag"}` : ""}
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
                           </div>
                         ) : p.catalogStatus === "pending_review" || v.catalogStatus === "pending_review" ? (
                           <span className="small">
-                            {displayPrice == null ? "Not configured" : `${inr(displayPrice)} / ${basis}`}
+                            {displayPrice == null ? "Not configured" : `${inr(displayPrice)} / ${basis === "quintal" ? "quintal" : pkgType.toLowerCase()}`}
                             {v.discount > 0 && (
                               <span style={{ display: "inline-block", background: "#dcfce7", color: "#16a34a", padding: "1px 5px", borderRadius: 4, fontSize: 10, fontWeight: 700, marginLeft: 4 }}>
                                 {v.discountType === "percent" ? `${v.discount}% OFF` : `₹${v.discount} OFF`}
                               </span>
                             )}
                             {perKg != null && <span className="muted small" style={{ display: "block" }}>{inr(perKg)} / kg</span>}
-                            {equivalent != null && <span className="muted small" style={{ display: "block" }}>{inr(equivalent)} / {caseWeight} KG case</span>}
+                            {equivalent != null && <span className="muted small" style={{ display: "block" }}>{inr(equivalent)} / {caseWeight} KG {pkgType}</span>}
                           </span>
                         ) : (
                           <button
@@ -1249,10 +1315,11 @@ export default function Catalog() {
                                   const deduction = isPct ? (displayPrice * Math.min(100, v.discount)) / 100 : v.discount;
                                   const finalPrice = Math.max(0, displayPrice - deduction);
                                   const badgeText = isPct ? `${v.discount}% OFF` : `₹${v.discount} OFF`;
+                                  const basisLabel = basis === "quintal" ? "quintal" : pkgType.toLowerCase();
                                   return (
                                     <>
                                       <div style={{ color: "#0f172a", fontSize: 13, fontWeight: 700 }}>
-                                        {inr(finalPrice)} / {basis}
+                                        {inr(finalPrice)} / {basisLabel}
                                       </div>
                                       <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", alignItems: "center", marginTop: 2 }}>
                                         <span style={{ textDecoration: "line-through", color: "#64748b", fontSize: 11 }}>
@@ -1266,11 +1333,11 @@ export default function Catalog() {
                                   );
                                 })()
                               ) : (
-                                <span>{displayPrice == null ? "Set price" : `${inr(displayPrice)} / ${basis}`}</span>
+                                <span>{displayPrice == null ? "Set price" : `${inr(displayPrice)} / ${basis === "quintal" ? "quintal" : pkgType.toLowerCase()}`}</span>
                               )}
                             </div>
                             {perKg != null && <span className="muted small" style={{ display: "block" }}>{inr(perKg)} / kg</span>}
-                            {equivalent != null && <span className="muted small" style={{ display: "block" }}>{inr(equivalent)} / {caseWeight} KG case</span>}
+                            {equivalent != null && <span className="muted small" style={{ display: "block" }}>{inr(equivalent)} / {caseWeight} KG {pkgType}</span>}
                           </button>
                         )}
                       </td>

@@ -25,7 +25,7 @@ function priceResolver(
   };
 }
 
-function shapeVariant(v: any, resolve: ReturnType<typeof priceResolver>, inventory?: any, req?: AuthedRequest, fallbackImageUrl?: string | null, discount = 0, discountType: "flat" | "percent" = "flat") {
+function shapeVariant(v: any, resolve: ReturnType<typeof priceResolver>, inventory?: any, req?: AuthedRequest, fallbackImageUrl?: string | null, discount = 0, discountType: "flat" | "percent" = "flat", category?: string, outerPackOverride?: "Bag" | "Box") {
   const { price:rate, isOverride,rateBasis } = resolve(v.id);
   const caseWeightKg = Number(v.unitWeightKg) * v.unitsPerCase;
   const basePrice = rate === null ? null : rateBasis === "quintal" ? Math.round(rate * caseWeightKg) / 100 : rate;
@@ -38,6 +38,11 @@ function shapeVariant(v: any, resolve: ReturnType<typeof priceResolver>, invento
       effectivePrice = Math.max(0, Math.round((basePrice - discount) * 100) / 100);
     }
   }
+  const outerPack: "Bag" | "Box" = outerPackOverride ?? (
+    (v.catalogIdentityMasterPack && v.catalogIdentityMasterPack.toUpperCase().endsWith("BOX"))
+      ? "Box"
+      : (category?.toLowerCase().includes("breakfast") || category?.toLowerCase().includes("instant") ? "Box" : "Bag")
+  );
   const availability = {
     available: 999999,
     warehouseCode: DEFAULT_WAREHOUSE_CODE,
@@ -51,6 +56,7 @@ function shapeVariant(v: any, resolve: ReturnType<typeof priceResolver>, invento
     unit: v.unit,
     unitsPerCase: v.unitsPerCase,
     caseWeightKg,
+    outerPack,
     commercialRate:rate,rateBasis,...retailerCommercialFields(v),
     discount,
     discountType,
@@ -64,7 +70,7 @@ function shapeVariant(v: any, resolve: ReturnType<typeof priceResolver>, invento
       if (rate === null) return null;
       const gst = v.gstPercent == null ? null : Number(v.gstPercent);
       const gstLabel = gst != null && Number.isFinite(gst) ? (gst === 0 ? "Including 0% GST (Nil)" : `Including ${gst}% GST`) : "Excluding GST";
-      return `${rateBasis === "quintal" ? "per quintal" : "per case"} · ${gstLabel}`;
+      return `${rateBasis === "quintal" ? "per quintal" : `per ${outerPack.toLowerCase()}`} · ${gstLabel}`;
     })(),
     pricePerKg: effectivePrice != null && caseWeightKg > 0 ? Math.round((effectivePrice / caseWeightKg) * 100) / 100 : null,
     availability,
@@ -94,6 +100,7 @@ router.get("/catalog", requireAuth, async (req: AuthedRequest, res) => {
     return [d.variantId, {
       discount: Number(val.discount || 0),
       discountType: (val.discountType === "percent" ? "percent" : "flat") as "flat" | "percent",
+      outerPack: (val.outerPack === "Box" ? "Box" : val.outerPack === "Bag" ? "Bag" : undefined) as "Bag" | "Box" | undefined,
     }];
   }));
 
@@ -105,7 +112,7 @@ router.get("/catalog", requireAuth, async (req: AuthedRequest, res) => {
     description: product.description,
     variants: product.variants.map((v) => {
       const draft = draftsMap.get(v.id);
-      return shapeVariant(v, resolve, selectInventorySnapshot(product, v, inventory), req, product.imageUrl, draft?.discount ?? 0, draft?.discountType ?? "flat");
+      return shapeVariant(v, resolve, selectInventorySnapshot(product, v, inventory), req, product.imageUrl, draft?.discount ?? 0, draft?.discountType ?? "flat", product.category, draft?.outerPack);
     }),
   }));
 
@@ -125,7 +132,7 @@ router.get("/catalog", requireAuth, async (req: AuthedRequest, res) => {
       sapMaterialId: product.sapMaterialId,
       variants: product.variants.map((v) => {
         const draft = draftsMap.get(v.id);
-        return shapeVariant(v, resolve, selectInventorySnapshot(product, v, inventory), req, product.imageUrl, draft?.discount ?? 0, draft?.discountType ?? "flat");
+        return shapeVariant(v, resolve, selectInventorySnapshot(product, v, inventory), req, product.imageUrl, draft?.discount ?? 0, draft?.discountType ?? "flat", product.category, draft?.outerPack);
       }),
     }))
   );
@@ -171,12 +178,22 @@ router.get("/products/:id", requireAuth, async (req: AuthedRequest, res) => {
   const members = siblings.length > 0 ? siblings : [product];
 
   const variantIds = members.flatMap((member) => member.variants.map((v) => v.id));
-  const [priceList, overrides, config, inventory] = await Promise.all([
+  const [priceList, overrides, config, inventory, drafts] = await Promise.all([
     prisma.priceList.findMany({ where: { tierId: retailer.tierId, variantId: { in: variantIds } } }),
     prisma.priceOverride.findMany({ where: { retailerId: retailer.id, variantId: { in: variantIds } } }),
     prisma.appConfig.findUnique({ where: { id: "singleton" } }),
     prisma.inventorySnapshot.findMany({ where: { warehouseCode: DEFAULT_WAREHOUSE_CODE } }),
+    prisma.catalogOrderingDraft.findMany({ where: { variantId: { in: variantIds } } }),
   ]);
+
+  const draftsMap = new Map((drafts || []).map((d) => {
+    const val = (d.values as any) || {};
+    return [d.variantId, {
+      discount: Number(val.discount || 0),
+      discountType: (val.discountType === "percent" ? "percent" : "flat") as "flat" | "percent",
+      outerPack: (val.outerPack === "Box" ? "Box" : val.outerPack === "Bag" ? "Bag" : undefined) as "Bag" | "Box" | undefined,
+    }];
+  }));
 
   const resolve = priceResolver(priceList, overrides);
 
@@ -188,9 +205,10 @@ router.get("/products/:id", requireAuth, async (req: AuthedRequest, res) => {
       imageUrl: publicMediaUrl(req, member.imageUrl),
       description: member.description,
       sapMaterialId: member.sapMaterialId,
-      variants: member.variants.map((v) =>
-        shapeVariant(v, resolve, selectInventorySnapshot(member, v, inventory), req)
-      ),
+      variants: member.variants.map((v) => {
+        const draft = draftsMap.get(v.id);
+        return shapeVariant(v, resolve, selectInventorySnapshot(member, v, inventory), req, member.imageUrl, draft?.discount ?? 0, draft?.discountType ?? "flat", member.category, draft?.outerPack);
+      }),
     }))
   );
 

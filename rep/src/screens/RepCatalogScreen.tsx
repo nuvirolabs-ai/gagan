@@ -198,7 +198,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
                   </Text>
                   {proposalDemandMode ? <View style={styles.priceStack}>
                     <Text style={styles.price}>{variant.indicativePrice != null
-                      ? `${inr(variant.indicativePrice)} / case`
+                      ? `${inr(variant.indicativePrice)} / ${(variant.outerPack || "bag").toLowerCase()}`
                       : "Price not configured"}</Text>
                     <Text style={styles.rateLabel}>{variant.indicativePrice != null
                       ? "Indicative price · final invoice confirmed upon dispatch"

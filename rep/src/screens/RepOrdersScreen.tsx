@@ -215,7 +215,7 @@ export default function RepOrdersScreen({ navigation }: any) {
               {/* Items summary */}
               <View style={styles.itemsSummary}>
                 <Text style={styles.itemsText}>
-                  {order.items?.length ?? 0} items · {totalCases} cases
+                  {order.items?.length ?? 0} items · {totalCases} bags/boxes
                 </Text>
                 <Text style={styles.amountText}>
                   {inr(Number(order.orderTotal ?? order.invoice?.total ?? 0))}

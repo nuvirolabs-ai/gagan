@@ -4,6 +4,7 @@ export interface Variant {
   unit: string;
   unitsPerCase: number;
   price: string | null;
+  outerPack?: "Bag" | "Box" | string;
 }
 
 export interface Product {

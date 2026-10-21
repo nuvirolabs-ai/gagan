@@ -226,6 +226,12 @@ export const api = {
     const qs = params.toString();
     return request(`/admin/orders${qs ? `?${qs}` : ""}`);
   },
+  orderCounts: (warehouseCode?: string) => {
+    const params = new URLSearchParams();
+    if (warehouseCode && warehouseCode !== "all") params.set("warehouseCode", warehouseCode);
+    const qs = params.toString();
+    return request(`/admin/orders/counts${qs ? `?${qs}` : ""}`);
+  },
   order: (id: string) => request(`/admin/orders/${id}`),
   warehouseOrders: (status?: string, warehouseCode?: string) => {
     const params = new URLSearchParams();

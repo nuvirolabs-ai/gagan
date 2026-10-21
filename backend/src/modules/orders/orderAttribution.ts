@@ -178,6 +178,17 @@ export function enrichOrderItems(items: any[], order?: any) {
   });
 }
 
+let cachedWarehouses: ResolvedWarehouse[] | null = null;
+let cachedRoutings: Array<{ city: string; primaryWarehouseCode: string }> | null = null;
+let lastWarehouseCacheTime = 0;
+const CACHE_TTL_MS = 60 * 1000; // 60s TTL
+
+export function invalidateWarehouseCache() {
+  cachedWarehouses = null;
+  cachedRoutings = null;
+  lastWarehouseCacheTime = 0;
+}
+
 export async function attributeOrdersWithWarehouses<T extends any[]>(orders: T, db: any = prisma) {
   // Batch resolve any missing sales rep names for legacy rep orders
   const needsLegacyName = orders.filter(
@@ -198,32 +209,42 @@ export async function attributeOrdersWithWarehouses<T extends any[]>(orders: T, 
   }
   const namesByRepId = new Map(reps.map((rep) => [rep.id, rep.name]));
 
-  // Load warehouses & city routing if available
+  // Load warehouses & city routing if available (cached for 60s to prevent stampedes)
   let warehouses: ResolvedWarehouse[] = STATIC_WAREHOUSES;
   let routings: Array<{ city: string; primaryWarehouseCode: string }> = [];
 
-  if (db?.warehouse?.findMany) {
-    try {
-      const dbWarehouses = await db.warehouse.findMany({
-        where: { isActive: true },
-        select: { code: true, name: true, city: true, address: true },
-      });
-      if (Array.isArray(dbWarehouses) && dbWarehouses.length > 0) {
-        warehouses = dbWarehouses;
-      }
-    } catch {}
-  }
+  const now = Date.now();
+  if (cachedWarehouses && cachedRoutings && now - lastWarehouseCacheTime < CACHE_TTL_MS) {
+    warehouses = cachedWarehouses;
+    routings = cachedRoutings;
+  } else {
+    if (db?.warehouse?.findMany) {
+      try {
+        const dbWarehouses = await db.warehouse.findMany({
+          where: { isActive: true },
+          select: { code: true, name: true, city: true, address: true },
+        });
+        if (Array.isArray(dbWarehouses) && dbWarehouses.length > 0) {
+          warehouses = dbWarehouses;
+        }
+      } catch {}
+    }
 
-  if (db?.cityRouting?.findMany) {
-    try {
-      const dbRoutings = await db.cityRouting.findMany({
-        where: { isActive: true },
-        select: { city: true, primaryWarehouseCode: true },
-      });
-      if (Array.isArray(dbRoutings) && dbRoutings.length > 0) {
-        routings = dbRoutings;
-      }
-    } catch {}
+    if (db?.cityRouting?.findMany) {
+      try {
+        const dbRoutings = await db.cityRouting.findMany({
+          where: { isActive: true },
+          select: { city: true, primaryWarehouseCode: true },
+        });
+        if (Array.isArray(dbRoutings) && dbRoutings.length > 0) {
+          routings = dbRoutings;
+        }
+      } catch {}
+    }
+
+    cachedWarehouses = warehouses;
+    cachedRoutings = routings;
+    lastWarehouseCacheTime = now;
   }
 
   const attributed = orders.map((order: any) => {

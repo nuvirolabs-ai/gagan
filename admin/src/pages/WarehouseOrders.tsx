@@ -257,17 +257,19 @@ export default function WarehouseOrders() {
   const load = useCallback(async (targetWarehouse = warehouseFilter) => {
     setLoading(true);
     try {
+      const shouldFetchAll = allOrders.length === 0;
       const [filterResult, allResult] = await Promise.all([
         api.warehouseOrders(filter === "all" ? undefined : filter, targetWarehouse),
-        api.warehouseOrders("all", targetWarehouse).catch(() => null),
+        shouldFetchAll ? api.warehouseOrders("all", targetWarehouse).catch(() => null) : Promise.resolve(null),
       ]);
       const nextFiltered = Array.isArray(filterResult?.orders) ? (filterResult.orders as WarehouseOrder[]) : [];
       const nextAll = Array.isArray(allResult?.orders) ? (allResult.orders as WarehouseOrder[]) : [];
-      const completeList = nextAll.length > 0 ? nextAll : nextFiltered;
+      const completeList = nextAll.length > 0 ? nextAll : (allOrders.length > 0 ? allOrders : nextFiltered);
       setAllOrders(completeList);
 
-      if (Array.isArray(filterResult?.warehouses) && filterResult.warehouses.length > 0) {
-        setAvailableWarehouses(filterResult.warehouses);
+      const warehousesSource = filterResult?.warehouses || allResult?.warehouses;
+      if (Array.isArray(warehousesSource) && warehousesSource.length > 0) {
+        setAvailableWarehouses(warehousesSource);
       }
 
       if (filter === "all") {
@@ -281,7 +283,7 @@ export default function WarehouseOrders() {
     } finally {
       setLoading(false);
     }
-  }, [filter, warehouseFilter]);
+  }, [filter, warehouseFilter, allOrders.length]);
 
   useEffect(() => {
     void load(warehouseFilter);

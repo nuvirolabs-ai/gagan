@@ -191,6 +191,7 @@ function AdminOrders() {
 
   const [folderCategory, setFolderCategory] = useState<"salesman" | "status" | "date" | "none">("salesman");
   const [activeFolderLabel, setActiveFolderLabel] = useState<string | null>(null);
+  const [tabSummaries, setTabSummaries] = useState<Record<string, { count: number; value: number }>>({});
 
   const clearDeparture = () => {
     if (departureTimer.current != null) {
@@ -220,36 +221,76 @@ function AdminOrders() {
     return filtered;
   }, [filterTab]);
 
-  const fetchQueues = useCallback(async (targetWarehouse = warehouseFilter) => {
-    const [responses, commercial] = await Promise.all([
-      Promise.all(TABS.map(async (item) => ({ key: item.key, result: await api.orders(item.key, targetWarehouse) }))),
+  const fetchQueues = useCallback(async (targetWarehouse = warehouseFilter, activeTab: string = tab) => {
+    const countsPromise = typeof api.orderCounts === "function"
+      ? api.orderCounts(targetWarehouse).catch(() => null)
+      : Promise.resolve(null);
+
+    const [countsResult, activeResult, commercial] = await Promise.all([
+      countsPromise,
+      api.orders(activeTab, targetWarehouse),
       api.commercialStatuses(),
     ]);
-    const queues: Record<string, any[]> = {};
+
+    let queues: Record<string, any[]> = {};
     let fetchedWarehouses: any[] = [];
-    responses.forEach(({ key, result }) => {
-      queues[key] = Array.isArray(result?.orders) ? result.orders : [];
-      if (Array.isArray(result?.warehouses) && result.warehouses.length > 0) {
-        fetchedWarehouses = result.warehouses;
+
+    if (countsResult?.counts) {
+      setTabSummaries(countsResult.counts);
+      queues = {
+        [activeTab]: Array.isArray(activeResult?.orders) ? activeResult.orders : [],
+      };
+      if (Array.isArray(countsResult.warehouses) && countsResult.warehouses.length > 0) {
+        fetchedWarehouses = countsResult.warehouses;
       }
-    });
+    } else {
+      const otherTabs = TABS.filter((t) => t.key !== activeTab);
+      const responses = await Promise.all(
+        otherTabs.map(async (item) => ({ key: item.key, result: await api.orders(item.key, targetWarehouse) }))
+      );
+      queues[activeTab] = Array.isArray(activeResult?.orders) ? activeResult.orders : [];
+      responses.forEach(({ key, result }) => {
+        queues[key] = Array.isArray(result?.orders) ? result.orders : [];
+        if (Array.isArray(result?.warehouses) && result.warehouses.length > 0) {
+          fetchedWarehouses = result.warehouses;
+        }
+      });
+    }
+
+    if (Array.isArray(activeResult?.warehouses) && activeResult.warehouses.length > 0) {
+      fetchedWarehouses = activeResult.warehouses;
+    }
     if (fetchedWarehouses.length > 0) {
       setWarehouses(fetchedWarehouses);
     }
     const statuses = new Map<string, any>(((commercial?.orders ?? []) as any[]).map((order) => [order.id, order.internalStatus]));
     return { queues, statuses };
-  }, [warehouseFilter]);
+  }, [warehouseFilter, tab]);
 
-  const load = useCallback(async (targetWarehouse = warehouseFilter) => {
+  const load = useCallback(async (targetWarehouse = warehouseFilter, activeTab: string = tab) => {
     setLoading(true);
     try {
-      const { queues, statuses } = await fetchQueues(targetWarehouse);
+      const { queues, statuses } = await fetchQueues(targetWarehouse, activeTab);
       publishQueues(queues, statuses);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load orders");
     } finally { setLoading(false); }
-  }, [fetchQueues, publishQueues, warehouseFilter]);
+  }, [fetchQueues, publishQueues, warehouseFilter, tab]);
+
+  const loadTab = useCallback(async (targetTab: string) => {
+    try {
+      const result = await api.orders(targetTab, warehouseFilter);
+      const nextOrders = Array.isArray(result?.orders) ? result.orders : [];
+      setQueueData((prev) => {
+        const nextQueues = { ...prev, [targetTab]: nextOrders };
+        const visible = filterTab(nextQueues, statusByOrderId, targetTab);
+        setOrders(visible);
+        setSelectedId((current) => current && visible.some((order) => order.id === current) ? current : visible[0]?.id ?? null);
+        return nextQueues;
+      });
+    } catch {}
+  }, [warehouseFilter, filterTab, statusByOrderId]);
 
   useEffect(() => { void load(warehouseFilter); }, [load, warehouseFilter]);
   useEffect(() => () => clearDeparture(), []);
@@ -439,6 +480,9 @@ function AdminOrders() {
     setReviewId(null);
     setTab(key);
     setSearchParams({ status: key });
+    if (!queueData[key] || queueData[key].length === 0) {
+      void loadTab(key);
+    }
   };
 
   return <div className="page-shell orders-page operational-instrument">
@@ -482,7 +526,19 @@ function AdminOrders() {
       </div>
     ) : null}
 
-    <section className="stage-rail" aria-label="Order lifecycle stages">{TABS.map((stage) => { const stageOrders = queueData[stage.key] ?? []; const stageValue = stageOrders.reduce((sum, order) => sum + Number(order.orderTotal ?? 0), 0); return <button key={stage.key} className={tab === stage.key ? "active" : ""} onClick={() => setStage(stage.key)}><span className="stage-count">{loading && !queueData[stage.key] ? "—" : stageOrders.length}</span><span>{stage.label}</span><small>{inr(stageValue)}</small></button>; })}</section>
+    <section className="stage-rail" aria-label="Order lifecycle stages">{TABS.map((stage) => {
+      const stageOrders = queueData[stage.key] ?? [];
+      const stageValue = stageOrders.reduce((sum, order) => sum + Number(order.orderTotal ?? 0), 0);
+      const count = tabSummaries[stage.key]?.count ?? stageOrders.length;
+      const val = tabSummaries[stage.key]?.value ?? stageValue;
+      return (
+        <button key={stage.key} className={tab === stage.key ? "active" : ""} onClick={() => setStage(stage.key)}>
+          <span className="stage-count">{loading && !queueData[stage.key] && tabSummaries[stage.key] == null ? "—" : count}</span>
+          <span>{stage.label}</span>
+          <small>{inr(val)}</small>
+        </button>
+      );
+    })}</section>
     <div className="internal-status-rail" aria-label="Internal commercial status filters">{INTERNAL_STATUS_FILTERS.map((filter) => <button key={filter.key} className={internalFilter === filter.key ? "selected" : ""} onClick={() => setInternalFilter(filter.key)}>{filter.label}</button>)}</div>
     <section className="queue-summary" aria-label="Queue health"><div><span>active queue</span><strong>{selectedTab}</strong></div><div><span>oldest order</span><strong>{ageLabel(oldest?.createdAt)}</strong></div><div><span>outside SLA</span><strong className={outsideSla > 0 ? "red-text" : "green-text"}>{outsideSla} orders</strong></div><div><span>queue value</span><strong>{loading ? "—" : inr(queueValue)}</strong></div><AgeDistribution counts={ages} /></section>
     {error && !reviewOrder && <div className="banner error" role="alert">{error}</div>}{notice && <div className="banner success" role="status">{notice}</div>}

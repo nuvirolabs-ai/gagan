@@ -259,6 +259,36 @@ export async function internalStatusForRetailer(retailerId: string, db: StatusDb
   };
 }
 
+export async function internalStatusesForRetailers(retailerIds: string[], db: StatusDb = prisma) {
+  if (retailerIds.length === 0) return new Map<string, any>();
+  const events = await db.commercialStatusEvent.findMany({
+    where: { retailerId: { in: retailerIds } },
+    orderBy: { createdAt: "asc" },
+    include: { ...eventInclude, order: { select: { id: true, orderNo: true } } },
+  });
+
+  const eventsByRetailer = new Map<string, any[]>();
+  for (const id of retailerIds) {
+    eventsByRetailer.set(id, []);
+  }
+  for (const event of events) {
+    const list = eventsByRetailer.get(event.retailerId);
+    if (list) list.push(event);
+  }
+
+  const result = new Map<string, any>();
+  for (const [id, rEvents] of eventsByRetailer.entries()) {
+    const current = rEvents.slice().reverse().find((event) => CURRENT_STATUS_CODES.has(event.code)) ?? null;
+    result.set(id, {
+      retailerId: id,
+      currentCode: current?.code ?? null,
+      currentLabel: current ? statusLabel(current.code) : null,
+      timeline: rEvents.map(serializeCommercialStatusEvent),
+    });
+  }
+  return result;
+}
+
 export async function internalStatusForQuote(quoteId: string, db: StatusDb = prisma) {
   const quote = await db.commercialQuote.findUnique({
     where: { id: quoteId },

@@ -5,14 +5,14 @@ import { AdminRequest, requireAdmin, requireAnyAdminPermission } from "../../lib
 import { Permissions } from "../../modules/identity/roleCatalog";
 import { ageAllRetailers } from "../../lib/ageing";
 import { financialLedgerFor } from "../../modules/finance/financialQueries";
-import { financialSummaryFor } from "../../modules/finance/financialSummary";
+import { financialSummaryFor, financialSummariesForRetailers } from "../../modules/finance/financialSummary";
 import {
   PaymentSettlementError,
   settleSucceededPayment,
 } from "../../modules/payments/paymentService";
 import { nextQuarterlyCheckpoint } from "../../modules/credit/reviewSchedule";
 import { CommercialStatusCode } from "@prisma/client";
-import { internalStatusForRetailer, recordCommercialStatusEvent } from "../../modules/commercialStatus/statusService";
+import { internalStatusForRetailer, internalStatusesForRetailers, recordCommercialStatusEvent } from "../../modules/commercialStatus/statusService";
 
 const router = Router();
 
@@ -32,12 +32,16 @@ router.get("/retailers", async (_req, res) => {
     include: { tier: true, salesRep: true },
     orderBy: { name: "asc" },
   });
-  const summary = await Promise.all(retailers.map(async (r) => {
-    const [financialResult, commercialStatus] = await Promise.all([
-      financialSummaryFor(prisma, r.id),
-      internalStatusForRetailer(r.id),
-    ]);
-    const financial = financialResult!;
+
+  const retailerIds = retailers.map((r) => r.id);
+  const [financialMap, commercialMap] = await Promise.all([
+    financialSummariesForRetailers(prisma, retailers),
+    internalStatusesForRetailers(retailerIds),
+  ]);
+
+  const summary = retailers.map((r) => {
+    const financial = financialMap.get(r.id);
+    const commercialStatus = commercialMap.get(r.id) ?? null;
     return {
       id: r.id,
       name: r.name,
@@ -47,14 +51,14 @@ router.get("/retailers", async (_req, res) => {
       tier: { id: r.tier.id, name: r.tier.name },
       internalSegment: r.internalSegment,
       salesRep: r.salesRep ? { id: r.salesRep.id, name: r.salesRep.name } : null,
-      creditLimit: financial.creditLimit,
-      currentBalance: financial.outstanding,
-      overdueAmount: financial.overdue,
-      available: financial.availableCredit,
+      creditLimit: financial ? financial.creditLimit : Number(r.creditLimit),
+      currentBalance: financial ? financial.outstanding : Number(r.currentBalance),
+      overdueAmount: financial ? financial.overdue : Number(r.overdueAmount),
+      available: financial ? financial.availableCredit : 0,
       financialSummary: financial,
       commercialStatus,
     };
-  }));
+  });
   res.json({ retailers: summary });
 });
 

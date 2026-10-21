@@ -1,4 +1,5 @@
 import "express-async-errors";
+import compression from "compression";
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
@@ -86,6 +87,7 @@ export function createApp(options: CreateAppOptions = {}) {
 
   app.use(requestId);
   app.use(helmet());
+  app.use(compression());
   app.use(cors({ origin: options.corsOrigins ?? [], credentials: true }));
   // Keep the default request body small. KYC evidence is the only JSON route
   // that accepts a bounded base64 payload, so opt it into the larger parser

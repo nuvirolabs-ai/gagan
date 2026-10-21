@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
 import { requireAdminIdentity } from "../../lib/adminAuth";
+import { invalidateWarehouseCache } from "../../modules/orders/orderAttribution";
 
 const router = Router();
 router.use(requireAdminIdentity);
@@ -149,6 +150,7 @@ router.post("/warehouses", async (req: Request, res: Response) => {
   const created = await prisma.warehouse.create({
     data: parsed.data,
   });
+  invalidateWarehouseCache();
 
   res.status(201).json({ warehouse: created });
 });
@@ -177,6 +179,7 @@ router.put("/warehouses/:id", async (req: Request, res: Response) => {
     where: { id },
     data: parsed.data,
   });
+  invalidateWarehouseCache();
 
   res.json({ warehouse: updated });
 });
@@ -228,6 +231,7 @@ router.post("/warehouses/routing", async (req: Request, res: Response) => {
       isActive: parsed.data.isActive,
     },
   });
+  invalidateWarehouseCache();
 
   res.json({ routing: upserted });
 });
@@ -236,6 +240,7 @@ router.post("/warehouses/routing", async (req: Request, res: Response) => {
 router.delete("/warehouses/routing/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
   await prisma.cityRouting.delete({ where: { id } });
+  invalidateWarehouseCache();
   res.json({ success: true });
 });
 

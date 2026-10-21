@@ -57,6 +57,20 @@ export async function financialInvoiceProjectionFor(
       },
     },
   });
+  return projectInvoices(invoices, now);
+}
+
+export function projectInvoices(
+  invoices: any[],
+  now = new Date()
+): {
+  ageing: AgeingBuckets;
+  entityBalances: {
+    outstanding: EntityAmounts;
+    overdue: EntityAmounts;
+    attributionStatus: AttributionStatus;
+  };
+} {
   const ageing: AgeingBuckets = {
     current: 0,
     days1to30: 0,

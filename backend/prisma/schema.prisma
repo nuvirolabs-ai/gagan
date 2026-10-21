@@ -1587,6 +1587,8 @@ model Order {
 
   @@unique([retailerId, idempotencyKey])
   @@index([sapSyncStatus, createdAt])
+  @@index([status, createdAt])
+  @@index([retailerId, createdAt])
 }
 
 /// Immutable internal commercial timeline. Retailer routes never select or
@@ -1629,6 +1631,9 @@ model OrderItem {
   qtyDelivered         Int?
   weightDelivered      Decimal?      @db.Decimal(12, 3)
   invoiceLines         InvoiceLine[]
+
+  @@index([orderId])
+  @@index([variantId])
 }
 
 model Delivery {
@@ -1696,6 +1701,8 @@ model Invoice {
   updatedAt           DateTime               @updatedAt
 
   @@index([retailerId, status, dueDate])
+  @@index([retailerId, updatedAt])
+  @@index([retailerId, outstandingAmount])
 }
 
 /// One operational recovery timeline per overdue invoice. Actions are immutable

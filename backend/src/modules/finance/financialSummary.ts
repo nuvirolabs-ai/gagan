@@ -1,5 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
-import { financialAgeingFor, financialInvoiceProjectionFor } from "./financialQueries";
+import { financialAgeingFor, financialInvoiceProjectionFor, projectInvoices } from "./financialQueries";
 import type { AgeingBuckets } from "../../lib/ageing";
 import type { AttributionStatus, EntityAmounts } from "./entityAttribution";
 
@@ -85,4 +85,98 @@ export async function financialSummaryFor(db: Db, retailerId: string, now = new 
     isStale: !hasLocalInvoices,
     reconciliationRequired,
   };
+}
+
+export async function financialSummariesForRetailers(
+  db: Db,
+  retailers: any[],
+  now = new Date()
+): Promise<Map<string, FinancialSummary>> {
+  const summaries = new Map<string, FinancialSummary>();
+  if (!retailers.length) return summaries;
+
+  const retailerIds = retailers.map((r) => r.id);
+
+  if (!(db as any).invoice) {
+    for (const r of retailers) {
+      const summary = await financialSummaryFor(db, r.id, now);
+      if (summary) summaries.set(r.id, summary);
+    }
+    return summaries;
+  }
+
+  const [openInvoices, latestInvoices] = await Promise.all([
+    (db as any).invoice.findMany({
+      where: {
+        retailerId: { in: retailerIds },
+        status: { in: ["open", "partially_paid"] },
+        outstandingAmount: { gt: 0 },
+      },
+      select: {
+        retailerId: true,
+        total: true,
+        outstandingAmount: true,
+        dueDate: true,
+        commercialSnapshot: true,
+        allocations: {
+          select: {
+            amount: true,
+            jainAmount: true,
+            padamAmount: true,
+            reversals: { select: { amount: true } },
+          },
+        },
+      },
+    }),
+    (db as any).invoice.findMany({
+      where: { retailerId: { in: retailerIds } },
+      distinct: ["retailerId"],
+      orderBy: [{ retailerId: "asc" }, { updatedAt: "desc" }],
+      select: { retailerId: true, updatedAt: true },
+    }),
+  ]);
+
+  const invoicesByRetailer = new Map<string, any[]>();
+  for (const inv of openInvoices) {
+    const list = invoicesByRetailer.get(inv.retailerId);
+    if (list) list.push(inv);
+    else invoicesByRetailer.set(inv.retailerId, [inv]);
+  }
+
+  const latestByRetailer = new Map<string, Date>();
+  for (const inv of latestInvoices) {
+    if (inv.updatedAt) latestByRetailer.set(inv.retailerId, inv.updatedAt);
+  }
+
+  for (const r of retailers) {
+    const invList = invoicesByRetailer.get(r.id) ?? [];
+    const latestUpdated = latestByRetailer.get(r.id) ?? null;
+    const hasLocalInvoices = latestUpdated != null || invList.length > 0;
+    const projection = hasLocalInvoices ? projectInvoices(invList, now) : null;
+    const invoiceAgeing = projection?.ageing ?? null;
+    const outstanding = invoiceAgeing ? invoiceAgeing.totalOutstanding : Number(r.currentBalance ?? 0);
+    const overdue = invoiceAgeing ? invoiceAgeing.totalOverdue : Number(r.overdueAmount ?? 0);
+    const creditLimit = Number(r.creditLimit ?? 0);
+    const reconciliationRequired = hasLocalInvoices && Math.abs(Number(r.currentBalance ?? 0) - outstanding) > 0.01;
+
+    summaries.set(r.id, {
+      outstanding,
+      overdue,
+      creditLimit,
+      creditUsed: outstanding,
+      availableCredit: Math.max(creditLimit - outstanding, 0),
+      invoiceAgeing,
+      entityBalances: projection?.entityBalances ?? {
+        outstanding: { jainTraders: 0, padamInternational: 0, unattributed: outstanding },
+        overdue: { jainTraders: 0, padamInternational: 0, unattributed: overdue },
+        attributionStatus: "contains_unattributed",
+      },
+      source: hasLocalInvoices ? "local_invoice_ledger" : "cached_retailer_balance",
+      syncedAt: latestUpdated,
+      isStale: !hasLocalInvoices,
+      reconciliationRequired,
+    });
+  }
+
+  return summaries;
 }

@@ -119,6 +119,28 @@ router.get("/orders", async (req, res) => {
   res.json({ orders: filtered, warehouses });
 });
 
+router.get("/orders/counts", async (req, res) => {
+  const groups = await prisma.order.groupBy({
+    by: ["status"],
+    _count: { _all: true },
+    _sum: { orderTotal: true },
+  });
+
+  const counts: Record<string, { count: number; value: number }> = {};
+  for (const key of Object.keys(ALLOWED_NEXT)) {
+    counts[key] = { count: 0, value: 0 };
+  }
+  for (const g of groups) {
+    counts[g.status] = {
+      count: g._count._all,
+      value: Number(g._sum.orderTotal ?? 0),
+    };
+  }
+
+  const { warehouses } = await attributeOrdersWithWarehouses([]);
+  res.json({ counts, warehouses });
+});
+
 router.get("/orders/:id", async (req, res) => {
   const order = await prisma.order.findUnique({ where: { id: req.params.id }, include: orderInclude });
   if (!order) return res.status(404).json({ error: "Order not found" });

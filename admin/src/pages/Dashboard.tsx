@@ -130,21 +130,38 @@ export default function Dashboard() {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const [stateResults, approvals, collections, proposals, expenses, issues, leave, sap] = await Promise.all([
-        Promise.all(ORDER_STATES.map((status) => settle(api.orders(status)))),
+      const countsPromise = typeof api.orderCounts === "function" ? api.orderCounts().catch(() => null) : Promise.resolve(null);
+      const [countsResult, placedResult, approvals, collections, proposals, expenses, issues, leave, sap] = await Promise.all([
+        countsPromise,
+        settle(api.orders("placed")),
         settle(api.approvals()), settle(api.collections()), settle(api.retailerProposals("pending")),
         settle(api.fieldExpenses({ status: "submitted" })), settle(api.serviceIssues({ status: "open" })),
         settle(api.leaveRequests("pending")), settle(api.sapStatus()),
       ]);
       if (cancelled) return;
       const byStatus: Record<string, OrderRecord[]> = {};
-      ORDER_STATES.forEach((status, index) => { byStatus[status] = rowsFrom(stateResults[index]); });
-      const valueFor = (status: string) => (byStatus[status] ?? []).reduce((sum, order) => sum + orderValue(order), 0);
+      const statusCounts: Record<string, { count: number; value: number }> = countsResult?.counts ?? {};
+
+      if (countsResult?.counts) {
+        byStatus.placed = rowsFrom(placedResult);
+      } else {
+        const remainingResults = await Promise.all(
+          ORDER_STATES.filter((s) => s !== "placed").map((s) => settle(api.orders(s)))
+        );
+        byStatus.placed = rowsFrom(placedResult);
+        ORDER_STATES.filter((s) => s !== "placed").forEach((status, index) => {
+          byStatus[status] = rowsFrom(remainingResults[index]);
+        });
+      }
+
+      const getCount = (status: string) => statusCounts[status]?.count ?? (byStatus[status]?.length ?? 0);
+      const getValue = (status: string) => statusCounts[status]?.value ?? (byStatus[status] ?? []).reduce((sum, order) => sum + orderValue(order), 0);
+
       const next = [
-        { label: "Orders need credit / confirmation", count: byStatus.placed?.length ?? 0, value: valueFor("placed"), to: "/orders?status=placed", tone: "warning" },
-        { label: "Orders ready to pack", count: byStatus.confirmed?.length ?? 0, value: valueFor("confirmed"), to: "/orders?status=confirmed", tone: "info" },
-        { label: "Packed — assign dispatch", count: byStatus.packed?.length ?? 0, value: valueFor("packed"), to: "/orders?status=packed", tone: "active" },
-        { label: "Out for delivery", count: byStatus.out_for_delivery?.length ?? 0, value: valueFor("out_for_delivery"), to: "/orders?status=out_for_delivery", tone: "active" },
+        { label: "Orders need credit / confirmation", count: getCount("placed"), value: getValue("placed"), to: "/orders?status=placed", tone: "warning" },
+        { label: "Orders ready to pack", count: getCount("confirmed"), value: getValue("confirmed"), to: "/orders?status=confirmed", tone: "info" },
+        { label: "Packed — assign dispatch", count: getCount("packed"), value: getValue("packed"), to: "/orders?status=packed", tone: "active" },
+        { label: "Out for delivery", count: getCount("out_for_delivery"), value: getValue("out_for_delivery"), to: "/orders?status=out_for_delivery", tone: "active" },
         { label: "Credit holds", count: approvals?.requests?.length ?? 0, to: "/approvals", tone: "critical" },
         { label: "Collections to confirm", count: collections?.submissions?.length ?? collections?.length ?? 0, to: "/collections", tone: "warning" },
         { label: "New retailer proposals", count: proposals?.proposals?.length ?? proposals?.length ?? 0, to: "/retailer-approvals", tone: "active" },
@@ -156,7 +173,7 @@ export default function Dashboard() {
       setQueues(next);
       setOrdersByStatus(byStatus);
       setSapState(sap ? { failed: Number(sap.outbox?.failed ?? 0), pending: Number(sap.outbox?.pending ?? 0) } : null);
-      setError(stateResults.every((item) => item === null) && next.every((item) => item.count === 0) ? "The live operating queues could not be reached." : null);
+      setError(!countsResult?.counts && Object.values(byStatus).every((item) => item.length === 0) && next.every((item) => item.count === 0) ? "The live operating queues could not be reached." : null);
       setLoading(false);
     })().catch((caught) => {
       if (!cancelled) { setError(explain(caught, "Could not load the live operating picture")); setLoading(false); }

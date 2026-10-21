@@ -155,7 +155,14 @@ router.get("/products", async (req, res) => {
   }));
   const priceKey = (tierId: string, variantId: string) => `${tierId}:${variantId}`;
   const prices = new Map(priceList.map((p) => [priceKey(p.tierId, p.variantId), Number(p.price)]));
+  const priceListMap = new Map(priceList.map((p) => [priceKey(p.tierId, p.variantId), p]));
   const snapshots = await prisma.inventorySnapshot.findMany({ where: { warehouseCode: DEFAULT_WAREHOUSE_CODE, productId: { in: products.map(product => product.id) } } });
+  const snapshotsByProductId = new Map<string, any[]>();
+  for (const s of snapshots) {
+    const list = snapshotsByProductId.get(s.productId);
+    if (list) list.push(s);
+    else snapshotsByProductId.set(s.productId, [s]);
+  }
 
   res.json({
     tiers,
@@ -173,7 +180,7 @@ router.get("/products", async (req, res) => {
       description: p.description,
       variants: p.variants.map((v) => ({
         stock: (() => {
-          const snapshot = selectInventorySnapshot(p, v, snapshots.filter(row => row.productId === p.id));
+          const snapshot = selectInventorySnapshot(p, v, snapshotsByProductId.get(p.id) || []);
           if (!snapshot) return { status: "needs_verification", available: null };
           if (Date.now() - snapshot.syncedAt.getTime() > INVENTORY_STALE_AFTER_MS) return { status: "needs_verification", available: Number(snapshot.available) };
           return { status: snapshot.status === "unavailable" || Number(snapshot.available) <= 0 ? "out_of_stock" : "in_stock", available: Number(snapshot.available) };
@@ -208,7 +215,7 @@ router.get("/products", async (req, res) => {
         routingClass: v.routingClass,
         routingBagEquivalent: v.routingBagEquivalent == null ? null : Number(v.routingBagEquivalent),
         prices: tiers.map((t) => {
-          const pl = priceList.find((p) => p.tierId === t.id && p.variantId === v.id);
+          const pl = priceListMap.get(priceKey(t.id, v.id));
           return {
             tierId: t.id,
             tierName: t.name,

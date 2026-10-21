@@ -262,28 +262,26 @@ export async function internalStatusForRetailer(retailerId: string, db: StatusDb
 export async function internalStatusesForRetailers(retailerIds: string[], db: StatusDb = prisma) {
   if (retailerIds.length === 0) return new Map<string, any>();
   const events = await db.commercialStatusEvent.findMany({
-    where: { retailerId: { in: retailerIds } },
+    where: {
+      retailerId: { in: retailerIds },
+      code: { in: Array.from(CURRENT_STATUS_CODES) },
+    },
     orderBy: { createdAt: "asc" },
-    include: { ...eventInclude, order: { select: { id: true, orderNo: true } } },
+    select: { retailerId: true, code: true, createdAt: true },
   });
 
-  const eventsByRetailer = new Map<string, any[]>();
-  for (const id of retailerIds) {
-    eventsByRetailer.set(id, []);
-  }
+  const latestByRetailer = new Map<string, CommercialStatusCode>();
   for (const event of events) {
-    const list = eventsByRetailer.get(event.retailerId);
-    if (list) list.push(event);
+    latestByRetailer.set(event.retailerId, event.code);
   }
 
   const result = new Map<string, any>();
-  for (const [id, rEvents] of eventsByRetailer.entries()) {
-    const current = rEvents.slice().reverse().find((event) => CURRENT_STATUS_CODES.has(event.code)) ?? null;
+  for (const id of retailerIds) {
+    const code = latestByRetailer.get(id) ?? null;
     result.set(id, {
       retailerId: id,
-      currentCode: current?.code ?? null,
-      currentLabel: current ? statusLabel(current.code) : null,
-      timeline: rEvents.map(serializeCommercialStatusEvent),
+      currentCode: code,
+      currentLabel: code ? statusLabel(code) : null,
     });
   }
   return result;

@@ -105,7 +105,7 @@ export async function financialSummariesForRetailers(
     return summaries;
   }
 
-  const [openInvoices, latestInvoices] = await Promise.all([
+  const [openInvoices, latestGroups] = await Promise.all([
     (db as any).invoice.findMany({
       where: {
         retailerId: { in: retailerIds },
@@ -128,11 +128,10 @@ export async function financialSummariesForRetailers(
         },
       },
     }),
-    (db as any).invoice.findMany({
+    (db as any).invoice.groupBy({
+      by: ["retailerId"],
+      _max: { updatedAt: true },
       where: { retailerId: { in: retailerIds } },
-      distinct: ["retailerId"],
-      orderBy: [{ retailerId: "asc" }, { updatedAt: "desc" }],
-      select: { retailerId: true, updatedAt: true },
     }),
   ]);
 
@@ -144,8 +143,8 @@ export async function financialSummariesForRetailers(
   }
 
   const latestByRetailer = new Map<string, Date>();
-  for (const inv of latestInvoices) {
-    if (inv.updatedAt) latestByRetailer.set(inv.retailerId, inv.updatedAt);
+  for (const g of latestGroups) {
+    if (g._max?.updatedAt) latestByRetailer.set(g.retailerId, g._max.updatedAt);
   }
 
   for (const r of retailers) {

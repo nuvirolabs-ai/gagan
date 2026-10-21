@@ -171,9 +171,29 @@ export default function Retailers() {
       const [r, t] = await Promise.all([api.retailers(), api.tiers()]);
       setRetailers(r.retailers);
       setTiers(t.tiers);
-      try {
-        const s = await api.staff();
-        const reps = (s.staff ?? [])
+      setLoading(false);
+      setError(null);
+
+      // Fast initial sales rep list from retailer response
+      const existingReps = new Map<string, { salesRepId: string; name: string; phone: string; territory?: string }>();
+      (r.retailers || []).forEach((ret: any) => {
+        if (ret.salesRep?.id && !existingReps.has(ret.salesRep.id)) {
+          existingReps.set(ret.salesRep.id, {
+            salesRepId: ret.salesRep.id,
+            name: ret.salesRep.name,
+            phone: ret.salesRep.phone || "",
+          });
+        }
+      });
+      if (existingReps.size > 0) {
+        const repList = Array.from(existingReps.values());
+        setSalesReps(repList);
+        if (!targetRepId && repList[0]) setTargetRepId(repList[0].salesRepId);
+      }
+
+      // Non-blocking background fetch for complete staff directory
+      api.staff().then((s) => {
+        const reps = (s?.staff ?? [])
           .filter((member: any) => member.status === "active" && member.salesRepId)
           .map((member: any) => ({
             salesRepId: member.salesRepId,
@@ -181,15 +201,13 @@ export default function Retailers() {
             phone: member.phone,
             territory: member.salesRep?.territory,
           }));
-        setSalesReps(reps);
-        if (reps.length > 0 && !targetRepId) setTargetRepId(reps[0].salesRepId);
-      } catch {
-        // Staff listing optional or mocked
-      }
-      setError(null);
+        if (reps.length > 0) {
+          setSalesReps(reps);
+          if (!targetRepId && reps[0]) setTargetRepId(reps[0].salesRepId);
+        }
+      }).catch(() => {});
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load retailers");
-    } finally {
       setLoading(false);
     }
   };

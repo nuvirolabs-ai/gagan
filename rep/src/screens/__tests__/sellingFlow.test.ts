@@ -88,13 +88,11 @@ describe("screen integration contracts", () => {
     expect(profile).toContain("await repApi.checkIn");
     expect(profile).toContain("checkInPending.current");
   });
-  it("no-order action only navigates to the existing composer with visit identity", () => {
+  it("no-order action opens feedback modal to auto-close visit", () => {
     const catalog = source("RepCatalogScreen.tsx");
-    expect(catalog).toContain('sellingVisit ? <SecondaryButton label="NOT ORDERING"');
-    expect(catalog).toContain('navigation.navigate("Visit"');
-    expect(catalog).toContain("visitId: sellingVisit.id");
-    expect(catalog).toContain("composeActivity: true");
-    expect(catalog).not.toContain("repApi.checkOut");
+    expect(catalog).toContain('label="NOT ORDERING"');
+    expect(catalog).toContain("VisitFeedbackModal");
+    expect(catalog).toContain('mode="no_order"');
   });
   it("shows who punched each order and pending proposal demand", () => {
     const orderDetail = source("OrderDetailScreen.tsx");

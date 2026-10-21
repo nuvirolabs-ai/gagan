@@ -35,6 +35,7 @@ vi.mock("../../components/ui", () => Object.fromEntries([
 ].map((name) => [name, name])));
 vi.mock("../../components/ActivityComposer", () => ({ default: "ActivityComposer", ACTIVITY_LABELS: {} }));
 vi.mock("../../components/TaskEvidenceSheet", () => ({ default: "TaskEvidenceSheet" }));
+vi.mock("../../components/VisitFeedbackModal", () => ({ default: "VisitFeedbackModal" }));
 vi.mock("../../components/EntityAttribution", () => ({ default: "EntityAttribution" }));
 vi.mock("../../feedback/haptics", () => ({ haptic: vi.fn() }));
 vi.mock("../../i18n/LanguageContext", () => ({ useLanguage: () => ({ t: (key: string) => key }) }));

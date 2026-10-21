@@ -19,6 +19,7 @@ import { useRep } from "../context/RepContext";
 import { colors, radius, spacing, inr } from "../theme";
 import ProductThumb from "../components/ProductThumb";
 import { SearchBar, ChipRow, QtyStepper, EmptyState, SecondaryButton } from "../components/ui";
+import VisitFeedbackModal from "../components/VisitFeedbackModal";
 import { useLanguage } from "../i18n/LanguageContext";
 import { catalogGroups, selectedCatalogSku, type CatalogGroup } from "../lib/catalogSelection";
 import { canChangeRepCatalogQuantity } from "../lib/catalogOrdering";
@@ -32,6 +33,7 @@ export default function RepCatalogScreen({ route, navigation }: any) {
   const { lines, addLine, updateQty, cartTotal, staff } = useRep();
   const insets = useSafeAreaInsets();
   const [sellingVisit, setSellingVisit] = useState<SellingVisit | null>(null);
+  const [noOrderModalVisible, setNoOrderModalVisible] = useState(false);
   const canLogActivity = staffCapabilities(staff?.permissions ?? []).canLogActivity;
   useFocusEffect(useCallback(() => {
     let active = true;
@@ -280,16 +282,36 @@ export default function RepCatalogScreen({ route, navigation }: any) {
               ? demandHasMissingPrice ? "Estimate unavailable" : `Est. ${inr(demandEstimate)}`
               : `Catalogue subtotal · ${inr(cartTotal)}`}</Text>
           </View>
-          <TouchableOpacity style={styles.placeBtn} accessibilityRole="button" disabled={punching} onPress={() => proposalDemandMode ? void punchDemand() : navigation.navigate("RepReviewOrder", { retailerId, retailerName })}>
+          <TouchableOpacity style={styles.placeBtn} accessibilityRole="button" disabled={punching} onPress={() => proposalDemandMode ? void punchDemand() : navigation.navigate("RepReviewOrder", { retailerId, retailerName, visitId: sellingVisit?.id ?? route.params?.visitId })}>
             <Text style={styles.placeText}>{proposalDemandMode ? punching ? "Punching…" : "Punch order" : "Review order"}</Text>
             <Ionicons name="arrow-forward" size={16} color={colors.onDark} />
           </TouchableOpacity>
         </View>
       )}
-      {sellingVisit ? <SecondaryButton label="NOT ORDERING" onPress={() => navigation.navigate("Visit", {
-        visitId: sellingVisit.id, retailerId, retailerName, composeActivity: true,
-      })} /> : null}
+      {sellingVisit ? (
+        <SecondaryButton
+          label="NOT ORDERING"
+          icon="close-circle-outline"
+          onPress={() => setNoOrderModalVisible(true)}
+        />
+      ) : null}
       </View>}
+
+      {sellingVisit?.id || route.params?.visitId ? (
+        <VisitFeedbackModal
+          visible={noOrderModalVisible}
+          mode="no_order"
+          visitId={sellingVisit?.id ?? route.params?.visitId}
+          retailerName={retailerName}
+          onClose={() => setNoOrderModalVisible(false)}
+          onSuccess={() => {
+            setNoOrderModalVisible(false);
+            Alert.alert("Visit Completed", "No order recorded for this visit.", [
+              { text: "OK", onPress: () => navigation.goBack() },
+            ]);
+          }}
+        />
+      ) : null}
     </View>
   );
 }

@@ -38,6 +38,7 @@ import {
 } from "../components/ui";
 import ActivityComposer, { ACTIVITY_LABELS } from "../components/ActivityComposer";
 import TaskEvidenceSheet from "../components/TaskEvidenceSheet";
+import VisitFeedbackModal from "../components/VisitFeedbackModal";
 import EntityAttribution from "../components/EntityAttribution";
 import { haptic } from "../feedback/haptics";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -128,6 +129,7 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
   const [historyReady, setHistoryReady] = useState(Boolean(cached?.complete));
   const [historyFailed, setHistoryFailed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [noOrderModalVisible, setNoOrderModalVisible] = useState(false);
   const firstUsefulLogged = useRef(false);
   const criticalLogged = useRef(false);
   const openedAt = useRef(typeof route.params?.openedAt === "number" ? route.params.openedAt : Date.now());
@@ -502,18 +504,27 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
             <PrimaryButton label={t("customer.takeOrder")} icon="cart-outline" disabled={blocked} onPress={startOrder} />
             <View style={styles.actions}>
               <View style={{ flex: 1 }}>
-                {capabilities.canCollect && !reviewRequired && (Number(credit.outstanding) > 0 || Number(credit.overdue) > 0) ? (
-                  <SecondaryButton
-                    label={t("customer.collect")}
-                    icon="wallet-outline"
-                    onPress={() => navigation.navigate("Collections", { retailerId: retailer.id })}
-                  />
-                ) : <View />}
+                <SecondaryButton
+                  label="Not Ordering"
+                  icon="close-circle-outline"
+                  onPress={() => setNoOrderModalVisible(true)}
+                />
               </View>
               <View style={{ flex: 1 }}>
-                <SecondaryButton label={t("visit.finish")} icon="exit-outline" onPress={() => openVisit(activeVisit)} />
+                <SecondaryButton
+                  label={t("visit.finish")}
+                  icon="exit-outline"
+                  onPress={() => setNoOrderModalVisible(true)}
+                />
               </View>
             </View>
+            {capabilities.canCollect && !reviewRequired && (Number(credit.outstanding) > 0 || Number(credit.overdue) > 0) ? (
+              <SecondaryButton
+                label={t("customer.collect")}
+                icon="wallet-outline"
+                onPress={() => navigation.navigate("Collections", { retailerId: retailer.id })}
+              />
+            ) : null}
             {capabilities.canLogActivity ? (
               composing ? (
                 <ActivityComposer
@@ -862,6 +873,22 @@ export default function RepRetailerDetailScreen({ route, navigation }: any) {
           if (marketingHistoryRequest.current === requestId) setMarketingHistoryLoading(false);
         });
       }} />
+
+      {activeVisit ? (
+        <VisitFeedbackModal
+          visible={noOrderModalVisible}
+          mode="no_order"
+          visitId={activeVisit.id}
+          retailerName={retailer.name}
+          onClose={() => setNoOrderModalVisible(false)}
+          onSuccess={() => {
+            setNoOrderModalVisible(false);
+            setActiveVisit(null);
+            Alert.alert("Visit Completed", "No order recorded for this visit.");
+            void load();
+          }}
+        />
+      ) : null}
 
       {!visiting && !activeVisitElsewhere ? (
         <View style={[styles.bar, { paddingBottom: spacing.section + insets.bottom }]}>

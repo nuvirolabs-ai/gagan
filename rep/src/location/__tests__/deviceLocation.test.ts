@@ -6,6 +6,7 @@ vi.mock("expo-location", () => ({
   PermissionStatus: { GRANTED: "granted", DENIED: "denied" },
   Accuracy: { High: 6 },
   requestForegroundPermissionsAsync: vi.fn(),
+  getLastKnownPositionAsync: vi.fn(),
   getCurrentPositionAsync: vi.fn(),
 }));
 

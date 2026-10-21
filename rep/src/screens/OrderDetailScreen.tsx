@@ -4,7 +4,7 @@ import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleS
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { AppScreen, EmptyState, OrderTimeline, PrimaryButton, SectionHeader, StatusPill, Surface } from "../components/ui";
+import { AppScreen, EmptyState, OrderTimeline, PrimaryButton, SecondaryButton, SectionHeader, StatusPill, Surface } from "../components/ui";
 import { repApi } from "../api/repClient";
 import { formatOrderRef } from "../lib/orderRef";
 import { hasOrderAmountMismatch } from "../lib/orderAmountMismatch";
@@ -213,19 +213,26 @@ export default function OrderDetailScreen({ route, navigation }: any) {
           </Surface>
         ) : null}
 
-        {visitAction?.kind === "continue_visit" ? (
+        <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
           <PrimaryButton
-            label="Continue Visit"
-            icon="arrow-forward"
-            onPress={() => navigation.navigate("Visit", { visitId: visitAction.visitId, retailerId: order.retailerId, retailerName: order.retailer?.name ?? "Retailer" })}
+            label="Back to Orders"
+            icon="arrow-back"
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate("RepOrders");
+              }
+            }}
           />
-        ) : visitAction?.kind === "next_retailer" ? (
-          <PrimaryButton label="Visit complete · Next retailer" icon="arrow-forward" onPress={() => navigation.navigate("RepMain", { screen: "Retailers" })} />
-        ) : visitAction?.kind === "visit_not_completed" ? (
-          <PrimaryButton label="Visit not completed · Open retailer" icon="arrow-forward" onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: order.retailerId })} />
-        ) : (
-          <Text style={styles.muted}>Visit status unavailable. Refresh before continuing to another retailer.</Text>
-        )}
+          {order.retailerId ? (
+            <SecondaryButton
+              label="Open Retailer Profile"
+              icon="storefront-outline"
+              onPress={() => navigation.navigate("RepRetailerDetail", { retailerId: order.retailerId })}
+            />
+          ) : null}
+        </View>
         <Text style={styles.footer}>This view reflects the order accepted by Gagan. Reopen the retailer profile to review the same order later.</Text>
       </ScrollView>
     </AppScreen>

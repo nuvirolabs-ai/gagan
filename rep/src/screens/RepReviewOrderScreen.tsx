@@ -15,6 +15,7 @@ import { colors, inr, spacing } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
 import { friendlyErrorMessage } from "../lib/friendlyErrors";
 import { evaluateCoupon, type CouponDefinition } from "../lib/couponEngine";
+import VisitFeedbackModal from "../components/VisitFeedbackModal";
 
 /**
  * The explicit review checkpoint for salesperson orders. Pricing, GST,
@@ -43,6 +44,18 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
   const [dispatchDateOption, setDispatchDateOption] = useState<"any" | "today" | "tomorrow" | "in_2_days" | "in_3_days">("any");
   const [transportName, setTransportName] = useState("");
   const [remarks, setRemarks] = useState("");
+  const [activeVisitId, setActiveVisitId] = useState<string | null>(route.params?.visitId ?? null);
+  const [pendingOrderResult, setPendingOrderResult] = useState<any | null>(null);
+  const [showVisitFeedback, setShowVisitFeedback] = useState(false);
+
+  useEffect(() => {
+    if (!activeVisitId && retailerId) {
+      repApi.visits().then(res => {
+        const active = (res.visits ?? []).find((v: any) => v.retailerId === retailerId && !v.checkedOutAt);
+        if (active) setActiveVisitId(active.id);
+      }).catch(() => {});
+    }
+  }, [retailerId, activeVisitId]);
   const quoteRef = useRef<any>(null);
   const refreshInFlight = useRef(false);
   const checkoutKey = useRef<string | null>(null);
@@ -303,9 +316,14 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
       if (!proposalDemandMode) clearCart();
       checkoutKey.current = null;
       haptic("success");
-      openCreatedOrder(result, (screen, params) => navigation.replace(screen, params), openOrder => {
-        Alert.alert("Order sent for approval", "❤️ Sales Order Sent for Approval", [{ text: "View order", onPress: openOrder }], { cancelable: false });
-      });
+      if (activeVisitId) {
+        setPendingOrderResult(result);
+        setShowVisitFeedback(true);
+      } else {
+        openCreatedOrder(result, (screen, params) => navigation.replace(screen, params), openOrder => {
+          Alert.alert("Order sent for approval", "❤️ Sales Order Sent for Approval", [{ text: "View order", onPress: openOrder }], { cancelable: false });
+        });
+      }
     } catch (error) {
       if (error instanceof ApiError && error.body?.error === "idempotency_key_conflict") {
         Alert.alert("Check your previous order", "This checkout already belongs to another basket. Review this retailer's orders before submitting again.");
@@ -323,7 +341,23 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
       submitLock.current = false;
       setPlacing(false);
     }
-  }, [activeLines, appliedCoupon, clearCart, intentId, navigation, proposalDemandMode, proposalIntent, quote, quoteError, quoteReady, refreshQuote, retailerId, retailerName, t, placing, dispatchDateOption, transportName, remarks]);
+  }, [activeLines, activeVisitId, appliedCoupon, clearCart, intentId, navigation, proposalDemandMode, proposalIntent, quote, quoteError, quoteReady, refreshQuote, retailerId, retailerName, t, placing, dispatchDateOption, transportName, remarks]);
+
+  const handleFeedbackComplete = () => {
+    setShowVisitFeedback(false);
+    const orderResult = pendingOrderResult;
+    setPendingOrderResult(null);
+    if (orderResult) {
+      openCreatedOrder(orderResult, (screen, params) => navigation.replace(screen, params), openOrder => {
+        Alert.alert(
+          "Order Sent & Visit Completed",
+          "❤️ Sales Order Sent for Approval\n\nVisit has been marked complete.",
+          [{ text: "View order", onPress: openOrder }],
+          { cancelable: false }
+        );
+      });
+    }
+  };
 
   if (proposalDemandMode && intentLoading) {
     return <AppScreen><View style={styles.empty}><ActivityIndicator color={colors.blue} /></View></AppScreen>;
@@ -559,6 +593,17 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
           />
         </View>
       </KeyboardSafeScrollView>
+
+      {activeVisitId ? (
+        <VisitFeedbackModal
+          visible={showVisitFeedback}
+          mode="order_placed"
+          visitId={activeVisitId}
+          retailerName={retailerName}
+          allowSkip={true}
+          onSuccess={handleFeedbackComplete}
+        />
+      ) : null}
     </AppScreen>
   );
 }

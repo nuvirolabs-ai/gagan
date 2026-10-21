@@ -312,13 +312,48 @@ export default function OrderReviewModal({
           <div className="section-head"><div><h3>Items <em>{lines.length} lines</em></h3></div><span className="small-note">stored order values</span></div>
           <div className="order-review-line-table">
             <div className="order-review-line order-review-line-head"><span>Product</span><span>Pack</span><span>Ordered</span><span>Unit price</span><span>Line value</span></div>
-            {lines.map((item: any) => <div className="order-review-line" key={item.id}>
-              <b>{productLabel(item)}</b>
-              <span>{packLabel(order, item)}</span>
-              <span>{item.qtyOrdered ?? 0}</span>
-              <span>{inr(Number(item.unitPrice ?? 0))}</span>
-              <strong>{inr(storedLineValue(order, item))}</strong>
-            </div>)}
+            {lines.map((item: any) => {
+              const unitRate = Number(item.unitPrice ?? 0);
+              const caseWeightKg = Number(
+                item.caseWeightKg ??
+                item.caseWeightKgSnapshot ??
+                (item.variant?.unitWeightKg ? Number(item.variant.unitWeightKg) * (item.variant.unitsPerCase ?? 1) : 0)
+              );
+              const isBox = (item.outerPack === "Box") ||
+                item.variant?.catalogIdentityMasterPack?.toUpperCase()?.includes("BOX") ||
+                item.variant?.product?.category?.toLowerCase()?.includes("breakfast") ||
+                item.variant?.product?.category?.toLowerCase()?.includes("mix");
+              const unitLabel = isBox ? "Box" : "Bag";
+              const isQuintal =
+                item.rateBasis === "quintal" ||
+                item.commercialSnapshot?.rateBasis === "quintal" ||
+                item.variant?.listRateBasis === "quintal" ||
+                (caseWeightKg >= 20 && !isBox);
+              const quintalRate = item.ratePerQuintal != null
+                ? item.ratePerQuintal
+                : (item.commercialSnapshot?.rate && isQuintal
+                  ? Number(item.commercialSnapshot.rate)
+                  : (isQuintal && caseWeightKg > 0 ? Math.round((unitRate / caseWeightKg) * 100 * 100) / 100 : null));
+
+              return (
+                <div className="order-review-line" key={item.id}>
+                  <b>{productLabel(item)}</b>
+                  <span>{packLabel(order, item)}</span>
+                  <span>{item.qtyOrdered ?? 0} {isBox ? "boxes" : "bags"}</span>
+                  <span>
+                    {isQuintal && quintalRate != null && quintalRate > 0 ? (
+                      <div>
+                        <strong style={{ display: "block" }}>{inr(quintalRate)} / quintal</strong>
+                        <small style={{ color: "#64748b" }}>{inr(unitRate)} / {unitLabel.toLowerCase()}</small>
+                      </div>
+                    ) : (
+                      inr(unitRate)
+                    )}
+                  </span>
+                  <strong>{inr(storedLineValue(order, item))}</strong>
+                </div>
+              );
+            })}
             <div className="order-review-line order-review-line-total"><span>Total</span><span /><span /><span /><strong>{inr(Number(order.orderTotal ?? 0))}</strong></div>
           </div>
         </section>

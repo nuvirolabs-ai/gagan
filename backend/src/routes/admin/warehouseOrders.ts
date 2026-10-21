@@ -14,6 +14,7 @@ import {
   resolveWarehouse,
   STATIC_WAREHOUSES,
   ResolvedWarehouse,
+  enrichOrderItems,
 } from "../../modules/orders/orderAttribution";
 
 const router = Router();
@@ -62,11 +63,16 @@ const warehouseOrderSelect = {
       commercialSnapshot: true,
       variant: {
         select: {
+          id: true,
           unitSize: true,
           unit: true,
           unitsPerCase: true,
           unitWeightKg: true,
-          product: { select: { name: true } },
+          listRate: true,
+          listRateBasis: true,
+          catalogIdentityMasterPack: true,
+          product: { select: { name: true, category: true } },
+          priceList: { select: { price: true, rateBasis: true, tierId: true } },
         },
       },
     },
@@ -144,20 +150,7 @@ function projectWarehouseOrder(
       routeId: order.delivery.routeId,
       deliverySlot: order.delivery.deliverySlot,
     } : null,
-    items: (order.items ?? []).map((item: any) => ({
-      id: item.id,
-      qtyOrdered: item.qtyOrdered,
-      unitPrice: Number(item.unitPrice ?? 0),
-      commercialSnapshot: item.commercialSnapshot,
-      caseWeightKg: Number(item.caseWeightKgSnapshot ?? (item.variant ? Number(item.variant.unitWeightKg ?? 0) * item.variant.unitsPerCase : 0)),
-      variant: item.variant ? {
-        unitSize: item.variant.unitSize,
-        unit: item.variant.unit,
-        unitsPerCase: item.variant.unitsPerCase,
-        unitWeightKg: item.variant.unitWeightKg ? Number(item.variant.unitWeightKg) : undefined,
-        product: item.variant.product ? { name: item.variant.product.name } : null,
-      } : null,
-    })),
+    items: enrichOrderItems(order.items ?? [], order),
     invoice: order.invoice ? {
       id: order.invoice.id,
       invoiceNumber: order.invoice.invoiceNumber,

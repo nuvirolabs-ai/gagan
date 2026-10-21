@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { CommercialStatusCode } from "@prisma/client";
-import { attributeOrders } from "./orderAttribution";
+import { attributeOrders, enrichOrderItems } from "./orderAttribution";
 
 describe("order attribution read model", () => {
   it("uses the punch actor and does not expose internal event rows", async () => {
@@ -100,6 +100,83 @@ describe("order attribution read model", () => {
       warehouseCode: "WH-002",
       warehouseName: "Bhopal Regional Hub",
       warehouseCity: "Bhopal",
+    });
+  });
+
+  it("enriches order items with quintal rates and packing types", () => {
+    const items = [
+      {
+        id: "item-toor",
+        variantId: "v-toor",
+        qtyOrdered: 5,
+        unitPrice: 4545,
+        caseWeightKgSnapshot: 30,
+        commercialSnapshot: { rate: "14950", rateBasis: "quintal", caseWeightKg: "30" },
+        variant: {
+          unitSize: "30 kg",
+          unitsPerCase: 1,
+          unitWeightKg: 30,
+          listRate: 14950,
+          listRateBasis: "quintal",
+          product: { name: "Gagan Toor Dal", category: "Daal" },
+        },
+      },
+      {
+        id: "item-choice",
+        variantId: "v-choice",
+        qtyOrdered: 1,
+        unitPrice: 2308.5,
+        caseWeightKgSnapshot: 30,
+        variant: {
+          unitSize: "30 kg",
+          unitsPerCase: 1,
+          unitWeightKg: 30,
+          listRate: 7695,
+          listRateBasis: "quintal",
+          product: { name: "Gagan Basmati Rice Choice", category: "Rice" },
+        },
+      },
+      {
+        id: "item-mix",
+        variantId: "v-mix",
+        qtyOrdered: 2,
+        unitPrice: 1990,
+        caseWeightKgSnapshot: 20,
+        variant: {
+          unitSize: "1 kg",
+          unitsPerCase: 20,
+          unitWeightKg: 1,
+          catalogIdentityMasterPack: "20KG BOX",
+          product: { name: "Instant Mix", category: "Breakfast Mix" },
+        },
+      },
+    ];
+
+    const enriched = enrichOrderItems(items);
+
+    expect(enriched[0]).toMatchObject({
+      rateBasis: "quintal",
+      ratePerQuintal: 14950,
+      ratePerKg: 149.5,
+      outerPack: "Bag",
+      rateLabel: "₹14,950 / quintal",
+      unitPrice: 4545,
+    });
+
+    expect(enriched[1]).toMatchObject({
+      rateBasis: "quintal",
+      ratePerQuintal: 7695,
+      ratePerKg: 76.95,
+      outerPack: "Bag",
+      rateLabel: "₹7,695 / quintal",
+      unitPrice: 2308.5,
+    });
+
+    expect(enriched[2]).toMatchObject({
+      rateBasis: "case",
+      outerPack: "Box",
+      rateLabel: "₹1,990 / box",
+      unitPrice: 1990,
     });
   });
 });

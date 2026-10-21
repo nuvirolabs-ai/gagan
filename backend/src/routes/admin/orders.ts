@@ -49,7 +49,7 @@ const orderInclude = {
       salesRep: { select: { id: true, name: true, phone: true } },
     },
   },
-  items: { include: { variant: { include: { product: true } } } },
+  items: { include: { variant: { include: { product: true, priceList: true } } } },
   delivery: true,
   invoice: {
     select: {

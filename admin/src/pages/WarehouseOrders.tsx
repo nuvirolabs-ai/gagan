@@ -31,13 +31,21 @@ type WarehouseOrder = {
     qtyOrdered: number;
     unitPrice?: number;
     caseWeightKg?: number;
+    rateBasis?: "quintal" | "case";
+    ratePerQuintal?: number | null;
+    ratePerKg?: number | null;
+    outerPack?: "Bag" | "Box";
+    rateLabel?: string;
     commercialSnapshot?: any;
     variant: {
       unitSize: string;
       unit: string;
       unitsPerCase: number;
       unitWeightKg?: number;
-      product: { name: string } | null;
+      listRate?: number;
+      listRateBasis?: string;
+      catalogIdentityMasterPack?: string;
+      product: { name: string; category?: string } | null;
     } | null;
   }>;
   invoice?: {
@@ -2035,6 +2043,33 @@ export default function WarehouseOrders() {
                       const isFree = item.commercialSnapshot?.isFreeItem || (item.unitPrice === 0 && item.commercialSnapshot?.scheme);
                       const unitRate = item.unitPrice ?? 0;
                       const lineTotal = isFree ? 0 : item.qtyOrdered * unitRate;
+
+                      const caseWeightKg = Number(
+                        item.caseWeightKg ??
+                        (item as any).caseWeightKgSnapshot ??
+                        (item.variant?.unitWeightKg ? Number(item.variant.unitWeightKg) * (item.variant.unitsPerCase ?? 1) : 0)
+                      );
+                      const isBox = (item.outerPack === "Box") ||
+                        (item.variant as any)?.catalogIdentityMasterPack?.toUpperCase()?.includes("BOX") ||
+                        (item.variant as any)?.product?.category?.toLowerCase()?.includes("breakfast") ||
+                        (item.variant as any)?.product?.category?.toLowerCase()?.includes("mix");
+                      const unitLabel = isBox ? "Box" : "Bag";
+
+                      const snapshotRateBasis = item.rateBasis || item.commercialSnapshot?.rateBasis;
+                      const isQuintal =
+                        String(snapshotRateBasis || "").toLowerCase() === "quintal" ||
+                        (item.variant as any)?.listRateBasis === "quintal" ||
+                        item.commercialSnapshot?.quintals != null ||
+                        (caseWeightKg >= 20 && !isBox);
+
+                      const quintalRate = item.ratePerQuintal != null
+                        ? item.ratePerQuintal
+                        : (item.commercialSnapshot?.rate && isQuintal
+                          ? Number(item.commercialSnapshot.rate)
+                          : (isQuintal && caseWeightKg > 0
+                            ? Math.round((unitRate / caseWeightKg) * 100 * 100) / 100
+                            : null));
+
                       return (
                         <div
                           className="warehouse-modal-item-row"
@@ -2052,11 +2087,28 @@ export default function WarehouseOrders() {
                                 ? `${item.variant.unitsPerCase} × ${item.variant.unitSize}`
                                 : "Standard Pack"}
                           </span>
-                          <span style={{ textAlign: "right", fontSize: 13, color: isFree ? "#047857" : "#475569" }}>
-                            {isFree ? "₹0 (FREE)" : (item.unitPrice != null ? inr(item.unitPrice) : "—")}
+                          <span style={{ textAlign: "right", fontSize: 13, color: isFree ? "#047857" : "#111827" }}>
+                            {isFree ? (
+                              "₹0 (FREE)"
+                            ) : isQuintal && quintalRate != null && quintalRate > 0 ? (
+                              <div style={{ textAlign: "right" }}>
+                                <strong style={{ display: "block", color: "#111827", fontSize: 13, fontWeight: 700 }}>
+                                  {inr(quintalRate)} / quintal
+                                </strong>
+                                <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                                  {inr(unitRate)} / {unitLabel.toLowerCase()}
+                                </span>
+                              </div>
+                            ) : (
+                              <div style={{ textAlign: "right" }}>
+                                <strong style={{ display: "block", color: "#111827", fontSize: 13, fontWeight: 700 }}>
+                                  {inr(unitRate)} / {unitLabel.toLowerCase()}
+                                </strong>
+                              </div>
+                            )}
                           </span>
                           <b className="item-qty" style={{ textAlign: "right", fontSize: 14, color: isFree ? "#047857" : "#111827" }}>
-                            {item.qtyOrdered} {isFree ? "packs" : "cases"}
+                            {item.qtyOrdered} {isFree ? "packs" : item.qtyOrdered > 1 ? `${unitLabel}s` : unitLabel}
                           </b>
                           <strong style={{ textAlign: "right", fontSize: 13, color: isFree ? "#047857" : "#111827" }}>
                             {isFree ? "₹0" : inr(lineTotal)}
@@ -2247,7 +2299,18 @@ export default function WarehouseOrders() {
                               <div>
                                 <strong style={{ fontSize: 13 }}>{item.variant?.product?.name ?? "Item"}</strong>
                                 <div style={{ fontSize: 11, color: "#6b7280" }}>
-                                  Ordered: {item.qtyOrdered} cases {item.unitPrice ? `· ${inr(item.unitPrice)}/case` : ""}
+                                  {(() => {
+                                    const isBox = (item.outerPack === "Box") || (item.variant as any)?.catalogIdentityMasterPack?.toUpperCase()?.includes("BOX");
+                                    const unitLabel = isBox ? "Box" : "Bag";
+                                    const isQuintal = item.rateBasis === "quintal" || (item.ratePerQuintal != null && item.ratePerQuintal > 0);
+                                    const qRate = item.ratePerQuintal;
+                                    return (
+                                      <span>
+                                        Ordered: {item.qtyOrdered} {item.qtyOrdered > 1 ? `${unitLabel.toLowerCase()}s` : unitLabel.toLowerCase()}{" "}
+                                        {isQuintal && qRate ? `· ${inr(qRate)}/quintal (${inr(item.unitPrice || 0)}/${unitLabel.toLowerCase()})` : (item.unitPrice ? `· ${inr(item.unitPrice)}/${unitLabel.toLowerCase()}` : "")}
+                                      </span>
+                                    );
+                                  })()}
                                 </div>
                               </div>
                               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

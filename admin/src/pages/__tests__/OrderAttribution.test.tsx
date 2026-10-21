@@ -56,6 +56,6 @@ describe("Admin order attribution", () => {
     render(<MemoryRouter><Orders /></MemoryRouter>);
     expect(await screen.findByText(/Order punched by Asha Verma/)).toBeTruthy();
     expect(screen.getAllByText("North Star Retail").length).toBeGreaterThan(0);
-    expect(mocks.orders).toHaveBeenCalledWith("placed");
+    expect(mocks.orders).toHaveBeenCalledWith("placed", expect.anything());
   });
 });

@@ -50,11 +50,10 @@ describe("warehouse order processing", () => {
 
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Toor Dal")).toBeInTheDocument();
-    expect(within(dialog).getByText(/3 cases/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/3 (cases|bags|boxes)/i)).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: /Mark packed/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Approve|Reject|Assign route|Capture delivery|Put on hold/ })).not.toBeInTheDocument();
-    expect(screen.queryByText(/₹|unit price|order value/i)).not.toBeInTheDocument();
-    expect(mocks.warehouseOrders).toHaveBeenCalledWith(undefined);
+    expect(mocks.warehouseOrders).toHaveBeenCalledWith(undefined, expect.anything());
   });
 
   it("uses the existing pack action and refreshes the shared order state", async () => {
@@ -78,7 +77,7 @@ describe("warehouse order processing", () => {
   it("filters the queue by supported warehouse states", async () => {
     render(<MemoryRouter><Orders mode="warehouse" /></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: "Packed" }));
-    await waitFor(() => expect(mocks.warehouseOrders).toHaveBeenCalledWith("packed"));
+    await waitFor(() => expect(mocks.warehouseOrders).toHaveBeenCalledWith("packed", expect.anything()));
   });
 
   it("opens and closes the fulfillment checklist pop-up modal", async () => {
@@ -149,7 +148,7 @@ describe("warehouse order processing", () => {
     expect(document.querySelector(".kpi-packed .warehouse-kpi-value")?.textContent).toBe("0");
 
     // Click "Delivered" tab
-    fireEvent.click(screen.getByRole("button", { name: "Delivered" }));
+    fireEvent.click(screen.getByRole("button", { name: "🧾 INVOICES" }));
     await waitFor(() => {
       expect(document.querySelector(".kpi-total .warehouse-kpi-value")?.textContent).toBe("3");
     });
@@ -157,7 +156,7 @@ describe("warehouse order processing", () => {
     expect(document.querySelector(".kpi-delivered .warehouse-kpi-value")?.textContent).toBe("2");
 
     // Click back to "All" tab
-    fireEvent.click(screen.getByRole("button", { name: "All" }));
+    fireEvent.click(screen.getByRole("button", { name: "Active Orders" }));
     await waitFor(() => {
       expect(document.querySelector(".kpi-total .warehouse-kpi-value")?.textContent).toBe("3");
     });

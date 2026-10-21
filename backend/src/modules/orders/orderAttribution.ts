@@ -115,6 +115,69 @@ export async function attributeOrders<T extends any[]>(orders: T, db: any = pris
   return attributed;
 }
 
+export function enrichOrderItems(items: any[], order?: any) {
+  return (items ?? []).map((item: any) => {
+    const caseWeightKg = Number(
+      item.caseWeightKg ??
+      item.caseWeightKgSnapshot ??
+      (item.variant ? Number(item.variant.unitWeightKg ?? 0) * (item.variant.unitsPerCase ?? 1) : 0)
+    );
+    const unitPrice = Number(item.unitPrice ?? 0);
+
+    const quoteLines = order?.commercialSnapshot?.quote?.lines || order?.commercialSnapshot?.lines;
+    const quoteLine = Array.isArray(quoteLines)
+      ? quoteLines.find((l: any) => l.variantId === item.variantId || l.variantId === item.variant?.id)
+      : null;
+
+    const snapshotRateBasis = item.commercialSnapshot?.rateBasis || quoteLine?.rateBasis;
+    const snapshotRate = item.commercialSnapshot?.rate != null
+      ? Number(item.commercialSnapshot.rate)
+      : (quoteLine?.rate != null ? Number(quoteLine.rate) : null);
+
+    const variantRateBasis = item.variant?.listRateBasis || item.variant?.priceList?.find((p: any) => p.rateBasis === "quintal")?.rateBasis;
+
+    const isBox = (item.variant?.catalogIdentityMasterPack && String(item.variant.catalogIdentityMasterPack).toUpperCase().includes("BOX")) ||
+      (item.variant?.product?.category && (String(item.variant.product.category).toLowerCase().includes("breakfast") || String(item.variant.product.category).toLowerCase().includes("mix")));
+    const outerPack: "Bag" | "Box" = isBox ? "Box" : "Bag";
+
+    const isQuintal =
+      String(snapshotRateBasis || "").toLowerCase() === "quintal" ||
+      String(variantRateBasis || "").toLowerCase() === "quintal" ||
+      item.commercialSnapshot?.quintals != null ||
+      (caseWeightKg >= 20 && !isBox);
+
+    const rateBasis: "quintal" | "case" = isQuintal ? "quintal" : "case";
+
+    let ratePerQuintal: number | null = null;
+    if (snapshotRate != null && isQuintal) {
+      ratePerQuintal = snapshotRate;
+    } else if (item.variant?.listRateBasis === "quintal" && item.variant?.listRate != null) {
+      ratePerQuintal = Number(item.variant.listRate);
+    } else if (isQuintal && caseWeightKg > 0) {
+      ratePerQuintal = Math.round((unitPrice / caseWeightKg) * 100 * 100) / 100;
+    }
+
+    const ratePerKg = ratePerQuintal != null
+      ? Math.round((ratePerQuintal / 100) * 100) / 100
+      : (caseWeightKg > 0 ? Math.round((unitPrice / caseWeightKg) * 100) / 100 : null);
+
+    return {
+      ...item,
+      qtyOrdered: item.qtyOrdered,
+      unitPrice,
+      caseWeightKg,
+      rateBasis,
+      commercialRate: isQuintal ? (ratePerQuintal ?? unitPrice) : unitPrice,
+      ratePerQuintal,
+      ratePerKg,
+      outerPack,
+      rateLabel: isQuintal && ratePerQuintal != null
+        ? `₹${ratePerQuintal.toLocaleString("en-IN")} / quintal`
+        : `₹${unitPrice.toLocaleString("en-IN")} / ${outerPack.toLowerCase()}`,
+    };
+  });
+}
+
 export async function attributeOrdersWithWarehouses<T extends any[]>(orders: T, db: any = prisma) {
   // Batch resolve any missing sales rep names for legacy rep orders
   const needsLegacyName = orders.filter(
@@ -167,10 +230,12 @@ export async function attributeOrdersWithWarehouses<T extends any[]>(orders: T, 
     const { commercialStatusEvents: _events, ...publicOrder } = order;
     const attribution = orderAttribution(order, namesByRepId.get(order.placedByRepId) ?? null);
     const wh = resolveWarehouse(order, warehouses, routings);
+    const items = Array.isArray(publicOrder.items) ? enrichOrderItems(publicOrder.items, order) : publicOrder.items;
 
     return {
       ...publicOrder,
       ...attribution,
+      items,
       warehouseCode: wh.code,
       warehouseName: wh.name,
       warehouseCity: wh.city,

@@ -92,17 +92,17 @@ export default function OrderDetailScreen({ route, navigation }: any) {
             {orderAttributionLabel(order)}
           </Text>
           <Text style={styles.date}>
-            {order.retailer?.name ?? "Retailer"} ·{" "}
-            {new Date(order.createdAt).toLocaleDateString("en-IN", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            })}{" "}
-            ·{" "}
-            {new Date(order.createdAt).toLocaleTimeString("en-IN", {
-              hour: "numeric",
-              minute: "2-digit",
-            })}
+            {order.retailer?.name ?? "Retailer"}
+            {order.createdAt && !isNaN(new Date(order.createdAt).getTime()) ? (
+              ` · ${new Date(order.createdAt).toLocaleDateString("en-IN", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })} · ${new Date(order.createdAt).toLocaleTimeString("en-IN", {
+                hour: "numeric",
+                minute: "2-digit",
+              })}`
+            ) : null}
           </Text>
           <OrderLifecycleCaption state={order.salesOrderState} />
         </View>

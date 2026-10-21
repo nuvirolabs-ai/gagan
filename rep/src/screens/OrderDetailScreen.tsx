@@ -11,8 +11,10 @@ import { hasOrderAmountMismatch } from "../lib/orderAmountMismatch";
 import { colors, inr, radius, spacing } from "../theme";
 import { nextOrderVisitAction, type OrderVisitAction } from "./orderVisitAction";
 
-function isSameDay(dateInput: string | Date) {
+function isSameDay(dateInput: string | Date | null | undefined) {
+  if (!dateInput) return false;
   const d1 = new Date(dateInput);
+  if (isNaN(d1.getTime())) return false;
   const d2 = new Date();
   return (
     d1.getFullYear() === d2.getFullYear() &&
@@ -115,11 +117,17 @@ export default function OrderDetailScreen({ route, navigation }: any) {
             </View>
             <StatusPill status={order.status} />
           </View>
-          <Text style={styles.muted}>{order.source === "SALESPERSON_APP" || order.placedBy === "rep" ? `Order punched by ${order.creatorName ?? "Salesperson"}` : "Order placed via Retailer App"} · {new Date(order.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</Text>
+          <Text style={styles.muted}>
+            {order.source === "SALESPERSON_APP" || order.placedBy === "rep"
+              ? `Order punched by ${order.creatorName ?? "Salesperson"}`
+              : "Order placed via Retailer App"} · {order.createdAt && !isNaN(new Date(order.createdAt).getTime())
+                ? new Date(order.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
+                : "—"}
+          </Text>
           {order.retailer?.shopAddress ? <Text style={styles.muted}>{order.retailer.shopAddress}</Text> : null}
           {(order.expectedDeliveryAt || order.transportName || order.remarks) ? (
             <View style={{ marginTop: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.separator, gap: 4 }}>
-              {order.expectedDeliveryAt ? (
+              {order.expectedDeliveryAt && !isNaN(new Date(order.expectedDeliveryAt).getTime()) ? (
                 <Text style={styles.muted}>📅 Dispatch Date: <Text style={{ fontWeight: "600", color: colors.ink }}>{new Date(order.expectedDeliveryAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</Text></Text>
               ) : null}
               {order.transportName ? (
@@ -149,7 +157,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
 
         <Surface>
           <SectionHeader title="Recorded progress" />
-          {eventRows.map((event: any, index: number) => <View key={event.id} style={styles.eventRow}><View style={[styles.eventDot, index === eventRows.length - 1 && styles.eventDotCurrent]} /><View style={{ flex: 1 }}><Text style={styles.eventTitle}>{event.label}</Text><Text style={styles.muted}>{new Date(event.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</Text></View></View>)}
+          {eventRows.map((event: any, index: number) => <View key={event.id} style={styles.eventRow}><View style={[styles.eventDot, index === eventRows.length - 1 && styles.eventDotCurrent]} /><View style={{ flex: 1 }}><Text style={styles.eventTitle}>{event.label}</Text><Text style={styles.muted}>{event.at && !isNaN(new Date(event.at).getTime()) ? new Date(event.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—"}</Text></View></View>)}
         </Surface>
 
         {order.invoice ? <Surface><SectionHeader title="Invoice" /><View style={styles.invoiceRow}><Text style={styles.muted}>Invoice #{order.invoice.invoiceNumber}</Text><Text style={styles.totalValue}>{inr(Number(order.invoice.total))}</Text></View>{order.invoice.commercialSnapshot && <CommercialBreakdown value={order.invoice.commercialSnapshot}/>}<Text style={styles.muted}>{order.invoice.outstandingAmount > 0 ? `${inr(Number(order.invoice.outstandingAmount))} outstanding` : "Settled"}</Text></Surface> : null}

@@ -262,4 +262,45 @@ describe("saveCatalogueSku", () => {
     expect(withInventoryOrderability(catalogueOrderingState(restocked.catalogStatus, restocked.gstPercent?.toString() ?? null, restocked.gstPendingOrderAllowed), { available: 40, status: "available" }).orderable).toBe(true);
     expect(await prisma.auditEvent.count({ where: { subjectId: variant.id, action: "catalog.sku_saved" } })).toBe(1);
   });
+
+  it("saves billing rule as Padam International or Jain Traders sellingEntity, or OTHER routingClass", async () => {
+    const padamSku = await saveCatalogueSku(
+      await priced({
+        productName: `Padam Test ${run}`,
+        sellingEntity: "padam_international",
+        routingClass: null,
+      }),
+      actor
+    );
+    createdProductIds.push(padamSku.productId);
+    const padamVariant = await prisma.variant.findUniqueOrThrow({ where: { id: padamSku.variantId } });
+    expect(padamVariant.sellingEntity).toBe("padam_international");
+    expect(padamVariant.routingClass).toBeNull();
+
+    const jainSku = await saveCatalogueSku(
+      await priced({
+        productName: `Jain Test ${run}`,
+        sellingEntity: "jain_traders",
+        routingClass: null,
+      }),
+      actor
+    );
+    createdProductIds.push(jainSku.productId);
+    const jainVariant = await prisma.variant.findUniqueOrThrow({ where: { id: jainSku.variantId } });
+    expect(jainVariant.sellingEntity).toBe("jain_traders");
+    expect(jainVariant.routingClass).toBeNull();
+
+    const otherSku = await saveCatalogueSku(
+      await priced({
+        productName: `Other Test ${run}`,
+        routingClass: "OTHER",
+      }),
+      actor
+    );
+    createdProductIds.push(otherSku.productId);
+    const otherVariant = await prisma.variant.findUniqueOrThrow({ where: { id: otherSku.variantId } });
+    expect(otherVariant.routingClass).toBe("OTHER");
+    expect(Number(otherVariant.routingBagEquivalent)).toBe(1);
+    expect(otherVariant.sellingEntity).toBeNull();
+  });
 });

@@ -97,7 +97,8 @@ const catalogueSkuRequest = z.object({
   sellingRateBasis: z.enum(["case", "quintal"]),
   tiers: z.array(z.object({ tierId: z.string().min(1), price: z.number().min(0).nullable().optional(), discountPercent: z.number().nullable().optional() })).min(1),
   gstPercent: z.number().min(0),
-  routingClass: z.enum(["LAXMI_TOOR", "INSTANT_MIX", "OTHER"]),
+  routingClass: z.string().trim().nullable().optional(),
+  sellingEntity: z.string().trim().nullable().optional(),
   routingBagEquivalent: z.number().positive().nullable().optional(),
   openingStockCases: z.number().min(0).nullable().optional(),
   warehouseCode: z.string().trim().min(1).optional(),
@@ -281,7 +282,9 @@ const quickEditSchema = z.object({
   unit: z.string().trim().optional(),
   unitsPerCase: z.coerce.number().int().positive().optional(),
   gstPercent: z.coerce.number().min(0).max(100).optional(),
-  routingClass: z.enum(["LAXMI_TOOR", "INSTANT_MIX", "OTHER"]).optional(),
+  routingClass: z.string().trim().nullable().optional(),
+  sellingEntity: z.string().trim().nullable().optional(),
+  routingBagEquivalent: z.coerce.number().positive().nullable().optional(),
   status: z.enum(["active", "inactive"]).optional(),
 });
 
@@ -319,8 +322,29 @@ router.put("/variants/:id/quick-edit", async (req: AdminRequest, res) => {
     updateData.gstPercent = parsed.data.gstPercent;
     updateData.gstPendingOrderAllowed = false;
   }
-  if (parsed.data.routingClass) {
-    updateData.routingClass = parsed.data.routingClass;
+  let routingClass = parsed.data.routingClass;
+  let sellingEntity = parsed.data.sellingEntity;
+
+  if (routingClass === "padam_international" || routingClass === "PADAM" || routingClass === "Padam") {
+    sellingEntity = "padam_international";
+    routingClass = null;
+  } else if (routingClass === "jain_traders" || routingClass === "JAIN" || routingClass === "Jain") {
+    sellingEntity = "jain_traders";
+    routingClass = null;
+  }
+
+  if (sellingEntity) {
+    updateData.sellingEntity = sellingEntity;
+    updateData.routingClass = null;
+    updateData.routingBagEquivalent = null;
+  } else if (routingClass !== undefined) {
+    updateData.routingClass = routingClass;
+    updateData.sellingEntity = null;
+    if (routingClass === "OTHER") {
+      updateData.routingBagEquivalent = parsed.data.routingBagEquivalent ?? 1;
+    } else {
+      updateData.routingBagEquivalent = null;
+    }
   }
   if (parsed.data.price !== undefined) {
     updateData.listRate = parsed.data.price;

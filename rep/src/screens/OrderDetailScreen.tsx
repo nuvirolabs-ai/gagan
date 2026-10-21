@@ -143,17 +143,75 @@ export default function OrderDetailScreen({ route, navigation }: any) {
 
         <InternalCommercialStatus status={data.commercialStatus} />
 
-        {order.commercialSnapshot ? <CommercialBreakdown value={order.commercialSnapshot}/> : <Surface>
-          <SectionHeader title="Items" />
-          {(order.items ?? []).map((item: any) => {
-            const name = item.variant?.product?.name ?? "Product";
-            const pack = item.variant?.unitSize ? `${item.variant.unitSize} × ${item.variant.unitsPerCase ?? 1}` : "";
-            const lineTotal = Number(item.unitPrice) * Number(item.qtyOrdered);
-            return <View key={item.id} style={styles.itemRow}><View style={{ flex: 1 }}><Text style={styles.itemName}>{name}</Text><Text style={styles.muted}>{pack || "Standard pack"} · Qty {item.qtyOrdered}</Text></View><View style={styles.itemRight}><Text style={styles.itemPrice}>{inr(lineTotal)}</Text><Text style={styles.muted}>{inr(Number(item.unitPrice))} each</Text></View></View>;
-          })}
-          <View style={styles.totalRow}><Text style={styles.totalLabel}>Order total</Text><Text style={styles.totalValue}>{inr(Number(order.orderTotal))}</Text></View>
-          {hasOrderAmountMismatch(order) && <Text style={styles.amountWarning}>The item amounts do not add up to the recorded order total. Confirm the amount with Gagan before relying on it.</Text>}
-        </Surface>}
+        <Surface>
+          <SectionHeader title={`Order Items (${(order.items ?? []).length})`} />
+          {(() => {
+            const rawItems: any[] = (order.items && order.items.length > 0)
+              ? order.items
+              : (order.commercialSnapshot?.lines ?? []);
+
+            if (rawItems.length === 0) {
+              return (
+                <Text style={[styles.muted, { paddingVertical: spacing.md }]}>
+                  No items recorded in this order.
+                </Text>
+              );
+            }
+
+            let computedItemsTotal = 0;
+
+            const itemNodes = rawItems.map((item: any, idx: number) => {
+              const name = item.variant?.product?.name ?? item.productName ?? item.name ?? "Product";
+              const pack = item.variant?.unitSize
+                ? `${item.variant.unitSize} × ${item.variant.unitsPerCase ?? 1}`
+                : (item.pack ?? item.packSize ?? "");
+              const isBox = item.variant?.catalogIdentityMasterPack?.toUpperCase()?.includes("BOX");
+              const unitLabel = isBox ? "Box" : "Bag";
+              const qty = Number(item.qtyOrdered ?? item.cases ?? item.qty ?? 1);
+              const unitPrice = Number(item.unitPrice ?? item.rate ?? 0);
+              const lineTotal = Number(item.lineTotal ?? (unitPrice * qty));
+              computedItemsTotal += lineTotal;
+
+              return (
+                <View key={item.id ?? `item-${idx}`} style={styles.itemRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.itemName}>{name}</Text>
+                    <Text style={styles.muted}>
+                      {pack ? `${pack} · ` : ""}Qty: <Text style={{ fontWeight: "700", color: colors.ink }}>{qty} {qty > 1 ? `${unitLabel}s` : unitLabel}</Text>
+                    </Text>
+                  </View>
+                  <View style={styles.itemRight}>
+                    <Text style={styles.itemPrice}>{inr(lineTotal)}</Text>
+                    <Text style={[styles.muted, { textAlign: "right" }]}>
+                      {inr(unitPrice)} / {unitLabel.toLowerCase()}
+                    </Text>
+                  </View>
+                </View>
+              );
+            });
+
+            const finalOrderTotal = Number(order.orderTotal ?? order.total ?? (computedItemsTotal > 0 ? computedItemsTotal : 0));
+
+            return (
+              <>
+                {itemNodes}
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Order Total</Text>
+                  <Text style={styles.totalValue}>{inr(finalOrderTotal)}</Text>
+                </View>
+                {hasOrderAmountMismatch(order) && (
+                  <Text style={styles.amountWarning}>
+                    The item amounts do not add up to the recorded order total. Confirm the amount with Gagan before relying on it.
+                  </Text>
+                )}
+              </>
+            );
+          })()}
+        </Surface>
+
+        {order.commercialSnapshot && (order.commercialSnapshot.freight || order.commercialSnapshot.routing || order.commercialSnapshot.entities?.length) ? (
+          <CommercialBreakdown value={order.commercialSnapshot} />
+        ) : null}
 
         <Surface>
           <SectionHeader title="Recorded progress" />
@@ -249,7 +307,7 @@ const styles = StyleSheet.create({
   muted: { color: colors.inkMuted, fontSize: 12.5, lineHeight: 18 },
   itemRow: { flexDirection: "row", gap: spacing.md, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.separator },
   itemName: { color: colors.ink, fontSize: 15, fontWeight: "600" },
-  itemRight: { alignItems: "flex-end" },
+  itemRight: { alignItems: "flex-end", flexShrink: 0, minWidth: 95 },
   itemPrice: { color: colors.ink, fontSize: 15, fontWeight: "700" },
   totalRow: { flexDirection: "row", justifyContent: "space-between", paddingTop: spacing.lg },
   totalLabel: { color: colors.inkMuted, fontSize: 14, fontWeight: "600" },

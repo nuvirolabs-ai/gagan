@@ -19,14 +19,17 @@ type Variant = {
   listRate?: number | null;
   listRateBasis?: string | null;
   gstPercent?: number | null;
+  sellingEntity?: string | null;
   routingClass?: string | null;
   routingBagEquivalent?: number | null;
   stock?: { available?: number | null };
   prices?: { tierId: string; price: number | null; rateBasis?: string | null }[];
 };
 
-const billingOptions = [
+export const billingOptions = [
   { value: "LAXMI_TOOR", label: "Laxmi toor" },
+  { value: "padam_international", label: "Padam International" },
+  { value: "jain_traders", label: "Jain Traders" },
   { value: "INSTANT_MIX", label: "Instant mix" },
   { value: "OTHER", label: "Other" },
 ];
@@ -77,7 +80,8 @@ export default function CatalogueSkuForm({
   const [sellingPrice, setSellingPrice] = useState(initialPrice);
   const [rateBasis, setRateBasis] = useState<"case" | "quintal">(initialBasis);
   const [gstPercent, setGstPercent] = useState(variant?.gstPercent != null ? String(variant.gstPercent) : "5");
-  const [routingClass, setRoutingClass] = useState(variant?.routingClass ?? "LAXMI_TOOR");
+  const initialBilling = variant?.sellingEntity || variant?.routingClass || "LAXMI_TOOR";
+  const [routingClass, setRoutingClass] = useState(initialBilling);
   const [routingBagEquivalent, setRoutingBagEquivalent] = useState(variant?.routingBagEquivalent != null ? String(variant.routingBagEquivalent) : "");
 
   // Advanced & Inventory Defaults
@@ -172,8 +176,9 @@ export default function CatalogueSkuForm({
       sellingRateBasis: rateBasis,
       tiers: effectiveTiers,
       gstPercent: Number(gstPercent),
-      routingClass,
-      ...(routingClass === "OTHER" ? { routingBagEquivalent: Number(routingBagEquivalent) } : {}),
+      routingClass: (routingClass === "padam_international" || routingClass === "jain_traders") ? null : routingClass,
+      sellingEntity: (routingClass === "padam_international" || routingClass === "jain_traders") ? routingClass : null,
+      ...(routingClass === "OTHER" ? { routingBagEquivalent: Number(routingBagEquivalent) || 1 } : {}),
       openingStockCases: openingStockCases === "" ? null : Number(openingStockCases),
       warehouseCode: warehouseCode.trim() || "WH-001",
       active,
@@ -742,6 +747,7 @@ function skuMessage(body: { error?: string } | null | undefined) {
   return "Could not save this product.";
 }
 
-export function billingLabel(routingClass?: string | null) {
-  return billingOptions.find((option) => option.value === routingClass)?.label ?? routingClass ?? "Not set";
+export function billingLabel(routingClass?: string | null, sellingEntity?: string | null) {
+  const value = sellingEntity || routingClass;
+  return billingOptions.find((option) => option.value === value)?.label ?? value ?? "Not set";
 }

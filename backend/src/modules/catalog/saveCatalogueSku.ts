@@ -32,7 +32,8 @@ export type CatalogueSkuInput = {
   sellingRateBasis: "case" | "quintal";
   tiers: CatalogueSkuTierInput[];
   gstPercent: number;
-  routingClass: "LAXMI_TOOR" | "INSTANT_MIX" | "OTHER";
+  routingClass?: string | null;
+  sellingEntity?: string | null;
   routingBagEquivalent?: number | null;
   openingStockCases?: number | null;
   warehouseCode?: string;
@@ -62,9 +63,35 @@ function imageState(imageUrl: string | null | undefined) {
 }
 
 function routing(input: CatalogueSkuInput) {
-  if (input.routingClass === "OTHER" && !(Number(input.routingBagEquivalent) > 0)) throw new CatalogueSkuError("routing_bag_equivalent_required");
-  if (input.routingClass !== "OTHER" && input.routingBagEquivalent != null) throw new CatalogueSkuError("routing_bag_equivalent_not_allowed");
-  return { routingClass: input.routingClass, routingBagEquivalent: input.routingClass === "OTHER" ? input.routingBagEquivalent : null, sellingEntity: null };
+  let routingClass = input.routingClass ?? null;
+  let sellingEntity = input.sellingEntity ?? null;
+
+  if (routingClass === "padam_international" || routingClass === "PADAM" || routingClass === "Padam") {
+    sellingEntity = "padam_international";
+    routingClass = null;
+  } else if (routingClass === "jain_traders" || routingClass === "JAIN" || routingClass === "Jain") {
+    sellingEntity = "jain_traders";
+    routingClass = null;
+  }
+
+  if (sellingEntity) {
+    return { routingClass: null, routingBagEquivalent: null, sellingEntity };
+  }
+
+  if (routingClass === "OTHER") {
+    const bagEq = Number(input.routingBagEquivalent);
+    return {
+      routingClass: "OTHER",
+      routingBagEquivalent: Number.isFinite(bagEq) && bagEq > 0 ? bagEq : 1,
+      sellingEntity: null,
+    };
+  }
+
+  return {
+    routingClass: routingClass || "LAXMI_TOOR",
+    routingBagEquivalent: null,
+    sellingEntity: null,
+  };
 }
 
 async function tierPrices(tx: Prisma.TransactionClient, input: CatalogueSkuInput) {

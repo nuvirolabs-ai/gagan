@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError, api } from "../api";
 import { buildDraftPack, canonicalUnit, caseWeightKg, humanizePackFailure, massPreview, parseStoredPack, type DraftPackFields } from "../draftPackForm";
-import CatalogueSkuForm, { billingLabel } from "../components/CatalogueSkuForm";
+import CatalogueSkuForm, { billingLabel, billingOptions } from "../components/CatalogueSkuForm";
 
 interface RowEditState {
   variantId: string;
@@ -570,7 +570,7 @@ export default function Catalog() {
       unit,
       unitsPerCase,
       gstPercent: v.gstPercent != null ? String(v.gstPercent) : "5",
-      routingClass: v.routingClass ?? "LAXMI_TOOR",
+      routingClass: v.sellingEntity || v.routingClass || "LAXMI_TOOR",
       price: currentPrice !== "" ? String(currentPrice) : "",
       discount: v.discount != null && v.discount > 0 ? String(v.discount) : "",
       discountType: v.discountType === "percent" ? "percent" : "flat",
@@ -705,6 +705,7 @@ export default function Catalog() {
     setSavingRow(true);
     setError(null);
     try {
+      const isFixedEntity = rowEdit.routingClass === "padam_international" || rowEdit.routingClass === "jain_traders";
       await api.quickEditVariant(variantId, {
         price: priceVal,
         discount: Number(rowEdit.discount) || 0,
@@ -715,7 +716,8 @@ export default function Catalog() {
         unit: rowEdit.unit,
         unitsPerCase: unitsPerCaseVal,
         gstPercent: Number(rowEdit.gstPercent),
-        routingClass: rowEdit.routingClass,
+        routingClass: isFixedEntity ? null : rowEdit.routingClass,
+        sellingEntity: isFixedEntity ? rowEdit.routingClass : null,
       });
       setRowEdit(null);
       setNotice("Product SKU, price, GST and billing rule updated");
@@ -1183,12 +1185,14 @@ export default function Catalog() {
                             onChange={(e) => updateRowEdit({ routingClass: e.target.value })}
                             style={{ padding: "4px 6px" }}
                           >
-                            <option value="LAXMI_TOOR">Laxmi toor</option>
-                            <option value="INSTANT_MIX">Instant mix</option>
-                            <option value="OTHER">Other</option>
+                            {billingOptions.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
                           </select>
                         ) : (
-                          <span>Billing: {billingLabel(v.routingClass)}</span>
+                          <span>Billing: {billingLabel(v.routingClass, v.sellingEntity)}</span>
                         )}
                       </td>
                       <td className="right" style={{ verticalAlign: "middle" }}>

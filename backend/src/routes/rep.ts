@@ -517,7 +517,13 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
 
   const tierPrice = new Map(priceList.map((p) => [p.variantId, Number(p.price)]));
   const overridePrice = new Map(overrides.map((o) => [o.variantId, Number(o.price)]));
-  const draftsMap = new Map((drafts || []).map((d) => [d.variantId, Number((d.values as any)?.discount || 0)]));
+  const draftsMap = new Map((drafts || []).map((d) => {
+    const val = (d.values as any) || {};
+    return [d.variantId, {
+      discount: Number(val.discount || 0),
+      discountType: (val.discountType === "percent" ? "percent" : "flat") as "flat" | "percent",
+    }];
+  }));
 
   const catalog = products.map((product) => ({
     id: product.id,
@@ -532,7 +538,18 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
       const caseWeightKg = Number(v.unitWeightKg) * v.unitsPerCase;
       const rateBasis=(overrides.find(p=>p.variantId===v.id) ?? priceList.find(p=>p.variantId===v.id))?.rateBasis ?? "case";
       const price=rate===null?null:rateBasis==="quintal"?Math.round(rate*caseWeightKg)/100:rate;
-      const discount = draftsMap.get(v.id) ?? 0;
+      const draft = draftsMap.get(v.id);
+      const discount = draft?.discount ?? 0;
+      const discountType = draft?.discountType ?? "flat";
+      let effectivePrice = price;
+      if (price != null && discount > 0) {
+        if (discountType === "percent") {
+          const pct = Math.min(100, Math.max(0, discount));
+          effectivePrice = Math.round((price * (1 - pct / 100)) * 100) / 100;
+        } else {
+          effectivePrice = Math.max(0, Math.round((price - discount) * 100) / 100);
+        }
+      }
       const availability = {
         available: 999999,
         warehouseCode: DEFAULT_WAREHOUSE_CODE,
@@ -548,7 +565,9 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
         caseWeightKg,
         commercialRate:rate,rateBasis,...retailerCommercialFields(v),
         discount,
-        price,
+        discountType,
+        originalPrice: price,
+        price: effectivePrice,
         catalogStatus: v.catalogStatus,
         ...withInventoryOrderability(catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed), availability),
         ...catalogueImageState(v),
@@ -560,7 +579,7 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
         })(),
         isOverride: override != null,
         pricePerKg:
-          price != null && caseWeightKg > 0 ? Math.round((price / caseWeightKg) * 100) / 100 : null,
+          effectivePrice != null && caseWeightKg > 0 ? Math.round((effectivePrice / caseWeightKg) * 100) / 100 : null,
         availability,
       };
     }),

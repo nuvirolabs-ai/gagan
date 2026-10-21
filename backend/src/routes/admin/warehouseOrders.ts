@@ -199,6 +199,9 @@ router.get("/warehouse-orders", async (req, res) => {
   const warehouseCode = typeof req.query.warehouseCode === "string" && req.query.warehouseCode !== "all"
     ? req.query.warehouseCode.trim()
     : undefined;
+  const salesperson = typeof req.query.salesperson === "string" && req.query.salesperson !== "all"
+    ? req.query.salesperson.trim()
+    : undefined;
 
   const [orders, dbWarehouses, dbRoutings] = await Promise.all([
     prisma.order.findMany({
@@ -220,9 +223,23 @@ router.get("/warehouse-orders", async (req, res) => {
   const activeWarehouses = dbWarehouses.length > 0 ? dbWarehouses : STATIC_WAREHOUSES;
   const projected = orders.map((o) => projectWarehouseOrder(o, activeWarehouses, dbRoutings));
 
-  const filtered = warehouseCode
+  let filtered = warehouseCode
     ? projected.filter((o) => o.warehouseCode.toLowerCase() === warehouseCode.toLowerCase())
     : projected;
+
+  if (salesperson) {
+    if (salesperson === "retailer_direct") {
+      filtered = filtered.filter((o) => o.punchedByRole === "Retailer" || (!o.placedByRepId && !o.salespersonName));
+    } else {
+      const q = salesperson.toLowerCase();
+      filtered = filtered.filter(
+        (o) =>
+          o.salespersonName?.toLowerCase() === q ||
+          o.punchedByName?.toLowerCase() === q ||
+          o.creatorName?.toLowerCase() === q
+      );
+    }
+  }
 
   res.json({ orders: filtered, warehouses: activeWarehouses });
 });

@@ -12,6 +12,7 @@ interface RowEditState {
   routingClass: string;
   price: string;
   discount: string;
+  discountType: "flat" | "percent";
   rateBasis: "case" | "quintal";
   ratePerKg: string;
 }
@@ -546,6 +547,7 @@ export default function Catalog() {
       routingClass: v.routingClass ?? "LAXMI_TOOR",
       price: currentPrice !== "" ? String(currentPrice) : "",
       discount: v.discount != null && v.discount > 0 ? String(v.discount) : "",
+      discountType: v.discountType === "percent" ? "percent" : "flat",
       rateBasis: currentBasis,
       ratePerKg: initialRatePerKg,
     });
@@ -679,6 +681,7 @@ export default function Catalog() {
       await api.quickEditVariant(variantId, {
         price: priceVal,
         discount: Number(rowEdit.discount) || 0,
+        discountType: rowEdit.discountType,
         rateBasis: rowEdit.rateBasis,
         packSize: rowEdit.packSize,
         unit: rowEdit.unit,
@@ -1181,11 +1184,21 @@ export default function Catalog() {
                               <span className="muted">/ kg</span>
                             </div>
                             <div style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 12 }}>
-                              <span style={{ color: "#16a34a", fontWeight: 600 }}>Discount: ₹</span>
+                              <span style={{ color: "#16a34a", fontWeight: 700 }}>Discount:</span>
+                              <select
+                                aria-label="Discount type"
+                                value={activeEdit.discountType || "flat"}
+                                onChange={(e) => updateRowEdit({ discountType: e.target.value as "flat" | "percent" })}
+                                style={{ padding: "2px 4px", fontSize: 11, borderRadius: 4, border: "1px solid #cbd5e1", background: "#fff", color: "#16a34a", fontWeight: 700 }}
+                              >
+                                <option value="flat">₹ (Flat)</option>
+                                <option value="percent">% (Percentage)</option>
+                              </select>
                               <input
                                 aria-label="Discount amount"
                                 type="number"
                                 min="0"
+                                max={activeEdit.discountType === "percent" ? "100" : undefined}
                                 step="any"
                                 value={activeEdit.discount}
                                 onChange={(e) => updateRowEdit({ discount: e.target.value })}
@@ -1193,10 +1206,12 @@ export default function Catalog() {
                                   if (e.key === "Enter") saveRow(v.id);
                                   if (e.key === "Escape") setRowEdit(null);
                                 }}
-                                style={{ width: 65, padding: "2px 4px", fontSize: 12, textAlign: "right" }}
+                                style={{ width: 60, padding: "2px 4px", fontSize: 12, textAlign: "right" }}
                                 placeholder="0"
                               />
-                              <span style={{ color: "#16a34a", fontSize: 10, fontWeight: 700 }}>OFF</span>
+                              <span style={{ color: "#16a34a", fontSize: 10, fontWeight: 700 }}>
+                                {activeEdit.discountType === "percent" ? "% OFF" : "OFF"}
+                              </span>
                             </div>
                             <select
                               aria-label="Rate basis"
@@ -1211,7 +1226,11 @@ export default function Catalog() {
                         ) : p.catalogStatus === "pending_review" || v.catalogStatus === "pending_review" ? (
                           <span className="small">
                             {displayPrice == null ? "Not configured" : `${inr(displayPrice)} / ${basis}`}
-                            {v.discount > 0 && <span style={{ display: "inline-block", background: "#dcfce7", color: "#16a34a", padding: "1px 5px", borderRadius: 4, fontSize: 10, fontWeight: 700, marginLeft: 4 }}>₹{v.discount} OFF</span>}
+                            {v.discount > 0 && (
+                              <span style={{ display: "inline-block", background: "#dcfce7", color: "#16a34a", padding: "1px 5px", borderRadius: 4, fontSize: 10, fontWeight: 700, marginLeft: 4 }}>
+                                {v.discountType === "percent" ? `${v.discount}% OFF` : `₹${v.discount} OFF`}
+                              </span>
+                            )}
                             {perKg != null && <span className="muted small" style={{ display: "block" }}>{inr(perKg)} / kg</span>}
                             {equivalent != null && <span className="muted small" style={{ display: "block" }}>{inr(equivalent)} / {caseWeight} KG case</span>}
                           </span>
@@ -1225,19 +1244,27 @@ export default function Catalog() {
                           >
                             <div>
                               {v.discount > 0 && displayPrice != null ? (
-                                <>
-                                  <div style={{ color: "#0f172a", fontSize: 13, fontWeight: 700 }}>
-                                    {inr(Math.max(0, displayPrice - v.discount))} / {basis}
-                                  </div>
-                                  <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", alignItems: "center", marginTop: 2 }}>
-                                    <span style={{ textDecoration: "line-through", color: "#64748b", fontSize: 11 }}>
-                                      {inr(displayPrice)}
-                                    </span>
-                                    <span style={{ background: "#dcfce7", color: "#16a34a", padding: "1px 4px", borderRadius: 4, fontSize: 10, fontWeight: 700 }}>
-                                      ₹{v.discount} OFF
-                                    </span>
-                                  </div>
-                                </>
+                                (() => {
+                                  const isPct = v.discountType === "percent";
+                                  const deduction = isPct ? (displayPrice * Math.min(100, v.discount)) / 100 : v.discount;
+                                  const finalPrice = Math.max(0, displayPrice - deduction);
+                                  const badgeText = isPct ? `${v.discount}% OFF` : `₹${v.discount} OFF`;
+                                  return (
+                                    <>
+                                      <div style={{ color: "#0f172a", fontSize: 13, fontWeight: 700 }}>
+                                        {inr(finalPrice)} / {basis}
+                                      </div>
+                                      <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", alignItems: "center", marginTop: 2 }}>
+                                        <span style={{ textDecoration: "line-through", color: "#64748b", fontSize: 11 }}>
+                                          {inr(displayPrice)}
+                                        </span>
+                                        <span style={{ background: "#dcfce7", color: "#16a34a", padding: "1px 4px", borderRadius: 4, fontSize: 10, fontWeight: 700 }}>
+                                          {badgeText}
+                                        </span>
+                                      </div>
+                                    </>
+                                  );
+                                })()
                               ) : (
                                 <span>{displayPrice == null ? "Set price" : `${inr(displayPrice)} / ${basis}`}</span>
                               )}

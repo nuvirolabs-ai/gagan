@@ -25,10 +25,19 @@ function priceResolver(
   };
 }
 
-function shapeVariant(v: any, resolve: ReturnType<typeof priceResolver>, inventory?: any, req?: AuthedRequest, fallbackImageUrl?: string | null, discount = 0) {
+function shapeVariant(v: any, resolve: ReturnType<typeof priceResolver>, inventory?: any, req?: AuthedRequest, fallbackImageUrl?: string | null, discount = 0, discountType: "flat" | "percent" = "flat") {
   const { price:rate, isOverride,rateBasis } = resolve(v.id);
   const caseWeightKg = Number(v.unitWeightKg) * v.unitsPerCase;
-  const price=rate===null?null:rateBasis==="quintal"?Math.round(rate*caseWeightKg)/100:rate;
+  const basePrice = rate === null ? null : rateBasis === "quintal" ? Math.round(rate * caseWeightKg) / 100 : rate;
+  let effectivePrice = basePrice;
+  if (basePrice != null && discount > 0) {
+    if (discountType === "percent") {
+      const pct = Math.min(100, Math.max(0, discount));
+      effectivePrice = Math.round((basePrice * (1 - pct / 100)) * 100) / 100;
+    } else {
+      effectivePrice = Math.max(0, Math.round((basePrice - discount) * 100) / 100);
+    }
+  }
   const availability = {
     available: 999999,
     warehouseCode: DEFAULT_WAREHOUSE_CODE,
@@ -44,7 +53,9 @@ function shapeVariant(v: any, resolve: ReturnType<typeof priceResolver>, invento
     caseWeightKg,
     commercialRate:rate,rateBasis,...retailerCommercialFields(v),
     discount,
-    price,
+    discountType,
+    originalPrice: basePrice,
+    price: effectivePrice,
     isOverride,
     catalogStatus: v.catalogStatus,
     ...withInventoryOrderability(catalogueOrderingState(v.catalogStatus, v.gstPercent?.toString() ?? null, v.gstPendingOrderAllowed), availability),
@@ -55,7 +66,7 @@ function shapeVariant(v: any, resolve: ReturnType<typeof priceResolver>, invento
       const gstLabel = gst != null && Number.isFinite(gst) ? (gst === 0 ? "Including 0% GST (Nil)" : `Including ${gst}% GST`) : "Excluding GST";
       return `${rateBasis === "quintal" ? "per quintal" : "per case"} · ${gstLabel}`;
     })(),
-    pricePerKg: price != null && caseWeightKg > 0 ? Math.round((price / caseWeightKg) * 100) / 100 : null,
+    pricePerKg: effectivePrice != null && caseWeightKg > 0 ? Math.round((effectivePrice / caseWeightKg) * 100) / 100 : null,
     availability,
   };
 }
@@ -78,7 +89,13 @@ router.get("/catalog", requireAuth, async (req: AuthedRequest, res) => {
   ]);
 
   const resolve = priceResolver(priceList, overrides);
-  const draftsMap = new Map((drafts || []).map((d) => [d.variantId, Number((d.values as any)?.discount || 0)]));
+  const draftsMap = new Map((drafts || []).map((d) => {
+    const val = (d.values as any) || {};
+    return [d.variantId, {
+      discount: Number(val.discount || 0),
+      discountType: (val.discountType === "percent" ? "percent" : "flat") as "flat" | "percent",
+    }];
+  }));
 
   const catalog = products.map((product) => ({
     id: product.id,
@@ -86,7 +103,10 @@ router.get("/catalog", requireAuth, async (req: AuthedRequest, res) => {
     category: product.category,
     imageUrl: publicMediaUrl(req, product.imageUrl),
     description: product.description,
-    variants: product.variants.map((v) => shapeVariant(v, resolve, selectInventorySnapshot(product, v, inventory), req, product.imageUrl, draftsMap.get(v.id) ?? 0)),
+    variants: product.variants.map((v) => {
+      const draft = draftsMap.get(v.id);
+      return shapeVariant(v, resolve, selectInventorySnapshot(product, v, inventory), req, product.imageUrl, draft?.discount ?? 0, draft?.discountType ?? "flat");
+    }),
   }));
 
   const categories = [...new Set(products.map((p) => p.category))].sort();
@@ -103,9 +123,10 @@ router.get("/catalog", requireAuth, async (req: AuthedRequest, res) => {
       imageUrl: publicMediaUrl(req, product.imageUrl),
       description: product.description,
       sapMaterialId: product.sapMaterialId,
-      variants: product.variants.map((v) =>
-        shapeVariant(v, resolve, selectInventorySnapshot(product, v, inventory), req, product.imageUrl, draftsMap.get(v.id) ?? 0)
-      ),
+      variants: product.variants.map((v) => {
+        const draft = draftsMap.get(v.id);
+        return shapeVariant(v, resolve, selectInventorySnapshot(product, v, inventory), req, product.imageUrl, draft?.discount ?? 0, draft?.discountType ?? "flat");
+      }),
     }))
   );
 

@@ -57,6 +57,8 @@ type WarehouseOrder = {
       lineTotal: number;
     }>;
   } | null;
+  placedByRepId?: string | null;
+  creatorName?: string | null;
   salespersonName?: string | null;
   salespersonPhone?: string | null;
   punchedByName?: string | null;
@@ -194,6 +196,7 @@ export default function WarehouseOrders() {
   const [filter, setFilter] = useState<QueueFilter>("all");
   const [orders, setOrders] = useState<WarehouseOrder[]>([]);
   const [search, setSearch] = useState("");
+  const [salespersonFilter, setSalespersonFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"date_desc" | "date_asc" | "value_desc" | "value_asc">("date_desc");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month">("all");
   const [loading, setLoading] = useState(true);
@@ -384,8 +387,30 @@ export default function WarehouseOrders() {
     };
   }, [modalOrder, busy]);
 
+  const salespersons = useMemo(() => {
+    const set = new Set<string>();
+    orders.forEach((o: any) => {
+      const name = o.punchedByName || o.salespersonName || o.creatorName;
+      if (name && name !== "Direct" && name !== "Customer") set.add(name);
+    });
+    return Array.from(set).sort();
+  }, [orders]);
+
   const filteredOrders = useMemo(() => {
     let result = orders;
+
+    // Filter via salesperson
+    if (salespersonFilter === "retailer_direct") {
+      result = result.filter((o) => o.punchedByRole === "Retailer" || (!o.placedByRepId && !o.salespersonName));
+    } else if (salespersonFilter !== "all") {
+      const target = salespersonFilter.toLowerCase();
+      result = result.filter(
+        (o) =>
+          (o.salespersonName ?? "").toLowerCase() === target ||
+          (o.punchedByName ?? "").toLowerCase() === target ||
+          (o.creatorName ?? "").toLowerCase() === target
+      );
+    }
 
     // Remove delivered orders from "all" active view
     if (filter === "all") {
@@ -1147,6 +1172,24 @@ export default function WarehouseOrders() {
               {availableWarehouses.map((wh) => (
                 <option key={wh.code} value={wh.code}>
                   {wh.code} · {wh.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: 6, padding: "5px 10px" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#475569" }}>👤 Salesperson:</span>
+            <select
+              value={salespersonFilter}
+              onChange={(e) => setSalespersonFilter(e.target.value)}
+              style={{ fontSize: 13, border: "none", background: "transparent", fontWeight: 600, color: "#0f172a", cursor: "pointer", outline: "none" }}
+              aria-label="Filter via sales person"
+            >
+              <option value="all">All Salespersons / Sources</option>
+              <option value="retailer_direct">🛒 Retailer Direct (No Rep)</option>
+              {salespersons.map((rep) => (
+                <option key={rep} value={rep}>
+                  👤 {rep}
                 </option>
               ))}
             </select>

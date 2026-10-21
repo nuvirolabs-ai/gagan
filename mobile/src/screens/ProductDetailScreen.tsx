@@ -118,7 +118,13 @@ export default function ProductDetailScreen({ route, navigation }: any) {
           <ProductThumb
             name={product.name}
             category={product.category}
-            imageUrl={selected?.imageStatus === "placeholder" || selected?.imageStatus === "pending" ? null : selected?.imageUrl ?? product.imageUrl}
+            imageUrl={
+              selected?.imageStatus === "placeholder" || selected?.imageStatus === "pending"
+                ? null
+                : (product.imageUrl && (product.imageUrl.startsWith("data:") || !selected?.imageUrl)
+                    ? product.imageUrl
+                    : (selected?.imageUrl ?? product.imageUrl))
+            }
             imageStatus={selected?.imageStatus}
             imageLabel={selected?.imageLabel}
             size={168}
@@ -190,7 +196,12 @@ export default function ProductDetailScreen({ route, navigation }: any) {
               )}
             </View>
           )}
-          {priceDisplay.caseEquivalent ? <Text style={styles.rateLabel}>{priceDisplay.caseEquivalent}</Text> : null}
+          {priceDisplay.caseEquivalent ? (
+            <Text style={styles.secondaryPriceBold}>
+              <Text style={{ fontWeight: "800" }}>{priceDisplay.caseEquivalent.split(" / ")[0]}</Text>
+              {priceDisplay.caseEquivalent.includes(" / ") ? ` / ${priceDisplay.caseEquivalent.split(" / ").slice(1).join(" / ")}` : ""}
+            </Text>
+          ) : null}
           {priceDisplay.gstLabel ? <Text style={styles.rateLabel}>{priceDisplay.gstLabel}</Text> : null}
           {selected?.gstPending || selected?.taxStatus === "PENDING" ? <Text style={styles.pendingOrder}>GST pending — final tax will be applied before invoicing.</Text> : null}
           {selected?.orderable === false && selected?.orderingReason !== "Stock unavailable" ? <Text style={styles.pendingOrder}>{selected.orderingReason ?? "Ordering setup pending"}</Text> : null}
@@ -313,6 +324,7 @@ const styles = StyleSheet.create({
   perKgValue: { fontSize: 15, fontWeight: "700", color: colors.ink },
   perKgLabel: { fontSize: 10, color: colors.inkMuted, marginTop: 1 },
   rateLabel: { fontSize: 11, color: colors.inkMuted, marginTop: spacing.sm },
+  secondaryPriceBold: { fontSize: 12, fontWeight: "600", color: colors.ink, marginTop: spacing.xs },
   pendingOrder: { fontSize: 12, color: colors.warning, fontWeight: "700", marginTop: spacing.sm },
   override: {
     flexDirection: "row",

@@ -184,7 +184,13 @@ export default function RepCatalogScreen({ route, navigation }: any) {
                 <ProductThumb
                   name={product.name}
                   category={product.category}
-                  imageUrl={variant.imageStatus === "placeholder" || variant.imageStatus === "pending" ? null : variant.imageUrl ?? product.imageUrl}
+                  imageUrl={
+                    variant.imageStatus === "placeholder" || variant.imageStatus === "pending"
+                      ? null
+                      : (product.imageUrl && (product.imageUrl.startsWith("data:") || !variant.imageUrl)
+                          ? product.imageUrl
+                          : (variant.imageUrl ?? product.imageUrl))
+                  }
                   imageStatus={variant.imageStatus}
                   imageLabel={variant.imageLabel}
                   size={72}
@@ -221,8 +227,18 @@ export default function RepCatalogScreen({ route, navigation }: any) {
                         </View>
                       </View>
                     ) : null}
-                    {priceDisplay.perKg ? <Text style={styles.perKg}>{priceDisplay.perKg}</Text> : null}
-                    {priceDisplay.caseEquivalent ? <Text style={styles.rateLabel}>{priceDisplay.caseEquivalent}</Text> : null}
+                    {priceDisplay.perKg ? (
+                      <Text style={styles.secondaryPriceBold}>
+                        <Text style={styles.secondaryPriceBoldNum}>{priceDisplay.perKg.split(" / ")[0]}</Text>
+                        {priceDisplay.perKg.includes(" / ") ? ` / ${priceDisplay.perKg.split(" / ").slice(1).join(" / ")}` : ""}
+                      </Text>
+                    ) : null}
+                    {priceDisplay.caseEquivalent ? (
+                      <Text style={styles.secondaryPriceBold}>
+                        <Text style={styles.secondaryPriceBoldNum}>{priceDisplay.caseEquivalent.split(" / ")[0]}</Text>
+                        {priceDisplay.caseEquivalent.includes(" / ") ? ` / ${priceDisplay.caseEquivalent.split(" / ").slice(1).join(" / ")}` : ""}
+                      </Text>
+                    ) : null}
                     {priceDisplay.gstLabel ? <Text style={styles.rateLabel}>{priceDisplay.gstLabel}</Text> : null}
                   </View>}
                   {variant.gstPending || variant.taxStatus === "PENDING" ? <Text style={styles.pendingOrder}>GST pending — final tax will be applied before invoicing.</Text> : null}
@@ -358,6 +374,8 @@ const styles = StyleSheet.create({
   // truncating it with an ellipsis.
   price: { fontSize: 14.5, fontWeight: "700", color: colors.ink, flexShrink: 0 },
   rateLabel: { fontSize: 10.5, color: colors.inkMuted, marginTop: 1 },
+  secondaryPriceBold: { fontSize: 11.5, fontWeight: "600", color: colors.ink, marginTop: 1.5 },
+  secondaryPriceBoldNum: { fontWeight: "800", color: colors.ink },
   pendingOrder: { fontSize: 11, color: colors.warning, fontWeight: "700", marginTop: 2 },
   perKg: { fontSize: 11, color: colors.inkMuted, marginTop: 1 },
   override: { fontSize: 10, color: colors.blue, fontWeight: "700", marginTop: 3 },

@@ -11,11 +11,11 @@ type PriceInput = {
   outerPack?: "Bag" | "Box" | string | null;
 };
 
-const money = (value: number) =>
-  `₹${value.toLocaleString("en-IN", {
-    minimumFractionDigits: value % 1 !== 0 ? 2 : 0,
-    maximumFractionDigits: 2,
-  })}`;
+const money = (value: number) => {
+  const parts = Number(value).toFixed(2).split(".");
+  const intPart = Number(parts[0]).toLocaleString("en-IN");
+  return parts[1] === "00" ? `₹${intPart}` : `₹${intPart}.${parts[1]}`;
+};
 
 /** Display-only derived amounts. The stored/backend rate and cart price are unchanged. */
 export function catalogPricePresentation(sku: PriceInput | null | undefined) {

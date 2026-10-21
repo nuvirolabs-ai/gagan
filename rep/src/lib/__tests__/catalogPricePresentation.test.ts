@@ -3,12 +3,12 @@ import { catalogPricePresentation } from "../catalogPricePresentation";
 
 describe("Salesperson catalogue price presentation", () => {
   it.each([
-    ["Gagan Broken 30 kg", 5400, 30, "₹54 / kg", "₹1,620 / 30 KG case"],
-    ["Gagan Choice 30 kg", 8100, 30, "₹81 / kg", "₹2,430 / 30 KG case"],
-    ["Gagan Classic 30 kg", 9550, 30, "₹95.5 / kg", "₹2,865 / 30 KG case"],
-    ["Gagan Classic 1 kg × 20", 9950, 20, "₹99.5 / kg", "₹1,990 / 20 KG case"],
-    ["Gagan Classic 5 kg × 4", 9950, 20, "₹99.5 / kg", "₹1,990 / 20 KG case"],
-    ["Gagan Classic 10 kg × 4", 9750, 40, "₹97.5 / kg", "₹3,900 / 40 KG case"],
+    ["Gagan Broken 30 kg", 5400, 30, "₹54 / kg", "₹1,620 / 30 KG Bag"],
+    ["Gagan Choice 30 kg", 8100, 30, "₹81 / kg", "₹2,430 / 30 KG Bag"],
+    ["Gagan Classic 30 kg", 9550, 30, "₹95.50 / kg", "₹2,865 / 30 KG Bag"],
+    ["Gagan Classic 1 kg × 20", 9950, 20, "₹99.50 / kg", "₹1,990 / 20 KG Bag"],
+    ["Gagan Classic 5 kg × 4", 9950, 20, "₹99.50 / kg", "₹1,990 / 20 KG Bag"],
+    ["Gagan Classic 10 kg × 4", 9750, 40, "₹97.50 / kg", "₹3,900 / 40 KG Bag"],
   ])("shows quintal, kg and pack equivalents when GST is pending for %s", (_name, rate, weight, perKg, pack) => {
     expect(catalogPricePresentation({
       price: Math.round(Number(rate) * Number(weight)) / 100,
@@ -17,6 +17,8 @@ describe("Salesperson catalogue price presentation", () => {
       caseWeightKg: Number(weight),
     })).toEqual({
       primary: `₹${Number(rate).toLocaleString("en-IN")} / quintal`,
+      originalPrice: null,
+      discountBadge: null,
       perKg,
       caseEquivalent: pack,
       gstLabel: "Excluding GST",
@@ -31,9 +33,11 @@ describe("Salesperson catalogue price presentation", () => {
       caseWeightKg: 20,
       gstPercent: 5,
     })).toEqual({
-      primary: "₹10,447.5 / quintal",
+      primary: "₹10,447.50 / quintal",
+      originalPrice: null,
+      discountBadge: null,
       perKg: "₹104.48 / kg",
-      caseEquivalent: "₹2,089.5 / 20 KG case",
+      caseEquivalent: "₹2,089.50 / 20 KG Bag",
       gstLabel: "Including 5% GST",
     });
   });
@@ -47,8 +51,10 @@ describe("Salesperson catalogue price presentation", () => {
       gstPercent: 0,
     })).toEqual({
       primary: "₹9,950 / quintal",
-      perKg: "₹99.5 / kg",
-      caseEquivalent: "₹1,990 / 20 KG case",
+      originalPrice: null,
+      discountBadge: null,
+      perKg: "₹99.50 / kg",
+      caseEquivalent: "₹1,990 / 20 KG Bag",
       gstLabel: "Including 0% GST (Nil)",
     });
   });
@@ -59,7 +65,9 @@ describe("Salesperson catalogue price presentation", () => {
       caseWeightKg: 30,
       gstPercent: 5,
     })).toEqual({
-      primary: "₹3,150 / case",
+      primary: "₹3,150 / bag",
+      originalPrice: null,
+      discountBadge: null,
       perKg: "₹105 / kg",
       caseEquivalent: null,
       gstLabel: "Including 5% GST",
@@ -68,6 +76,25 @@ describe("Salesperson catalogue price presentation", () => {
 
   it("preserves ordinary case-price presentation when GST is unconfigured", () => {
     expect(catalogPricePresentation({ price: 2500 }))
-      .toEqual({ primary: "₹2,500 / case", perKg: null, caseEquivalent: null, gstLabel: "Excluding GST" });
+      .toEqual({ primary: "₹2,500 / bag", originalPrice: null, discountBadge: null, perKg: null, caseEquivalent: null, gstLabel: "Excluding GST" });
+  });
+
+  it("applies discounts to both primary, perKg and perBag rates", () => {
+    expect(catalogPricePresentation({
+      price: 2430,
+      commercialRate: 8100,
+      rateBasis: "quintal",
+      caseWeightKg: 30,
+      discount: 5,
+      discountType: "percent",
+      outerPack: "Bag",
+    })).toEqual({
+      primary: "₹7,695 / quintal",
+      originalPrice: "₹8,100",
+      discountBadge: "5% OFF",
+      perKg: "₹76.95 / kg",
+      caseEquivalent: "₹2,308.50 / 30 KG Bag",
+      gstLabel: "Excluding GST",
+    });
   });
 });

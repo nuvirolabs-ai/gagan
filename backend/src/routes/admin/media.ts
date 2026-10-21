@@ -97,7 +97,7 @@ export function createMediaRouter() {
             return false;
           }
         }, { message: "Invalid image URL" }),
-        cascadeToVariants: z.boolean().default(false),
+        cascadeToVariants: z.boolean().default(true),
       })
       .safeParse(req.body);
 
@@ -109,10 +109,14 @@ export function createMediaRouter() {
         data: { imageUrl: parsed.data.imageUrl || null },
       });
 
-      if (parsed.data.cascadeToVariants) {
+      if (parsed.data.cascadeToVariants !== false) {
         await prisma.variant.updateMany({
           where: { productId: req.params.id },
-          data: { imageUrl: parsed.data.imageUrl || null },
+          data: {
+            imageUrl: parsed.data.imageUrl || null,
+            catalogImageStatus: parsed.data.imageUrl ? "exact" : "placeholder",
+            catalogImageLabel: null,
+          },
         });
       }
 

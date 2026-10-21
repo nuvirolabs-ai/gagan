@@ -624,7 +624,7 @@ export const api = {
 
   // Gap 10: Product Media & Asset Manager
   catalogMedia: () => request("/admin/catalog/media"),
-  updateProductImage: (id: string, imageUrl: string) => post(`/admin/catalog/products/${id}/image`, { imageUrl }),
+  updateProductImage: (id: string, imageUrl: string, cascadeToVariants = true) => post(`/admin/catalog/products/${id}/image`, { imageUrl, cascadeToVariants }),
   updateVariantImage: (id: string, imageUrl: string) => post(`/admin/catalog/variants/${id}/image`, { imageUrl }),
 
   // Gap 11: Tax / GST Rates & HSN Code Master

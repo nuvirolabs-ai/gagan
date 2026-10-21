@@ -107,7 +107,13 @@ export default function ProductGroupCard({
           <ProductThumb
             name={group.name}
             category={group.category}
-            imageUrl={selected?.imageStatus === "placeholder" || selected?.imageStatus === "pending" ? null : selected?.imageUrl ?? group.imageUrl}
+            imageUrl={
+              selected?.imageStatus === "placeholder" || selected?.imageStatus === "pending"
+                ? null
+                : (group.imageUrl && (group.imageUrl.startsWith("data:") || !selected?.imageUrl)
+                    ? group.imageUrl
+                    : (selected?.imageUrl ?? group.imageUrl))
+            }
             imageStatus={selected?.imageStatus}
             imageLabel={selected?.imageLabel}
             size={thumb}
@@ -134,8 +140,18 @@ export default function ProductGroupCard({
                 </View>
               </View>
             ) : null}
-            {priceDisplay.perKg ? <Text style={[styles.rateLabel, row && styles.rateLabelRow]}>{priceDisplay.perKg}</Text> : null}
-            {priceDisplay.caseEquivalent ? <Text style={[styles.rateLabel, row && styles.rateLabelRow]}>{priceDisplay.caseEquivalent}</Text> : null}
+            {priceDisplay.perKg ? (
+              <Text style={[styles.secondaryPriceBold, row && styles.secondaryPriceBoldRow]}>
+                <Text style={styles.secondaryPriceBoldNum}>{priceDisplay.perKg.split(" / ")[0]}</Text>
+                {priceDisplay.perKg.includes(" / ") ? ` / ${priceDisplay.perKg.split(" / ").slice(1).join(" / ")}` : ""}
+              </Text>
+            ) : null}
+            {priceDisplay.caseEquivalent ? (
+              <Text style={[styles.secondaryPriceBold, row && styles.secondaryPriceBoldRow]}>
+                <Text style={styles.secondaryPriceBoldNum}>{priceDisplay.caseEquivalent.split(" / ")[0]}</Text>
+                {priceDisplay.caseEquivalent.includes(" / ") ? ` / ${priceDisplay.caseEquivalent.split(" / ").slice(1).join(" / ")}` : ""}
+              </Text>
+            ) : null}
             {priceDisplay.gstLabel ? <Text style={[styles.rateLabel, row && styles.rateLabelRow]}>{priceDisplay.gstLabel}</Text> : null}
             {selected?.gstPending || selected?.taxStatus === "PENDING" ? <Text style={styles.outOfStock}>GST pending — final tax will be applied before invoicing.</Text> : null}
             {!orderable && selected && selected.orderingReason !== "Stock unavailable" ? <Text style={styles.outOfStock}>{selected.orderingReason ?? "Out of stock"}</Text> : null}
@@ -223,6 +239,9 @@ const styles = StyleSheet.create({
   outOfStock: { fontSize: 11, fontWeight: "700", color: colors.warning, marginTop: 2 },
   rateLabel: { fontSize: 10.5, color: colors.inkMuted, marginTop: 1 },
   rateLabelRow: { fontSize: 11.5, lineHeight: 16 },
+  secondaryPriceBold: { fontSize: 11.5, fontWeight: "600", color: colors.ink, marginTop: 1.5 },
+  secondaryPriceBoldRow: { fontSize: 12.5, lineHeight: 17 },
+  secondaryPriceBoldNum: { fontWeight: "800", color: colors.ink },
 
   packRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   packRowIndented: { marginLeft: 84 + spacing.md },

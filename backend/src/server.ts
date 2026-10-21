@@ -11,6 +11,21 @@ const stopJobs =
     : () => undefined;
 const server = createApp({ corsOrigins: env.CORS_ORIGINS }).listen(env.PORT, () => {
   console.log(`Gagan backend listening on port ${env.PORT}`);
+
+  // Auto-sync product images to variants so apps reading variant images always reflect uploads
+  prisma.$executeRawUnsafe(`
+    UPDATE "Variant" v
+    SET "imageUrl" = p."imageUrl",
+        "catalogImageStatus" = CASE WHEN p."imageUrl" IS NOT NULL THEN 'exact' ELSE v."catalogImageStatus" END
+    FROM "Product" p
+    WHERE v."productId" = p.id
+      AND p."imageUrl" IS NOT NULL
+      AND p."imageUrl" LIKE 'data:image/%';
+  `).then((count) => {
+    if (Number(count) > 0) console.log(`[STARTUP] Synced ${count} variant images from uploaded product images`);
+  }).catch((err) => {
+    console.warn("[STARTUP] Variant image sync warning:", err);
+  });
 });
 
 let shuttingDown = false;

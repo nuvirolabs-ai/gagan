@@ -562,9 +562,12 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
         status: "available",
         syncedAt: new Date(),
       };
+      const effectiveImg = (product.imageUrl && (product.imageUrl.startsWith("data:") || !v.imageUrl))
+        ? product.imageUrl
+        : (v.imageUrl ?? product.imageUrl);
       return {
         id: v.id,
-        imageUrl: publicMediaUrl(req, v.imageUrl ?? product.imageUrl),
+        imageUrl: publicMediaUrl(req, effectiveImg),
         unitSize: v.unitSize,
         unit: v.unit,
         unitsPerCase: v.unitsPerCase,

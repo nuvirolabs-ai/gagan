@@ -57,11 +57,11 @@ function getPackagingType(v: any, category?: string): "Bag" | "Box" {
   return "Bag";
 }
 
-const inr = (value: number) =>
-  `₹${Number(value).toLocaleString("en-IN", {
-    minimumFractionDigits: Number(value) % 1 !== 0 ? 2 : 0,
-    maximumFractionDigits: 2,
-  })}`;
+const inr = (value: number) => {
+  const parts = Number(value).toFixed(2).split(".");
+  const intPart = Number(parts[0]).toLocaleString("en-IN");
+  return parts[1] === "00" ? `₹${intPart}` : `₹${intPart}.${parts[1]}`;
+};
 const visibleStatus = (status?: string) => !status || ["active", "published", "pending_review", "inactive"].includes(status);
 type Editor = { kind: "create" | "product" | "variant" | "add" | "sku"; product?: any; variant?: any };
 
@@ -1297,8 +1297,16 @@ export default function Catalog() {
                                 {v.discountType === "percent" ? `${v.discount}% OFF` : `₹${v.discount} OFF`}
                               </span>
                             )}
-                            {perKg != null && <span className="muted small" style={{ display: "block" }}>{inr(perKg)} / kg</span>}
-                            {equivalent != null && <span className="muted small" style={{ display: "block" }}>{inr(equivalent)} / {caseWeight} KG {pkgType}</span>}
+                            {perKg != null && (
+                              <span style={{ display: "block", fontSize: 11, color: "#1e293b", marginTop: 2 }}>
+                                <strong style={{ fontWeight: 800 }}>{inr(perKg)}</strong> / kg
+                              </span>
+                            )}
+                            {equivalent != null && (
+                              <span style={{ display: "block", fontSize: 11, color: "#1e293b", marginTop: 1 }}>
+                                <strong style={{ fontWeight: 800 }}>{inr(equivalent)}</strong> / {caseWeight} KG {pkgType}
+                              </span>
+                            )}
                           </span>
                         ) : (
                           <button
@@ -1336,8 +1344,16 @@ export default function Catalog() {
                                 <span>{displayPrice == null ? "Set price" : `${inr(displayPrice)} / ${basis === "quintal" ? "quintal" : pkgType.toLowerCase()}`}</span>
                               )}
                             </div>
-                            {perKg != null && <span className="muted small" style={{ display: "block" }}>{inr(perKg)} / kg</span>}
-                            {equivalent != null && <span className="muted small" style={{ display: "block" }}>{inr(equivalent)} / {caseWeight} KG {pkgType}</span>}
+                            {perKg != null && (
+                              <span style={{ display: "block", fontSize: 11, color: "#1e293b", marginTop: 2 }}>
+                                <strong style={{ fontWeight: 800 }}>{inr(perKg)}</strong> / kg
+                              </span>
+                            )}
+                            {equivalent != null && (
+                              <span style={{ display: "block", fontSize: 11, color: "#1e293b", marginTop: 1 }}>
+                                <strong style={{ fontWeight: 800 }}>{inr(equivalent)}</strong> / {caseWeight} KG {pkgType}
+                              </span>
+                            )}
                           </button>
                         )}
                       </td>

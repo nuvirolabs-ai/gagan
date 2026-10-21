@@ -49,9 +49,12 @@ function shapeVariant(v: any, resolve: ReturnType<typeof priceResolver>, invento
     status: "available",
     syncedAt: new Date(),
   };
+  const effectiveImg = (fallbackImageUrl && (fallbackImageUrl.startsWith("data:") || !v.imageUrl))
+    ? fallbackImageUrl
+    : (v.imageUrl ?? fallbackImageUrl);
   return {
     id: v.id,
-    imageUrl: req ? publicMediaUrl(req, v.imageUrl ?? fallbackImageUrl) : (v.imageUrl ?? fallbackImageUrl),
+    imageUrl: req ? publicMediaUrl(req, effectiveImg) : effectiveImg,
     unitSize: v.unitSize,
     unit: v.unit,
     unitsPerCase: v.unitsPerCase,

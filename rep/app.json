@@ -7,12 +7,19 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "updates": {
+      "url": "https://u.expo.dev/c9163a8c-11f2-4afd-8322-24f34a2b8320"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.gagan.sales"
     },
     "android": {
       "package": "com.gagan.sales",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#0B1220",
         "foregroundImage": "./assets/android-icon-foreground.png",

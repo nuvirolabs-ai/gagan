@@ -69,6 +69,7 @@ import { createRetailerServiceRequestRouter } from "./routes/serviceRequests";
 import { createSalespersonFeedbackRouter, createAdminSalespersonFeedbackRouter } from "./modules/feedback/salespersonFeedbackRoutes";
 import { createServiceIssueExportRouter } from "./modules/exports/serviceIssueExportRoutes";
 import repRoutes from "./routes/rep";
+import { privacyPolicyRouter } from "./routes/privacyPolicy";
 import {
   databaseReadiness,
   ReadinessProbe,
@@ -130,6 +131,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.get("/health", (_req, res) => res.json({ ok: true }));
   app.get("/health/live", (_req, res) => res.json({ ok: true }));
   app.get("/health/ready", readinessHandler(options.readinessProbe ?? databaseReadiness));
+  app.use(privacyPolicyRouter);
 
   app.use("/auth", authRoutes);
   app.use(homeRoutes);

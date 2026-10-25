@@ -6,7 +6,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://gagan-srat.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://gagan-client-uat-api.onrender.com"
       }
     },
     "staging-hosted-review": {
@@ -15,10 +15,21 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://gagan-srat.onrender.com",
+        "EXPO_PUBLIC_API_URL": "https://gagan-client-uat-api.onrender.com",
         "GAGAN_HOSTED_REVIEW": "1",
         "GAGAN_REVIEW_VERSION_NAME": "1.0.16",
         "GAGAN_REVIEW_VERSION_CODE": "17"
+      }
+    },
+    "production": {
+      "channel": "production",
+      "distribution": "store",
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://gagan-client-uat-api.onrender.com"
       }
     }
   }

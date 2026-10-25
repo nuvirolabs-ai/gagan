@@ -18,8 +18,8 @@
       "bundleIdentifier": "com.gagan.sales"
     },
     "android": {
-      "package": "com.gagan.sales",
-      "versionCode": 2,
+      "package": "com.gagansales.myapp",
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#0B1220",
         "foregroundImage": "./assets/android-icon-foreground.png",

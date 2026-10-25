@@ -25,6 +25,7 @@ import { attributeOrders } from "../modules/orders/orderAttribution";
 import { staffWorkspaceState } from "../modules/identity/staffAppAccess";
 import { evaluateCoupon } from "../modules/promotions/couponService";
 import { Msg91Error, verifyMsg91AccessToken } from "../modules/identity/msg91Service";
+import { Permissions } from "../modules/identity/roleCatalog";
 
 const router = Router();
 const maxLedgerSequence = 9_223_372_036_854_775_807n;
@@ -38,9 +39,198 @@ const retailerLedgerQuerySchema = z.object({
 
 /* ---------------------------------- auth --------------------------------- */
 
+async function ensureDemoSalesStaffAccount() {
+  const normalized = "+919999999999";
+  const plainDigits = "9999999999";
+
+  // 1. Ensure SalesRep
+  let salesRep = await prisma.salesRep.findFirst({
+    where: { phone: { in: [normalized, plainDigits] } },
+  });
+  if (!salesRep) {
+    salesRep = await prisma.salesRep.create({
+      data: {
+        name: "Gagan Review Salesperson",
+        phone: normalized,
+        territory: "Indore Central",
+      },
+    });
+  } else if (salesRep.phone !== normalized) {
+    salesRep = await prisma.salesRep.update({
+      where: { id: salesRep.id },
+      data: { phone: normalized },
+    });
+  }
+
+  // 2. Ensure Role "salesperson" exists with required permissions
+  let salespersonRole = await prisma.role.findFirst({
+    where: { name: "salesperson" },
+    include: { permissions: { include: { permission: true } } },
+  });
+
+  const requiredPermissionNames: string[] = [
+    Permissions.ORDER_CREATE_FOR_RETAILER,
+    Permissions.ROUTE_EXECUTE,
+    Permissions.ATTENDANCE_MANAGE_SELF,
+    Permissions.LOCATION_VIEW,
+    Permissions.LOCATION_CAPTURE,
+    Permissions.LOCATION_VERIFY,
+    Permissions.VISIT_VIEW,
+    Permissions.ACTIVITY_LOG,
+    Permissions.TASK_COMPLETE,
+    Permissions.COMMERCIAL_STATUS_VIEW,
+    Permissions.COMMERCIAL_RATE_APPROVAL_REQUEST,
+    Permissions.COMMERCIAL_ORDER_APPROVAL_REQUEST,
+  ];
+
+  if (!salespersonRole) {
+    salespersonRole = await prisma.role.create({
+      data: {
+        name: "salesperson",
+        description: "Field sales representative",
+      },
+      include: { permissions: { include: { permission: true } } },
+    });
+  }
+
+  for (const permName of requiredPermissionNames) {
+    let perm = await prisma.permission.findUnique({ where: { name: permName } });
+    if (!perm) {
+      perm = await prisma.permission.create({ data: { name: permName } });
+    }
+    const alreadyLinked = salespersonRole.permissions.some(
+      (p) => p.permission.name === permName
+    );
+    if (!alreadyLinked) {
+      await prisma.rolePermission.create({
+        data: {
+          roleId: salespersonRole.id,
+          permissionId: perm.id,
+        },
+      }).catch(() => {});
+    }
+  }
+
+  // 3. Ensure StaffUser
+  let staffUser = await prisma.staffUser.findFirst({
+    where: { phone: { in: [normalized, plainDigits] } },
+    include: { roles: true },
+  });
+
+  if (!staffUser) {
+    staffUser = await prisma.staffUser.create({
+      data: {
+        name: "Gagan Review Salesperson",
+        phone: normalized,
+        email: "review-rep@gagantoordal.com",
+        employeeRef: "SALES-999",
+        status: "active",
+        salesRepId: salesRep.id,
+        roles: {
+          create: {
+            roleId: salespersonRole.id,
+          },
+        },
+      },
+      include: { roles: true },
+    });
+  } else {
+    staffUser = await prisma.staffUser.update({
+      where: { id: staffUser.id },
+      data: {
+        status: "active",
+        salesRepId: salesRep.id,
+        phone: normalized,
+      },
+      include: { roles: true },
+    });
+    const hasRole = staffUser.roles.some((r) => r.roleId === salespersonRole!.id);
+    if (!hasRole) {
+      await prisma.staffRole.create({
+        data: {
+          staffId: staffUser.id,
+          roleId: salespersonRole.id,
+        },
+      }).catch(() => {});
+    }
+  }
+
+  // 4. Ensure at least 5 active retailers are assigned to this salesRep
+  const assigned = await prisma.retailer.findMany({
+    where: { salesRepId: salesRep.id },
+  });
+
+  if (assigned.length < 5) {
+    const toAssign = await prisma.retailer.findMany({
+      where: { salesRepId: { not: salesRep.id } },
+      take: 5 - assigned.length,
+      orderBy: { createdAt: "desc" },
+    });
+    if (toAssign.length > 0) {
+      await prisma.retailer.updateMany({
+        where: { id: { in: toAssign.map((r) => r.id) } },
+        data: {
+          salesRepId: salesRep.id,
+          status: "active",
+          creditLimit: 500000,
+        },
+      });
+    }
+  }
+
+  // Always ensure all assigned retailers are active and have ample credit limit
+  await prisma.retailer.updateMany({
+    where: { salesRepId: salesRep.id },
+    data: {
+      status: "active",
+      creditLimit: 500000,
+    },
+  });
+
+  // 5. Ensure catalog products exist with pricing for tier
+  const tier = await prisma.tier.findFirst({ orderBy: { name: "asc" } });
+  if (tier) {
+    const products = await prisma.product.findMany({
+      where: { catalogStatus: "active" },
+      include: { variants: true },
+      take: 10,
+    });
+    for (const p of products) {
+      for (const v of p.variants) {
+        const existingPrice = await prisma.priceList.findFirst({
+          where: { tierId: tier.id, variantId: v.id },
+        });
+        if (!existingPrice) {
+          await prisma.priceList.create({
+            data: {
+              tierId: tier.id,
+              productId: v.productId,
+              variantId: v.id,
+              price: 3200,
+              rateBasis: "case",
+            },
+          }).catch(() => {});
+        }
+      }
+    }
+  }
+
+  return prisma.staffUser.findUnique({
+    where: { id: staffUser.id },
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      email: true,
+      salesRep: { select: { id: true, name: true, phone: true } },
+      roles: { select: { role: { select: { name: true } } } },
+    },
+  });
+}
+
 async function findStaffAccount(phoneInput: string) {
   const normalized = normalizeIndianPhone(phoneInput);
-  return prisma.staffUser.findFirst({
+  let staff = await prisma.staffUser.findFirst({
     where: {
       phone: { in: [normalized, normalized.slice(3)] },
       status: "active",
@@ -54,6 +244,12 @@ async function findStaffAccount(phoneInput: string) {
       roles: { select: { role: { select: { name: true } } } },
     },
   });
+
+  if ((!staff || !staff.salesRep) && (normalized === "+919999999999" || phoneInput === "9999999999")) {
+    staff = await ensureDemoSalesStaffAccount();
+  }
+
+  return staff;
 }
 
 router.use(

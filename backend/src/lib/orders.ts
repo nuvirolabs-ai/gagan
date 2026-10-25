@@ -174,7 +174,7 @@ export async function createOrderForRetailer(
     if (accepted && JSON.stringify(normalizedLines(accepted.lines.map(l=>({variantId:l.variantId,qty:l.cases})))) !== JSON.stringify(items)) return {ok:false,status:409,body:{error:"quote_items_changed"}};
 
     const variantIds = [...new Set(items.map((item) => item.variantId))];
-    const [priceList, overrides, policyRecord, appConfig, variants] = await Promise.all([
+    const [priceList, overrides, policyRecord, appConfig, variants, drafts] = await Promise.all([
       tx.priceList.findMany({ where: { variantId: { in: variantIds } } }),
       tx.priceOverride.findMany({ where: { retailerId, variantId: { in: variantIds } } }),
       tx.creditPolicyVersion.findFirst({ where: { active: true }, orderBy: { version: "desc" } }),
@@ -202,6 +202,7 @@ export async function createOrderForRetailer(
           },
         },
       }),
+      tx.catalogOrderingDraft.findMany({ where: { variantId: { in: variantIds } } }),
     ]);
     if (variants.length !== variantIds.length) {
       return { ok: false, status: 409, body: { error: "catalog_item_not_orderable" } };
@@ -226,6 +227,13 @@ export async function createOrderForRetailer(
     if (!accepted && variants.some(v => v.sellingEntity !== null || v.routingClass !== null || v.gstPendingOrderAllowed)) {
       return {ok:false,status:409,body:{error:"commercial_quote_required"}};
     }
+    const draftsMap = new Map((drafts || []).map(d => {
+      const val = (d.values as any) || {};
+      return [d.variantId, {
+        discount: Number(val.discount || 0),
+        discountType: (val.discountType === "percent" ? "percent" : "flat") as "flat" | "percent",
+      }];
+    }));
     const lineItems: { variantId: string; qtyOrdered: number; unitPrice: number; caseWeightKgSnapshot: Prisma.Decimal; commercialSnapshot?:Prisma.InputJsonValue }[] = [];
     for (const item of items) {
       const commercialLine=accepted?.lines.find(l=>l.variantId===item.variantId);
@@ -235,8 +243,9 @@ export async function createOrderForRetailer(
         lineItems.push({variantId:item.variantId,qtyOrdered:item.qty,unitPrice:equivalentCasePrice.toDecimalPlaces(2).toNumber(),caseWeightKgSnapshot:weight,commercialSnapshot:asJson(commercialLine)});
         continue;
       }
-      const unitPrice = overridePrice.get(item.variantId) ?? tierPrice.get(item.variantId);
-      if (unitPrice == null) {
+      const override = overridePrice.get(item.variantId);
+      const rawPrice = override ?? tierPrice.get(item.variantId);
+      if (rawPrice == null) {
         return {
           ok: false,
           status: 400,
@@ -247,8 +256,18 @@ export async function createOrderForRetailer(
       if (!caseWeightKgSnapshot || !caseWeightKgSnapshot.isPositive()) {
         return { ok: false, status: 409, body: { error: "invalid_case_conversion", variantId: item.variantId } };
       }
-      orderAmount = orderAmount.add(unitPrice.mul(item.qty));
-      lineItems.push({ variantId: item.variantId, qtyOrdered: item.qty, unitPrice: unitPrice.toNumber(), caseWeightKgSnapshot });
+      let finalUnitPrice = rawPrice;
+      const draft = draftsMap.get(item.variantId);
+      if (!override && draft && draft.discount > 0) {
+        if (draft.discountType === "percent") {
+          const pct = Math.min(100, Math.max(0, draft.discount));
+          finalUnitPrice = rawPrice.mul(100 - pct).div(100);
+        } else {
+          finalUnitPrice = Prisma.Decimal.max(new Prisma.Decimal(0), rawPrice.minus(draft.discount));
+        }
+      }
+      orderAmount = orderAmount.add(finalUnitPrice.mul(item.qty));
+      lineItems.push({ variantId: item.variantId, qtyOrdered: item.qty, unitPrice: finalUnitPrice.toNumber(), caseWeightKgSnapshot });
     }
 
     const effectivePricePerCase = new Map<string, number>();

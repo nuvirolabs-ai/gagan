@@ -538,24 +538,25 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
       const rate = override ?? tierPrice.get(v.id) ?? null;
       const caseWeightKg = Number(v.unitWeightKg) * v.unitsPerCase;
       const rateBasis=(overrides.find(p=>p.variantId===v.id) ?? priceList.find(p=>p.variantId===v.id))?.rateBasis ?? "case";
-      const price=rate===null?null:rateBasis==="quintal"?Math.round(rate*caseWeightKg)/100:rate;
       const draft = draftsMap.get(v.id);
       const discount = draft?.discount ?? 0;
       const discountType = draft?.discountType ?? "flat";
+      let effectiveRate = rate;
+      if (rate != null && discount > 0 && !override) {
+        if (discountType === "percent") {
+          const pct = Math.min(100, Math.max(0, discount));
+          effectiveRate = Math.round((rate * (1 - pct / 100)) * 100) / 100;
+        } else {
+          effectiveRate = Math.max(0, Math.round((rate - discount) * 100) / 100);
+        }
+      }
+      const price = rate === null ? null : rateBasis === "quintal" ? Math.round(rate * caseWeightKg) / 100 : rate;
+      const effectivePrice = effectiveRate === null ? null : rateBasis === "quintal" ? Math.round(effectiveRate * caseWeightKg) / 100 : effectiveRate;
       const outerPack: "Bag" | "Box" = draft?.outerPack ?? (
         (v.catalogIdentityMasterPack && v.catalogIdentityMasterPack.toUpperCase().endsWith("BOX"))
           ? "Box"
           : (product.category?.toLowerCase().includes("breakfast") || product.category?.toLowerCase().includes("instant") ? "Box" : "Bag")
       );
-      let effectivePrice = price;
-      if (price != null && discount > 0) {
-        if (discountType === "percent") {
-          const pct = Math.min(100, Math.max(0, discount));
-          effectivePrice = Math.round((price * (1 - pct / 100)) * 100) / 100;
-        } else {
-          effectivePrice = Math.max(0, Math.round((price - discount) * 100) / 100);
-        }
-      }
       const availability = {
         available: 999999,
         warehouseCode: DEFAULT_WAREHOUSE_CODE,
@@ -573,7 +574,7 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
         unitsPerCase: v.unitsPerCase,
         caseWeightKg,
         outerPack,
-        commercialRate:rate,rateBasis,...retailerCommercialFields(v),
+        commercialRate: effectiveRate ?? rate, rateBasis, ...retailerCommercialFields(v),
         discount,
         discountType,
         originalPrice: price,

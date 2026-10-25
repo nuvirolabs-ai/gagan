@@ -35,13 +35,14 @@ export async function quoteFor(retailerId: string, input: {variantId:string;qty:
   return prisma.$transaction(async tx => {
     const retailer = await tx.retailer.findUniqueOrThrow({where:{id:retailerId}});
     const ids = items.map(i=>i.variantId);
-    const [variants, prices, overrides] = await Promise.all([
+    const [variants, prices, overrides, drafts] = await Promise.all([
       tx.variant.findMany({
         where: { id: { in: ids }, catalogStatus: "active", product: { catalogStatus: "active" } },
         include: { product: true },
       }),
       tx.priceList.findMany({where:{tierId:retailer.tierId,variantId:{in:ids}}}),
       tx.priceOverride.findMany({where:{retailerId,variantId:{in:ids}}}),
+      tx.catalogOrderingDraft.findMany({where:{variantId:{in:ids}}}),
     ]);
     if (variants.length !== ids.length) throw new CommercialError("catalog_item_not_orderable",409);
     // Unconfigured legacy carts retain their established case-price contract.
@@ -78,16 +79,36 @@ export async function quoteFor(retailerId: string, input: {variantId:string;qty:
       }
     }
     const routedEntity = new Map(routing?.lines.map(line => [line.variantId, line.entity]));
+    const draftsMap = new Map((drafts || []).map(d => {
+      const val = (d.values as any) || {};
+      return [d.variantId, {
+        discount: Number(val.discount || 0),
+        discountType: (val.discountType === "percent" ? "percent" : "flat") as "flat" | "percent"
+      }];
+    }));
     const lines: CommercialQuoteLine[] = items.map(item=>{
       const v = variants.find(v=>v.id===item.variantId)!;
       const selectedEntity = routedEntity.get(v.id) ?? v.sellingEntity ?? "jain_traders";
       if (!selectedEntity) throw new CommercialError("sku_commercial_configuration_required");
-      const price = overrides.find(p=>p.variantId===v.id) ?? prices.find(p=>p.variantId===v.id);
+      const override = overrides.find(p=>p.variantId===v.id);
+      const price = override ?? prices.find(p=>p.variantId===v.id);
       if (!price) throw new CommercialError("sku_price_required");
+      const baseRate = Number(price.price);
+      const rateBasis = (price.rateBasis ?? v.listRateBasis ?? "case") as "case" | "quintal";
+      const draft = draftsMap.get(v.id);
+      let effectiveRate = baseRate;
+      if (!override && draft && draft.discount > 0) {
+        if (draft.discountType === "percent") {
+          const pct = Math.min(100, Math.max(0, draft.discount));
+          effectiveRate = Math.round((baseRate * (1 - pct / 100)) * 100) / 100;
+        } else {
+          effectiveRate = Math.max(0, Math.round((baseRate - draft.discount) * 100) / 100);
+        }
+      }
       return {variantId:v.id, productName:v.product.name, pack:`${v.unitSize} × ${v.unitsPerCase}`, itemCode:v.product.sapMaterialId,
         entity:selectedEntity as CommercialQuoteLine["entity"], cases:item.qty,
-        caseWeightKg:v.unitWeightKg.mul(v.unitsPerCase).toString(),rate:price.price.toString(),
-        rateBasis:price.rateBasis as "case"|"quintal",gstPercent:v.gstPercent?.toString() ?? "5"};
+        caseWeightKg:v.unitWeightKg.mul(v.unitsPerCase).toString(),rate:effectiveRate.toFixed(2),
+        rateBasis,gstPercent:v.gstPercent?.toString() ?? "5"};
     });
     const commercial = calculateCommercialQuote({lines});
     const commercialSnapshot: CommercialSnapshot = routing ? { ...commercial, routing } : commercial;

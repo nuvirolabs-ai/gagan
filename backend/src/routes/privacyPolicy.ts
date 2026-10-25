@@ -99,7 +99,7 @@ privacyPolicyRouter.get("/privacy-policy", (_req, res) => {
   </div>
   <div class="container">
     <span class="badge">Effective Date: October 2026</span>
-    <p>This Privacy Policy applies to the <strong>Gagan Retailer</strong> (com.gagan.retailer) and <strong>Gagan Sales</strong> (com.gagan.sales) mobile applications and services operated by <strong>Gagan Food Products / Jain Traders & Padam International</strong> ("we", "us", or "our").</p>
+    <p>This Privacy Policy applies to the <strong>Gagan Retailer</strong> (com.gagan.retailer) and <strong>Gagan Sales</strong> (com.gagansales.myapp) mobile applications and services operated by <strong>Gagan Food Products / Jain Traders & Padam International</strong> ("we", "us", or "our").</p>
     
     <h2>1. Information We Collect</h2>
     <p>When you use our B2B wholesale ordering and field operations applications, we collect the following types of information:</p>

@@ -127,23 +127,23 @@ type DeliveryRunSummary = {
 };
 
 const FILTERS: Array<{ value: QueueFilter; label: string; step: string; icon: string }> = [
-  { value: "all", label: "Active Orders", step: "Active fulfillment", icon: "table" },
-  { value: "confirmed", label: "Confirmed", step: "1. To Pack", icon: "box" },
-  { value: "packed", label: "Packed", step: "2. To Dispatch", icon: "arrow" },
-  { value: "out_for_delivery", label: "🚚 Order Dispatched", step: "3. Order Dispatched", icon: "clock" },
-  { value: "delivered", label: "🧾 INVOICES", step: "Delivered & Invoiced", icon: "check" },
+  { value: "all", label: "1. TOTAL ORDERS", step: "1. Total Orders", icon: "table" },
+  { value: "confirmed", label: "2. PENDING ORDERS", step: "2. Pending Orders", icon: "box" },
+  { value: "packed", label: "3. SALES ORDERS CREATED", step: "3. Sales Orders Created", icon: "arrow" },
+  { value: "out_for_delivery", label: "4. ORDERS DISPATCHED", step: "4. Orders Dispatched", icon: "clock" },
+  { value: "delivered", label: "5. INVOICES", step: "5. Invoices", icon: "check" },
 ];
 
 const STATUS_PILLS = [
   { id: "all", key: "all", label: "All Orders", icon: "📋" },
   { id: "new_buyer", key: "new_buyer", label: "#New Buyer", icon: "#️⃣" },
-  { id: "rate_approval", key: "rate_approval", label: "Order on Rate approval", icon: "🍓" },
+  { id: "rate_approval", key: "rate_approval", label: "Order on Rate approval", icon: "🌹" },
   { id: "outstanding", key: "outstanding", label: "Order on Outstanding", icon: "❤️" },
-  { id: "hold", key: "hold", label: "Hold due to Outstanding", icon: "❌" },
-  { id: "advance", key: "advance", label: "Order on Advance payment", icon: "✍️" },
+  { id: "hold", key: "hold", label: "Hold due to Outstanding", icon: "✖️" },
+  { id: "advance", key: "advance", label: "Order on Advance payment", icon: "🥬" },
   { id: "sale_order_created", key: "sale_order_created", label: "Sale order created", icon: "👍" },
-  { id: "cancelled", key: "cancelled", label: "Order cancelled by Salesman", icon: "⚠️" },
-  { id: "double_order", key: "double_order", label: "Double order placed", icon: "📑" },
+  { id: "cancelled", key: "cancelled", label: "Order cancelled by Salesman", icon: "❎" },
+  { id: "double_order", key: "double_order", label: "Double order placed", icon: "🔁" },
 ] as const;
 
 const DEFAULT_ROUTE_PRESETS = [
@@ -928,14 +928,15 @@ export default function WarehouseOrders() {
             <section className="warehouse-analytics-section" aria-label="Warehouse Analytics and Infographics">
               {/* Row 1: KPI Stat Cards */}
               <div className="warehouse-kpi-grid">
-                <div
+                {/* KPI 1: 1. TOTAL ORDERS */}
+            <div
               className={`warehouse-kpi-card kpi-total ${filter === "all" ? "active-filter" : ""}`}
               onClick={() => setFilter("all")}
               role="button"
               tabIndex={0}
             >
               <div className="warehouse-kpi-header">
-                <span className="warehouse-kpi-label">Total Pipeline</span>
+                <span className="warehouse-kpi-label">1. TOTAL ORDERS</span>
                 <span className="warehouse-kpi-icon">📋</span>
               </div>
               <div className="warehouse-kpi-value">{metrics.total}</div>
@@ -944,6 +945,7 @@ export default function WarehouseOrders() {
               </div>
             </div>
 
+            {/* KPI 2: 2. PENDING ORDERS */}
             <div
               className={`warehouse-kpi-card kpi-confirmed ${filter === "confirmed" ? "active-filter" : ""}`}
               onClick={() => setFilter("confirmed")}
@@ -951,7 +953,7 @@ export default function WarehouseOrders() {
               tabIndex={0}
             >
               <div className="warehouse-kpi-header">
-                <span className="warehouse-kpi-label">1. To Pack</span>
+                <span className="warehouse-kpi-label">2. PENDING ORDERS</span>
                 <span className="warehouse-kpi-icon">📦</span>
               </div>
               <div className="warehouse-kpi-value">{metrics.confirmedCount}</div>
@@ -960,6 +962,7 @@ export default function WarehouseOrders() {
               </div>
             </div>
 
+            {/* KPI 3: 3. SALES ORDERS CREATED */}
             <div
               className={`warehouse-kpi-card kpi-packed ${filter === "packed" ? "active-filter" : ""}`}
               onClick={() => setFilter("packed")}
@@ -967,7 +970,7 @@ export default function WarehouseOrders() {
               tabIndex={0}
             >
               <div className="warehouse-kpi-header">
-                <span className="warehouse-kpi-label">2. To Dispatch</span>
+                <span className="warehouse-kpi-label">3. SALES ORDERS CREATED</span>
                 <span className="warehouse-kpi-icon">🚚</span>
               </div>
               <div className="warehouse-kpi-value">{metrics.packedCount}</div>
@@ -976,6 +979,7 @@ export default function WarehouseOrders() {
               </div>
             </div>
 
+            {/* KPI 4: 4. ORDERS DISPATCHED */}
             <div
               className={`warehouse-kpi-card kpi-dispatch ${filter === "out_for_delivery" ? "active-filter" : ""}`}
               onClick={() => setFilter("out_for_delivery")}
@@ -983,7 +987,7 @@ export default function WarehouseOrders() {
               tabIndex={0}
             >
               <div className="warehouse-kpi-header">
-                <span className="warehouse-kpi-label">3. On Routes</span>
+                <span className="warehouse-kpi-label">4. ORDERS DISPATCHED</span>
                 <span className="warehouse-kpi-icon">🛣️</span>
               </div>
               <div className="warehouse-kpi-value">{metrics.outForDeliveryCount}</div>
@@ -992,6 +996,7 @@ export default function WarehouseOrders() {
               </div>
             </div>
 
+            {/* KPI 5: 5. INVOICES */}
             <div
               className={`warehouse-kpi-card kpi-delivered ${filter === "delivered" ? "active-filter" : ""}`}
               onClick={() => setFilter("delivered")}
@@ -999,7 +1004,7 @@ export default function WarehouseOrders() {
               tabIndex={0}
             >
               <div className="warehouse-kpi-header">
-                <span className="warehouse-kpi-label">4. Delivered</span>
+                <span className="warehouse-kpi-label">5. INVOICES</span>
                 <span className="warehouse-kpi-icon">✅</span>
               </div>
               <div className="warehouse-kpi-value">{metrics.deliveredCount}</div>

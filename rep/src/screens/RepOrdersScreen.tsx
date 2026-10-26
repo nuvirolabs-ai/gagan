@@ -295,7 +295,7 @@ export default function RepOrdersScreen({ navigation }: any) {
                 ) : isApprovedCancelled && order.retailer?.id ? (
                   <Pressable
                     style={styles.reorderButton}
-                    onPress={() => navigation.navigate("Order", { retailerId: order.retailer.id, retailer: order.retailer })}
+                    onPress={() => navigation.navigate("RepCatalog", { retailerId: order.retailer.id, retailerName: order.retailer.name })}
                   >
                     <Ionicons name="cart-outline" size={14} color={colors.blue} />
                     <Text style={styles.reorderButtonText}>Punch New Order</Text>

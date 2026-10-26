@@ -265,7 +265,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
                   borderRadius: radius.md,
                 }}
                 onPress={() => {
-                  navigation.navigate("Order", { retailerId: order.retailer.id, retailer: order.retailer });
+                  navigation.navigate("RepCatalog", { retailerId: order.retailer.id, retailerName: order.retailer.name });
                 }}
               >
                 <Ionicons name="cart-outline" size={18} color="#ffffff" />

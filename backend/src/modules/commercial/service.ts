@@ -7,7 +7,12 @@ export type CommercialSnapshot = ReturnType<typeof calculateCommercialQuote> & {
 export class CommercialError extends Error { constructor(public code: string, public status = 409, public details?: unknown) { super(code); } }
 export const asJson = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 export function snapshot(value: Prisma.JsonValue | null): CommercialSnapshot | null {
-  return value === null ? null : value as unknown as CommercialSnapshot;
+  if (value === null || typeof value !== "object") return null;
+  const raw = value as any;
+  if (raw && typeof raw === "object" && raw.quote && typeof raw.quote === "object" && Array.isArray(raw.quote.lines)) {
+    return raw.quote as CommercialSnapshot;
+  }
+  return value as unknown as CommercialSnapshot;
 }
 export function quoteDelivery(accepted:CommercialSnapshot, resolutions:{variantId:string;cases:number;weightKg?:number}[]) {
   if(resolutions.length!==accepted.lines.length || new Set(resolutions.map(l=>l.variantId)).size!==resolutions.length) throw new CommercialError("incomplete_delivery_resolution",400);

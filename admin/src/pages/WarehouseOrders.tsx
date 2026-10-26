@@ -10,6 +10,12 @@ type WarehouseOrder = {
   id: string;
   orderNo: number;
   status: "confirmed" | "packed" | "out_for_delivery" | "delivered";
+  cancellationRequestedAt?: string | null;
+  cancellationReason?: string | null;
+  cancellationRequestedByRepId?: string | null;
+  cancellationStatus?: string | null;
+  cancellationDecisionNote?: string | null;
+  cancellationDecidedAt?: string | null;
   orderTotal?: number;
   createdAt: string;
   expectedDeliveryAt?: string | null;
@@ -1363,6 +1369,11 @@ export default function WarehouseOrders() {
                     </span>
                     <span className="td-status">
                       <span className={statusBadgeClass(order.status)}>{statusHumanLabel(order.status)}</span>
+                      {order.cancellationStatus === "pending" && (
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", background: "#fee2e2", color: "#b91c1c", border: "1px solid #fca5a5", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 3, marginTop: 4 }}>
+                          ⚠️ CANCELLATION REQUESTED
+                        </span>
+                      )}
                     </span>
                     <span className="td-action">
                       <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "flex-end" }}>
@@ -1873,6 +1884,72 @@ export default function WarehouseOrders() {
               {notice && (
                 <div className="banner success" role="status" style={{ marginBottom: 14 }}>
                   {notice}
+                </div>
+              )}
+
+              {modalOrder.cancellationStatus === "pending" && (
+                <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: 12, marginBottom: 14 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#b45309", fontWeight: 700, fontSize: 13, marginBottom: 4 }}>
+                    <Icon name="alert" size={16} /> Cancellation Requested by Sales Representative
+                  </div>
+                  <div style={{ fontSize: 13, color: "#92400e", marginBottom: 10, lineHeight: 1.4 }}>
+                    <strong>Reason / Remark:</strong> {modalOrder.cancellationReason || "No remark provided"}
+                    {modalOrder.cancellationRequestedAt && (
+                      <span style={{ marginLeft: 8, fontSize: 11, color: "#a16207" }}>
+                        ({new Date(modalOrder.cancellationRequestedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })})
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      className="button danger compact"
+                      disabled={busy}
+                      onClick={async () => {
+                        const note = window.prompt("Approval Remark / Note for Salesperson (Optional):", "Cancellation approved per sales request");
+                        if (note !== null) {
+                          try {
+                            setBusy(true);
+                            await api.approveCancellation(modalOrder.id, note || undefined);
+                            alert("Order has been cancelled.");
+                            closeModal();
+                            await load(warehouseFilter);
+                          } catch (err: any) {
+                            alert(err?.message || "Failed to cancel order");
+                          } finally {
+                            setBusy(false);
+                          }
+                        }
+                      }}
+                    >
+                      Approve Cancellation & Cancel Order
+                    </button>
+                    <button
+                      type="button"
+                      className="button secondary compact"
+                      disabled={busy}
+                      onClick={async () => {
+                        const note = window.prompt("Decline Remark for Salesperson (Required):", "");
+                        if (note && note.trim().length >= 3) {
+                          try {
+                            setBusy(true);
+                            await api.rejectCancellation(modalOrder.id, note.trim());
+                            alert("Cancellation request declined.");
+                            closeModal();
+                            await load(warehouseFilter);
+                          } catch (err: any) {
+                            alert(err?.message || "Failed to decline request");
+                          } finally {
+                            setBusy(false);
+                          }
+                        } else if (note !== null) {
+                          alert("Please provide a reason of at least 3 characters explaining why this order cannot be cancelled.");
+                        }
+                      }}
+                    >
+                      Decline Request
+                    </button>
+                  </div>
                 </div>
               )}
 

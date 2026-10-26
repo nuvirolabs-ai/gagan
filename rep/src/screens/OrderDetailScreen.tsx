@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from "react";
 import CommercialBreakdown from "../components/CommercialBreakdown";
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -62,6 +62,9 @@ export default function OrderDetailScreen({ route, navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [requestModalVisible, setRequestModalVisible] = useState(false);
+  const [requestReason, setRequestReason] = useState("");
+  const [submittingRequest, setSubmittingRequest] = useState(false);
   const [visitAction, setVisitAction] = useState<OrderVisitAction | null>(null);
 
   const load = useCallback(async () => {
@@ -220,11 +223,77 @@ export default function OrderDetailScreen({ route, navigation }: any) {
 
         {order.invoice ? <Surface><SectionHeader title="Invoice" /><View style={styles.invoiceRow}><Text style={styles.muted}>Invoice #{order.invoice.invoiceNumber}</Text><Text style={styles.totalValue}>{inr(Number(order.invoice.total))}</Text></View>{order.invoice.commercialSnapshot && <CommercialBreakdown value={order.invoice.commercialSnapshot}/>}<Text style={styles.muted}>{order.invoice.outstandingAmount > 0 ? `${inr(Number(order.invoice.outstandingAmount))} outstanding` : "Settled"}</Text></Surface> : null}
 
-        {isSameDay(order.createdAt) && (order.status === "placed" || order.status === "confirmed") ? (
+        {/* Cancellation Section */}
+        {order.cancellationStatus === "pending" ? (
+          <Surface style={{ borderColor: "#fde68a", backgroundColor: "#fffbeb" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <Ionicons name="time-outline" size={20} color="#b45309" />
+              <Text style={{ fontSize: 16, fontWeight: "700", color: "#92400e" }}>Cancellation Request Pending</Text>
+            </View>
+            <Text style={{ fontSize: 13, color: "#78350f", lineHeight: 18, marginBottom: 8 }}>
+              You requested cancellation for this order today. Dispatch and sales coordination are reviewing your request.
+            </Text>
+            <View style={{ backgroundColor: "#fef3c7", padding: 10, borderRadius: 8 }}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#92400e" }}>Your Remark / Reason:</Text>
+              <Text style={{ fontSize: 13, color: "#78350f", marginTop: 2 }}>"{order.cancellationReason}"</Text>
+            </View>
+          </Surface>
+        ) : order.cancellationStatus === "approved" || order.status === "rejected" ? (
+          <Surface style={{ borderColor: "#bbf7d0", backgroundColor: "#f0fdf4" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <Ionicons name="checkmark-circle-outline" size={20} color="#15803d" />
+              <Text style={{ fontSize: 16, fontWeight: "700", color: "#166534" }}>Order Cancelled by Dispatch</Text>
+            </View>
+            <Text style={{ fontSize: 13, color: "#166534", lineHeight: 18, marginBottom: 8 }}>
+              This order has been cancelled by dispatch. You can now place an updated order with the revised quantity if needed.
+            </Text>
+            {order.cancellationDecisionNote ? (
+              <View style={{ backgroundColor: "#dcfce7", padding: 10, borderRadius: 8, marginBottom: 12 }}>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#166534" }}>Dispatch Note:</Text>
+                <Text style={{ fontSize: 13, color: "#14532d", marginTop: 2 }}>"{order.cancellationDecisionNote}"</Text>
+              </View>
+            ) : null}
+            {order.retailer?.id ? (
+              <Pressable
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  backgroundColor: colors.blue,
+                  paddingVertical: 12,
+                  borderRadius: radius.md,
+                }}
+                onPress={() => {
+                  navigation.navigate("Order", { retailerId: order.retailer.id, retailer: order.retailer });
+                }}
+              >
+                <Ionicons name="cart-outline" size={18} color="#ffffff" />
+                <Text style={{ color: "#ffffff", fontWeight: "700", fontSize: 14 }}>Punch Updated Order</Text>
+              </Pressable>
+            ) : null}
+          </Surface>
+        ) : order.cancellationStatus === "declined" ? (
+          <Surface style={{ borderColor: "#fed7aa", backgroundColor: "#fff7ed" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <Ionicons name="alert-circle-outline" size={20} color="#c2410c" />
+              <Text style={{ fontSize: 16, fontWeight: "700", color: "#9a3412" }}>Cancellation Request Declined</Text>
+            </View>
+            <Text style={{ fontSize: 13, color: "#7c2d12", lineHeight: 18, marginBottom: 8 }}>
+              Dispatch declined the cancellation request for this order. Fulfillment will proceed as scheduled.
+            </Text>
+            {order.cancellationDecisionNote ? (
+              <View style={{ backgroundColor: "#ffedd5", padding: 10, borderRadius: 8 }}>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#9a3412" }}>Dispatch Note:</Text>
+                <Text style={{ fontSize: 13, color: "#7c2d12", marginTop: 2 }}>"{order.cancellationDecisionNote}"</Text>
+              </View>
+            ) : null}
+          </Surface>
+        ) : isSameDay(order.createdAt) && (order.status === "placed" || order.status === "confirmed") ? (
           <Surface style={{ borderColor: "#fecaca", backgroundColor: "#fff5f5" }}>
             <SectionHeader title="Order Cancellation" />
             <Text style={{ fontSize: 13, color: colors.inkMuted, marginBottom: spacing.md, lineHeight: 18 }}>
-              This order was punched today and has not been dispatched yet. You can cancel it if necessary.
+              This order was punched today and has not been dispatched yet. You can cancel it directly.
             </Text>
             <Pressable
               disabled={cancelling}
@@ -269,6 +338,30 @@ export default function OrderDetailScreen({ route, navigation }: any) {
               </Text>
             </Pressable>
           </Surface>
+        ) : isSameDay(order.createdAt) && (order.status === "packed" || order.status === "out_for_delivery") ? (
+          <Surface style={{ borderColor: "#fed7aa", backgroundColor: "#fffaf5" }}>
+            <SectionHeader title="Request Order Cancellation" />
+            <Text style={{ fontSize: 13, color: colors.inkMuted, marginBottom: spacing.md, lineHeight: 18 }}>
+              Fulfillment status has changed to <Text style={{ fontWeight: "700", color: colors.ink }}>{STATUS_LABELS[order.status] ?? order.status}</Text>. To cancel this order or modify its quantity, please submit a cancellation request with a reason for the dispatch team.
+            </Text>
+            <Pressable
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                backgroundColor: "#ea580c",
+                paddingVertical: 12,
+                borderRadius: radius.md,
+              }}
+              onPress={() => setRequestModalVisible(true)}
+            >
+              <Ionicons name="hand-right-outline" size={18} color="#ffffff" />
+              <Text style={{ color: "#ffffff", fontWeight: "700", fontSize: 14 }}>
+                Request Cancellation / Quantity Change
+              </Text>
+            </Pressable>
+          </Surface>
         ) : null}
 
         <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
@@ -293,6 +386,73 @@ export default function OrderDetailScreen({ route, navigation }: any) {
         </View>
         <Text style={styles.footer}>This view reflects the order accepted by Gagan. Reopen the retailer profile to review the same order later.</Text>
       </ScrollView>
+
+      {/* Cancellation Request Modal */}
+      <Modal visible={requestModalVisible} transparent animationType="slide">
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <Ionicons name="document-text-outline" size={22} color={colors.primary} />
+              <Text style={styles.modalTitle}>Request Order Cancellation</Text>
+            </View>
+            <Text style={styles.modalSubtitle}>
+              Please provide a remark explaining the reason for cancellation (e.g. updating quantity, customer canceled, etc.). Dispatch and sales coordination will review your remark before taking action.
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              multiline
+              placeholder="Enter reason for cancellation / quantity revision (min 3 characters)…"
+              placeholderTextColor={colors.inkFaint}
+              value={requestReason}
+              onChangeText={setRequestReason}
+              maxLength={500}
+              autoFocus
+            />
+            <View style={styles.modalButtonRow}>
+              <Pressable
+                style={styles.modalCancelButton}
+                onPress={() => {
+                  setRequestModalVisible(false);
+                  setRequestReason("");
+                }}
+                disabled={submittingRequest}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.modalSubmitButton,
+                  requestReason.trim().length < 3 && styles.modalSubmitButtonDisabled,
+                ]}
+                disabled={submittingRequest || requestReason.trim().length < 3}
+                onPress={async () => {
+                  const reason = requestReason.trim();
+                  if (reason.length < 3) return;
+                  setSubmittingRequest(true);
+                  try {
+                    await repApi.requestOrderCancellation(order.id, reason);
+                    setRequestModalVisible(false);
+                    setRequestReason("");
+                    Alert.alert(
+                      "Cancellation Requested",
+                      "Your cancellation request has been submitted. The dispatch coordinator will review your remark."
+                    );
+                    await load();
+                  } catch (err: any) {
+                    Alert.alert("Request Failed", err?.message ?? "Could not submit cancellation request.");
+                  } finally {
+                    setSubmittingRequest(false);
+                  }
+                }}
+              >
+                <Text style={styles.modalSubmitButtonText}>
+                  {submittingRequest ? "Submitting…" : "Submit Request"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </AppScreen>
   );
 }
@@ -325,4 +485,15 @@ const styles = StyleSheet.create({
   internalEventLabel: { color: colors.ink, fontSize: 13, fontWeight: "600" },
   internalAdvance: { color: colors.primary, fontSize: 13, fontWeight: "700", marginTop: spacing.sm },
   footer: { color: colors.inkFaint, fontSize: 12, lineHeight: 17, textAlign: "center", marginBottom: spacing.md },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: spacing.lg },
+  modalContent: { backgroundColor: "#ffffff", borderRadius: radius.lg, padding: spacing.xl, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 10, elevation: 5 },
+  modalTitle: { fontSize: 18, fontWeight: "700", color: colors.ink },
+  modalSubtitle: { fontSize: 13, color: colors.inkMuted, lineHeight: 18, marginTop: 4, marginBottom: spacing.md },
+  modalInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 12, fontSize: 14, minHeight: 90, textAlignVertical: "top", color: colors.ink, marginBottom: spacing.lg },
+  modalButtonRow: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.md },
+  modalCancelButton: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: radius.md, backgroundColor: colors.surfaceAlt },
+  modalCancelButtonText: { color: colors.inkMuted, fontWeight: "600", fontSize: 14 },
+  modalSubmitButton: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: radius.md, backgroundColor: colors.primary },
+  modalSubmitButtonDisabled: { opacity: 0.5 },
+  modalSubmitButtonText: { color: "#ffffff", fontWeight: "700", fontSize: 14 },
 });

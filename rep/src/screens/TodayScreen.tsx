@@ -318,11 +318,70 @@ export default function TodayScreen({ navigation }: any) {
       <FieldCompanionHeader
         name={staff?.name ?? ""}
         notificationCount={today.notifications?.length ?? 0}
-        onNotifications={() => Alert.alert("Notifications", today.notifications?.length ? `${today.notifications.length} notification${today.notifications.length === 1 ? "" : "s"} available.` : "You’re all caught up for now.")}
+        onNotifications={() => {
+          if (!today.notifications?.length) {
+            Alert.alert("Notifications", "You’re all caught up for now.");
+            return;
+          }
+          const notif = today.notifications[0];
+          Alert.alert(
+            notif.title || "Dispatch Notification",
+            notif.message,
+            notif.orderId
+              ? [
+                  { text: "Dismiss", style: "cancel" },
+                  {
+                    text: "View Order",
+                    onPress: () => navigation.navigate("OrderDetail", { orderId: notif.orderId }),
+                  },
+                ]
+              : [{ text: "OK" }]
+          );
+        }}
       />
 
       <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.blue} />}>
         {error ? <OfflineBanner title={t("today.offline")} body={error || t("today.offlineBody")} /> : null}
+
+        {/* Live Today Notifications (Order Cancellations & Dispatch Updates) */}
+        {today.notifications?.map((notif: any) => (
+          <Surface
+            key={notif.id}
+            style={{
+              borderColor: notif.type === "order_cancelled" ? "#bbf7d0" : notif.type === "cancellation_declined" ? "#fed7aa" : "#fde68a",
+              backgroundColor: notif.type === "order_cancelled" ? "#f0fdf4" : notif.type === "cancellation_declined" ? "#fff7ed" : "#fffbeb",
+              padding: spacing.md,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+              <Ionicons
+                name={notif.type === "order_cancelled" ? "checkmark-circle" : notif.type === "cancellation_declined" ? "alert-circle" : "time"}
+                size={22}
+                color={notif.type === "order_cancelled" ? "#16a34a" : notif.type === "cancellation_declined" ? "#ea580c" : "#ca8a04"}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.ink }}>
+                  {notif.title}
+                </Text>
+                <Text style={{ fontSize: 13, color: colors.inkMuted, marginTop: 2, lineHeight: 18 }}>
+                  {notif.message}
+                </Text>
+                {notif.orderId ? (
+                  <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
+                    <Pressable
+                      onPress={() => navigation.navigate("OrderDetail", { orderId: notif.orderId })}
+                      style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: "700", color: colors.blue }}>
+                        View Order Details →
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+          </Surface>
+        ))}
 
         {/* Today's Target vs Monthly Target Card */}
         <Surface style={styles.targetCard}>

@@ -52,6 +52,8 @@ export function OrderActionControls({
   onPack,
   onAssign,
   onCapture,
+  onApproveCancellation,
+  onRejectCancellation,
 }: {
   order: any;
   busy: boolean;
@@ -70,28 +72,75 @@ export function OrderActionControls({
   onPack: () => void;
   onAssign: () => void;
   onCapture: () => void;
+  onApproveCancellation?: (note?: string) => void;
+  onRejectCancellation?: (note: string) => void;
 }) {
   const onHold = Boolean(order.internalStatus?.isOnHold);
-  return <div className="row inspector-action-row dock-actions">
-    {order.status === "placed" && <>
-      <button type="button" className="button primary compact" disabled={busy} onClick={onApprove}>{pendingAction === "approve" ? "Approving…" : <>Approve <Icon name="arrow" size={13} /></>}</button>
-      <button type="button" className="button danger compact secondary-action" disabled={busy} onClick={onReject}>{pendingAction === "reject" ? "Rejecting…" : "Reject"}</button>
-    </>}
-    {order.status === "confirmed" && <button type="button" className="button primary compact" disabled={busy} onClick={onPack}>{pendingAction === "pack" ? "Saving…" : <>Mark packed <Icon name="arrow" size={13} /></>}</button>}
-    {order.status === "packed" && <button type="button" className="button primary compact" disabled={busy} onClick={onAssign}>Assign route <Icon name="arrow" size={13} /></button>}
-    {order.status === "out_for_delivery" && <button type="button" className="button primary compact" disabled={busy} onClick={onCapture}>Capture delivery <Icon name="arrow" size={13} /></button>}
-    {onHold
-      ? <button type="button" className="button secondary compact" disabled={busy} onClick={onRelease}>{pendingAction === "release" ? "Releasing…" : "Release hold"}</button>
-      : holdOpen
-        ? <div className="order-hold-draft">
-            <label htmlFor={`hold-reason-${idSuffix}-${order.id}`}>Hold reason</label>
-            <input id={`hold-reason-${idSuffix}-${order.id}`} aria-label="Hold reason" value={holdReason} onChange={(event) => onHoldReason(event.target.value)} disabled={busy} minLength={3} maxLength={240} required />
-            <button type="button" className="button secondary compact" disabled={busy} onClick={onConfirmHold}>{pendingAction === "hold" ? "Holding…" : "Confirm hold"}</button>
-            <button type="button" className="button ghost compact" disabled={busy} onClick={onCancelHold}>Cancel</button>
-            {holdError ? <p role="alert">{holdError}</p> : null}
-          </div>
-        : <button type="button" className="button secondary compact" disabled={busy} onClick={onStartHold}>Put on hold</button>}
-    {(order.status === "delivered" || order.status === "rejected") && !onHold && <span className="muted small">No further action</span>}
+  return <div className="inspector-action-container" style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
+    {order.cancellationStatus === "pending" && (
+      <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: 12, width: "100%" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#b45309", fontWeight: 700, fontSize: 13, marginBottom: 4 }}>
+          <Icon name="alert" size={16} /> Cancellation Requested by Sales Rep
+        </div>
+        <div style={{ fontSize: 13, color: "#92400e", marginBottom: 8, lineHeight: 1.4 }}>
+          <strong>Reason:</strong> {order.cancellationReason || "No remark provided"}
+          {order.cancellationRequestedAt && (
+            <span style={{ marginLeft: 8, fontSize: 11, color: "#a16207" }}>
+              ({new Date(order.cancellationRequestedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })})
+            </span>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className="button danger compact"
+            disabled={busy}
+            onClick={() => {
+              const note = window.prompt("Approval Remark / Note for Salesperson (Optional):", "Cancellation approved per sales request");
+              if (note !== null) onApproveCancellation?.(note || undefined);
+            }}
+          >
+            Approve Cancellation & Reject Order
+          </button>
+          <button
+            type="button"
+            className="button secondary compact"
+            disabled={busy}
+            onClick={() => {
+              const note = window.prompt("Decline Remark for Salesperson (Required):", "");
+              if (note && note.trim().length >= 3) {
+                onRejectCancellation?.(note.trim());
+              } else if (note !== null) {
+                alert("Please provide a reason of at least 3 characters explaining why this order cannot be cancelled.");
+              }
+            }}
+          >
+            Decline Request
+          </button>
+        </div>
+      </div>
+    )}
+    <div className="row inspector-action-row dock-actions">
+      {order.status === "placed" && <>
+        <button type="button" className="button primary compact" disabled={busy} onClick={onApprove}>{pendingAction === "approve" ? "Approving…" : <>Approve <Icon name="arrow" size={13} /></>}</button>
+        <button type="button" className="button danger compact secondary-action" disabled={busy} onClick={onReject}>{pendingAction === "reject" ? "Rejecting…" : "Reject"}</button>
+      </>}
+      {order.status === "confirmed" && <button type="button" className="button primary compact" disabled={busy} onClick={onPack}>{pendingAction === "pack" ? "Saving…" : <>Mark packed <Icon name="arrow" size={13} /></>}</button>}
+      {order.status === "packed" && <button type="button" className="button primary compact" disabled={busy} onClick={onAssign}>Assign route <Icon name="arrow" size={13} /></button>}
+      {order.status === "out_for_delivery" && <button type="button" className="button primary compact" disabled={busy} onClick={onCapture}>Capture delivery <Icon name="arrow" size={13} /></button>}
+      {onHold
+        ? <button type="button" className="button secondary compact" disabled={busy} onClick={onRelease}>{pendingAction === "release" ? "Releasing…" : "Release hold"}</button>
+        : holdOpen
+          ? <div className="order-hold-draft">
+              <label htmlFor={`hold-reason-${idSuffix}-${order.id}`}>Hold reason</label>
+              <input id={`hold-reason-${idSuffix}-${order.id}`} aria-label="Hold reason" value={holdReason} onChange={(event) => onHoldReason(event.target.value)} disabled={busy} minLength={3} maxLength={240} required />
+              <button type="button" className="button secondary compact" disabled={busy} onClick={onConfirmHold}>{pendingAction === "hold" ? "Holding…" : "Confirm hold"}</button>
+              <button type="button" className="button ghost compact" disabled={busy} onClick={onCancelHold}>Cancel</button>
+              {holdError ? <p role="alert">{holdError}</p> : null}
+            </div>
+          : <button type="button" className="button secondary compact" disabled={busy} onClick={onStartHold}>Put on hold</button>}
+      {(order.status === "delivered" || order.status === "rejected") && !onHold && <span className="muted small">No further action</span>}
+    </div>
   </div>;
 }
 

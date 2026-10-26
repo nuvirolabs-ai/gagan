@@ -25,8 +25,8 @@ class OrderTransitionConflict extends Error {}
 const ALLOWED_NEXT: Record<OrderStatus, OrderStatus[]> = {
   placed: ["confirmed", "rejected"],
   confirmed: ["packed", "rejected"],
-  packed: ["out_for_delivery"],
-  out_for_delivery: ["delivered"],
+  packed: ["out_for_delivery", "rejected"],
+  out_for_delivery: ["delivered", "rejected"],
   delivered: [],
   rejected: [],
 };
@@ -68,6 +68,8 @@ const orderInclude = {
     where: { code: CommercialStatusCode.SALES_ORDER_PUNCHED },
     select: { code: true, actorStaff: { select: { name: true } } },
   },
+  cancellationRequestedByRep: { select: { id: true, name: true, phone: true } },
+  cancellationDecidedByStaff: { select: { id: true, name: true } },
 } as const;
 
 // Prisma's financial ledger sequence is a BigInt. Keep the API response
@@ -82,6 +84,7 @@ function jsonSafe<T>(value: T): T {
 
 router.get("/orders", async (req, res) => {
   const status = typeof req.query.status === "string" ? req.query.status : undefined;
+  const isCancellationQueue = status === "cancellation_requests" || req.query.cancellationStatus === "pending";
   const valid = status && (Object.keys(ALLOWED_NEXT) as string[]).includes(status);
   const warehouseCode = typeof req.query.warehouseCode === "string" && req.query.warehouseCode !== "all"
     ? req.query.warehouseCode.trim()
@@ -91,7 +94,11 @@ router.get("/orders", async (req, res) => {
     : undefined;
 
   const orders = await prisma.order.findMany({
-    where: valid ? { status: status as OrderStatus } : undefined,
+    where: isCancellationQueue
+      ? { cancellationStatus: "pending" }
+      : valid
+        ? { status: status as OrderStatus }
+        : undefined,
     include: orderInclude,
     orderBy: { createdAt: "desc" },
     take: 200,
@@ -120,11 +127,18 @@ router.get("/orders", async (req, res) => {
 });
 
 router.get("/orders/counts", async (req, res) => {
-  const groups = await prisma.order.groupBy({
-    by: ["status"],
-    _count: { _all: true },
-    _sum: { orderTotal: true },
-  });
+  const [groups, pendingCancellations] = await Promise.all([
+    prisma.order.groupBy({
+      by: ["status"],
+      _count: { _all: true },
+      _sum: { orderTotal: true },
+    }),
+    prisma.order.aggregate({
+      where: { cancellationStatus: "pending" },
+      _count: { _all: true },
+      _sum: { orderTotal: true },
+    }),
+  ]);
 
   const counts: Record<string, { count: number; value: number }> = {};
   for (const key of Object.keys(ALLOWED_NEXT)) {
@@ -136,6 +150,11 @@ router.get("/orders/counts", async (req, res) => {
       value: Number(g._sum.orderTotal ?? 0),
     };
   }
+
+  counts["cancellation_requests"] = {
+    count: pendingCancellations._count._all,
+    value: Number(pendingCancellations._sum.orderTotal ?? 0),
+  };
 
   const { warehouses } = await attributeOrdersWithWarehouses([]);
   res.json({ counts, warehouses });
@@ -171,9 +190,25 @@ export async function transitionOrder(
   }
 
   const updated = await prisma.$transaction(async (tx) => {
+    if (to === "rejected") {
+      await tx.dispatchAuthorization.updateMany({
+        where: { orderId, status: "active" },
+        data: { status: "invalidated", invalidatedAt: new Date() },
+      });
+    }
+
     const claimed = await tx.order.updateMany({
       where: { id: orderId, status: order.status },
-      data: { status: to },
+      data: {
+        status: to,
+        ...(to === "rejected" && order.cancellationStatus === "pending"
+          ? {
+              cancellationStatus: "approved",
+              cancellationDecidedAt: new Date(),
+              cancellationDecidedByStaffId: actorStaffId ?? undefined,
+            }
+          : {}),
+      },
     });
     if(claimed.count!==1) return null;
     const next=await tx.order.findUniqueOrThrow({where:{id:orderId},include:orderInclude});
@@ -196,6 +231,132 @@ export async function transitionOrder(
 router.post("/orders/:id/approve", (req: AdminRequest, res) => transitionOrder(req.params.id, "confirmed", res, req.staffAuth?.staffId ?? null));
 router.post("/orders/:id/reject", (req: AdminRequest, res) => transitionOrder(req.params.id, "rejected", res, req.staffAuth?.staffId ?? null));
 router.post("/orders/:id/pack", (req: AdminRequest, res) => transitionOrder(req.params.id, "packed", res, req.staffAuth?.staffId ?? null));
+
+const cancellationReviewSchema = z.object({
+  note: z.string().trim().max(500).optional(),
+});
+
+router.post("/orders/:id/cancellation/approve", async (req: AdminRequest, res) => {
+  const parsed = cancellationReviewSchema.safeParse(req.body ?? {});
+  const orderId = req.params.id;
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: orderInclude,
+  });
+
+  if (!order) return res.status(404).json({ error: "Order not found" });
+  if (order.cancellationStatus !== "pending") {
+    return res.status(400).json({ error: "No pending cancellation request for this order" });
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.dispatchAuthorization.updateMany({
+      where: { orderId, status: "active" },
+      data: { status: "invalidated", invalidatedAt: new Date() },
+    });
+
+    const claimed = await tx.order.updateMany({
+      where: { id: orderId, cancellationStatus: "pending" },
+      data: {
+        status: "rejected",
+        cancellationStatus: "approved",
+        cancellationDecisionNote: (parsed.success && parsed.data.note) ? parsed.data.note : "Approved by dispatch coordinator",
+        cancellationDecidedAt: new Date(),
+        cancellationDecidedByStaffId: req.staffAuth?.staffId ?? null,
+      },
+    });
+
+    if (claimed.count !== 1) return null;
+
+    const next = await tx.order.findUniqueOrThrow({
+      where: { id: orderId },
+      include: orderInclude,
+    });
+
+    await tx.auditEvent.create({
+      data: {
+        actorStaffId: req.staffAuth?.staffId ?? null,
+        action: "order.cancellation_approved",
+        subjectType: "order",
+        subjectId: orderId,
+        metadata: {
+          from: order.status,
+          to: "rejected",
+          cancellationReason: order.cancellationReason,
+          decisionNote: (parsed.success && parsed.data.note) ? parsed.data.note : null,
+          orderRef: `GGN-${String(order.orderNo).padStart(8, "0")}`,
+        },
+      },
+    });
+
+    return next;
+  });
+
+  if (!updated) return res.status(409).json({ error: "cancellation_review_conflict" });
+  const [attributedOrder] = await attributeOrders([updated]);
+  res.json({ ok: true, order: attributedOrder });
+});
+
+const cancellationRejectSchema = z.object({
+  note: z.string().trim().min(3, "Please provide a reason of at least 3 characters").max(500),
+});
+
+router.post("/orders/:id/cancellation/reject", async (req: AdminRequest, res) => {
+  const parsed = cancellationRejectSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid note" });
+  }
+
+  const orderId = req.params.id;
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: orderInclude,
+  });
+
+  if (!order) return res.status(404).json({ error: "Order not found" });
+  if (order.cancellationStatus !== "pending") {
+    return res.status(400).json({ error: "No pending cancellation request for this order" });
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.order.updateMany({
+      where: { id: orderId, cancellationStatus: "pending" },
+      data: {
+        cancellationStatus: "declined",
+        cancellationDecisionNote: parsed.data.note,
+        cancellationDecidedAt: new Date(),
+        cancellationDecidedByStaffId: req.staffAuth?.staffId ?? null,
+      },
+    });
+
+    if (claimed.count !== 1) return null;
+
+    const next = await tx.order.findUniqueOrThrow({
+      where: { id: orderId },
+      include: orderInclude,
+    });
+
+    await tx.auditEvent.create({
+      data: {
+        actorStaffId: req.staffAuth?.staffId ?? null,
+        action: "order.cancellation_declined",
+        subjectType: "order",
+        subjectId: orderId,
+        metadata: {
+          cancellationReason: order.cancellationReason,
+          decisionNote: parsed.data.note,
+          orderRef: `GGN-${String(order.orderNo).padStart(8, "0")}`,
+        },
+      },
+    });
+
+    return next;
+  });
+
+  if (!updated) return res.status(409).json({ error: "cancellation_review_conflict" });
+  const [attributedOrder] = await attributeOrders([updated]);
+  res.json({ ok: true, order: attributedOrder });
+});
 
 const assignSchema = z.object({
   routeId: z.string().min(1),

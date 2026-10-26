@@ -26,6 +26,7 @@ import { staffWorkspaceState } from "../modules/identity/staffAppAccess";
 import { evaluateCoupon } from "../modules/promotions/couponService";
 import { Msg91Error, verifyMsg91AccessToken } from "../modules/identity/msg91Service";
 import { Permissions } from "../modules/identity/roleCatalog";
+import { calendarDateInZone } from "../modules/founder/period";
 
 const router = Router();
 const maxLedgerSequence = 9_223_372_036_854_775_807n;
@@ -882,17 +883,15 @@ router.post("/orders/:id/cancel", requireRep, async (req: RepRequest, res) => {
     return res.status(404).json({ error: "Order not found or not punched by you" });
   }
 
-  // 1. Same-day check
-  const todayStr = new Date().toDateString();
-  const orderDateStr = new Date(order.createdAt).toDateString();
-  if (todayStr !== orderDateStr) {
+  // 1. Same-day check (IST)
+  if (calendarDateInZone(new Date()) !== calendarDateInZone(order.createdAt)) {
     return res.status(400).json({ error: "Orders can only be cancelled on the same day they were punched" });
   }
 
   // 2. Status progression check
   if (order.status !== "placed" && order.status !== "confirmed") {
     return res.status(400).json({
-      error: `Order cannot be cancelled because its fulfillment status has already changed to ${order.status}`,
+      error: `Order cannot be cancelled directly because its fulfillment status has already changed to ${order.status}. You can submit a cancellation request instead.`,
     });
   }
 
@@ -900,6 +899,9 @@ router.post("/orders/:id/cancel", requireRep, async (req: RepRequest, res) => {
     where: { id: order.id },
     data: {
       status: "rejected",
+      cancellationStatus: "approved",
+      cancellationReason: "Cancelled directly by sales representative on same day",
+      cancellationDecidedAt: new Date(),
     },
   });
 
@@ -914,6 +916,94 @@ router.post("/orders/:id/cancel", requireRep, async (req: RepRequest, res) => {
   });
 
   res.json({ ok: true, order: updated });
+});
+
+/**
+ * Request cancellation for an order whose status has changed beyond placed/confirmed.
+ * Permitted only on the same calendar day, and only for non-delivered, non-rejected orders.
+ * Requires a remark explaining the reason (e.g. quantity revision).
+ */
+router.post("/orders/:id/request-cancellation", requireRep, async (req: RepRequest, res) => {
+  const schema = z.object({
+    reason: z.string().trim().min(3, "Please provide a reason of at least 3 characters").max(500),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid cancellation reason" });
+  }
+
+  const order = await prisma.order.findFirst({
+    where: {
+      id: req.params.id,
+      OR: [
+        { placedByRepId: req.repId },
+        { retailer: { salesRepId: req.repId } },
+      ],
+    },
+    include: { retailer: true },
+  });
+
+  if (!order) {
+    return res.status(404).json({ error: "Order not found or not punched by you" });
+  }
+
+  // 1. Same-day check (IST)
+  if (calendarDateInZone(new Date()) !== calendarDateInZone(order.createdAt)) {
+    return res.status(400).json({ error: "Cancellation requests can only be raised on the same day the order was placed" });
+  }
+
+  // 2. Status progression check: Must have progressed beyond initial placed/confirmed
+  if (order.status === "placed" || order.status === "confirmed") {
+    return res.status(400).json({
+      error: "This order has not changed status yet and can be cancelled directly by you without raising a request.",
+    });
+  }
+
+  if (order.status === "rejected") {
+    return res.status(400).json({ error: "Order has already been cancelled" });
+  }
+
+  if (order.status === "delivered") {
+    return res.status(400).json({ error: "Delivered orders cannot be cancelled" });
+  }
+
+  // 3. Existing request check
+  if (order.cancellationStatus === "pending") {
+    return res.status(400).json({ error: "A cancellation request is already pending review for this order" });
+  }
+
+  const updated = await prisma.order.update({
+    where: { id: order.id },
+    data: {
+      cancellationStatus: "pending",
+      cancellationReason: parsed.data.reason,
+      cancellationRequestedAt: new Date(),
+      cancellationRequestedByRepId: req.repId ?? null,
+    },
+    include: {
+      retailer: { select: { id: true, name: true, phone: true, shopAddress: true, deliveryCity: true } },
+      items: { include: { variant: { include: { product: true } } } },
+      delivery: true,
+      invoice: { select: { id: true, invoiceNumber: true, invoiceDate: true, total: true } },
+    },
+  });
+
+  await prisma.auditEvent.create({
+    data: {
+      subjectType: "order",
+      subjectId: order.id,
+      action: "order.cancellation_requested_by_rep",
+      actorStaffId: req.staffId ?? null,
+      metadata: {
+        reason: parsed.data.reason,
+        orderRef: `GGN-${String(order.orderNo).padStart(8, "0")}`,
+        orderStatus: order.status,
+      },
+    },
+  });
+
+  const [attributed] = await attributeOrders([updated]);
+  res.json({ ok: true, order: attributed });
 });
 
 const repOrderSchema = z.object({

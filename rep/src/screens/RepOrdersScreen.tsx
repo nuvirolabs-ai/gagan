@@ -180,9 +180,15 @@ export default function RepOrdersScreen({ navigation }: any) {
             (sum: number, it: any) => sum + (it.qtyOrdered || 0),
             0
           );
-          const isEligibleForCancel =
+          const isEligibleForDirectCancel =
             isSameDay(order.createdAt) &&
             (order.status === "placed" || order.status === "confirmed");
+          const isEligibleForRequestCancel =
+            isSameDay(order.createdAt) &&
+            (order.status === "packed" || order.status === "out_for_delivery") &&
+            !order.cancellationStatus;
+          const isPendingCancellation = order.cancellationStatus === "pending";
+          const isApprovedCancelled = order.cancellationStatus === "approved" || order.status === "rejected";
 
           return (
             <Surface style={styles.card}>
@@ -198,7 +204,19 @@ export default function RepOrdersScreen({ navigation }: any) {
                       : "—"}
                   </Text>
                 </View>
-                <StatusPill status={order.status} />
+                <View style={{ alignItems: "flex-end", gap: 4 }}>
+                  <StatusPill status={order.status} />
+                  {isPendingCancellation && (
+                    <View style={styles.pendingBadge}>
+                      <Text style={styles.pendingBadgeText}>⏳ Review Pending</Text>
+                    </View>
+                  )}
+                  {order.cancellationStatus === "declined" && (
+                    <View style={styles.declinedBadge}>
+                      <Text style={styles.declinedBadgeText}>⚠️ Cancel Declined</Text>
+                    </View>
+                  )}
+                </View>
               </View>
 
               <View style={styles.divider} />
@@ -255,7 +273,7 @@ export default function RepOrdersScreen({ navigation }: any) {
                   <Ionicons name="chevron-forward" size={14} color={colors.blue} />
                 </Pressable>
 
-                {isEligibleForCancel ? (
+                {isEligibleForDirectCancel ? (
                   <Pressable
                     disabled={cancellingId === order.id}
                     style={styles.cancelButton}
@@ -265,6 +283,22 @@ export default function RepOrdersScreen({ navigation }: any) {
                     <Text style={styles.cancelButtonText}>
                       {cancellingId === order.id ? "Cancelling…" : "Cancel Order"}
                     </Text>
+                  </Pressable>
+                ) : isEligibleForRequestCancel ? (
+                  <Pressable
+                    style={styles.requestCancelButton}
+                    onPress={() => navigation.navigate("OrderDetail", { orderId: order.id })}
+                  >
+                    <Ionicons name="hand-right-outline" size={14} color="#c2410c" />
+                    <Text style={styles.requestCancelButtonText}>Request Cancel</Text>
+                  </Pressable>
+                ) : isApprovedCancelled && order.retailer?.id ? (
+                  <Pressable
+                    style={styles.reorderButton}
+                    onPress={() => navigation.navigate("Order", { retailerId: order.retailer.id, retailer: order.retailer })}
+                  >
+                    <Ionicons name="cart-outline" size={14} color={colors.blue} />
+                    <Text style={styles.reorderButtonText}>Punch New Order</Text>
                   </Pressable>
                 ) : null}
               </View>
@@ -319,4 +353,12 @@ const styles = StyleSheet.create({
   detailsButtonText: { fontSize: 13, fontWeight: "700", color: colors.blue },
   cancelButton: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: "#fef2f2", borderWidth: 1, borderColor: "#fecaca" },
   cancelButtonText: { fontSize: 12, fontWeight: "700", color: colors.danger },
+  requestCancelButton: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: "#fff7ed", borderWidth: 1, borderColor: "#fed7aa" },
+  requestCancelButtonText: { fontSize: 12, fontWeight: "700", color: "#c2410c" },
+  reorderButton: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: "#eff6ff", borderWidth: 1, borderColor: "#bfdbfe" },
+  reorderButtonText: { fontSize: 12, fontWeight: "700", color: colors.blue },
+  pendingBadge: { backgroundColor: "#fef3c7", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: "#fde68a" },
+  pendingBadgeText: { fontSize: 10, fontWeight: "700", color: "#92400e" },
+  declinedBadge: { backgroundColor: "#ffedd5", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: "#fed7aa" },
+  declinedBadgeText: { fontSize: 10, fontWeight: "700", color: "#9a3412" },
 });

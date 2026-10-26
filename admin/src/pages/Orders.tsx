@@ -31,6 +31,7 @@ const TABS = [
   { key: "out_for_delivery", label: "🚚 Order Dispatched" },
   { key: "delivered", label: "🧾 Invoices" },
   { key: "rejected", label: "Rejected" },
+  { key: "cancellation_requests", label: "⚠️ Cancellation Requests" },
 ] as const;
 
 export type DuplicateMatch = {
@@ -493,6 +494,8 @@ function AdminOrders() {
     onConfirmHold={() => confirmHold(order)}
     onApprove={() => void act(order.id, "approve", () => api.approve(order.id), "Order approved")}
     onReject={() => void act(order.id, "reject", () => api.reject(order.id), "Order rejected")}
+    onApproveCancellation={(note) => void act(order.id, "reject", () => api.approveCancellation(order.id, note), "Order cancellation approved")}
+    onRejectCancellation={(note) => void act(order.id, "reject", () => api.rejectCancellation(order.id, note), "Cancellation request declined")}
     onRelease={() => void act(order.id, "release", () => api.releaseOrderHold(order.id), "Order hold released")}
     onPack={() => void act(order.id, "pack", () => api.pack(order.id), "Order marked packed")}
     onAssign={() => { setReviewId(null); setAssignOrder(order); }}
@@ -828,6 +831,11 @@ function AdminOrders() {
               {isDuplicate && (
                 <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", background: "#fef3c7", color: "#b45309", border: "1px solid #fde68a", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 3, marginTop: 3, width: "fit-content" }}>
                   ⚠️ Duplicate: {dupMatch?.duplicateOfOrderRef}
+                </span>
+              )}
+              {order.cancellationStatus === "pending" && (
+                <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", background: "#fee2e2", color: "#b91c1c", border: "1px solid #fca5a5", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 3, marginTop: 3, width: "fit-content" }}>
+                  ⚠️ Cancellation Requested
                 </span>
               )}
             </span>

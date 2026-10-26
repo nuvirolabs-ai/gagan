@@ -571,6 +571,7 @@ model SalesRep {
   territory String?
   retailers Retailer[]
   salespersonFeedback SalespersonFeedback[]
+  orderCancellationRequests Order[] @relation("OrderCancellationRequests")
   staffUser StaffUser?
 }
 
@@ -579,6 +580,7 @@ model StaffUser {
   commercialPayments     Payment[]               @relation("CommercialPaymentConfirmer")
   commercialStatusEvents CommercialStatusEvent[] @relation("CommercialStatusActor")
   commercialHolds        Order[]                 @relation("CommercialHoldActor")
+  orderCancellationDecisions Order[]               @relation("OrderCancellationDecisions")
   id                     String                  @id @default(uuid())
   name                   String
   phone                  String                  @unique
@@ -1571,6 +1573,15 @@ model Order {
   heldAt                    DateTime?
   heldByStaffId             String?
   heldBy                    StaffUser?                   @relation("CommercialHoldActor", fields: [heldByStaffId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  cancellationRequestedAt       DateTime?
+  cancellationReason            String?
+  cancellationRequestedByRepId  String?
+  cancellationRequestedByRep    SalesRep?                    @relation("OrderCancellationRequests", fields: [cancellationRequestedByRepId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  cancellationStatus            String?
+  cancellationDecisionNote      String?
+  cancellationDecidedAt         DateTime?
+  cancellationDecidedByStaffId  String?
+  cancellationDecidedByStaff    StaffUser?                   @relation("OrderCancellationDecisions", fields: [cancellationDecidedByStaffId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   items                     OrderItem[]
   delivery                  Delivery?
   invoice                   Invoice?

@@ -181,6 +181,88 @@ export class FieldDashboardService {
       today: now,
     });
 
+    const salesRepId = await this.salesRepIdFor(input.salespersonId);
+    const notifications: Array<{
+      id: string;
+      type: "order_cancelled" | "cancellation_declined" | "cancellation_pending";
+      title: string;
+      message: string;
+      orderId: string;
+      orderNo: number;
+      createdAt: string;
+    }> = [];
+
+    if (salesRepId) {
+      const cancellationOrders = await this.prisma.order.findMany({
+        where: {
+          AND: [
+            {
+              OR: [
+                { placedByRepId: salesRepId },
+                { retailer: { salesRepId } },
+              ],
+            },
+            { cancellationStatus: { not: null } },
+            {
+              OR: [
+                { cancellationDecidedAt: { gte: dayStart, lte: dayEnd } },
+                { cancellationRequestedAt: { gte: dayStart, lte: dayEnd } },
+              ],
+            },
+          ],
+        },
+        select: {
+          id: true,
+          orderNo: true,
+          status: true,
+          cancellationStatus: true,
+          cancellationReason: true,
+          cancellationDecisionNote: true,
+          cancellationDecidedAt: true,
+          cancellationRequestedAt: true,
+          retailer: { select: { name: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+      });
+
+      for (const ord of cancellationOrders) {
+        const ref = `GGN-${String(ord.orderNo).padStart(8, "0")}`;
+        const partyName = ord.retailer?.name ?? "Retailer";
+        if (ord.cancellationStatus === "approved" || ord.status === "rejected") {
+          notifications.push({
+            id: `cancel-approved-${ord.id}`,
+            type: "order_cancelled",
+            title: `Order Cancelled: ${ref}`,
+            message: `Order for ${partyName} has been cancelled by dispatch.${ord.cancellationDecisionNote ? ` Note: ${ord.cancellationDecisionNote}.` : ""} You can now punch an updated order if required.`,
+            orderId: ord.id,
+            orderNo: ord.orderNo,
+            createdAt: (ord.cancellationDecidedAt ?? dayStart).toISOString(),
+          });
+        } else if (ord.cancellationStatus === "declined" || ord.cancellationStatus === "rejected") {
+          notifications.push({
+            id: `cancel-declined-${ord.id}`,
+            type: "cancellation_declined",
+            title: `Cancellation Declined: ${ref}`,
+            message: `Cancellation request for ${partyName} was declined by dispatch. Note: ${ord.cancellationDecisionNote ?? "Dispatch proceeded with delivery"}.`,
+            orderId: ord.id,
+            orderNo: ord.orderNo,
+            createdAt: (ord.cancellationDecidedAt ?? dayStart).toISOString(),
+          });
+        } else if (ord.cancellationStatus === "pending") {
+          notifications.push({
+            id: `cancel-pending-${ord.id}`,
+            type: "cancellation_pending",
+            title: `Cancellation Under Review: ${ref}`,
+            message: `Cancellation request for ${partyName} is pending review by the dispatch coordinator.`,
+            orderId: ord.id,
+            orderNo: ord.orderNo,
+            createdAt: (ord.cancellationRequestedAt ?? dayStart).toISOString(),
+          });
+        }
+      }
+    }
+
     return {
       date: dayStart.toISOString().slice(0, 10),
       attendance: {
@@ -217,6 +299,7 @@ export class FieldDashboardService {
         description: issue.description,
         retailer: issue.retailer,
       })),
+      notifications,
       pendingCollections: receivables,
       todayMetrics: metrics,
       monthMetrics,

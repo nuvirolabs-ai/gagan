@@ -102,6 +102,8 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
     orders: () => request("/rep/orders"),
     order: (id: string) => request(`/rep/orders/${id}`),
     cancelOrder: (id: string) => post(`/rep/orders/${id}/cancel`),
+    requestOrderCancellation: (id: string, reason: string) =>
+      post(`/rep/orders/${id}/request-cancellation`, { reason }),
     commercialStatusOrder: (id: string) => request(`/rep/commercial-status/orders/${id}`),
     commercialStatusRetailer: (id: string) => request(`/rep/commercial-status/retailers/${id}`),
     requestRateApproval: (quoteId: string, reason?: string, reference?: string) => post(`/rep/commercial-status/quotes/${quoteId}/rate-approval`, { reason, reference }),

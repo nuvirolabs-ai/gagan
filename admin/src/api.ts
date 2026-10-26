@@ -275,6 +275,8 @@ export const api = {
   },
   approve: (id: string) => post(`/admin/orders/${id}/approve`),
   reject: (id: string, reason?: string) => post(`/admin/orders/${id}/reject`, { reason }),
+  approveCancellation: (id: string, note?: string) => post(`/admin/orders/${id}/cancellation/approve`, { note }),
+  rejectCancellation: (id: string, note: string) => post(`/admin/orders/${id}/cancellation/reject`, { note }),
   pack: (id: string) => post(`/admin/orders/${id}/pack`),
   commercialStatuses: (code?: string) => request(`/admin/commercial-status/orders${code ? `?code=${encodeURIComponent(code)}` : ""}`),
   commercialStatus: (id: string) => request(`/admin/commercial-status/orders/${id}`),

@@ -1941,6 +1941,7 @@ label.command-search-field input:focus, label.command-search-field input:focus-v
   width: 0 !important;
   padding: 0 !important;
   overflow: hidden !important;
+  border-right: none !important;
 }
 
 .layout.sidebar-collapsed .main {
@@ -1952,13 +1953,13 @@ label.command-search-field input:focus, label.command-search-field input:focus-v
 .sidebar-hamburger-btn {
   background: #ffffff;
   border: 1px solid #cbd5e1;
-  border-radius: 6px;
+  border-radius: 8px;
   color: #0f172a;
-  font-size: 18px;
+  font-size: 19px;
   font-weight: 700;
   cursor: pointer;
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1970,10 +1971,31 @@ label.command-search-field input:focus, label.command-search-field input:focus-v
   background: #f1f5f9;
   border-color: #94a3b8;
   color: #166534;
+  transform: translateY(-1px);
+}
+.sidebar-hamburger-btn.is-expanded {
+  background: #f8fafc;
+  border-color: #94a3b8;
 }
 
+.sidebar-toggle-close {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  padding: 6px 12px !important;
+  border-radius: 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+  transition: all 0.15s ease !important;
+}
 .sidebar-toggle-close:hover {
-  background: rgba(255, 255, 255, 0.2) !important;
-  color: #ffffff !important;
+  background: #fee2e2 !important;
+  border-color: #fca5a5 !important;
+  color: #dc2626 !important;
 }
 

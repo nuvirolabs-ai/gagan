@@ -73,17 +73,15 @@ function TopBar({ onToggleSidebar, sidebarCollapsed }: { onToggleSidebar: () => 
   return (
     <header className="app-topbar">
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        {sidebarCollapsed && (
-          <button
-            type="button"
-            className="sidebar-hamburger-btn"
-            onClick={onToggleSidebar}
-            aria-label="Expand sidebar"
-            title="Expand sidebar"
-          >
-            ☰
-          </button>
-        )}
+        <button
+          type="button"
+          className={`sidebar-hamburger-btn ${sidebarCollapsed ? "is-collapsed" : "is-expanded"}`}
+          onClick={onToggleSidebar}
+          aria-label={sidebarCollapsed ? "Expand navigation panel" : "Collapse navigation panel"}
+          title={sidebarCollapsed ? "Expand navigation panel" : "Collapse navigation panel"}
+        >
+          ☰
+        </button>
         <div className="app-crumb">
           <strong>Gagan</strong><span>/</span><span>{pageLabel(location.pathname)}</span>
         </div>
@@ -98,16 +96,52 @@ function TopBar({ onToggleSidebar, sidebarCollapsed }: { onToggleSidebar: () => 
 }
 
 function LoadingWorkspace() {
-  return <div className="layout"><aside className="sidebar"><div className="brand">Gagan</div><div className="brand-sub">Operations console</div><div className="sidebar-loading-lines"><span /><span /><span /><span /><span /></div><div className="sidebar-foot"><div className="sidebar-user">Preparing workspace</div></div></aside><main className="main"><div className="app-topbar"><div className="app-crumb"><strong>Gagan</strong><span>/</span><span>Admin</span></div><span className="environment-tag"><i /> {APP_ENVIRONMENT_LABEL}</span></div><div className="route-stage instrument-loading"><div className="skeleton skeleton-label" /><div className="skeleton skeleton-title" /><div className="skeleton skeleton-copy" /><div className="skeleton skeleton-flow" /><div className="instrument-grid-skeleton"><div className="skeleton skeleton-panel" /><div className="skeleton skeleton-panel" /><div className="skeleton skeleton-panel" /></div></div></main></div>;
+  const isCollapsed = (() => {
+    try {
+      const explicit = localStorage.getItem("gagan_sidebar_explicit_state_v3");
+      if (explicit !== null) return explicit === "collapsed";
+      return true;
+    } catch {
+      return true;
+    }
+  })();
+  return (
+    <div className={`layout ${isCollapsed ? "sidebar-collapsed" : ""}`}>
+      {!isCollapsed && (
+        <aside className="sidebar">
+          <div className="brand">Gagan</div>
+          <div className="brand-sub">Operations console</div>
+          <div className="sidebar-loading-lines"><span /><span /><span /><span /><span /></div>
+          <div className="sidebar-foot"><div className="sidebar-user">Preparing workspace</div></div>
+        </aside>
+      )}
+      <main className="main">
+        <div className="app-topbar">
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <button type="button" className="sidebar-hamburger-btn" disabled>☰</button>
+            <div className="app-crumb"><strong>Gagan</strong><span>/</span><span>Admin</span></div>
+          </div>
+          <span className="environment-tag"><i /> {APP_ENVIRONMENT_LABEL}</span>
+        </div>
+        <div className="route-stage instrument-loading"><div className="skeleton skeleton-label" /><div className="skeleton skeleton-title" /><div className="skeleton skeleton-copy" /><div className="skeleton skeleton-flow" /><div className="instrument-grid-skeleton"><div className="skeleton skeleton-panel" /><div className="skeleton skeleton-panel" /><div className="skeleton skeleton-panel" /></div></div>
+      </main>
+    </div>
+  );
 }
 
 function Shell() {
   const { admin, permissions, logout } = useAuth();
+  // Left-Side Panel: Completely hidden by default with floating/topbar hamburger button (Requirement 8)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
-      return localStorage.getItem("gagan_sidebar_collapsed") === "true";
+      localStorage.removeItem("gagan_sidebar_collapsed");
+      const explicit = localStorage.getItem("gagan_sidebar_explicit_state_v3");
+      if (explicit !== null) {
+        return explicit === "collapsed";
+      }
+      return true; // Completely hidden by default as requested!
     } catch {
-      return false;
+      return true;
     }
   });
 
@@ -115,7 +149,7 @@ function Shell() {
     setSidebarCollapsed((prev) => {
       const next = !prev;
       try {
-        localStorage.setItem("gagan_sidebar_collapsed", String(next));
+        localStorage.setItem("gagan_sidebar_explicit_state_v3", next ? "collapsed" : "expanded");
       } catch {}
       return next;
     });
@@ -133,7 +167,7 @@ function Shell() {
   return (
     <div className={`layout ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       <aside className={`sidebar ${sidebarCollapsed ? "collapsed" : ""}`}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div>
             <div className="brand">Gagan</div>
             <div className="brand-sub">Operations console</div>
@@ -144,20 +178,8 @@ function Shell() {
             onClick={toggleSidebar}
             aria-label="Collapse sidebar"
             title="Collapse sidebar (maximize workspace)"
-            style={{
-              background: "rgba(255, 255, 255, 0.1)",
-              border: "1px solid rgba(255, 255, 255, 0.2)",
-              color: "#ffffff",
-              fontSize: 16,
-              cursor: "pointer",
-              padding: "4px 8px",
-              borderRadius: 6,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
           >
-            ✕
+            ✕ Hide
           </button>
         </div>
         <nav className="nav-groups">

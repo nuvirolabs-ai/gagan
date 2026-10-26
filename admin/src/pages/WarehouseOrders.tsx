@@ -134,6 +134,18 @@ const FILTERS: Array<{ value: QueueFilter; label: string; step: string; icon: st
   { value: "delivered", label: "🧾 INVOICES", step: "Delivered & Invoiced", icon: "check" },
 ];
 
+const STATUS_PILLS = [
+  { id: "all", key: "all", label: "All Orders", icon: "📋" },
+  { id: "new_buyer", key: "new_buyer", label: "#New Buyer", icon: "#️⃣" },
+  { id: "rate_approval", key: "rate_approval", label: "Order on Rate approval", icon: "🍓" },
+  { id: "outstanding", key: "outstanding", label: "Order on Outstanding", icon: "❤️" },
+  { id: "hold", key: "hold", label: "Hold due to Outstanding", icon: "❌" },
+  { id: "advance", key: "advance", label: "Order on Advance payment", icon: "✍️" },
+  { id: "sale_order_created", key: "sale_order_created", label: "Sale order created", icon: "👍" },
+  { id: "cancelled", key: "cancelled", label: "Order cancelled by Salesman", icon: "⚠️" },
+  { id: "double_order", key: "double_order", label: "Double order placed", icon: "📑" },
+] as const;
+
 const DEFAULT_ROUTE_PRESETS = [
   "ROUTE-INDORE-CENTRAL",
   "ROUTE-MALWAMILL-PATNIPURA",
@@ -209,11 +221,13 @@ function humanErrorMessage(code: string | null): string | null {
 
 export default function WarehouseOrders() {
   const [filter, setFilter] = useState<QueueFilter>("all");
+  const [statusPill, setStatusPill] = useState<string>("all");
   const [orders, setOrders] = useState<WarehouseOrder[]>([]);
   const [search, setSearch] = useState("");
   const [salespersonFilter, setSalespersonFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"date_desc" | "date_asc" | "value_desc" | "value_asc">("date_desc");
-  const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month">("all");
+  const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month" | "custom">("all");
+  const [customDate, setCustomDate] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -222,15 +236,60 @@ export default function WarehouseOrders() {
   const [showAnalytics, setShowAnalytics] = useState(true);
   const [allOrders, setAllOrders] = useState<WarehouseOrder[]>([]);
 
-  // Pop-up Modal State
-  const [modalOrder, setModalOrder] = useState<WarehouseOrder | null>(null);
-  const [modalDetailLoading, setModalDetailLoading] = useState(false);
+  // Accepted duplicates state (persisted so accepting removes warning badge)
+  const [acceptedDuplicates, setAcceptedDuplicates] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem("gagan_accepted_duplicates");
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  const handleAcceptDuplicate = useCallback((orderId: string) => {
+    setAcceptedDuplicates((prev) => {
+      const next = new Set(prev);
+      next.add(orderId);
+      try {
+        localStorage.setItem("gagan_accepted_duplicates", JSON.stringify(Array.from(next)));
+      } catch {}
+      return next;
+    });
+    setNotice("Duplicate order accepted. Warning cleared.");
+  }, []);
 
   const [warehouseFilter, setWarehouseFilter] = useState<string>("all");
   const [availableWarehouses, setAvailableWarehouses] = useState<Array<{ code: string; name: string; city: string }>>([
     { code: "WH-001", name: "Indore Central Fulfillment Hub", city: "Indore" },
     { code: "WH-002", name: "Bhopal Regional Hub", city: "Bhopal" },
   ]);
+
+  const hasActiveFilters = useMemo(() => {
+    return (
+      statusPill !== "all" ||
+      filter !== "all" ||
+      dateFilter !== "all" ||
+      warehouseFilter !== "all" ||
+      salespersonFilter !== "all" ||
+      sortBy !== "date_desc" ||
+      Boolean(search.trim())
+    );
+  }, [statusPill, filter, dateFilter, warehouseFilter, salespersonFilter, sortBy, search]);
+
+  const handleClearAllFilters = useCallback(() => {
+    setStatusPill("all");
+    setFilter("all");
+    setDateFilter("all");
+    setCustomDate("");
+    setWarehouseFilter("all");
+    setSalespersonFilter("all");
+    setSortBy("date_desc");
+    setSearch("");
+  }, []);
+
+  // Pop-up Modal State
+  const [modalOrder, setModalOrder] = useState<WarehouseOrder | null>(null);
+  const [modalDetailLoading, setModalDetailLoading] = useState(false);
 
   // Dispatch fields inside modal
   const [routePresets, setRoutePresets] = useState<string[]>(DEFAULT_ROUTE_PRESETS);
@@ -413,8 +472,29 @@ export default function WarehouseOrders() {
     return Array.from(set).sort();
   }, [orders]);
 
+  const duplicateMap = useMemo(() => detectDuplicateOrders(orders), [orders]);
+
   const filteredOrders = useMemo(() => {
     let result = orders;
+
+    // Filter via order status pills (Requirement 1)
+    if (statusPill === "new_buyer") {
+      result = result.filter((o: any) => o.retailer?.isNew || o.internalStatus?.code === "ACCOUNT_OPENED" || o.placedBy === "retailer");
+    } else if (statusPill === "rate_approval") {
+      result = result.filter((o: any) => o.internalStatus?.code === "RATE_APPROVAL_SENT" || o.internalStatus?.code === "RATE_APPROVAL_PENDING");
+    } else if (statusPill === "outstanding") {
+      result = result.filter((o: any) => o.internalStatus?.code === "SALES_ORDER_APPROVAL_SENT" || o.internalStatus?.code === "ORDER_APPROVAL_PENDING");
+    } else if (statusPill === "hold") {
+      result = result.filter((o: any) => o.isOnHold === true || o.internalStatus?.code === "SALES_ORDER_ON_HOLD");
+    } else if (statusPill === "advance") {
+      result = result.filter((o: any) => o.internalStatus?.code === "ADVANCE_PAYMENT_RECEIVED");
+    } else if (statusPill === "sale_order_created") {
+      result = result.filter((o: any) => o.status === "confirmed" || o.internalStatus?.code === "SALES_ORDER_CREATED" || o.status === "placed");
+    } else if (statusPill === "cancelled") {
+      result = result.filter((o: any) => o.cancellationRequestedAt != null || o.status === "rejected" || o.cancellationStatus != null);
+    } else if (statusPill === "double_order") {
+      result = result.filter((o) => duplicateMap.has(o.id) && !acceptedDuplicates.has(o.id));
+    }
 
     // Filter via salesperson
     if (salespersonFilter === "retailer_direct") {
@@ -434,7 +514,7 @@ export default function WarehouseOrders() {
       result = result.filter((o) => o.status !== "delivered");
     }
 
-    // Date range filter
+    // Date range filter (Requirement 4)
     if (dateFilter === "today") {
       const todayStr = new Date().toDateString();
       result = result.filter((o) => new Date(o.createdAt).toDateString() === todayStr);
@@ -444,20 +524,37 @@ export default function WarehouseOrders() {
     } else if (dateFilter === "month") {
       const oneMonthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
       result = result.filter((o) => new Date(o.createdAt).getTime() >= oneMonthAgo);
+    } else if (dateFilter === "custom" && customDate) {
+      result = result.filter((o) => {
+        const d = new Date(o.createdAt);
+        const localIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        return localIso === customDate;
+      });
     }
 
-    // Search query
+    // Flexible tokenized search (Requirement 5)
     if (search.trim()) {
-      const q = search.toLowerCase();
-      result = result.filter(
-        (o) =>
-          formatOrderRef(o).toLowerCase().includes(q) ||
-          (o.retailer?.name ?? "").toLowerCase().includes(q) ||
-          (o.retailer?.shopAddress ?? "").toLowerCase().includes(q) ||
-          (o.retailer?.deliveryCity ?? "").toLowerCase().includes(q) ||
-          (o.salespersonName ?? "").toLowerCase().includes(q) ||
-          (o.invoice?.invoiceNumber ? String(o.invoice.invoiceNumber).includes(q) : false)
-      );
+      const tokens = search.toLowerCase().trim().split(/\s+/).filter(Boolean);
+      result = result.filter((o) => {
+        const haystack = [
+          formatOrderRef(o),
+          o.retailer?.name,
+          (o.retailer as any)?.ownerName,
+          o.retailer?.phone,
+          o.retailer?.shopAddress,
+          o.retailer?.deliveryCity,
+          (o.retailer as any)?.city,
+          o.salespersonName,
+          o.punchedByName,
+          o.creatorName,
+          o.transportName,
+          o.remarks,
+          o.invoice?.invoiceNumber ? String(o.invoice.invoiceNumber) : "",
+          ...(o.items ?? []).map((it: any) => it.variant?.product?.name || ""),
+        ].filter(Boolean).join(" ").toLowerCase();
+
+        return tokens.every((token) => haystack.includes(token));
+      });
     }
 
     // Sorting by value or date
@@ -472,9 +569,7 @@ export default function WarehouseOrders() {
       if (sortBy === "date_asc") return dateA - dateB;
       return dateB - dateA;
     });
-  }, [orders, filter, dateFilter, search, sortBy]);
-
-  const duplicateMap = useMemo(() => detectDuplicateOrders(orders), [orders]);
+  }, [orders, filter, statusPill, duplicateMap, acceptedDuplicates, salespersonFilter, dateFilter, customDate, search, sortBy]);
 
   // Open Pop-up Modal on order click
   const openOrderModal = useCallback(async (order: WarehouseOrder) => {
@@ -799,40 +894,22 @@ export default function WarehouseOrders() {
         </div>
       </header>
 
-      {/* Top Tab Switcher */}
-      <div style={{ display: "flex", gap: 10, borderBottom: "1px solid #e5e7eb", paddingBottom: 12, marginBottom: 16 }}>
+      {/* Top Tab Switcher - Delivery Fleet temporarily hidden per Requirement 3 */}
+      <div style={{ display: "none" }} aria-hidden="true">
         <button
           type="button"
-          className={`button ${activeTab === "orders" ? "primary" : "secondary"}`}
-          style={{
-            fontWeight: 700,
-            borderRadius: 8,
-            padding: "8px 16px",
-            background: activeTab === "orders" ? "#165a31" : "#f3f4f6",
-            color: activeTab === "orders" ? "#ffffff" : "#374151",
-            borderColor: activeTab === "orders" ? "#165a31" : "#d1d5db",
-          }}
           onClick={() => setActiveTab("orders")}
         >
-          📦 Warehouse Orders Queue ({metrics.pendingTotal} pending)
+          Orders
         </button>
         <button
           type="button"
-          className={`button ${activeTab === "fleet" ? "primary" : "secondary"}`}
-          style={{
-            fontWeight: 700,
-            borderRadius: 8,
-            padding: "8px 16px",
-            background: activeTab === "fleet" ? "#165a31" : "#f3f4f6",
-            color: activeTab === "fleet" ? "#ffffff" : "#374151",
-            borderColor: activeTab === "fleet" ? "#165a31" : "#d1d5db",
-          }}
           onClick={() => {
             setActiveTab("fleet");
             void loadFleet();
           }}
         >
-          🚚 Delivery Fleet & Run Dispatcher (Gap 13)
+          Fleet
         </button>
       </div>
 
@@ -924,72 +1001,9 @@ export default function WarehouseOrders() {
             </div>
           </div>
 
-          {/* Row 2: Visual Infographics - Orders Pending in Hours (Aging SLA) & Hourly Intake Flow */}
-          <div className="warehouse-visual-grid">
-            {/* Infographic 1: Orders Pending in Hours (Aging SLA) */}
-            <div className="warehouse-visual-card">
-              <div className="warehouse-visual-header">
-                <div>
-                  <div className="warehouse-visual-title">
-                    <span>⏱️ Orders Pending in Hours</span>
-                    <span style={{ fontSize: 11, background: "#f1f5f9", padding: "2px 8px", borderRadius: 12, color: "#475569", fontWeight: 600 }}>
-                      {metrics.pendingTotal} in queue
-                    </span>
-                  </div>
-                  <div className="warehouse-visual-sub">
-                    Elapsed queue wait time since salesperson punched the order
-                  </div>
-                </div>
-              </div>
-
-              {/* 3 Tier Infographic Badges */}
-              <div className="warehouse-aging-tiers">
-                <div className="warehouse-aging-tier tier-green">
-                  <span className="warehouse-aging-tier-title">🟢 Fresh &lt; 2 hrs</span>
-                  <span className="warehouse-aging-tier-val">{metrics.pendingUnder2h}</span>
-                  <span className="warehouse-aging-tier-sub">{metrics.pctUnder2h}% of queue</span>
-                </div>
-                <div className="warehouse-aging-tier tier-amber">
-                  <span className="warehouse-aging-tier-title">🟡 Processing 2–6 hrs</span>
-                  <span className="warehouse-aging-tier-val">{metrics.pending2to6h}</span>
-                  <span className="warehouse-aging-tier-sub">{metrics.pct2to6h}% of queue</span>
-                </div>
-                <div className="warehouse-aging-tier tier-red">
-                  <span className="warehouse-aging-tier-title">🔴 Priority &gt; 6 hrs</span>
-                  <span className="warehouse-aging-tier-val">{metrics.pendingOver6h}</span>
-                  <span className="warehouse-aging-tier-sub">{metrics.pctOver6h}% of queue</span>
-                </div>
-              </div>
-
-              {/* Segmented SLA Progress Bar */}
-              <div className="warehouse-sla-bar-container">
-                <div className="warehouse-sla-bar">
-                  <div className="warehouse-sla-segment seg-green" style={{ width: `${metrics.pctUnder2h}%` }} title="< 2 hrs" />
-                  <div className="warehouse-sla-segment seg-amber" style={{ width: `${metrics.pct2to6h}%` }} title="2 - 6 hrs" />
-                  <div className="warehouse-sla-segment seg-red" style={{ width: `${metrics.pctOver6h}%` }} title="> 6 hrs" />
-                </div>
-              </div>
-
-              {/* Aging summary KPIs */}
-              <div className="warehouse-aging-footer">
-                <div className="warehouse-aging-stat">
-                  <span>Avg Aging:</span>
-                  <strong>{metrics.avgAgingHours} hrs</strong>
-                </div>
-                <div className="warehouse-aging-stat">
-                  <span>Oldest Pending:</span>
-                  <strong style={{ color: Number(metrics.oldestAgingHours) > 6 ? "#b91c1c" : "#1f2937" }}>
-                    {metrics.oldestAgingHours} hrs
-                  </strong>
-                </div>
-                <div className="warehouse-aging-stat">
-                  <span>Target SLA:</span>
-                  <strong style={{ color: "#166534" }}>&lt; 4.0 hrs</strong>
-                </div>
-              </div>
-            </div>
-
-            {/* Infographic 2: Hourly Order Intake & Fulfillment Trend Graph */}
+          {/* Row 2: Visual Infographics - Hourly Intake Flow (Pending Hours hidden per Requirement 2) */}
+          <div className="warehouse-visual-grid" style={{ gridTemplateColumns: "1fr" }}>
+            {/* Infographic: Hourly Order Intake & Fulfillment Trend Graph */}
             <div className="warehouse-visual-card">
               <div className="warehouse-visual-header">
                 <div>
@@ -1152,18 +1166,92 @@ export default function WarehouseOrders() {
         </section>
       )}
 
-      {/* Filter Tabs and Search Bar */}
+      {/* Requirement 1: Order Status Filters in a Single Row */}
+      <div
+        className="warehouse-status-pills-row"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          overflowX: "auto",
+          paddingBottom: 8,
+          marginBottom: 12,
+          scrollbarWidth: "thin",
+          whiteSpace: "nowrap",
+        }}
+        role="tablist"
+        aria-label="Order status quick filters"
+      >
+        {STATUS_PILLS.map((pill) => {
+          const isSelected = statusPill === pill.key;
+          let count = 0;
+          if (pill.key === "all") count = orders.length;
+          else if (pill.key === "new_buyer") count = orders.filter((o: any) => o.retailer?.isNew || o.internalStatus?.code === "ACCOUNT_OPENED" || o.placedBy === "retailer").length;
+          else if (pill.key === "rate_approval") count = orders.filter((o: any) => o.internalStatus?.code === "RATE_APPROVAL_SENT" || o.internalStatus?.code === "RATE_APPROVAL_PENDING").length;
+          else if (pill.key === "outstanding") count = orders.filter((o: any) => o.internalStatus?.code === "SALES_ORDER_APPROVAL_SENT" || o.internalStatus?.code === "ORDER_APPROVAL_PENDING").length;
+          else if (pill.key === "hold") count = orders.filter((o: any) => o.isOnHold === true || o.internalStatus?.code === "SALES_ORDER_ON_HOLD").length;
+          else if (pill.key === "advance") count = orders.filter((o: any) => o.internalStatus?.code === "ADVANCE_PAYMENT_RECEIVED").length;
+          else if (pill.key === "sale_order_created") count = orders.filter((o: any) => o.status === "confirmed" || o.internalStatus?.code === "SALES_ORDER_CREATED" || o.status === "placed").length;
+          else if (pill.key === "cancelled") count = orders.filter((o: any) => o.cancellationRequestedAt != null || o.status === "rejected" || o.cancellationStatus != null).length;
+          else if (pill.key === "double_order") count = orders.filter((o) => duplicateMap.has(o.id) && !acceptedDuplicates.has(o.id)).length;
+
+          return (
+            <button
+              key={pill.key}
+              type="button"
+              role="tab"
+              aria-selected={isSelected}
+              onClick={() => setStatusPill(pill.key)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "6px 14px",
+                borderRadius: 20,
+                fontSize: 13,
+                fontWeight: isSelected ? 700 : 500,
+                cursor: "pointer",
+                border: isSelected ? "1.5px solid #165a31" : "1px solid #cbd5e1",
+                background: isSelected ? "#165a31" : "#ffffff",
+                color: isSelected ? "#ffffff" : "#334155",
+                boxShadow: isSelected ? "0 1px 3px rgba(22, 90, 49, 0.25)" : "none",
+                transition: "all 0.15s ease",
+                flexShrink: 0,
+              }}
+            >
+              <span>{pill.label}</span>
+              {count > 0 && (
+                <span
+                  style={{
+                    background: isSelected ? "rgba(255,255,255,0.25)" : "#f1f5f9",
+                    color: isSelected ? "#ffffff" : "#475569",
+                    borderRadius: 10,
+                    padding: "1px 6px",
+                    fontSize: 11,
+                    fontWeight: 700,
+                  }}
+                >
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Filter Row: Warehouse, Salesperson, Date, Sort, Search (Requirement 6 Highlights) */}
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          gap: 16,
+          gap: 12,
           flexWrap: "wrap",
-          marginBottom: 16,
+          marginBottom: 10,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          {/* Stage Filter */}
           <div className="warehouse-filters" role="group" aria-label="Order status filter tabs">
             {FILTERS.map((item) => (
               <button
@@ -1172,15 +1260,33 @@ export default function WarehouseOrders() {
                 className={`warehouse-filter ${filter === item.value ? "selected" : ""}`}
                 aria-pressed={filter === item.value}
                 onClick={() => setFilter(item.value)}
-                style={{ fontWeight: filter === item.value ? 600 : 400 }}
+                style={{
+                  fontWeight: filter === item.value ? 700 : 500,
+                  background: filter === item.value ? "#e6f4ea" : undefined,
+                  borderColor: filter === item.value ? "#34a853" : undefined,
+                  color: filter === item.value ? "#166534" : undefined,
+                }}
               >
                 {item.label}
               </button>
             ))}
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: 6, padding: "5px 10px" }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: "#475569" }}>🏢 Warehouse:</span>
+          {/* Warehouse Dropdown */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: warehouseFilter !== "all" ? "#e6f4ea" : "#f8fafc",
+              border: warehouseFilter !== "all" ? "1.5px solid #34a853" : "1px solid #cbd5e1",
+              borderRadius: 6,
+              padding: "5px 10px",
+            }}
+          >
+            <span style={{ fontSize: 12, fontWeight: 700, color: warehouseFilter !== "all" ? "#166534" : "#475569" }}>
+              🏢 Warehouse:
+            </span>
             <select
               value={warehouseFilter}
               onChange={(e) => setWarehouseFilter(e.target.value)}
@@ -1196,8 +1302,21 @@ export default function WarehouseOrders() {
             </select>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: 6, padding: "5px 10px" }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: "#475569" }}>👤 Salesperson:</span>
+          {/* Salesperson Dropdown */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: salespersonFilter !== "all" ? "#e6f4ea" : "#f8fafc",
+              border: salespersonFilter !== "all" ? "1.5px solid #34a853" : "1px solid #cbd5e1",
+              borderRadius: 6,
+              padding: "5px 10px",
+            }}
+          >
+            <span style={{ fontSize: 12, fontWeight: 700, color: salespersonFilter !== "all" ? "#166534" : "#475569" }}>
+              👤 Salesperson:
+            </span>
             <select
               value={salespersonFilter}
               onChange={(e) => setSalespersonFilter(e.target.value)}
@@ -1214,11 +1333,28 @@ export default function WarehouseOrders() {
             </select>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: 6, padding: "5px 10px" }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: "#475569" }}>📅 Date:</span>
+          {/* Date Dropdown with Custom Date (Requirement 4) */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: dateFilter !== "all" ? "#e6f4ea" : "#f8fafc",
+              border: dateFilter !== "all" ? "1.5px solid #34a853" : "1px solid #cbd5e1",
+              borderRadius: 6,
+              padding: "5px 10px",
+            }}
+          >
+            <span style={{ fontSize: 12, fontWeight: 700, color: dateFilter !== "all" ? "#166534" : "#475569" }}>
+              📅 Date:
+            </span>
             <select
               value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value as any)}
+              onChange={(e) => {
+                const val = e.target.value as any;
+                setDateFilter(val);
+                if (val !== "custom") setCustomDate("");
+              }}
               style={{ fontSize: 13, border: "none", background: "transparent", fontWeight: 600, color: "#0f172a", cursor: "pointer", outline: "none" }}
               aria-label="Filter by date"
             >
@@ -1226,11 +1362,43 @@ export default function WarehouseOrders() {
               <option value="today">Today</option>
               <option value="week">Last 7 Days</option>
               <option value="month">This Month</option>
+              <option value="custom">📅 Custom Date...</option>
             </select>
+            {dateFilter === "custom" && (
+              <input
+                type="date"
+                aria-label="Custom Date Picker"
+                value={customDate}
+                onChange={(e) => setCustomDate(e.target.value)}
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: "2px 6px",
+                  borderRadius: 4,
+                  border: "1px solid #16a34a",
+                  background: "#ffffff",
+                  color: "#0f172a",
+                  cursor: "pointer",
+                }}
+              />
+            )}
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: 6, padding: "5px 10px" }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: "#475569" }}>⚡ Sort:</span>
+          {/* Sort Dropdown */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: sortBy !== "date_desc" ? "#e6f4ea" : "#f8fafc",
+              border: sortBy !== "date_desc" ? "1.5px solid #34a853" : "1px solid #cbd5e1",
+              borderRadius: 6,
+              padding: "5px 10px",
+            }}
+          >
+            <span style={{ fontSize: 12, fontWeight: 700, color: sortBy !== "date_desc" ? "#166534" : "#475569" }}>
+              ⚡ Sort:
+            </span>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
@@ -1244,15 +1412,26 @@ export default function WarehouseOrders() {
             </select>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 300 }}>
-          <input
-            type="search"
-            aria-label="Search orders"
-            placeholder="Search order ref, store name, or city…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: 13 }}
-          />
+
+        {/* Search input and refresh (Requirement 5) */}
+        <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 280, flex: "1 1 280px", maxWidth: 450 }}>
+          <div style={{ position: "relative", width: "100%" }}>
+            <input
+              type="search"
+              aria-label="Search orders"
+              placeholder="Search order ref, store name, owner, city…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                borderRadius: 6,
+                border: search.trim() ? "1.5px solid #34a853" : "1px solid #d1d5db",
+                background: search.trim() ? "#e6f4ea" : "#ffffff",
+                fontSize: 13,
+              }}
+            />
+          </div>
           <button
             type="button"
             className="button secondary compact warehouse-refresh"
@@ -1264,6 +1443,96 @@ export default function WarehouseOrders() {
           </button>
         </div>
       </div>
+
+      {/* Active Filters Tag Chips & One-Click Clear All (Requirement 6) */}
+      {hasActiveFilters && (
+        <div
+          className="warehouse-active-filters-bar"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            flexWrap: "wrap",
+            padding: "8px 12px",
+            background: "#e6f4ea",
+            border: "1px solid #a7f3d0",
+            borderRadius: 8,
+            marginBottom: 16,
+          }}
+        >
+          <span style={{ fontSize: 12, fontWeight: 700, color: "#166534", display: "inline-flex", alignItems: "center", gap: 4 }}>
+            🔍 Active Filters:
+          </span>
+
+          {statusPill !== "all" && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#ffffff", border: "1px solid #86efac", borderRadius: 14, padding: "2px 8px", fontSize: 12, color: "#15803d", fontWeight: 600 }}>
+              Status: {STATUS_PILLS.find((p) => p.key === statusPill)?.label}
+              <button type="button" onClick={() => setStatusPill("all")} style={{ border: "none", background: "transparent", cursor: "pointer", color: "#15803d", fontWeight: 700 }} title="Remove filter">✕</button>
+            </span>
+          )}
+
+          {filter !== "all" && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#ffffff", border: "1px solid #86efac", borderRadius: 14, padding: "2px 8px", fontSize: 12, color: "#15803d", fontWeight: 600 }}>
+              Stage: {FILTERS.find((f) => f.value === filter)?.label}
+              <button type="button" onClick={() => setFilter("all")} style={{ border: "none", background: "transparent", cursor: "pointer", color: "#15803d", fontWeight: 700 }} title="Remove filter">✕</button>
+            </span>
+          )}
+
+          {dateFilter !== "all" && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#ffffff", border: "1px solid #86efac", borderRadius: 14, padding: "2px 8px", fontSize: 12, color: "#15803d", fontWeight: 600 }}>
+              Date: {dateFilter === "custom" ? (customDate || "Custom Date") : dateFilter}
+              <button type="button" onClick={() => { setDateFilter("all"); setCustomDate(""); }} style={{ border: "none", background: "transparent", cursor: "pointer", color: "#15803d", fontWeight: 700 }} title="Remove filter">✕</button>
+            </span>
+          )}
+
+          {warehouseFilter !== "all" && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#ffffff", border: "1px solid #86efac", borderRadius: 14, padding: "2px 8px", fontSize: 12, color: "#15803d", fontWeight: 600 }}>
+              Warehouse: {warehouseFilter}
+              <button type="button" onClick={() => setWarehouseFilter("all")} style={{ border: "none", background: "transparent", cursor: "pointer", color: "#15803d", fontWeight: 700 }} title="Remove filter">✕</button>
+            </span>
+          )}
+
+          {salespersonFilter !== "all" && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#ffffff", border: "1px solid #86efac", borderRadius: 14, padding: "2px 8px", fontSize: 12, color: "#15803d", fontWeight: 600 }}>
+              Salesperson: {salespersonFilter === "retailer_direct" ? "Retailer Direct" : salespersonFilter}
+              <button type="button" onClick={() => setSalespersonFilter("all")} style={{ border: "none", background: "transparent", cursor: "pointer", color: "#15803d", fontWeight: 700 }} title="Remove filter">✕</button>
+            </span>
+          )}
+
+          {sortBy !== "date_desc" && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#ffffff", border: "1px solid #86efac", borderRadius: 14, padding: "2px 8px", fontSize: 12, color: "#15803d", fontWeight: 600 }}>
+              Sort: {sortBy}
+              <button type="button" onClick={() => setSortBy("date_desc")} style={{ border: "none", background: "transparent", cursor: "pointer", color: "#15803d", fontWeight: 700 }} title="Remove filter">✕</button>
+            </span>
+          )}
+
+          {search.trim() && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#ffffff", border: "1px solid #86efac", borderRadius: 14, padding: "2px 8px", fontSize: 12, color: "#15803d", fontWeight: 600 }}>
+              Search: "{search}"
+              <button type="button" onClick={() => setSearch("")} style={{ border: "none", background: "transparent", cursor: "pointer", color: "#15803d", fontWeight: 700 }} title="Remove filter">✕</button>
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={handleClearAllFilters}
+            style={{
+              marginLeft: "auto",
+              background: "#165a31",
+              color: "#ffffff",
+              border: "none",
+              borderRadius: 6,
+              padding: "4px 10px",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+            }}
+          >
+            Clear All Filters (✕)
+          </button>
+        </div>
+      )}
 
       {error && !modalOrder && (
         <div className="banner error" role="alert" style={{ marginBottom: 16 }}>
@@ -1309,12 +1578,14 @@ export default function WarehouseOrders() {
 
             <div className="warehouse-table-body" role="rowgroup">
               {filteredOrders.map((order) => {
+                const isDuplicate = duplicateMap.has(order.id) && !acceptedDuplicates.has(order.id);
                 const totalCases = order.items.reduce((sum, item) => sum + (item.qtyOrdered || 0), 0);
                 return (
                   <button
                     type="button"
                     key={order.id}
-                    className="warehouse-order-row"
+                    className={`warehouse-order-row ${isDuplicate ? "duplicate-order-row" : ""}`}
+                    style={isDuplicate ? { background: "#fffdf0", borderLeft: "4px solid #f59e0b" } : undefined}
                     aria-haspopup="dialog"
                     onClick={() => void openOrderModal(order)}
                   >
@@ -1325,9 +1596,32 @@ export default function WarehouseOrders() {
                           🧾 INV-{order.invoice.invoiceNumber}
                         </div>
                       ) : null}
-                      {duplicateMap.has(order.id) && (
-                        <div style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", background: "#fef3c7", color: "#b45309", border: "1px solid #fde68a", borderRadius: 4, marginTop: 3 }}>
-                          ⚠️ Duplicate: {duplicateMap.get(order.id)?.duplicateOfOrderRef}
+                      {isDuplicate && (
+                        <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", background: "#fef3c7", color: "#b45309", border: "1px solid #fde68a", borderRadius: 4 }}>
+                            ⚠️ Double order placed
+                          </span>
+                          <button
+                            type="button"
+                            className="button secondary compact"
+                            style={{
+                              fontSize: 10,
+                              padding: "2px 6px",
+                              height: "auto",
+                              background: "#ffffff",
+                              borderColor: "#f59e0b",
+                              color: "#b45309",
+                              fontWeight: 700,
+                              borderRadius: 4,
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAcceptDuplicate(order.id);
+                            }}
+                            title="Accept duplicate order and proceed"
+                          >
+                            ✓ Accept Duplicate
+                          </button>
                         </div>
                       )}
                     </span>
@@ -1953,32 +2247,70 @@ export default function WarehouseOrders() {
                 </div>
               )}
 
-              {/* Duplicate Order Warning (Point 5) */}
-              {duplicateMap.has(modalOrder.id) && (
+              {/* Duplicate Order Warning Box with Accept Duplicate button (Requirement 7) */}
+              {duplicateMap.has(modalOrder.id) && !acceptedDuplicates.has(modalOrder.id) && (
                 <div style={{
-                  padding: "10px 14px",
+                  padding: "12px 16px",
                   background: "#fffbeb",
                   border: "2px solid #f59e0b",
                   borderRadius: 8,
                   marginBottom: 14,
-                  color: "#92400e",
-                  fontSize: 13,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 12,
                 }}>
-                  <strong style={{ display: "block", marginBottom: 2 }}>⚠️ Potential Duplicate Order Detected</strong>
-                  <span>{duplicateMap.get(modalOrder.id)?.reason}</span>
+                  <div>
+                    <strong style={{ display: "block", color: "#92400e", fontSize: 13, marginBottom: 2 }}>
+                      ⚠️ Double order placed ({duplicateMap.get(modalOrder.id)?.reason})
+                    </strong>
+                    <span style={{ fontSize: 12, color: "#b45309" }}>
+                      This order matches previous order {duplicateMap.get(modalOrder.id)?.duplicateOfOrderRef}. Click "Accept Duplicate" if this is an intentional repeat order.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="button secondary compact"
+                    style={{
+                      background: "#fef3c7",
+                      borderColor: "#f59e0b",
+                      color: "#92400e",
+                      fontWeight: 700,
+                      whiteSpace: "nowrap",
+                      padding: "6px 12px",
+                    }}
+                    onClick={() => handleAcceptDuplicate(modalOrder.id)}
+                  >
+                    ✓ Accept Duplicate
+                  </button>
                 </div>
               )}
 
-              {/* Retailer & Fulfillment Info Card */}
+              {/* Retailer & Fulfillment Info Card (Image 1 Green Highlights) */}
               <section className="warehouse-modal-retailer-card" aria-label="Customer details">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                   <div>
-                    <h3 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 700, color: "#111827" }}>
-                      {modalOrder.retailer?.name ?? "Retailer unavailable"}
-                    </h3>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+                      <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#111827" }}>
+                        {modalOrder.retailer?.name ?? "Retailer unavailable"}
+                      </h3>
+                      {/* Green City Badge from Image 1 */}
+                      <span
+                        style={{
+                          background: "#dcfce7",
+                          color: "#166534",
+                          border: "1px solid #86efac",
+                          borderRadius: 4,
+                          padding: "2px 8px",
+                          fontSize: 12,
+                          fontWeight: 700,
+                        }}
+                      >
+                        City : {modalOrder.retailer?.deliveryCity || (modalOrder.retailer as any)?.city || "Indore MP"}
+                      </span>
+                    </div>
                     <div style={{ fontSize: 13, color: "#4b5563", marginBottom: 2 }}>
                       📍 {modalOrder.retailer?.shopAddress ?? "Shop address not provided"}
-                      {modalOrder.retailer?.deliveryCity ? ` · Delivery City: ${modalOrder.retailer.deliveryCity}` : ""}
                     </div>
                     {modalOrder.retailer?.phone ? (
                       <div style={{ fontSize: 13, color: "#4b5563" }}>
@@ -1996,7 +2328,7 @@ export default function WarehouseOrders() {
                   </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginTop: 12, paddingTop: 10, borderTop: "1px solid #e2e8f0" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginTop: 12, paddingTop: 10, borderTop: "1px solid #e2e8f0" }}>
                   <div>
                     <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, letterSpacing: 0.5, display: "block" }}>
                       👤 Punched By / Salesperson
@@ -2009,6 +2341,19 @@ export default function WarehouseOrders() {
                     </span>
                   </div>
 
+                  {/* TRANSPORTER display from Image 1 */}
+                  <div>
+                    <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, letterSpacing: 0.5, display: "block" }}>
+                      🚚 TRANSPORTER
+                    </span>
+                    <strong style={{ fontSize: 13, color: "#0f172a", marginTop: 2, display: "block" }}>
+                      {modalOrder.transportName || "Mahi Transport Indore"}
+                    </strong>
+                    <span style={{ fontSize: 12, color: "#64748b" }}>
+                      Hub: {modalOrder.warehouseCity || "Indore"}
+                    </span>
+                  </div>
+
                   <div>
                     <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, letterSpacing: 0.5, display: "block" }}>
                       🏢 Fulfillment Warehouse
@@ -2017,8 +2362,18 @@ export default function WarehouseOrders() {
                       {modalOrder.warehouseName || (modalOrder.warehouseCode === "WH-002" ? "Bhopal Regional Hub" : "Indore Central Fulfillment Hub")}
                     </strong>
                     <span style={{ fontSize: 12, color: "#64748b" }}>
-                      Code: <strong>{modalOrder.warehouseCode || "WH-001"}</strong> · {modalOrder.warehouseCity || "Indore"}
+                      Code: <strong>{modalOrder.warehouseCode || "WH-001"}</strong>
                     </span>
+                  </div>
+                </div>
+
+                {/* Remarks full width from Image 1 */}
+                <div style={{ marginTop: 12, padding: "8px 12px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 6 }}>
+                  <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                    Remarks:
+                  </div>
+                  <div style={{ fontSize: 13, color: "#1e293b", marginTop: 2, fontWeight: 500 }}>
+                    {modalOrder.remarks || "Standard dispatch instructions apply"}
                   </div>
                 </div>
 
@@ -2136,10 +2491,10 @@ export default function WarehouseOrders() {
                 <div className="warehouse-modal-items-table">
                   <div className="warehouse-modal-items-header" aria-hidden="true">
                     <span>Product</span>
-                    <span>Presentation / Pack</span>
+                    <span>PACKAGING SIZE</span>
                     <span style={{ textAlign: "right" }}>Rate</span>
                     <span style={{ textAlign: "right" }}>Quantity</span>
-                    <span style={{ textAlign: "right" }}>Line Total</span>
+                    <span style={{ textAlign: "right" }}>TOTAL AMOUNT</span>
                   </div>
                   <div className="warehouse-modal-items-body">
                     {modalOrder.items.map((item) => {
@@ -2173,6 +2528,11 @@ export default function WarehouseOrders() {
                             ? Math.round((unitRate / caseWeightKg) * 100 * 100) / 100
                             : null));
 
+                      const packagingSize = item.variant?.unitSize ||
+                        (item.commercialSnapshot?.packDescription
+                          ? item.commercialSnapshot.packDescription.replace(/^\d+\s*[xX×]\s*/, "")
+                          : item.variant?.unitSize || "Standard");
+
                       return (
                         <div
                           className="warehouse-modal-item-row"
@@ -2183,12 +2543,8 @@ export default function WarehouseOrders() {
                             {isFree ? "🎁 [FREE SCHEME] " : ""}
                             {item.variant?.product?.name ?? "Product unavailable"}
                           </strong>
-                          <span className="item-presentation">
-                            {item.commercialSnapshot?.packDescription
-                              ? item.commercialSnapshot.packDescription
-                              : item.variant
-                                ? `${item.variant.unitsPerCase} × ${item.variant.unitSize}`
-                                : "Standard Pack"}
+                          <span className="item-presentation" style={{ fontWeight: 600 }}>
+                            {packagingSize}
                           </span>
                           <span style={{ textAlign: "right", fontSize: 13, color: isFree ? "#047857" : "#111827" }}>
                             {isFree ? (

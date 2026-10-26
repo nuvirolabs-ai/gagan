@@ -9,9 +9,9 @@ export default defineConfig({
       // Keep local Admin testing pointed at the hosted staging API without
       // requiring the staging backend to allow arbitrary localhost origins.
       "/api": {
-        target: "https://gagan-srat.onrender.com",
+        target: process.env.VITE_PROXY_TARGET || "https://gagan-srat.onrender.com",
         changeOrigin: true,
-        secure: true,
+        secure: !(process.env.VITE_PROXY_TARGET && process.env.VITE_PROXY_TARGET.startsWith("http://")),
         rewrite: (path) => path.replace(/^\/api/, ""),
       },
     },

@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from "react-router-dom";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { AuthProvider } from "./AuthContext";
 import { useAuth } from "./useAuth";
 import Login from "./pages/Login";
@@ -66,11 +66,35 @@ function pageLabel(pathname: string) {
   return route?.label ?? "Admin";
 }
 
-function TopBar() {
+function TopBar({ onToggleSidebar, sidebarCollapsed }: { onToggleSidebar: () => void; sidebarCollapsed: boolean }) {
   const { admin } = useAuth();
   const location = useLocation();
   const initials = (admin?.name ?? "Ops Admin").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
-  return <header className="app-topbar"><div className="app-crumb"><strong>Gagan</strong><span>/</span><span>{pageLabel(location.pathname)}</span></div><div className="app-top-actions"><CommandPalette /><span className="environment-tag"><i /> {APP_ENVIRONMENT_LABEL}</span><span className="app-avatar" aria-label={admin?.name ?? "Admin"}>{initials}</span></div></header>;
+  return (
+    <header className="app-topbar">
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {sidebarCollapsed && (
+          <button
+            type="button"
+            className="sidebar-hamburger-btn"
+            onClick={onToggleSidebar}
+            aria-label="Expand sidebar"
+            title="Expand sidebar"
+          >
+            ☰
+          </button>
+        )}
+        <div className="app-crumb">
+          <strong>Gagan</strong><span>/</span><span>{pageLabel(location.pathname)}</span>
+        </div>
+      </div>
+      <div className="app-top-actions">
+        <CommandPalette />
+        <span className="environment-tag"><i /> {APP_ENVIRONMENT_LABEL}</span>
+        <span className="app-avatar" aria-label={admin?.name ?? "Admin"}>{initials}</span>
+      </div>
+    </header>
+  );
 }
 
 function LoadingWorkspace() {
@@ -79,6 +103,24 @@ function LoadingWorkspace() {
 
 function Shell() {
   const { admin, permissions, logout } = useAuth();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("gagan_sidebar_collapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("gagan_sidebar_collapsed", String(next));
+      } catch {}
+      return next;
+    });
+  };
+
   const groups = NAV.map((group) => ({
     ...group,
     items: group.destinations.filter((item): item is AdminDestination & { route: string } => Boolean(item.route) && canAccess(permissions, item.permissions)),
@@ -89,10 +131,35 @@ function Shell() {
   const landingPath = home && canAccess(permissions, home.permissions) ? "/" : groups[0]?.items[0]?.route ?? "/no-access";
 
   return (
-    <div className="layout">
-      <aside className="sidebar">
-        <div className="brand">Gagan</div>
-        <div className="brand-sub">Operations console</div>
+    <div className={`layout ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+      <aside className={`sidebar ${sidebarCollapsed ? "collapsed" : ""}`}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <div>
+            <div className="brand">Gagan</div>
+            <div className="brand-sub">Operations console</div>
+          </div>
+          <button
+            type="button"
+            className="sidebar-toggle-close"
+            onClick={toggleSidebar}
+            aria-label="Collapse sidebar"
+            title="Collapse sidebar (maximize workspace)"
+            style={{
+              background: "rgba(255, 255, 255, 0.1)",
+              border: "1px solid rgba(255, 255, 255, 0.2)",
+              color: "#ffffff",
+              fontSize: 16,
+              cursor: "pointer",
+              padding: "4px 8px",
+              borderRadius: 6,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            ✕
+          </button>
+        </div>
         <nav className="nav-groups">
           {groups.map((group) => (
             <div key={group.id} className="nav-group">
@@ -119,7 +186,7 @@ function Shell() {
       </aside>
 
       <main className="main">
-        <TopBar />
+        <TopBar onToggleSidebar={toggleSidebar} sidebarCollapsed={sidebarCollapsed} />
         <div className="route-stage"><Routes>
           <Route path="/" element={<Guard anyOf={permissionsFor("work")}><Dashboard /></Guard>} />
           <Route path="/warehouses" element={<Guard anyOf={permissionsFor("warehouses")}><Warehouses /></Guard>} />

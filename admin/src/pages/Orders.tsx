@@ -199,7 +199,8 @@ function AdminOrders() {
   const [assignOrder, setAssignOrder] = useState<any | null>(null);
   const [internalFilter, setInternalFilter] = useState("");
   const [sortBy, setSortBy] = useState<"date_desc" | "date_asc" | "value_desc" | "value_asc">("date_desc");
-  const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month">("all");
+  const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month" | "custom">("all");
+  const [customDate, setCustomDate] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [holdFor, setHoldFor] = useState<string | null>(null);
   const [holdReason, setHoldReason] = useState("");
@@ -362,16 +363,35 @@ function AdminOrders() {
     } else if (dateFilter === "month") {
       const oneMonthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
       result = result.filter((o) => new Date(o.createdAt).getTime() >= oneMonthAgo);
+    } else if (dateFilter === "custom" && customDate) {
+      result = result.filter((o) => {
+        const d = new Date(o.createdAt);
+        const localIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        return localIso === customDate;
+      });
     }
 
     if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase();
-      result = result.filter(
-        (o) =>
-          formatOrderRef(o).toLowerCase().includes(q) ||
-          (o.retailer?.name ?? "").toLowerCase().includes(q) ||
-          (o.salespersonName ?? "").toLowerCase().includes(q)
-      );
+      const tokens = searchTerm.toLowerCase().trim().split(/\s+/).filter(Boolean);
+      result = result.filter((o) => {
+        const haystack = [
+          formatOrderRef(o),
+          o.retailer?.name,
+          (o.retailer as any)?.ownerName,
+          o.retailer?.phone,
+          o.retailer?.shopAddress,
+          o.retailer?.deliveryCity,
+          (o.retailer as any)?.city,
+          o.salespersonName,
+          o.punchedByName,
+          o.creatorName,
+          o.transportName,
+          o.remarks,
+          ...(o.items ?? []).map((it: any) => it.variant?.product?.name || ""),
+        ].filter(Boolean).join(" ").toLowerCase();
+
+        return tokens.every((token) => haystack.includes(token));
+      });
     }
 
     return [...result].sort((a, b) => {
@@ -385,7 +405,7 @@ function AdminOrders() {
       if (sortBy === "date_asc") return dateA - dateB;
       return dateB - dateA;
     });
-  }, [orders, salespersonFilter, dateFilter, searchTerm, sortBy]);
+  }, [orders, salespersonFilter, dateFilter, customDate, searchTerm, sortBy]);
 
   const queueValue = metricOrders.reduce((sum, order) => sum + Number(order.orderTotal ?? 0), 0);
   const ages = useMemo(() => ageCounts(metricOrders), [metricOrders]);
@@ -819,7 +839,8 @@ function AdminOrders() {
       </option>
     ))}
   </select>
-  <select value={dateFilter} onChange={(e) => setDateFilter(e.target.value as any)} style={{ fontSize: 12, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--surface)" }} aria-label="Filter by date"><option value="all">📅 All Dates</option><option value="today">Today</option><option value="week">Last 7 Days</option><option value="month">This Month</option></select><select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} style={{ fontSize: 12, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--surface)" }} aria-label="Sort orders"><option value="date_desc">⚡ Date: Newest First</option><option value="date_asc">Date: Oldest First</option><option value="value_desc">Value: High to Low</option><option value="value_asc">Value: Low to High</option></select><label className="search" style={{ margin: 0 }}><span>⌕</span><input aria-label="Search order, retailer, or rep" placeholder="Search order, retailer, rep…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></label></div></div><div className="order-table"><div className="order-table-header"><span>order / retailer</span><span>salesperson</span><span>warehouse</span><span>age</span><span>items</span><span>value</span><span>state</span><span>owner / next</span><span /></div>{loading ? <div className="table-loading"><div className="skeleton skeleton-row" /><div className="skeleton skeleton-row" /><div className="skeleton skeleton-row" /></div> : displayedOrders.length === 0 ? <div className="empty-state quiet">No orders match the selected filters or state.</div> : displayedOrders.map((order) => {
+  <select value={dateFilter} onChange={(e) => { const val = e.target.value as any; setDateFilter(val); if (val !== "custom") setCustomDate(""); }} style={{ fontSize: 12, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--surface)" }} aria-label="Filter by date"><option value="all">📅 All Dates</option><option value="today">Today</option><option value="week">Last 7 Days</option><option value="month">This Month</option><option value="custom">📅 Custom Date...</option></select>
+  {dateFilter === "custom" && <input type="date" aria-label="Custom Date Picker" value={customDate} onChange={(e) => setCustomDate(e.target.value)} style={{ fontSize: 12, padding: "2px 6px", borderRadius: 4, border: "1px solid #16a34a", background: "var(--surface)" }} />}<select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} style={{ fontSize: 12, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--surface)" }} aria-label="Sort orders"><option value="date_desc">⚡ Date: Newest First</option><option value="date_asc">Date: Oldest First</option><option value="value_desc">Value: High to Low</option><option value="value_asc">Value: Low to High</option></select><label className="search" style={{ margin: 0 }}><span>⌕</span><input aria-label="Search order, retailer, or rep" placeholder="Search order, retailer, rep…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></label></div></div><div className="order-table"><div className="order-table-header"><span>order / retailer</span><span>salesperson</span><span>warehouse</span><span>age</span><span>items</span><span>value</span><span>state</span><span>owner / next</span><span /></div>{loading ? <div className="table-loading"><div className="skeleton skeleton-row" /><div className="skeleton skeleton-row" /><div className="skeleton skeleton-row" /></div> : displayedOrders.length === 0 ? <div className="empty-state quiet">No orders match the selected filters or state.</div> : displayedOrders.map((order) => {
         const isDuplicate = duplicateMap.has(order.id);
         const dupMatch = duplicateMap.get(order.id);
         return (

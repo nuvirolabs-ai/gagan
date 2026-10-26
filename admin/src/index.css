@@ -1934,3 +1934,46 @@ label.command-search-field input:focus, label.command-search-field input:focus-v
 .ordering-price-row { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(105px, 1fr) minmax(110px, 1fr); gap: 8px; align-items: end; padding: 12px 0; }
 .ordering-price-row .muted { grid-column: 1 / -1; }
 @media (max-width: 560px) { .ordering-price-row { grid-template-columns: 1fr 1fr; } .ordering-price-row strong { grid-column: 1 / -1; } }
+
+/* Collapsible Left-Side Panel / Sidebar (Requirement 8) */
+.layout.sidebar-collapsed .sidebar {
+  display: none !important;
+  width: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.layout.sidebar-collapsed .main {
+  width: 100% !important;
+  max-width: 100% !important;
+  flex: 1 1 100% !important;
+}
+
+.sidebar-hamburger-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #0f172a;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  flex-shrink: 0;
+}
+.sidebar-hamburger-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #166534;
+}
+
+.sidebar-toggle-close:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+  color: #ffffff !important;
+}
+

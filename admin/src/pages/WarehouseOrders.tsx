@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, inr } from "../api";
 import { Icon, SectionLabel } from "../components/OperationalPrimitives";
 import { formatOrderRef } from "../orderRef";
@@ -318,6 +318,8 @@ export default function WarehouseOrders() {
   const [deliveredLines, setDeliveredLines] = useState<Array<{ orderItemId: string; cases: number }>>([]);
   const [transportationAmount, setTransportationAmount] = useState<number>(0);
   const [downloadingInvoice, setDownloadingInvoice] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadedInvoiceName, setUploadedInvoiceName] = useState<string | null>(null);
 
   const load = useCallback(async (targetWarehouse = warehouseFilter) => {
     setLoading(true);
@@ -580,6 +582,7 @@ export default function WarehouseOrders() {
     setPodType("photo");
     setTransportationAmount(0);
     setDownloadingInvoice(false);
+    setUploadedInvoiceName(null);
     setDeliveredLines(order.items.map((i) => ({ orderItemId: i.id, cases: i.qtyOrdered })));
     setError(null);
     setNotice(null);
@@ -625,6 +628,10 @@ export default function WarehouseOrders() {
     return Math.max(0, goodsSubtotal + (Number(transportationAmount) || 0));
   }, [goodsSubtotal, transportationAmount]);
 
+  void warehouseCity;
+  void deliveredTotalCases;
+  void calculatedInvoiceTotal;
+
   const handleDownloadInvoice = async (orderId: string, invoiceNumber?: number) => {
     setDownloadingInvoice(true);
     try {
@@ -662,18 +669,19 @@ export default function WarehouseOrders() {
     setError(null);
     setNotice(null);
     try {
+      const routeToUse = dispatchRouteId.trim() || modalOrder.transportName || routePresets[0] || "Standard Delivery Route";
       const result = await api.dispatchWarehouseOrder(
         modalOrder.id,
-        dispatchRouteId,
+        routeToUse,
         dispatchSlot ? new Date(dispatchSlot).toISOString() : undefined
       );
       const dispatchedOrder = (result.order as WarehouseOrder) || {
         ...modalOrder,
         status: "out_for_delivery",
-        delivery: { routeId: dispatchRouteId, deliverySlot: dispatchSlot },
+        delivery: { routeId: routeToUse, deliverySlot: dispatchSlot },
       };
       setModalOrder(dispatchedOrder);
-      setNotice(`🚚 ${formatOrderRef(modalOrder)} sent out on route ${dispatchRouteId}!`);
+      setNotice(`🚚 ${formatOrderRef(modalOrder)} sent out for delivery!`);
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not dispatch order");
@@ -2592,120 +2600,251 @@ export default function WarehouseOrders() {
 
               {/* Stage-Specific Fulfillment Action Area */}
               <section className="warehouse-modal-action-deck" aria-label="Fulfillment actions">
-                {/* 1. Confirmed -> Pack action */}
+                {/* 1. Confirmed / Ready to Pack -> Step 1: Order status */}
                 {modalOrder.status === "confirmed" && (
-                  <div className="warehouse-stage-panel stage-pack">
-                    <div style={{ marginBottom: 12 }}>
-                      <strong style={{ fontSize: 14, color: "#15803d", display: "block", marginBottom: 4 }}>
-                        📦 Step 1: Pack Verification
+                  <div
+                    style={{
+                      background: "#f0fdf4",
+                      border: "1px solid #bbf7d0",
+                      borderRadius: 8,
+                      padding: "16px 20px",
+                    }}
+                  >
+                    <div style={{ marginBottom: 10 }}>
+                      <strong style={{ fontSize: 14, color: "#15803d", display: "block", marginBottom: 4, fontWeight: 700 }}>
+                        📦 Step 1: Order status
                       </strong>
-                      <p style={{ margin: 0, fontSize: 13, color: "#4b5563" }}>
-                        Pick the cases listed above from the warehouse shelf, verify presentation, then mark order packed.
+                      <p style={{ margin: 0, fontSize: 12.5, color: "#374151", lineHeight: 1.4 }}>
+                        Verify the order details above. As you fill each item, the status will update automatically. Verify any pending actions, and update the status accordingly.
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      className="button primary"
-                      style={{
-                        background: "#15803d",
-                        borderColor: "#15803d",
-                        padding: "10px 20px",
-                        fontSize: 14,
-                        fontWeight: 600,
-                        width: "100%",
-                        justifyContent: "center",
-                      }}
-                      onClick={() => void handlePack()}
-                      disabled={busy || modalDetailLoading}
-                    >
-                      <Icon name="check" size={16} /> {busy ? "Packing…" : "Mark packed"}
-                    </button>
+
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                      <button
+                        type="button"
+                        style={{
+                          background: "#eff6ff",
+                          border: "1.5px solid #3b82f6",
+                          color: "#1d4ed8",
+                          padding: "6px 14px",
+                          borderRadius: 20,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                        }}
+                        onClick={() => void handlePack()}
+                        disabled={busy || modalDetailLoading}
+                      >
+                        <span style={{ fontSize: 13, fontWeight: 700 }}>✓</span>
+                        <span>{busy ? "Validating…" : "All items validated"}</span>
+                      </button>
+
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                        <span
+                          style={{
+                            background: "#2563eb",
+                            color: "#ffffff",
+                            padding: "5px 12px",
+                            borderRadius: 20,
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          🏷️ #New Buyer
+                        </span>
+                        <span
+                          style={{
+                            background: "#2563eb",
+                            color: "#ffffff",
+                            padding: "5px 12px",
+                            borderRadius: 20,
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          🏷️ Rate Approval
+                        </span>
+                        <span
+                          style={{
+                            background: "#2563eb",
+                            color: "#ffffff",
+                            padding: "5px 12px",
+                            borderRadius: 20,
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          🏷️ Order on Outstanding
+                        </span>
+                        <span
+                          style={{
+                            background: "#2563eb",
+                            color: "#ffffff",
+                            padding: "5px 12px",
+                            borderRadius: 20,
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          🏷️ Order Packed
+                        </span>
+                        {duplicateMap.has(modalOrder.id) && !acceptedDuplicates.has(modalOrder.id) ? (
+                          <span
+                            style={{
+                              background: "#d97706",
+                              color: "#ffffff",
+                              padding: "5px 12px",
+                              borderRadius: 20,
+                              fontSize: 11.5,
+                              fontWeight: 700,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            ⚠️ Double order placed
+                          </span>
+                        ) : (
+                          <span
+                            style={{
+                              background: "#2563eb",
+                              color: "#ffffff",
+                              padding: "5px 12px",
+                              borderRadius: 20,
+                              fontSize: 11.5,
+                              fontWeight: 600,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            🏷️ Double order placed
+                          </span>
+                        )}
+                        <span
+                          style={{
+                            background: "#2563eb",
+                            color: "#ffffff",
+                            padding: "5px 12px",
+                            borderRadius: 20,
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          🏷️ On Hold
+                        </span>
+                        <span
+                          style={{
+                            background: "#2563eb",
+                            color: "#ffffff",
+                            padding: "5px 12px",
+                            borderRadius: 20,
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          🏷️ Advance Payment
+                        </span>
+                        <span
+                          style={{
+                            background: "#2563eb",
+                            color: "#ffffff",
+                            padding: "5px 12px",
+                            borderRadius: 20,
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          🏷️ Sale Order Created
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 )}
 
-                {/* 2. Packed -> Assign Route & Dispatch */}
+                {/* 2. Packed -> Step 2: Material Dispatched */}
                 {modalOrder.status === "packed" && (
-                  <div className="warehouse-stage-panel stage-dispatch">
-                    <div style={{ marginBottom: 14 }}>
-                      <strong style={{ fontSize: 14, color: "#1d4ed8", display: "block", marginBottom: 4 }}>
-                        🚚 Step 2: Assign Route & Dispatch
-                      </strong>
-                      <p style={{ margin: 0, fontSize: 13, color: "#4b5563" }}>
-                        Choose a delivery route preset or enter route name to send out the logistics vehicle.
-                      </p>
-                    </div>
-
-                    <div style={{ marginBottom: 14 }}>
-                      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
-                        Route Presets <span style={{ fontSize: 11, fontWeight: 400, color: "#6b7280" }}>({warehouseCity})</span>
-                      </label>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-                        {routePresets.map((p) => (
-                          <button
-                            key={p}
-                            type="button"
-                            className="button secondary compact"
-                            style={{
-                              borderColor: dispatchRouteId === p ? "#1d4ed8" : "#d1d5db",
-                              background: dispatchRouteId === p ? "#eff6ff" : "#fff",
-                              color: dispatchRouteId === p ? "#1d4ed8" : "#374151",
-                              fontWeight: dispatchRouteId === p ? 600 : 400,
-                            }}
-                            onClick={() => setDispatchRouteId(p)}
-                          >
-                            {p}
-                          </button>
-                        ))}
-                      </div>
-                      <input
-                        type="text"
-                        value={dispatchRouteId}
-                        onChange={(e) => setDispatchRouteId(e.target.value)}
-                        placeholder="Or enter route name..."
-                        style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: 13 }}
-                      />
-                    </div>
-
+                  <div
+                    style={{
+                      background: "#eff6ff",
+                      border: "1px solid #bfdbfe",
+                      borderRadius: 8,
+                      padding: "18px 20px",
+                    }}
+                  >
                     <div style={{ marginBottom: 16 }}>
-                      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
-                        Delivery Slot (Optional)
-                      </label>
-                      <input
-                        type="datetime-local"
-                        value={dispatchSlot}
-                        onChange={(e) => setDispatchSlot(e.target.value)}
-                        style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: 13 }}
-                      />
+                      <strong style={{ fontSize: 14, color: "#1d4ed8", display: "block", fontWeight: 700 }}>
+                        🚚 Step 2: Material Dispatched
+                      </strong>
                     </div>
 
                     <button
                       type="button"
-                      className="button primary"
                       style={{
                         background: "#1d4ed8",
-                        borderColor: "#1d4ed8",
-                        padding: "10px 20px",
-                        fontSize: 14,
-                        fontWeight: 600,
+                        border: "none",
+                        color: "#ffffff",
+                        padding: "12px 24px",
+                        fontSize: 14.5,
+                        fontWeight: 700,
                         width: "100%",
+                        borderRadius: 8,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
                         justifyContent: "center",
+                        gap: 8,
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
                       }}
                       onClick={() => void handleConfirmDispatch()}
-                      disabled={busy || !dispatchRouteId.trim() || modalDetailLoading}
+                      disabled={busy || modalDetailLoading}
                     >
-                      <Icon name="arrow" size={16} /> {busy ? "Dispatching…" : "🚚 Confirm Route & Send Out"}
+                      <span style={{ fontSize: 15 }}>➔</span>
+                      <span>📦 Confirm Route & Send Out</span>
                     </button>
                   </div>
                 )}
 
-                {/* 3. Out for delivery -> Record Proof of Delivery */}
+                {/* 3. Out for delivery -> Step 3: Record Proof of Delivery (POD) */}
                 {modalOrder.status === "out_for_delivery" && (
-                  <div className="warehouse-stage-panel stage-delivery">
+                  <div
+                    style={{
+                      background: "#fefce8",
+                      border: "1px solid #fef08a",
+                      borderRadius: 8,
+                      padding: "18px 20px",
+                    }}
+                  >
                     <div style={{ marginBottom: 14 }}>
-                      <strong style={{ fontSize: 14, color: "#b45309", display: "block", marginBottom: 4 }}>
+                      <strong style={{ fontSize: 14, color: "#b45309", display: "block", marginBottom: 4, fontWeight: 700 }}>
                         📍 Step 3: Record Proof of Delivery (POD)
                       </strong>
-                      <p style={{ margin: 0, fontSize: 13, color: "#4b5563" }}>
+                      <p style={{ margin: 0, fontSize: 12.5, color: "#4b5563" }}>
                         Confirm delivery at recipient location and verify delivered quantities.
                       </p>
                     </div>
@@ -2715,33 +2854,41 @@ export default function WarehouseOrders() {
                         POD Verification Method
                       </label>
                       <div style={{ display: "flex", gap: 8 }}>
-                        {(["photo", "otp", "signature"] as const).map((mode) => (
-                          <button
-                            key={mode}
-                            type="button"
-                            className="button secondary compact"
-                            style={{
-                              flex: 1,
-                              borderColor: podType === mode ? "#d97706" : "#d1d5db",
-                              background: podType === mode ? "#fffbeb" : "#fff",
-                              color: podType === mode ? "#b45309" : "#374151",
-                              fontWeight: podType === mode ? 600 : 400,
-                            }}
-                            onClick={() => setPodType(mode)}
-                          >
-                            {mode === "photo" ? "📷 Photo" : mode === "otp" ? "🔑 OTP" : "✍️ Signature"}
-                          </button>
-                        ))}
+                        <button
+                          type="button"
+                          style={{
+                            borderColor: podType === "photo" ? "#d97706" : "#d1d5db",
+                            background: podType === "photo" ? "#fffbeb" : "#fff",
+                            color: podType === "photo" ? "#b45309" : "#374151",
+                            fontWeight: 600,
+                            border: "1.5px solid #d97706",
+                            borderRadius: 20,
+                            padding: "5px 16px",
+                            fontSize: 12,
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                          onClick={() => setPodType("photo")}
+                        >
+                          📷 Photo
+                        </button>
                       </div>
                     </div>
 
                     <div style={{ marginBottom: 16 }}>
-                      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+                      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 8 }}>
                         Delivered Cases Checklist
                       </label>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                         {modalOrder.items.map((item) => {
                           const lineVal = deliveredLines.find((l) => l.orderItemId === item.id)?.cases ?? item.qtyOrdered;
+                          const isBox = (item.outerPack === "Box") || (item.variant as any)?.catalogIdentityMasterPack?.toUpperCase()?.includes("BOX");
+                          const unitLabel = isBox ? "Box" : "Bag";
+                          const isQuintal = item.rateBasis === "quintal" || (item.ratePerQuintal != null && item.ratePerQuintal > 0);
+                          const qRate = item.ratePerQuintal;
+
                           return (
                             <div
                               key={item.id}
@@ -2749,31 +2896,21 @@ export default function WarehouseOrders() {
                                 display: "flex",
                                 justifyContent: "space-between",
                                 alignItems: "center",
-                                background: "#f9fafb",
-                                padding: "8px 12px",
+                                background: "#ffffff",
+                                padding: "10px 14px",
                                 borderRadius: 6,
                                 border: "1px solid #e5e7eb",
                               }}
                             >
                               <div>
-                                <strong style={{ fontSize: 13 }}>{item.variant?.product?.name ?? "Item"}</strong>
-                                <div style={{ fontSize: 11, color: "#6b7280" }}>
-                                  {(() => {
-                                    const isBox = (item.outerPack === "Box") || (item.variant as any)?.catalogIdentityMasterPack?.toUpperCase()?.includes("BOX");
-                                    const unitLabel = isBox ? "Box" : "Bag";
-                                    const isQuintal = item.rateBasis === "quintal" || (item.ratePerQuintal != null && item.ratePerQuintal > 0);
-                                    const qRate = item.ratePerQuintal;
-                                    return (
-                                      <span>
-                                        Ordered: {item.qtyOrdered} {item.qtyOrdered > 1 ? `${unitLabel.toLowerCase()}s` : unitLabel.toLowerCase()}{" "}
-                                        {isQuintal && qRate ? `· ${inr(qRate)}/quintal (${inr(item.unitPrice || 0)}/${unitLabel.toLowerCase()})` : (item.unitPrice ? `· ${inr(item.unitPrice)}/${unitLabel.toLowerCase()}` : "")}
-                                      </span>
-                                    );
-                                  })()}
+                                <strong style={{ fontSize: 13, color: "#111827" }}>{item.variant?.product?.name ?? "Item"}</strong>
+                                <div style={{ fontSize: 11.5, color: "#6b7280", marginTop: 2 }}>
+                                  Ordered: {item.qtyOrdered} {item.qtyOrdered > 1 ? `${unitLabel}s` : unitLabel}
+                                  {isQuintal && qRate ? ` · ${inr(qRate)}/quintal (${inr(item.unitPrice || 0)}/${unitLabel.toLowerCase()})` : (item.unitPrice ? ` · ${inr(item.unitPrice)}/${unitLabel.toLowerCase()}` : "")}
                                 </div>
                               </div>
                               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <label style={{ fontSize: 12, color: "#374151" }}>Delivered:</label>
+                                <label style={{ fontSize: 12, color: "#374151", fontWeight: 500 }}>Delivered:</label>
                                 <input
                                   type="number"
                                   min={0}
@@ -2785,7 +2922,7 @@ export default function WarehouseOrders() {
                                       prev.map((l) => (l.orderItemId === item.id ? { ...l, cases: val } : l))
                                     );
                                   }}
-                                  style={{ width: 60, padding: "4px 8px", borderRadius: 4, border: "1px solid #d1d5db", textAlign: "right" }}
+                                  style={{ width: 55, padding: "4px 8px", borderRadius: 4, border: "1px solid #d1d5db", textAlign: "right", fontWeight: 600 }}
                                 />
                               </div>
                             </div>
@@ -2794,204 +2931,115 @@ export default function WarehouseOrders() {
                       </div>
                     </div>
 
-                    {/* Transportation / Freight Charge Option */}
-                    <div
-                      style={{
-                        background: "#fffbeb",
-                        border: "1px solid #fef3c7",
-                        borderRadius: 8,
-                        padding: "14px 16px",
-                        marginBottom: 16,
+                    {/* Hidden file input for Upload Invoice */}
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      style={{ display: "none" }}
+                      accept="image/*,application/pdf"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setUploadedInvoiceName(file.name);
+                          setNotice(`📄 Invoice "${file.name}" attached successfully!`);
+                        }
                       }}
-                    >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                        <label style={{ fontSize: 13, fontWeight: 700, color: "#92400e" }}>
-                          🚚 Transportation / Freight Amount (₹)
-                        </label>
-                        <span style={{ fontSize: 11, color: "#b45309" }}>Warehouse Manager Option</span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                        <span style={{ fontSize: 16, fontWeight: 700, color: "#374151" }}>₹</span>
-                        <input
-                          type="number"
-                          min={0}
-                          step="any"
-                          placeholder="0.00"
-                          value={transportationAmount === 0 ? "" : transportationAmount}
-                          onChange={(e) => {
-                            const val = parseFloat(e.target.value) || 0;
-                            setTransportationAmount(val < 0 ? 0 : val);
-                          }}
-                          style={{
-                            flex: 1,
-                            padding: "8px 12px",
-                            borderRadius: 6,
-                            border: "1.5px solid #d97706",
-                            fontSize: 15,
-                            fontWeight: 600,
-                            color: "#1f2937",
-                            background: "#ffffff",
-                          }}
-                        />
-                      </div>
-                      <p style={{ margin: "0 0 10px 0", fontSize: 12, color: "#78350f" }}>
-                        💡 Add transportation charge before generating the invoice. The amount will be added to the invoice total and debited to the retailer.
-                      </p>
+                    />
 
-                      {/* Live Invoice Breakdown Preview */}
-                      <div
+                    {/* Two Stacked Action Buttons */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      <button
+                        type="button"
                         style={{
-                          background: "#ffffff",
+                          background: "#8c4d1d",
+                          border: "none",
+                          color: "#ffffff",
+                          padding: "11px 20px",
+                          fontSize: 14,
+                          fontWeight: 700,
+                          width: "100%",
                           borderRadius: 6,
-                          padding: "10px 12px",
-                          border: "1px solid #fde68a",
-                          fontSize: 12.5,
+                          cursor: "pointer",
+                          display: "flex",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          gap: 6,
+                          boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
                         }}
+                        onClick={() => fileInputRef.current?.click()}
                       >
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, color: "#4b5563" }}>
-                          <span>Goods Subtotal ({deliveredTotalCases} cases):</span>
-                          <strong>{inr(goodsSubtotal)}</strong>
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, color: "#92400e" }}>
-                          <span>Transportation Charge:</span>
-                          <strong>+ {inr(Number(transportationAmount || 0))}</strong>
-                        </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            paddingTop: 6,
-                            borderTop: "1px dashed #d1d5db",
-                            fontSize: 14,
-                            fontWeight: 800,
-                            color: "#111827",
-                          }}
-                        >
-                          <span>Calculated Final Invoice Total:</span>
-                          <span style={{ color: "#065f46" }}>
-                            {inr(calculatedInvoiceTotal)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                        <span>{uploadedInvoiceName ? `✓ Invoice Attached: ${uploadedInvoiceName}` : "Upload Invoice"}</span>
+                      </button>
 
-                    <button
-                      type="button"
-                      className="button primary"
-                      style={{
-                        background: "#065f46",
-                        borderColor: "#065f46",
-                        padding: "12px 20px",
-                        fontSize: 14.5,
-                        fontWeight: 700,
-                        width: "100%",
-                        justifyContent: "center",
-                      }}
-                      onClick={() => void handleConfirmDelivery()}
-                      disabled={busy || modalDetailLoading}
-                    >
-                      <Icon name="check" size={16} />{" "}
-                      {busy
-                        ? "Generating Final Invoice…"
-                        : `📦 Complete Delivery & Create Invoice (${inr(calculatedInvoiceTotal)})`}
-                    </button>
+                      <button
+                        type="button"
+                        style={{
+                          background: "#065f46",
+                          border: "none",
+                          color: "#ffffff",
+                          padding: "12px 20px",
+                          fontSize: 14.5,
+                          fontWeight: 700,
+                          width: "100%",
+                          borderRadius: 6,
+                          cursor: "pointer",
+                          display: "flex",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          gap: 6,
+                          boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+                        }}
+                        onClick={() => void handleConfirmDelivery()}
+                        disabled={busy || modalDetailLoading}
+                      >
+                        <span style={{ fontSize: 16 }}>✓</span>
+                        <span>{busy ? "Completing…" : "Complete Delivery"}</span>
+                      </button>
+                    </div>
                   </div>
                 )}
 
-                {/* 4. Delivered -> Completed & Invoiced state */}
+                {/* 4. Delivered -> Step 4: Fulfillment Completed & Invoiced */}
                 {modalOrder.status === "delivered" && (
                   <div
                     style={{
                       background: "#ecfdf5",
                       border: "1px solid #a7f3d0",
                       borderRadius: 8,
-                      padding: "16px 20px",
+                      padding: "22px 24px",
+                      textAlign: "center",
                     }}
                   >
-                    <div style={{ textAlign: "center", marginBottom: 14 }}>
-                      <div style={{ fontSize: 16, fontWeight: 700, color: "#065f46", marginBottom: 4 }}>
-                        ✅ Fulfillment Completed & Invoiced
-                      </div>
-                      <p style={{ margin: 0, fontSize: 13, color: "#047857" }}>
-                        This order has been verified, delivered to the retailer, and the tax invoice has been generated.
-                      </p>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: "#065f46", marginBottom: 6 }}>
+                      ✅ Fulfillment Completed & Invoiced
                     </div>
+                    <p style={{ margin: "0 auto 18px", fontSize: 12.5, color: "#047857", maxWidth: 440 }}>
+                      This order has been verified, delivered to the retailer, and the tax invoice has been generated.
+                    </p>
 
-                    {modalOrder.invoice && (
-                      <div
-                        style={{
-                          background: "#ffffff",
-                          borderRadius: 6,
-                          padding: "12px 14px",
-                          border: "1px solid #bbf7d0",
-                          marginBottom: 14,
-                          fontSize: 13,
-                        }}
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                          <span style={{ color: "#4b5563" }}>Invoice Number:</span>
-                          <strong>INV-{modalOrder.invoice.invoiceNumber}</strong>
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                          <span style={{ color: "#4b5563" }}>👤 Salesperson:</span>
-                          <strong style={{ color: "#0284c7" }}>{modalOrder.salespersonName || "Field Sales Rep"}</strong>
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                          <span style={{ color: "#4b5563" }}>🏢 Origin Warehouse:</span>
-                          <strong style={{ color: "#6b21a8" }}>{modalOrder.warehouseName || (modalOrder.warehouseCode === "WH-002" ? "Bhopal Regional Hub" : "Indore Central Fulfillment Hub")} ({modalOrder.warehouseCode || "WH-001"})</strong>
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                          <span style={{ color: "#4b5563" }}>Invoice Date:</span>
-                          <span>{createdLabel(modalOrder.invoice.invoiceDate)}</span>
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                          <span style={{ color: "#4b5563" }}>Goods Subtotal:</span>
-                          <span>{inr(Number(modalOrder.invoice.subtotal))}</span>
-                        </div>
-                        {modalOrder.invoice.lines.some((l) => l.description.toLowerCase().includes("freight") || l.description.toLowerCase().includes("transport")) && (
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, color: "#92400e" }}>
-                            <span>Transportation / Freight:</span>
-                            <strong>
-                              {inr(Number(modalOrder.invoice.lines.find((l) => l.description.toLowerCase().includes("freight") || l.description.toLowerCase().includes("transport"))?.lineTotal || 0))}
-                            </strong>
-                          </div>
-                        )}
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            paddingTop: 6,
-                            borderTop: "1px solid #e5e7eb",
-                            fontWeight: 800,
-                            fontSize: 15,
-                            color: "#065f46",
-                          }}
-                        >
-                          <span>Final Invoice Total:</span>
-                          <span>{inr(Number(modalOrder.invoice.total))}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+                    <div style={{ display: "flex", justifyContent: "center" }}>
                       <button
                         type="button"
-                        className="button primary"
                         style={{
                           background: "#165a31",
-                          borderColor: "#165a31",
-                          padding: "10px 18px",
+                          border: "none",
+                          color: "#ffffff",
+                          padding: "10px 22px",
                           fontSize: 13.5,
                           fontWeight: 700,
+                          borderRadius: 6,
+                          cursor: "pointer",
                           display: "inline-flex",
                           alignItems: "center",
-                          gap: 6,
+                          justifyContent: "center",
+                          gap: 8,
+                          boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
                         }}
                         onClick={() => void handleDownloadInvoice(modalOrder.id, modalOrder.invoice?.invoiceNumber)}
                         disabled={downloadingInvoice}
                       >
-                        <Icon name="arrow" size={14} />
-                        {downloadingInvoice ? "Downloading PDF…" : "📄 Download Invoice (PDF)"}
+                        <span style={{ fontSize: 14 }}>➔</span>
+                        <span>📄 Download Invoice (PDF)</span>
                       </button>
                     </div>
                   </div>

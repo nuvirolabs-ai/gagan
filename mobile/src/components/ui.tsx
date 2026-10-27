@@ -223,10 +223,92 @@ export const ORDER_STATUS_META: Record<string, { label: string; tint: string; bg
   placed: { label: "Placed", tint: "#8A6A12", bg: colors.goldSoft },
   confirmed: { label: "Confirmed", tint: colors.green, bg: colors.greenSoft },
   packed: { label: "Packed", tint: colors.green, bg: colors.greenSoft },
-  out_for_delivery: { label: "Out for delivery", tint: "#2F5B8F", bg: "#DFEAF6" },
+  out_for_delivery: { label: "Material Dispatched", tint: "#2F5B8F", bg: "#DFEAF6" },
   delivered: { label: "Delivered", tint: colors.onDark, bg: colors.green },
   rejected: { label: "Rejected", tint: colors.danger, bg: colors.dangerSoft },
 };
+
+export const COMMERCIAL_BADGE_META: Record<string, { label: string; emoji: string; subtitle: string; tint: string; bg: string }> = {
+  ACCOUNT_OPENED: {
+    emoji: "#️⃣",
+    label: "New Account",
+    subtitle: "Retailer verification in progress before acceptance",
+    tint: "#1d4ed8",
+    bg: "#eff6ff",
+  },
+  RATE_APPROVAL_SENT: {
+    emoji: "🍓",
+    label: "Rate Approval",
+    subtitle: "Pending rate approval before order is accepted",
+    tint: "#b91c1c",
+    bg: "#fef2f2",
+  },
+  SALES_ORDER_APPROVAL_SENT: {
+    emoji: "❤️",
+    label: "Order Approval",
+    subtitle: "Order accepted by warehouse",
+    tint: "#be123c",
+    bg: "#fff1f2",
+  },
+  SALES_ORDER_PUNCHED: {
+    emoji: "👍",
+    label: "Order Punched",
+    subtitle: "Order confirmed & created in SAP",
+    tint: "#15803d",
+    bg: "#f0fdf4",
+  },
+  SALES_ORDER_CREATED: {
+    emoji: "👍",
+    label: "Order Punched",
+    subtitle: "Order confirmed & created in SAP",
+    tint: "#15803d",
+    bg: "#f0fdf4",
+  },
+  SALES_ORDER_ON_HOLD: {
+    emoji: "❌",
+    label: "On Hold",
+    subtitle: "Order placed on hold by warehouse",
+    tint: "#c2410c",
+    bg: "#fff7ed",
+  },
+  ADVANCE_PAYMENT_RECEIVED: {
+    emoji: "🤝",
+    label: "Advance Party",
+    subtitle: "Advance payment required before order acceptance",
+    tint: "#047857",
+    bg: "#ecfdf5",
+  },
+};
+
+export function CommercialStatusBadge({ code, showSubtitle = false }: { code?: string | null; showSubtitle?: boolean }) {
+  if (!code || !COMMERCIAL_BADGE_META[code]) return null;
+  const meta = COMMERCIAL_BADGE_META[code];
+  return (
+    <View style={{ alignItems: "flex-end" }}>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 5,
+          backgroundColor: meta.bg,
+          paddingHorizontal: 10,
+          paddingVertical: 4,
+          borderRadius: 16,
+          borderWidth: 1,
+          borderColor: meta.tint + "44",
+        }}
+      >
+        <Text style={{ fontSize: 13 }}>{meta.emoji}</Text>
+        <Text style={{ fontSize: 11.5, fontWeight: "700", color: meta.tint }}>{meta.label}</Text>
+      </View>
+      {showSubtitle && (
+        <Text style={{ fontSize: 11, color: colors.inkFaint, marginTop: 3 }}>
+          {meta.subtitle}
+        </Text>
+      )}
+    </View>
+  );
+}
 
 export function StatusPill({ status }: { status: string }) {
   const { t } = useLanguage();

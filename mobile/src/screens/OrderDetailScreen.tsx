@@ -7,7 +7,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { api } from "../api/client";
 import { useCart } from "../context/CartContext";
 import { colors, radius, spacing, inr } from "../theme";
-import { StatusPill, OrderTimeline, OrderLifecycleCaption, EmptyState, ScreenSkeleton, SectionTitle } from "../components/ui";
+import { StatusPill, CommercialStatusBadge, OrderTimeline, OrderLifecycleCaption, EmptyState, ScreenSkeleton, SectionTitle } from "../components/ui";
 import { useLanguage } from "../i18n/LanguageContext";
 import { formatOrderRef } from "../lib/orderRef";
 import { orderAttributionLabel } from "../lib/orderAttribution";
@@ -106,7 +106,10 @@ export default function OrderDetailScreen({ route, navigation }: any) {
           </Text>
           <OrderLifecycleCaption state={order.salesOrderState} />
         </View>
-        <StatusPill status={order.status} />
+        <View style={{ alignItems: "flex-end", gap: 6 }}>
+          <CommercialStatusBadge code={order.commercialStatus} showSubtitle={true} />
+          <StatusPill status={order.status} />
+        </View>
       </View>
 
       {(isActive || order.status === "delivered") && (

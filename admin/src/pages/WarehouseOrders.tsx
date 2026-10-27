@@ -10,6 +10,8 @@ type WarehouseOrder = {
   id: string;
   orderNo: number;
   status: "confirmed" | "packed" | "out_for_delivery" | "delivered";
+  commercialStatus?: string | null;
+  isOnHold?: boolean;
   cancellationRequestedAt?: string | null;
   cancellationReason?: string | null;
   cancellationRequestedByRepId?: string | null;
@@ -136,15 +138,77 @@ const FILTERS: Array<{ value: QueueFilter; label: string; step: string; icon: st
 
 const STATUS_PILLS = [
   { id: "all", key: "all", label: "All Orders", icon: "📋" },
-  { id: "new_buyer", key: "new_buyer", label: "#New Buyer", icon: "#️⃣" },
-  { id: "rate_approval", key: "rate_approval", label: "Order on Rate approval", icon: "🌹" },
-  { id: "outstanding", key: "outstanding", label: "Order on Outstanding", icon: "❤️" },
-  { id: "hold", key: "hold", label: "Hold due to Outstanding", icon: "✖️" },
-  { id: "advance", key: "advance", label: "Order on Advance payment", icon: "🥬" },
-  { id: "sale_order_created", key: "sale_order_created", label: "Sale order created", icon: "👍" },
-  { id: "cancelled", key: "cancelled", label: "Order cancelled by Salesman", icon: "❎" },
+  { id: "new_buyer", key: "new_buyer", label: "#New Account", icon: "#️⃣" },
+  { id: "rate_approval", key: "rate_approval", label: "Rate Approval", icon: "🍓" },
+  { id: "order_approval", key: "order_approval", label: "Order Approval", icon: "❤️" },
+  { id: "sale_order_punched", key: "sale_order_punched", label: "Order Punched", icon: "👍" },
+  { id: "hold", key: "hold", label: "On Hold", icon: "❌" },
+  { id: "advance", key: "advance", label: "Advance Party", icon: "🤝" },
   { id: "double_order", key: "double_order", label: "Double order placed", icon: "🔁" },
+  { id: "cancelled", key: "cancelled", label: "Order cancelled by Salesman", icon: "❎" },
 ] as const;
+
+const EMOJI_ACTIONS = [
+  { code: "ACCOUNT_OPENED", label: "New Account", emoji: "#️⃣", key: "new_buyer" },
+  { code: "RATE_APPROVAL_SENT", label: "Rate Approval", emoji: "🍓", key: "rate_approval" },
+  { code: "SALES_ORDER_APPROVAL_SENT", label: "Order Approval", emoji: "❤️", key: "order_approval" },
+  { code: "SALES_ORDER_PUNCHED", label: "Order Punched", emoji: "👍", key: "sale_order_punched" },
+  { code: "SALES_ORDER_ON_HOLD", label: "On Hold", emoji: "❌", key: "hold" },
+  { code: "ADVANCE_PAYMENT_RECEIVED", label: "Advance Party", emoji: "🤝", key: "advance" },
+] as const;
+
+function getCommercialBadgeDisplay(code?: string | null): string {
+  if (!code) return "";
+  switch (code) {
+    case "ACCOUNT_OPENED": return "#️⃣ New Account";
+    case "RATE_APPROVAL_SENT": return "🍓 Rate Approval";
+    case "SALES_ORDER_APPROVAL_SENT": return "❤️ Order Approval";
+    case "SALES_ORDER_PUNCHED":
+    case "SALES_ORDER_CREATED": return "👍 Order Punched";
+    case "SALES_ORDER_ON_HOLD": return "❌ On Hold";
+    case "ADVANCE_PAYMENT_RECEIVED": return "🤝 Advance Party";
+    default: return code;
+  }
+}
+
+function getCommercialBadgeBg(code?: string | null): string {
+  switch (code) {
+    case "ACCOUNT_OPENED": return "#eff6ff";
+    case "RATE_APPROVAL_SENT": return "#fef2f2";
+    case "SALES_ORDER_APPROVAL_SENT": return "#fff1f2";
+    case "SALES_ORDER_PUNCHED":
+    case "SALES_ORDER_CREATED": return "#f0fdf4";
+    case "SALES_ORDER_ON_HOLD": return "#fff7ed";
+    case "ADVANCE_PAYMENT_RECEIVED": return "#ecfdf5";
+    default: return "#f1f5f9";
+  }
+}
+
+function getCommercialBadgeColor(code?: string | null): string {
+  switch (code) {
+    case "ACCOUNT_OPENED": return "#1d4ed8";
+    case "RATE_APPROVAL_SENT": return "#b91c1c";
+    case "SALES_ORDER_APPROVAL_SENT": return "#be123c";
+    case "SALES_ORDER_PUNCHED":
+    case "SALES_ORDER_CREATED": return "#15803d";
+    case "SALES_ORDER_ON_HOLD": return "#c2410c";
+    case "ADVANCE_PAYMENT_RECEIVED": return "#047857";
+    default: return "#334155";
+  }
+}
+
+function getCommercialBadgeBorder(code?: string | null): string {
+  switch (code) {
+    case "ACCOUNT_OPENED": return "#bfdbfe";
+    case "RATE_APPROVAL_SENT": return "#fecaca";
+    case "SALES_ORDER_APPROVAL_SENT": return "#fecdd3";
+    case "SALES_ORDER_PUNCHED":
+    case "SALES_ORDER_CREATED": return "#bbf7d0";
+    case "SALES_ORDER_ON_HOLD": return "#fed7aa";
+    case "ADVANCE_PAYMENT_RECEIVED": return "#a7f3d0";
+    default: return "#cbd5e1";
+  }
+}
 
 const DEFAULT_ROUTE_PRESETS = [
   "ROUTE-INDORE-CENTRAL",
@@ -479,19 +543,19 @@ export default function WarehouseOrders() {
   const filteredOrders = useMemo(() => {
     let result = orders;
 
-    // Filter via order status pills (Requirement 1)
+    // Filter via order status pills (Requirement 1 & Internal Tags)
     if (statusPill === "new_buyer") {
-      result = result.filter((o: any) => o.retailer?.isNew || o.internalStatus?.code === "ACCOUNT_OPENED" || o.placedBy === "retailer");
+      result = result.filter((o: any) => o.commercialStatus === "ACCOUNT_OPENED" || o.retailer?.isNew || o.internalStatus?.code === "ACCOUNT_OPENED" || o.placedBy === "retailer");
     } else if (statusPill === "rate_approval") {
-      result = result.filter((o: any) => o.internalStatus?.code === "RATE_APPROVAL_SENT" || o.internalStatus?.code === "RATE_APPROVAL_PENDING");
-    } else if (statusPill === "outstanding") {
-      result = result.filter((o: any) => o.internalStatus?.code === "SALES_ORDER_APPROVAL_SENT" || o.internalStatus?.code === "ORDER_APPROVAL_PENDING");
+      result = result.filter((o: any) => o.commercialStatus === "RATE_APPROVAL_SENT" || o.internalStatus?.code === "RATE_APPROVAL_SENT" || o.internalStatus?.code === "RATE_APPROVAL_PENDING");
+    } else if (statusPill === "order_approval" || statusPill === "outstanding") {
+      result = result.filter((o: any) => o.commercialStatus === "SALES_ORDER_APPROVAL_SENT" || o.internalStatus?.code === "SALES_ORDER_APPROVAL_SENT" || o.internalStatus?.code === "ORDER_APPROVAL_PENDING");
     } else if (statusPill === "hold") {
-      result = result.filter((o: any) => o.isOnHold === true || o.internalStatus?.code === "SALES_ORDER_ON_HOLD");
+      result = result.filter((o: any) => o.isOnHold === true || o.commercialStatus === "SALES_ORDER_ON_HOLD" || o.internalStatus?.code === "SALES_ORDER_ON_HOLD");
     } else if (statusPill === "advance") {
-      result = result.filter((o: any) => o.internalStatus?.code === "ADVANCE_PAYMENT_RECEIVED");
-    } else if (statusPill === "sale_order_created") {
-      result = result.filter((o: any) => o.status === "confirmed" || o.internalStatus?.code === "SALES_ORDER_CREATED" || o.status === "placed");
+      result = result.filter((o: any) => o.commercialStatus === "ADVANCE_PAYMENT_RECEIVED" || o.internalStatus?.code === "ADVANCE_PAYMENT_RECEIVED");
+    } else if (statusPill === "sale_order_punched" || statusPill === "sale_order_created") {
+      result = result.filter((o: any) => o.commercialStatus === "SALES_ORDER_PUNCHED" || o.commercialStatus === "SALES_ORDER_CREATED" || o.status === "confirmed" || o.internalStatus?.code === "SALES_ORDER_PUNCHED" || o.internalStatus?.code === "SALES_ORDER_CREATED" || o.status === "placed");
     } else if (statusPill === "cancelled") {
       result = result.filter((o: any) => o.cancellationRequestedAt != null || o.status === "rejected" || o.cancellationStatus != null);
     } else if (statusPill === "double_order") {
@@ -640,6 +704,50 @@ export default function WarehouseOrders() {
       setError(err instanceof Error ? err.message : "Failed to download invoice PDF");
     } finally {
       setDownloadingInvoice(false);
+    }
+  };
+
+  // Action: Toggle internal commercial emoji status inside modal (Step 1)
+  const handleToggleEmojiStatus = async (code: string) => {
+    if (!modalOrder) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const isCurrentlyActive =
+        modalOrder.commercialStatus === code ||
+        (code === "SALES_ORDER_PUNCHED" && modalOrder.commercialStatus === "SALES_ORDER_CREATED");
+      const nextActive = !isCurrentlyActive;
+      await api.toggleCommercialStatus(modalOrder.id, code, nextActive);
+      const newStatus = nextActive ? code : null;
+
+      setModalOrder((prev) =>
+        prev
+          ? {
+              ...prev,
+              commercialStatus: newStatus,
+              isOnHold: code === "SALES_ORDER_ON_HOLD" ? nextActive : prev.isOnHold,
+            }
+          : null
+      );
+
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === modalOrder.id
+            ? {
+                ...o,
+                commercialStatus: newStatus,
+                isOnHold: code === "SALES_ORDER_ON_HOLD" ? nextActive : o.isOnHold,
+              }
+            : o
+        )
+      );
+
+      const actionLabel = EMOJI_ACTIONS.find((a) => a.code === code)?.label ?? code;
+      setNotice(nextActive ? `✓ Status updated to ${actionLabel}` : `Cleared ${actionLabel}`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not update status");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -1199,12 +1307,12 @@ export default function WarehouseOrders() {
           const isSelected = statusPill === pill.key;
           let count = 0;
           if (pill.key === "all") count = orders.length;
-          else if (pill.key === "new_buyer") count = orders.filter((o: any) => o.retailer?.isNew || o.internalStatus?.code === "ACCOUNT_OPENED" || o.placedBy === "retailer").length;
-          else if (pill.key === "rate_approval") count = orders.filter((o: any) => o.internalStatus?.code === "RATE_APPROVAL_SENT" || o.internalStatus?.code === "RATE_APPROVAL_PENDING").length;
-          else if (pill.key === "outstanding") count = orders.filter((o: any) => o.internalStatus?.code === "SALES_ORDER_APPROVAL_SENT" || o.internalStatus?.code === "ORDER_APPROVAL_PENDING").length;
-          else if (pill.key === "hold") count = orders.filter((o: any) => o.isOnHold === true || o.internalStatus?.code === "SALES_ORDER_ON_HOLD").length;
-          else if (pill.key === "advance") count = orders.filter((o: any) => o.internalStatus?.code === "ADVANCE_PAYMENT_RECEIVED").length;
-          else if (pill.key === "sale_order_created") count = orders.filter((o: any) => o.status === "confirmed" || o.internalStatus?.code === "SALES_ORDER_CREATED" || o.status === "placed").length;
+          else if (pill.key === "new_buyer") count = orders.filter((o: any) => o.commercialStatus === "ACCOUNT_OPENED" || o.retailer?.isNew || o.internalStatus?.code === "ACCOUNT_OPENED" || o.placedBy === "retailer").length;
+          else if (pill.key === "rate_approval") count = orders.filter((o: any) => o.commercialStatus === "RATE_APPROVAL_SENT" || o.internalStatus?.code === "RATE_APPROVAL_SENT").length;
+          else if (pill.key === "order_approval" || pill.key === "outstanding") count = orders.filter((o: any) => o.commercialStatus === "SALES_ORDER_APPROVAL_SENT" || o.internalStatus?.code === "SALES_ORDER_APPROVAL_SENT").length;
+          else if (pill.key === "advance") count = orders.filter((o: any) => o.commercialStatus === "ADVANCE_PAYMENT_RECEIVED" || o.internalStatus?.code === "ADVANCE_PAYMENT_RECEIVED").length;
+          else if (pill.key === "hold") count = orders.filter((o: any) => o.isOnHold === true || o.commercialStatus === "SALES_ORDER_ON_HOLD" || o.internalStatus?.code === "SALES_ORDER_ON_HOLD").length;
+          else if (pill.key === "sale_order_punched" || pill.key === "sale_order_created") count = orders.filter((o: any) => o.commercialStatus === "SALES_ORDER_PUNCHED" || o.commercialStatus === "SALES_ORDER_CREATED" || o.status === "confirmed" || o.internalStatus?.code === "SALES_ORDER_PUNCHED" || o.internalStatus?.code === "SALES_ORDER_CREATED").length;
           else if (pill.key === "cancelled") count = orders.filter((o: any) => o.cancellationRequestedAt != null || o.status === "rejected" || o.cancellationStatus != null).length;
           else if (pill.key === "double_order") count = orders.filter((o) => duplicateMap.has(o.id) && !acceptedDuplicates.has(o.id)).length;
 
@@ -1676,6 +1784,25 @@ export default function WarehouseOrders() {
                     </span>
                     <span className="td-status">
                       <span className={statusBadgeClass(order.status)}>{statusHumanLabel(order.status)}</span>
+                      {order.commercialStatus && (
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            padding: "2px 8px",
+                            borderRadius: 12,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                            marginTop: 4,
+                            background: getCommercialBadgeBg(order.commercialStatus),
+                            color: getCommercialBadgeColor(order.commercialStatus),
+                            border: `1px solid ${getCommercialBadgeBorder(order.commercialStatus)}`,
+                          }}
+                        >
+                          {getCommercialBadgeDisplay(order.commercialStatus)}
+                        </span>
+                      )}
                       {order.cancellationStatus === "pending" && (
                         <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", background: "#fee2e2", color: "#b91c1c", border: "1px solid #fca5a5", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 3, marginTop: 4 }}>
                           ⚠️ CANCELLATION REQUESTED
@@ -2615,12 +2742,12 @@ export default function WarehouseOrders() {
                       padding: "16px 20px",
                     }}
                   >
-                    <div style={{ marginBottom: 10 }}>
+                    <div style={{ marginBottom: 12 }}>
                       <strong style={{ fontSize: 14, color: "#15803d", display: "block", marginBottom: 4, fontWeight: 700 }}>
                         📦 Step 1: Order status
                       </strong>
                       <p style={{ margin: 0, fontSize: 12.5, color: "#374151", lineHeight: 1.4 }}>
-                        Verify the order details above. As you fill each item, the status will update automatically. Verify any pending actions, and update the status accordingly.
+                        Review the order details above to confirm its current stage in the fulfillment process, verify any pending actions, and update the status accordingly.
                       </p>
                     </div>
 
@@ -2648,145 +2775,63 @@ export default function WarehouseOrders() {
                         <span>{busy ? "Validating…" : "All items validated"}</span>
                       </button>
 
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                        <span
-                          style={{
-                            background: "#2563eb",
-                            color: "#ffffff",
-                            padding: "5px 12px",
-                            borderRadius: 20,
-                            fontSize: 11.5,
-                            fontWeight: 600,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 4,
-                          }}
-                        >
-                          🏷️ #New Buyer
-                        </span>
-                        <span
-                          style={{
-                            background: "#2563eb",
-                            color: "#ffffff",
-                            padding: "5px 12px",
-                            borderRadius: 20,
-                            fontSize: 11.5,
-                            fontWeight: 600,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 4,
-                          }}
-                        >
-                          🏷️ Rate Approval
-                        </span>
-                        <span
-                          style={{
-                            background: "#2563eb",
-                            color: "#ffffff",
-                            padding: "5px 12px",
-                            borderRadius: 20,
-                            fontSize: 11.5,
-                            fontWeight: 600,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 4,
-                          }}
-                        >
-                          🏷️ Order on Outstanding
-                        </span>
-                        <span
-                          style={{
-                            background: "#2563eb",
-                            color: "#ffffff",
-                            padding: "5px 12px",
-                            borderRadius: 20,
-                            fontSize: 11.5,
-                            fontWeight: 600,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 4,
-                          }}
-                        >
-                          🏷️ Order Packed
-                        </span>
-                        {duplicateMap.has(modalOrder.id) && !acceptedDuplicates.has(modalOrder.id) ? (
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                        {EMOJI_ACTIONS.map((action) => {
+                          const isActive =
+                            modalOrder.commercialStatus === action.code ||
+                            (action.code === "SALES_ORDER_PUNCHED" && modalOrder.commercialStatus === "SALES_ORDER_CREATED");
+                          return (
+                            <button
+                              type="button"
+                              key={action.code}
+                              onClick={() => void handleToggleEmojiStatus(action.code)}
+                              disabled={busy || modalDetailLoading}
+                              style={{
+                                background: isActive ? "#15803d" : "#2563eb",
+                                color: "#ffffff",
+                                border: isActive ? "2px solid #86efac" : "1px solid #1d4ed8",
+                                padding: "6px 14px",
+                                borderRadius: 20,
+                                fontSize: 12,
+                                fontWeight: 700,
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 6,
+                                boxShadow: isActive ? "0 0 0 2px #15803d, 0 2px 5px rgba(0,0,0,0.2)" : "0 1px 2px rgba(0,0,0,0.08)",
+                                transition: "all 0.15s ease",
+                                transform: isActive ? "scale(1.03)" : "scale(1)",
+                              }}
+                              title={`Set order status to ${action.label}`}
+                            >
+                              <span style={{ fontSize: 13 }}>{action.emoji}</span>
+                              <span>{action.label}</span>
+                              {isActive && (
+                                <span style={{ fontSize: 10, background: "rgba(255,255,255,0.3)", padding: "1px 5px", borderRadius: 8 }}>
+                                  ✓ Active
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+
+                        {duplicateMap.has(modalOrder.id) && !acceptedDuplicates.has(modalOrder.id) && (
                           <span
                             style={{
                               background: "#d97706",
                               color: "#ffffff",
-                              padding: "5px 12px",
+                              padding: "6px 14px",
                               borderRadius: 20,
-                              fontSize: 11.5,
+                              fontSize: 12,
                               fontWeight: 700,
                               display: "inline-flex",
                               alignItems: "center",
-                              gap: 4,
+                              gap: 6,
                             }}
                           >
                             ⚠️ Double order placed
                           </span>
-                        ) : (
-                          <span
-                            style={{
-                              background: "#2563eb",
-                              color: "#ffffff",
-                              padding: "5px 12px",
-                              borderRadius: 20,
-                              fontSize: 11.5,
-                              fontWeight: 600,
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 4,
-                            }}
-                          >
-                            🏷️ Double order placed
-                          </span>
                         )}
-                        <span
-                          style={{
-                            background: "#2563eb",
-                            color: "#ffffff",
-                            padding: "5px 12px",
-                            borderRadius: 20,
-                            fontSize: 11.5,
-                            fontWeight: 600,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 4,
-                          }}
-                        >
-                          🏷️ On Hold
-                        </span>
-                        <span
-                          style={{
-                            background: "#2563eb",
-                            color: "#ffffff",
-                            padding: "5px 12px",
-                            borderRadius: 20,
-                            fontSize: 11.5,
-                            fontWeight: 600,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 4,
-                          }}
-                        >
-                          🏷️ Advance Payment
-                        </span>
-                        <span
-                          style={{
-                            background: "#2563eb",
-                            color: "#ffffff",
-                            padding: "5px 12px",
-                            borderRadius: 20,
-                            fontSize: 11.5,
-                            fontWeight: 600,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 4,
-                          }}
-                        >
-                          🏷️ Sale Order Created
-                        </span>
                       </div>
                     </div>
                   </div>
@@ -2815,7 +2860,7 @@ export default function WarehouseOrders() {
                         border: "none",
                         color: "#ffffff",
                         padding: "12px 24px",
-                        fontSize: 14.5,
+                        fontSize: 15,
                         fontWeight: 700,
                         width: "100%",
                         borderRadius: 8,
@@ -2824,13 +2869,12 @@ export default function WarehouseOrders() {
                         alignItems: "center",
                         justifyContent: "center",
                         gap: 8,
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                        boxShadow: "0 2px 4px rgba(29, 78, 216, 0.25)",
                       }}
                       onClick={() => void handleConfirmDispatch()}
                       disabled={busy || modalDetailLoading}
                     >
-                      <span style={{ fontSize: 15 }}>➔</span>
-                      <span>📦 Confirm Route & Send Out</span>
+                      <span style={{ fontSize: 16 }}>➔ 🚚 Material Dispatched</span>
                     </button>
                   </div>
                 )}

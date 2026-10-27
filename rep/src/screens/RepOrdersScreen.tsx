@@ -13,7 +13,7 @@ import {
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { AppScreen, EmptyState, StatusPill, Surface } from "../components/ui";
+import { AppScreen, EmptyState, StatusPill, CommercialStatusBadge, Surface } from "../components/ui";
 import { repApi } from "../api/repClient";
 import { formatOrderRef } from "../lib/orderRef";
 import { colors, inr, radius, spacing } from "../theme";
@@ -205,7 +205,10 @@ export default function RepOrdersScreen({ navigation }: any) {
                   </Text>
                 </View>
                 <View style={{ alignItems: "flex-end", gap: 4 }}>
-                  <StatusPill status={order.status} />
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <CommercialStatusBadge code={order.commercialStatus} />
+                    <StatusPill status={order.status} />
+                  </View>
                   {isPendingCancellation && (
                     <View style={styles.pendingBadge}>
                       <Text style={styles.pendingBadgeText}>⏳ Review Pending</Text>

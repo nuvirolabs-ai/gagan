@@ -19,7 +19,7 @@ import {
   createRequireSession,
   type IdentityAuthedRequest,
 } from "../modules/identity/sessionAuth";
-import { internalStatusForOrder, statusFromOrderWithEvents } from "../modules/commercialStatus/statusService";
+import { internalStatusForOrder, statusFromOrderWithEvents, deriveCurrentCommercialStatus } from "../modules/commercialStatus/statusService";
 import { CommercialStatusCode } from "@prisma/client";
 import { attributeOrders } from "../modules/orders/orderAttribution";
 import { staffWorkspaceState } from "../modules/identity/staffAppAccess";
@@ -822,8 +822,9 @@ router.get("/orders/:id", requireRep, async (req: RepRequest, res) => {
       delivery: true,
       invoice: { select: { invoiceNumber: true, invoiceDate: true, dueDate: true, total: true, outstandingAmount: true, commercialSnapshot:true } },
       commercialStatusEvents: {
-        where: { code: CommercialStatusCode.SALES_ORDER_PUNCHED },
-        select: { code: true, actorStaff: { select: { name: true } } },
+        orderBy: { createdAt: "desc" as const },
+        take: 10,
+        select: { code: true, createdAt: true, actorStaff: { select: { name: true } } },
       },
     },
   });
@@ -835,7 +836,17 @@ router.get("/orders/:id", requireRep, async (req: RepRequest, res) => {
     orderBy: { createdAt: "asc" },
     select: { id: true, action: true, metadata: true, createdAt: true },
   });
-  res.json({ order: attributedOrder, events, commercialStatus: await internalStatusForOrder(order.id) });
+  const commercial = await internalStatusForOrder(order.id);
+  const currentCode = commercial?.currentCode ?? deriveCurrentCommercialStatus(order.commercialStatusEvents ?? [], Boolean(order.isOnHold));
+  res.json({
+    order: {
+      ...attributedOrder,
+      isOnHold: Boolean(order.isOnHold),
+      commercialStatus: currentCode,
+    },
+    events,
+    commercialStatus: commercial,
+  });
 });
 
 /**
@@ -854,13 +865,23 @@ router.get("/orders", requireRep, async (req: RepRequest, res) => {
       items: { include: { variant: { include: { product: true } } } },
       delivery: true,
       invoice: { select: { id: true, invoiceNumber: true, invoiceDate: true, total: true } },
+      commercialStatusEvents: {
+        orderBy: { createdAt: "desc" as const },
+        take: 5,
+        select: { code: true, createdAt: true },
+      },
     },
     orderBy: { createdAt: "desc" },
     take: 100,
   });
 
   const attributed = await attributeOrders(orders);
-  res.json({ orders: attributed });
+  const enriched = attributed.map((order, index) => ({
+    ...order,
+    isOnHold: Boolean(orders[index].isOnHold),
+    commercialStatus: deriveCurrentCommercialStatus(orders[index].commercialStatusEvents ?? [], Boolean(orders[index].isOnHold)),
+  }));
+  res.json({ orders: enriched });
 });
 
 /**

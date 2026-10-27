@@ -9,6 +9,7 @@ import { ensureKycApprovedForDispatch, KycGateError } from "../../modules/kyc/ky
 import { createInvoiceForDelivery, InvoiceCreationError } from "../../modules/invoicing/invoiceService";
 import { renderInvoicePdf } from "../../modules/invoicing/invoicePdf";
 import { DEFAULT_WAREHOUSE_CODE } from "../../modules/inventory/inventoryService";
+import { deriveCurrentCommercialStatus } from "../../modules/commercialStatus/statusService";
 import {
   orderAttribution,
   resolveWarehouse,
@@ -25,6 +26,8 @@ const warehouseOrderSelect = {
   id: true,
   orderNo: true,
   status: true,
+  isOnHold: true,
+  holdReason: true,
   orderTotal: true,
   createdAt: true,
   expectedDeliveryAt: true,
@@ -57,8 +60,9 @@ const warehouseOrderSelect = {
     },
   },
   commercialStatusEvents: {
-    where: { code: CommercialStatusCode.SALES_ORDER_PUNCHED },
-    select: { code: true, actorStaff: { select: { name: true } } },
+    orderBy: { createdAt: "desc" as const },
+    take: 10,
+    select: { code: true, createdAt: true, actorStaff: { select: { name: true } } },
   },
   items: {
     select: {
@@ -120,6 +124,10 @@ function projectWarehouseOrder(
     id: order.id,
     orderNo: order.orderNo,
     status: order.status,
+    isOnHold: Boolean(order.isOnHold),
+    holdReason: order.holdReason ?? null,
+    commercialStatus: deriveCurrentCommercialStatus(order.commercialStatusEvents ?? [], Boolean(order.isOnHold)),
+    commercialStatusEvents: order.commercialStatusEvents ?? [],
     orderTotal: order.orderTotal ? Number(order.orderTotal) : 0,
     createdAt: order.createdAt,
     expectedDeliveryAt: order.expectedDeliveryAt,

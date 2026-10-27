@@ -134,7 +134,7 @@ router.get("/admin/commercial-status/orders", requireAdminIdentity, async (req: 
 });
 
 router.get("/admin/commercial-status/orders/:id", requireAdminIdentity, async (req: AdminRequest, res) => {
-  if (!denyUnless(req, res, Permissions.COMMERCIAL_STATUS_VIEW)) return;
+  if (!denyUnless(req, res, Permissions.COMMERCIAL_STATUS_VIEW, Permissions.ORDER_WAREHOUSE_PROCESS)) return;
   try {
     res.json({ status: await internalStatusForOrder(req.params.id) });
   } catch (error) {
@@ -143,7 +143,7 @@ router.get("/admin/commercial-status/orders/:id", requireAdminIdentity, async (r
 });
 
 router.post("/admin/commercial-status/orders/:id/toggle-code", requireAdminIdentity, async (req: AdminRequest, res) => {
-  if (!denyUnless(req, res, Permissions.COMMERCIAL_STATUS_VIEW)) return;
+  if (!denyUnless(req, res, Permissions.COMMERCIAL_STATUS_VIEW, Permissions.ORDER_WAREHOUSE_PROCESS)) return;
   const body = z.object({
     code: z.nativeEnum(CommercialStatusCode),
     active: z.boolean(),

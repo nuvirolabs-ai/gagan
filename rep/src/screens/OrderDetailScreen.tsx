@@ -4,7 +4,7 @@ import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressa
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { AppScreen, EmptyState, OrderTimeline, PrimaryButton, SecondaryButton, SectionHeader, StatusPill, Surface } from "../components/ui";
+import { AppScreen, EmptyState, OrderTimeline, PrimaryButton, SecondaryButton, SectionHeader, StatusPill, CommercialStatusBadge, Surface } from "../components/ui";
 import { repApi } from "../api/repClient";
 import { formatOrderRef } from "../lib/orderRef";
 import { hasOrderAmountMismatch } from "../lib/orderAmountMismatch";
@@ -27,7 +27,7 @@ const STATUS_LABELS: Record<string, string> = {
   placed: "Order placed",
   confirmed: "Confirmed by operations",
   packed: "Packed",
-  out_for_delivery: "Out for delivery",
+  out_for_delivery: "Material Dispatched",
   delivered: "Delivered",
   rejected: "Rejected",
 };
@@ -118,7 +118,10 @@ export default function OrderDetailScreen({ route, navigation }: any) {
               <Text style={styles.title}>{formatOrderRef(order)}</Text>
               <Text style={styles.retailer}>{order.retailer?.name ?? "Assigned retailer"}</Text>
             </View>
-            <StatusPill status={order.status} />
+            <View style={{ alignItems: "flex-end", gap: 6 }}>
+              <CommercialStatusBadge code={order.commercialStatus} showSubtitle={true} />
+              <StatusPill status={order.status} />
+            </View>
           </View>
           <Text style={styles.muted}>
             {order.source === "SALESPERSON_APP" || order.placedBy === "rep"

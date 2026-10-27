@@ -25,12 +25,18 @@ type WarehouseOrder = {
   remarks?: string | null;
   transportName?: string | null;
   commercialSnapshot?: any;
+  isNewRetailer?: boolean;
+  placedBy?: string | null;
+  commercialStatusEvents?: Array<{ code: string; createdAt: string }>;
   retailer: {
     id: string;
     name: string;
     phone?: string;
     shopAddress?: string;
     deliveryCity?: string;
+    isNew?: boolean;
+    ordersCount?: number | null;
+    createdAt?: string;
   } | null;
   delivery?: {
     routeId?: string;
@@ -158,57 +164,107 @@ const EMOJI_ACTIONS = [
   { code: "ADVANCE_PAYMENT_RECEIVED", label: "Advance Party", emoji: "🤝", key: "advance" },
 ] as const;
 
-function getCommercialBadgeDisplay(code?: string | null): string {
-  if (!code) return "";
+function isNewRetailerOrder(order: WarehouseOrder): boolean {
+  if (order.isNewRetailer) return true;
+  if (order.retailer?.isNew) return true;
+  if (order.commercialStatus === "ACCOUNT_OPENED") return true;
+  if (order.commercialStatusEvents?.some((e) => e.code === "ACCOUNT_OPENED")) return true;
+  if (order.retailer?.ordersCount != null && order.retailer.ordersCount <= 1) return true;
+  if (order.retailer?.createdAt) {
+    const createdTime = new Date(order.retailer.createdAt).getTime();
+    if (!isNaN(createdTime) && Date.now() - createdTime < 30 * 24 * 60 * 60 * 1000) return true;
+  }
+  return false;
+}
+
+function getUnifiedOrderStatus(order: WarehouseOrder): {
+  label: string;
+  emoji?: string;
+  bg: string;
+  color: string;
+  border: string;
+} {
+  if (order.status === "rejected") {
+    return {
+      label: "Order Rejected",
+      emoji: "✕",
+      bg: "#fee2e2",
+      color: "#b91c1c",
+      border: "#fca5a5",
+    };
+  }
+
+  if (order.status === "delivered") {
+    return {
+      label: "Delivered",
+      emoji: "✓",
+      bg: "#dcfce7",
+      color: "#15803d",
+      border: "#86efac",
+    };
+  }
+
+  if (order.status === "out_for_delivery") {
+    return {
+      label: "Dispatched",
+      emoji: "🚚",
+      bg: "#dbeafe",
+      color: "#1d4ed8",
+      border: "#bfdbfe",
+    };
+  }
+
+  if (order.status === "packed" || order.commercialStatus === "SALES_ORDER_CREATED") {
+    return {
+      label: "Sales Order Created",
+      emoji: "📦",
+      bg: "#f0fdf4",
+      color: "#166534",
+      border: "#86efac",
+    };
+  }
+
+  // Before Sales Order Created: show the tags warehouse manager is putting
+  const code = order.isOnHold ? "SALES_ORDER_ON_HOLD" : (order.commercialStatus || "SALES_ORDER_PUNCHED");
   switch (code) {
-    case "ACCOUNT_OPENED": return "#️⃣ New Account";
-    case "RATE_APPROVAL_SENT": return "🍓 Rate Approval";
-    case "SALES_ORDER_APPROVAL_SENT": return "❤️ Order Approval";
+    case "ACCOUNT_OPENED":
+      return { label: "New Account", emoji: "#️⃣", bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" };
+    case "RATE_APPROVAL_SENT":
+      return { label: "Rate Approval", emoji: "🍓", bg: "#fef2f2", color: "#b91c1c", border: "#fecaca" };
+    case "SALES_ORDER_APPROVAL_SENT":
+      return { label: "Order Approval", emoji: "❤️", bg: "#fff1f2", color: "#be123c", border: "#fecdd3" };
+    case "ADVANCE_PAYMENT_RECEIVED":
+      return { label: "Advance Party", emoji: "🤝", bg: "#ecfdf5", color: "#047857", border: "#a7f3d0" };
+    case "SALES_ORDER_ON_HOLD":
+      return { label: "On Hold", emoji: "❌", bg: "#fff7ed", color: "#c2410c", border: "#fed7aa" };
     case "SALES_ORDER_PUNCHED":
-    case "SALES_ORDER_CREATED": return "👍 Order Punched";
-    case "SALES_ORDER_ON_HOLD": return "❌ On Hold";
-    case "ADVANCE_PAYMENT_RECEIVED": return "🤝 Advance Party";
-    default: return code;
+    default:
+      return { label: "Order Punched", emoji: "👍", bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" };
   }
 }
 
-function getCommercialBadgeBg(code?: string | null): string {
-  switch (code) {
-    case "ACCOUNT_OPENED": return "#eff6ff";
-    case "RATE_APPROVAL_SENT": return "#fef2f2";
-    case "SALES_ORDER_APPROVAL_SENT": return "#fff1f2";
-    case "SALES_ORDER_PUNCHED":
-    case "SALES_ORDER_CREATED": return "#f0fdf4";
-    case "SALES_ORDER_ON_HOLD": return "#fff7ed";
-    case "ADVANCE_PAYMENT_RECEIVED": return "#ecfdf5";
-    default: return "#f1f5f9";
-  }
-}
-
-function getCommercialBadgeColor(code?: string | null): string {
-  switch (code) {
-    case "ACCOUNT_OPENED": return "#1d4ed8";
-    case "RATE_APPROVAL_SENT": return "#b91c1c";
-    case "SALES_ORDER_APPROVAL_SENT": return "#be123c";
-    case "SALES_ORDER_PUNCHED":
-    case "SALES_ORDER_CREATED": return "#15803d";
-    case "SALES_ORDER_ON_HOLD": return "#c2410c";
-    case "ADVANCE_PAYMENT_RECEIVED": return "#047857";
-    default: return "#334155";
-  }
-}
-
-function getCommercialBadgeBorder(code?: string | null): string {
-  switch (code) {
-    case "ACCOUNT_OPENED": return "#bfdbfe";
-    case "RATE_APPROVAL_SENT": return "#fecaca";
-    case "SALES_ORDER_APPROVAL_SENT": return "#fecdd3";
-    case "SALES_ORDER_PUNCHED":
-    case "SALES_ORDER_CREATED": return "#bbf7d0";
-    case "SALES_ORDER_ON_HOLD": return "#fed7aa";
-    case "ADVANCE_PAYMENT_RECEIVED": return "#a7f3d0";
-    default: return "#cbd5e1";
-  }
+function renderUnifiedOrderStatusBadge(order: WarehouseOrder) {
+  const statusInfo = getUnifiedOrderStatus(order);
+  return (
+    <span
+      style={{
+        fontSize: 11,
+        fontWeight: 700,
+        padding: "3px 10px",
+        borderRadius: 12,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        background: statusInfo.bg,
+        color: statusInfo.color,
+        border: `1px solid ${statusInfo.border}`,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {statusInfo.emoji && <span style={{ fontSize: 12 }}>{statusInfo.emoji}</span>}
+      <span>{statusInfo.label}</span>
+    </span>
+  );
 }
 
 const DEFAULT_ROUTE_PRESETS = [
@@ -230,40 +286,6 @@ function suggestRouteForRetailer(retailer?: WarehouseOrder["retailer"], presets:
     if (match) return match;
   }
   return presets[0] || "ROUTE-INDORE-CENTRAL";
-}
-
-function statusBadgeClass(status: WarehouseOrder["status"]) {
-  switch (status) {
-    case "confirmed":
-      return "warehouse-status confirmed";
-    case "packed":
-      return "warehouse-status packed";
-    case "out_for_delivery":
-      return "warehouse-status out-for-delivery";
-    case "delivered":
-      return "warehouse-status delivered";
-    case "rejected":
-      return "warehouse-status rejected";
-    default:
-      return "warehouse-status";
-  }
-}
-
-function statusHumanLabel(status: WarehouseOrder["status"]) {
-  switch (status) {
-    case "confirmed":
-      return "Ready to Pack";
-    case "packed":
-      return "Packed & Ready for Dispatch";
-    case "out_for_delivery":
-      return "Out for Delivery";
-    case "delivered":
-      return "Delivered & Completed";
-    case "rejected":
-      return "Rejected";
-    default:
-      return status;
-  }
 }
 
 function createdLabel(value?: string) {
@@ -602,7 +624,7 @@ export default function WarehouseOrders() {
 
     // Filter via order status pills (Requirement 1 & Internal Tags)
     if (statusPill === "new_buyer") {
-      result = result.filter((o: any) => o.commercialStatus === "ACCOUNT_OPENED" || o.retailer?.isNew || o.internalStatus?.code === "ACCOUNT_OPENED" || o.placedBy === "retailer");
+      result = result.filter((o: any) => isNewRetailerOrder(o));
     } else if (statusPill === "rate_approval") {
       result = result.filter((o: any) => o.commercialStatus === "RATE_APPROVAL_SENT" || o.internalStatus?.code === "RATE_APPROVAL_SENT" || o.internalStatus?.code === "RATE_APPROVAL_PENDING");
     } else if (statusPill === "order_approval" || statusPill === "outstanding") {
@@ -1390,7 +1412,7 @@ export default function WarehouseOrders() {
           const isSelected = statusPill === pill.key;
           let count = 0;
           if (pill.key === "all") count = orders.length;
-          else if (pill.key === "new_buyer") count = orders.filter((o: any) => o.commercialStatus === "ACCOUNT_OPENED" || o.retailer?.isNew || o.internalStatus?.code === "ACCOUNT_OPENED" || o.placedBy === "retailer").length;
+          else if (pill.key === "new_buyer") count = orders.filter((o: any) => isNewRetailerOrder(o)).length;
           else if (pill.key === "rate_approval") count = orders.filter((o: any) => o.commercialStatus === "RATE_APPROVAL_SENT" || o.internalStatus?.code === "RATE_APPROVAL_SENT").length;
           else if (pill.key === "order_approval") count = orders.filter((o: any) => o.commercialStatus === "SALES_ORDER_APPROVAL_SENT" || o.internalStatus?.code === "SALES_ORDER_APPROVAL_SENT").length;
           else if (pill.key === "advance") count = orders.filter((o: any) => o.commercialStatus === "ADVANCE_PAYMENT_RECEIVED" || o.internalStatus?.code === "ADVANCE_PAYMENT_RECEIVED").length;
@@ -1797,7 +1819,7 @@ export default function WarehouseOrders() {
               <span className="th-retailer">Retailer & Delivery Location</span>
               <span className="th-items">Items & Pack</span>
               <span className="th-time">Placed Time</span>
-              <span className="th-status">Stage Status</span>
+              <span className="th-status">Order Status</span>
               <span className="th-action">Action</span>
             </div>
 
@@ -1821,6 +1843,26 @@ export default function WarehouseOrders() {
                           🧾 INV-{order.invoice.invoiceNumber}
                         </div>
                       ) : null}
+                      {isNewRetailerOrder(order) && (
+                        <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: "2px 6px",
+                              background: "#eff6ff",
+                              color: "#1d4ed8",
+                              border: "1px solid #bfdbfe",
+                              borderRadius: 4,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 3,
+                            }}
+                          >
+                            🆕 New Retailer
+                          </span>
+                        </div>
+                      )}
                       {isDuplicate && (
                         <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
                           <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", background: "#fef3c7", color: "#b45309", border: "1px solid #fde68a", borderRadius: 4 }}>
@@ -1887,26 +1929,7 @@ export default function WarehouseOrders() {
                       <time>{createdLabel(order.createdAt)}</time>
                     </span>
                     <span className="td-status">
-                      <span className={statusBadgeClass(order.status)}>{statusHumanLabel(order.status)}</span>
-                      {order.commercialStatus && (
-                        <span
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 700,
-                            padding: "2px 8px",
-                            borderRadius: 12,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 4,
-                            marginTop: 4,
-                            background: getCommercialBadgeBg(order.commercialStatus),
-                            color: getCommercialBadgeColor(order.commercialStatus),
-                            border: `1px solid ${getCommercialBadgeBorder(order.commercialStatus)}`,
-                          }}
-                        >
-                          {getCommercialBadgeDisplay(order.commercialStatus)}
-                        </span>
-                      )}
+                      {renderUnifiedOrderStatusBadge(order)}
                       {order.cancellationStatus === "pending" && (
                         <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", background: "#fee2e2", color: "#b91c1c", border: "1px solid #fca5a5", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 3, marginTop: 4 }}>
                           ⚠️ CANCELLATION REQUESTED
@@ -2393,9 +2416,24 @@ export default function WarehouseOrders() {
                   <h2 id="warehouse-modal-title" style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>
                     {formatOrderRef(modalOrder)}
                   </h2>
-                  <span className={statusBadgeClass(modalOrder.status)}>
-                    {statusHumanLabel(modalOrder.status)}
-                  </span>
+                  {renderUnifiedOrderStatusBadge(modalOrder)}
+                  {isNewRetailerOrder(modalOrder) && (
+                    <span
+                      style={{
+                        background: "#2563eb",
+                        color: "#ffffff",
+                        padding: "4px 10px",
+                        borderRadius: 20,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      🆕 New Retailer
+                    </span>
+                  )}
                 </div>
                 <small style={{ color: "#6b7280", marginTop: 4, display: "block" }}>
                   Order Fulfillment & Checklist Modal
@@ -3396,7 +3434,7 @@ export default function WarehouseOrders() {
             {/* Modal Footer */}
             <footer className="warehouse-modal-footer">
               <span style={{ fontSize: 12, color: "#6b7280" }}>
-                Status: <strong>{statusHumanLabel(modalOrder.status)}</strong>
+                Status: <strong>{getUnifiedOrderStatus(modalOrder).label}</strong>
               </span>
               <button
                 type="button"

@@ -50,7 +50,11 @@ const warehouseOrderSelect = {
       shopAddress: true,
       deliveryCity: true,
       salesRepId: true,
+      createdAt: true,
       salesRep: { select: { id: true, name: true, phone: true } },
+      _count: {
+        select: { orders: true },
+      },
     },
   },
   delivery: {
@@ -153,6 +157,12 @@ function projectWarehouseOrder(
     warehouseName: wh.name,
     warehouseCity: wh.city,
     warehouse: wh,
+    isNewRetailer: Boolean(
+      (order.retailer?._count?.orders ?? 0) <= 1 ||
+      order.commercialStatus === "ACCOUNT_OPENED" ||
+      (order.commercialStatusEvents ?? []).some((e: any) => e.code === "ACCOUNT_OPENED") ||
+      (order.retailer?.createdAt && Date.now() - new Date(order.retailer.createdAt).getTime() < 30 * 24 * 60 * 60 * 1000)
+    ),
     retailer: order.retailer ? {
       id: order.retailer.id,
       name: order.retailer.name,
@@ -160,6 +170,12 @@ function projectWarehouseOrder(
       shopAddress: order.retailer.shopAddress,
       deliveryCity: order.retailer.deliveryCity,
       salesRepId: order.retailer.salesRepId,
+      createdAt: order.retailer.createdAt,
+      ordersCount: order.retailer._count?.orders ?? 0,
+      isNew: Boolean(
+        (order.retailer._count?.orders ?? 0) <= 1 ||
+        (order.retailer.createdAt && Date.now() - new Date(order.retailer.createdAt).getTime() < 30 * 24 * 60 * 60 * 1000)
+      ),
       salesRep: order.retailer.salesRep ? {
         id: order.retailer.salesRep.id,
         name: order.retailer.salesRep.name,

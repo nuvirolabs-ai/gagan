@@ -193,9 +193,9 @@ export default function RepOrdersScreen({ navigation }: any) {
           return (
             <Surface style={styles.card}>
               <View style={styles.cardHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.orderRef}>{formatOrderRef(order)}</Text>
-                  <Text style={styles.dateText}>
+                <View style={{ flex: 1, minWidth: 120, marginRight: 8 }}>
+                  <Text style={styles.orderRef} numberOfLines={1}>{formatOrderRef(order)}</Text>
+                  <Text style={styles.dateText} numberOfLines={1}>
                     {order.createdAt && !isNaN(new Date(order.createdAt).getTime())
                       ? new Date(order.createdAt).toLocaleString("en-IN", {
                           dateStyle: "medium",
@@ -204,11 +204,9 @@ export default function RepOrdersScreen({ navigation }: any) {
                       : "—"}
                   </Text>
                 </View>
-                <View style={{ alignItems: "flex-end", gap: 4 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                    <CommercialStatusBadge code={order.commercialStatus} />
-                    <StatusPill status={order.status} />
-                  </View>
+                <View style={{ alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
+                  <CommercialStatusBadge code={order.commercialStatus} />
+                  <StatusPill status={order.status} />
                   {isPendingCancellation && (
                     <View style={styles.pendingBadge}>
                       <Text style={styles.pendingBadgeText}>⏳ Review Pending</Text>

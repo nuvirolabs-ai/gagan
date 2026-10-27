@@ -35,6 +35,9 @@ type WarehouseOrder = {
     shopAddress?: string;
     deliveryCity?: string;
     isNew?: boolean;
+    isVerified?: boolean;
+    isPendingVerification?: boolean;
+    status?: string | null;
     ordersCount?: number | null;
     createdAt?: string;
   } | null;
@@ -165,16 +168,24 @@ const EMOJI_ACTIONS = [
 ] as const;
 
 function isNewRetailerOrder(order: WarehouseOrder): boolean {
-  if (order.isNewRetailer) return true;
-  if (order.retailer?.isNew) return true;
-  if (order.commercialStatus === "ACCOUNT_OPENED") return true;
-  if (order.commercialStatusEvents?.some((e) => e.code === "ACCOUNT_OPENED")) return true;
-  if (order.retailer?.ordersCount != null && order.retailer.ordersCount <= 1) return true;
-  if (order.retailer?.createdAt) {
-    const createdTime = new Date(order.retailer.createdAt).getTime();
-    if (!isNaN(createdTime) && Date.now() - createdTime < 30 * 24 * 60 * 60 * 1000) return true;
+  // If backend provided authoritative boolean, follow it directly
+  if (order.isNewRetailer !== undefined) {
+    return Boolean(order.isNewRetailer);
   }
-  return false;
+  if (order.retailer?.isNew !== undefined) {
+    return Boolean(order.retailer.isNew);
+  }
+  // Verified retailers can never be new retailers
+  if (order.retailer?.isVerified || order.retailer?.status === "active") {
+    return false;
+  }
+  // Must be pending verification / pending KYC and first order
+  const isPending =
+    order.retailer?.isPendingVerification ||
+    order.retailer?.status === "pending_kyc" ||
+    order.commercialStatus === "ACCOUNT_OPENED";
+  const isFirst = (order.retailer?.ordersCount ?? 0) <= 1;
+  return Boolean(isPending && isFirst);
 }
 
 function getUnifiedOrderStatus(order: WarehouseOrder): {

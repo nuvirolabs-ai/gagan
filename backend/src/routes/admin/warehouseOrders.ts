@@ -42,6 +42,12 @@ const warehouseOrderSelect = {
   cancellationStatus: true,
   cancellationDecisionNote: true,
   cancellationDecidedAt: true,
+  proposalOrderIntent: {
+    select: {
+      id: true,
+      proposalId: true,
+    },
+  },
   retailer: {
     select: {
       id: true,
@@ -51,7 +57,29 @@ const warehouseOrderSelect = {
       deliveryCity: true,
       salesRepId: true,
       createdAt: true,
+      status: true,
       salesRep: { select: { id: true, name: true, phone: true } },
+      kycCase: {
+        select: {
+          id: true,
+          status: true,
+        },
+      },
+      proposal: {
+        select: {
+          id: true,
+          status: true,
+        },
+      },
+      orders: {
+        select: {
+          id: true,
+          orderNo: true,
+          status: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: "asc" as const },
+      },
       _count: {
         select: { orders: true },
       },
@@ -116,6 +144,55 @@ const warehouseOrderSelect = {
   },
 } as const;
 
+function computeIsNewRetailer(order: any): boolean {
+  if (!order.retailer) return false;
+
+  const retailerStatus = order.retailer.status;
+  const kycStatus = order.retailer.kycCase?.status;
+  const proposalStatus = order.retailer.proposal?.status;
+
+  // 1. Verified retailers can NEVER be a new retailer
+  const isVerified = retailerStatus === "active" || kycStatus === "approved";
+  if (isVerified) return false;
+
+  // 2. Verification or KYC must be pending from backend
+  const isPendingVerification =
+    retailerStatus === "pending_kyc" ||
+    kycStatus === "draft" ||
+    kycStatus === "submitted" ||
+    kycStatus === "in_review" ||
+    proposalStatus === "pending" ||
+    order.commercialStatus === "ACCOUNT_OPENED";
+
+  if (!isPendingVerification) return false;
+
+  // 3. Must be onboarded via salesperson
+  const onboardedViaSalesperson = Boolean(
+    order.retailer.salesRepId ||
+    order.retailer.salesRep ||
+    order.placedBy === "rep" ||
+    order.placedByRepId ||
+    order.proposalOrderIntent ||
+    order.retailer.proposal
+  );
+  if (!onboardedViaSalesperson) return false;
+
+  // 4. Who never gave any order also before (this must be their first order on the platform)
+  const allRetailerOrders = (order.retailer.orders ?? []) as Array<{ id: string; orderNo?: number; createdAt: Date | string }>;
+  if (allRetailerOrders.length > 0) {
+    const currentOrderTime = new Date(order.createdAt).getTime();
+    const hasEarlierOrder = allRetailerOrders.some(
+      (o) =>
+        o.id !== order.id &&
+        (new Date(o.createdAt).getTime() < currentOrderTime ||
+          (new Date(o.createdAt).getTime() === currentOrderTime && (o.orderNo ?? 0) < (order.orderNo ?? 0)))
+    );
+    if (hasEarlierOrder) return false;
+  }
+
+  return true;
+}
+
 function projectWarehouseOrder(
   order: any,
   warehouses: ResolvedWarehouse[] = STATIC_WAREHOUSES,
@@ -123,6 +200,7 @@ function projectWarehouseOrder(
 ) {
   const attribution = orderAttribution(order);
   const wh = resolveWarehouse(order, warehouses, routings);
+  const isNewRetailer = computeIsNewRetailer(order);
 
   return {
     id: order.id,
@@ -157,12 +235,7 @@ function projectWarehouseOrder(
     warehouseName: wh.name,
     warehouseCity: wh.city,
     warehouse: wh,
-    isNewRetailer: Boolean(
-      (order.retailer?._count?.orders ?? 0) <= 1 ||
-      order.commercialStatus === "ACCOUNT_OPENED" ||
-      (order.commercialStatusEvents ?? []).some((e: any) => e.code === "ACCOUNT_OPENED") ||
-      (order.retailer?.createdAt && Date.now() - new Date(order.retailer.createdAt).getTime() < 30 * 24 * 60 * 60 * 1000)
-    ),
+    isNewRetailer,
     retailer: order.retailer ? {
       id: order.retailer.id,
       name: order.retailer.name,
@@ -171,11 +244,14 @@ function projectWarehouseOrder(
       deliveryCity: order.retailer.deliveryCity,
       salesRepId: order.retailer.salesRepId,
       createdAt: order.retailer.createdAt,
+      status: order.retailer.status,
+      isVerified: order.retailer.status === "active" || order.retailer.kycCase?.status === "approved",
+      isPendingVerification:
+        order.retailer.status === "pending_kyc" ||
+        ["draft", "submitted", "in_review"].includes(order.retailer.kycCase?.status) ||
+        order.retailer.proposal?.status === "pending",
       ordersCount: order.retailer._count?.orders ?? 0,
-      isNew: Boolean(
-        (order.retailer._count?.orders ?? 0) <= 1 ||
-        (order.retailer.createdAt && Date.now() - new Date(order.retailer.createdAt).getTime() < 30 * 24 * 60 * 60 * 1000)
-      ),
+      isNew: isNewRetailer,
       salesRep: order.retailer.salesRep ? {
         id: order.retailer.salesRep.id,
         name: order.retailer.salesRep.name,

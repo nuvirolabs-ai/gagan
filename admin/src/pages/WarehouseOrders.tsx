@@ -1309,10 +1309,10 @@ export default function WarehouseOrders() {
           if (pill.key === "all") count = orders.length;
           else if (pill.key === "new_buyer") count = orders.filter((o: any) => o.commercialStatus === "ACCOUNT_OPENED" || o.retailer?.isNew || o.internalStatus?.code === "ACCOUNT_OPENED" || o.placedBy === "retailer").length;
           else if (pill.key === "rate_approval") count = orders.filter((o: any) => o.commercialStatus === "RATE_APPROVAL_SENT" || o.internalStatus?.code === "RATE_APPROVAL_SENT").length;
-          else if (pill.key === "order_approval" || pill.key === "outstanding") count = orders.filter((o: any) => o.commercialStatus === "SALES_ORDER_APPROVAL_SENT" || o.internalStatus?.code === "SALES_ORDER_APPROVAL_SENT").length;
+          else if (pill.key === "order_approval") count = orders.filter((o: any) => o.commercialStatus === "SALES_ORDER_APPROVAL_SENT" || o.internalStatus?.code === "SALES_ORDER_APPROVAL_SENT").length;
           else if (pill.key === "advance") count = orders.filter((o: any) => o.commercialStatus === "ADVANCE_PAYMENT_RECEIVED" || o.internalStatus?.code === "ADVANCE_PAYMENT_RECEIVED").length;
           else if (pill.key === "hold") count = orders.filter((o: any) => o.isOnHold === true || o.commercialStatus === "SALES_ORDER_ON_HOLD" || o.internalStatus?.code === "SALES_ORDER_ON_HOLD").length;
-          else if (pill.key === "sale_order_punched" || pill.key === "sale_order_created") count = orders.filter((o: any) => o.commercialStatus === "SALES_ORDER_PUNCHED" || o.commercialStatus === "SALES_ORDER_CREATED" || o.status === "confirmed" || o.internalStatus?.code === "SALES_ORDER_PUNCHED" || o.internalStatus?.code === "SALES_ORDER_CREATED").length;
+          else if (pill.key === "sale_order_punched") count = orders.filter((o: any) => o.commercialStatus === "SALES_ORDER_PUNCHED" || o.commercialStatus === "SALES_ORDER_CREATED" || o.status === "confirmed" || o.internalStatus?.code === "SALES_ORDER_PUNCHED" || o.internalStatus?.code === "SALES_ORDER_CREATED").length;
           else if (pill.key === "cancelled") count = orders.filter((o: any) => o.cancellationRequestedAt != null || o.status === "rejected" || o.cancellationStatus != null).length;
           else if (pill.key === "double_order") count = orders.filter((o) => duplicateMap.has(o.id) && !acceptedDuplicates.has(o.id)).length;
 

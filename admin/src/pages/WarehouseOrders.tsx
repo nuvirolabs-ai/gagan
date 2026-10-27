@@ -384,40 +384,89 @@ export default function WarehouseOrders() {
   const [downloadingInvoice, setDownloadingInvoice] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadedInvoiceName, setUploadedInvoiceName] = useState<string | null>(null);
+  const inFlightRef = useRef(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date>(new Date());
 
-  const load = useCallback(async (targetWarehouse = warehouseFilter) => {
-    setLoading(true);
+  const load = useCallback(async (targetWarehouse = warehouseFilter, isSilent = false) => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    if (!isSilent) setLoading(true);
+
     try {
-      const shouldFetchAll = allOrders.length === 0;
       const [filterResult, allResult] = await Promise.all([
-        api.warehouseOrders(filter === "all" ? undefined : filter, targetWarehouse),
-        shouldFetchAll ? api.warehouseOrders("all", targetWarehouse).catch(() => null) : Promise.resolve(null),
+        filter === "all" ? Promise.resolve(null) : api.warehouseOrders(filter, targetWarehouse),
+        api.warehouseOrders("all", targetWarehouse),
       ]);
-      const nextFiltered = Array.isArray(filterResult?.orders) ? (filterResult.orders as WarehouseOrder[]) : [];
-      const nextAll = Array.isArray(allResult?.orders) ? (allResult.orders as WarehouseOrder[]) : [];
-      const completeList = nextAll.length > 0 ? nextAll : (allOrders.length > 0 ? allOrders : nextFiltered);
-      setAllOrders(completeList);
 
-      const warehousesSource = filterResult?.warehouses || allResult?.warehouses;
+      const nextAll = Array.isArray(allResult?.orders) ? (allResult.orders as WarehouseOrder[]) : [];
+      const nextFiltered = filter === "all"
+        ? nextAll.filter((o) => o.status !== "delivered")
+        : (Array.isArray(filterResult?.orders) ? (filterResult.orders as WarehouseOrder[]) : nextAll.filter((o) => o.status === filter));
+
+      setAllOrders(nextAll);
+      setOrders(nextFiltered);
+
+      const warehousesSource = allResult?.warehouses || filterResult?.warehouses;
       if (Array.isArray(warehousesSource) && warehousesSource.length > 0) {
         setAvailableWarehouses(warehousesSource);
       }
 
-      if (filter === "all") {
-        setOrders(completeList.filter((o) => o.status !== "delivered"));
-      } else {
-        setOrders(nextFiltered);
-      }
+      // Smoothly update modalOrder if an order is currently open, without closing or resetting user state
+      setModalOrder((prev) => {
+        if (!prev) return null;
+        const fresh = nextAll.find((o) => o.id === prev.id);
+        if (!fresh) return prev;
+        return {
+          ...prev,
+          status: fresh.status,
+          commercialStatus: fresh.commercialStatus,
+          isOnHold: fresh.isOnHold,
+          holdReason: fresh.holdReason,
+          cancellationRequestedAt: fresh.cancellationRequestedAt,
+          cancellationReason: fresh.cancellationReason,
+          cancellationStatus: fresh.cancellationStatus,
+        };
+      });
+
+      setLastSyncedAt(new Date());
       setError(null);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not load warehouse orders");
+      if (!isSilent) {
+        setError(cause instanceof Error ? cause.message : "Could not load warehouse orders");
+      }
     } finally {
-      setLoading(false);
+      inFlightRef.current = false;
+      if (!isSilent) setLoading(false);
     }
-  }, [filter, warehouseFilter, allOrders.length]);
+  }, [filter, warehouseFilter]);
 
+  // Initial load when filter or warehouse changes
   useEffect(() => {
-    void load(warehouseFilter);
+    void load(warehouseFilter, false);
+  }, [load, warehouseFilter]);
+
+  // Real-time background sync (every 8 seconds) & instant window focus revalidation
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        void load(warehouseFilter, true);
+      }
+    }, 8000);
+
+    const handleFocusOrVisible = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        void load(warehouseFilter, true);
+      }
+    };
+
+    window.addEventListener("focus", handleFocusOrVisible);
+    document.addEventListener("visibilitychange", handleFocusOrVisible);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener("focus", handleFocusOrVisible);
+      document.removeEventListener("visibilitychange", handleFocusOrVisible);
+    };
   }, [load, warehouseFilter]);
 
   // Compute live analytics, aging hours, and hourly fulfillment infographics
@@ -1553,15 +1602,36 @@ export default function WarehouseOrders() {
               }}
             />
           </div>
-          <button
-            type="button"
-            className="button secondary compact warehouse-refresh"
-            aria-label="Refresh orders"
-            onClick={() => void load()}
-            disabled={loading}
-          >
-            <Icon name="arrow" size={14} /> Refresh
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                fontSize: 11.5,
+                fontWeight: 600,
+                color: "#166534",
+                background: "#f0fdf4",
+                border: "1px solid #bbf7d0",
+                borderRadius: 14,
+                padding: "3px 8px",
+              }}
+              title="Real-time background sync is active (auto-refreshes every 8 seconds)"
+            >
+              <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: "#22c55e" }} />
+              Live
+            </span>
+            <button
+              type="button"
+              className="button secondary compact warehouse-refresh"
+              aria-label="Refresh orders"
+              onClick={() => void load(warehouseFilter, false)}
+              disabled={loading}
+              title={`Last synced: ${lastSyncedAt.toLocaleTimeString()}`}
+            >
+              <Icon name="arrow" size={14} /> {loading ? "Syncing…" : "Refresh"}
+            </button>
+          </div>
         </div>
       </div>
 

@@ -237,10 +237,11 @@ export const api = {
     const params = new URLSearchParams();
     if (status) params.set("status", status);
     if (warehouseCode && warehouseCode !== "all") params.set("warehouseCode", warehouseCode);
+    params.set("_t", String(Date.now()));
     const qs = params.toString();
     return request(`/admin/warehouse-orders${qs ? `?${qs}` : ""}`);
   },
-  warehouseOrder: (id: string) => request(`/admin/warehouse-orders/${id}`),
+  warehouseOrder: (id: string) => request(`/admin/warehouse-orders/${id}?_t=${Date.now()}`),
   warehouseRoutes: () => request("/admin/warehouse-orders/routes"),
   packWarehouseOrder: (id: string) => post(`/admin/warehouse-orders/${id}/pack`),
   dispatchWarehouseOrder: (id: string, routeId: string, deliverySlot?: string) =>

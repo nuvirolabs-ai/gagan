@@ -198,6 +198,9 @@ router.use(
 );
 
 router.get("/warehouse-orders", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
   const requestedStatus = typeof req.query.status === "string" ? req.query.status : undefined;
   if (requestedStatus && requestedStatus !== "all" && !allEligibleStatuses.includes(requestedStatus as OrderStatus)) {
     return res.status(400).json({ error: "Invalid warehouse order status" });
@@ -303,6 +306,9 @@ router.get("/warehouse-orders/routes", async (_req, res) => {
 });
 
 router.get("/warehouse-orders/:id", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
   const order = await prisma.order.findFirst({
     where: { id: req.params.id, status: { in: allEligibleStatuses } },
     select: warehouseOrderSelect,

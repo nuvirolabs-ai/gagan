@@ -25,9 +25,11 @@ function hasPermission(permissions: string[], permission: string) {
   return permissions.includes(permission) || permissions.includes(Permissions.STAFF_MANAGE);
 }
 
-function denyUnless(req: { staffAuth?: { permissions: string[] }; permissions?: string[] }, res: any, permission: string) {
-  if (!hasPermission(req.staffAuth?.permissions ?? req.permissions ?? [], permission)) {
-    res.status(403).json({ error: "permission_required", permission });
+function denyUnless(req: { staffAuth?: { permissions: string[] }; permissions?: string[] }, res: any, ...allowedPermissions: string[]) {
+  const perms = req.staffAuth?.permissions ?? req.permissions ?? [];
+  const allowed = allowedPermissions.some((p) => hasPermission(perms, p));
+  if (!allowed) {
+    res.status(403).json({ error: "permission_required", permission: allowedPermissions[0], permissions: allowedPermissions });
     return false;
   }
   return true;

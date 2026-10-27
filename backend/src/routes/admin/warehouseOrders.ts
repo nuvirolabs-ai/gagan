@@ -339,6 +339,78 @@ router.post("/warehouse-orders/:id/pack", (req: AdminRequest, res) =>
   )
 );
 
+const rejectOrderSchema = z.object({
+  reason: z.string().trim().min(1, "Rejection remark is required").max(500),
+});
+
+router.post("/warehouse-orders/:id/reject", async (req: AdminRequest, res) => {
+  const parsed = rejectOrderSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Rejection remark is required", details: parsed.error.flatten() });
+  }
+
+  const orderId = req.params.id;
+  const reason = parsed.data.reason;
+  const actorStaffId = req.staffAuth?.staffId ?? null;
+
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!order) return res.status(404).json({ error: "Order not found" });
+
+  if (order.status === "rejected") {
+    return res.status(400).json({ error: "Order is already rejected" });
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.dispatchAuthorization.updateMany({
+      where: { orderId, status: "active" },
+      data: { status: "invalidated", invalidatedAt: new Date() },
+    });
+
+    await tx.order.update({
+      where: { id: orderId },
+      data: {
+        status: "rejected",
+        cancellationReason: reason,
+        cancellationDecisionNote: reason,
+        cancellationDecidedAt: new Date(),
+        cancellationDecidedByStaffId: actorStaffId ?? undefined,
+        remarks: order.remarks ? `${order.remarks} | Rejected: ${reason}` : `Rejected: ${reason}`,
+      },
+    });
+
+    await tx.auditEvent.create({
+      data: {
+        actorStaffId,
+        action: "order.rejected",
+        subjectType: "order",
+        subjectId: orderId,
+        metadata: { from: order.status, to: "rejected", reason },
+      },
+    });
+
+    return tx.order.findUniqueOrThrow({
+      where: { id: orderId },
+      select: warehouseOrderSelect,
+    });
+  });
+
+  const [dbWarehouses, dbRoutings] = await Promise.all([
+    prisma.warehouse.findMany({
+      where: { isActive: true },
+      select: { code: true, name: true, city: true, address: true },
+    }).catch(() => STATIC_WAREHOUSES),
+    prisma.cityRouting.findMany({
+      where: { isActive: true },
+      select: { city: true, primaryWarehouseCode: true },
+    }).catch(() => []),
+  ]);
+
+  return res.json({
+    order: projectWarehouseOrder(updated, dbWarehouses, dbRoutings),
+    message: "Order has been rejected successfully",
+  });
+});
+
 const dispatchSchema = z.object({
   routeId: z.string().min(1),
   deliverySlot: z.string().datetime().optional(),

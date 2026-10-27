@@ -25,9 +25,9 @@ function isSameDay(dateInput: string | Date | null | undefined) {
 
 const STATUS_LABELS: Record<string, string> = {
   placed: "Order placed",
-  confirmed: "Confirmed by operations",
-  packed: "Packed",
-  out_for_delivery: "Material Dispatched",
+  confirmed: "Confirmation Pending",
+  packed: "Sales order created",
+  out_for_delivery: "Dispatched",
   delivered: "Delivered",
   rejected: "Rejected",
 };
@@ -144,7 +144,9 @@ export default function OrderDetailScreen({ route, navigation }: any) {
               ) : null}
             </View>
           ) : null}
-          <OrderTimeline status={order.status} />
+          {order.status !== "rejected" ? (
+            <OrderTimeline status={order.status} commercialStatus={order.commercialStatus} />
+          ) : null}
         </Surface>
 
         <InternalCommercialStatus status={data.commercialStatus} />
@@ -241,7 +243,44 @@ export default function OrderDetailScreen({ route, navigation }: any) {
               <Text style={{ fontSize: 13, color: "#78350f", marginTop: 2 }}>"{order.cancellationReason}"</Text>
             </View>
           </Surface>
-        ) : order.cancellationStatus === "approved" || order.status === "rejected" ? (
+        ) : order.status === "rejected" ? (
+          <Surface style={{ borderColor: "#fca5a5", backgroundColor: "#fef2f2" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <Ionicons name="close-circle-outline" size={22} color="#dc2626" />
+              <Text style={{ fontSize: 16, fontWeight: "700", color: "#991b1b" }}>Order Rejected by Warehouse</Text>
+            </View>
+            <Text style={{ fontSize: 13, color: "#7f1d1d", lineHeight: 18, marginBottom: 8 }}>
+              This order has been rejected by the warehouse manager and will not be processed further.
+            </Text>
+            {(order.cancellationDecisionNote || order.cancellationReason || order.remarks) ? (
+              <View style={{ backgroundColor: "#fee2e2", padding: 10, borderRadius: 8, marginBottom: 12, borderWidth: 1, borderColor: "#fecaca" }}>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#991b1b" }}>Rejection Remark / Reason:</Text>
+                <Text style={{ fontSize: 13, color: "#7f1d1d", marginTop: 2, fontWeight: "500" }}>
+                  "{order.cancellationDecisionNote || order.cancellationReason || (order.remarks?.includes("Rejected:") ? order.remarks.split("Rejected:")[1]?.trim() : order.remarks)}"
+                </Text>
+              </View>
+            ) : null}
+            {order.retailer?.id ? (
+              <Pressable
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  backgroundColor: colors.blue,
+                  paddingVertical: 12,
+                  borderRadius: radius.md,
+                }}
+                onPress={() => {
+                  navigation.navigate("RepCatalog", { retailerId: order.retailer.id, retailerName: order.retailer.name });
+                }}
+              >
+                <Ionicons name="cart-outline" size={18} color="#ffffff" />
+                <Text style={{ color: "#ffffff", fontWeight: "700", fontSize: 14 }}>Punch Updated Order</Text>
+              </Pressable>
+            ) : null}
+          </Surface>
+        ) : order.cancellationStatus === "approved" ? (
           <Surface style={{ borderColor: "#bbf7d0", backgroundColor: "#f0fdf4" }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <Ionicons name="checkmark-circle-outline" size={20} color="#15803d" />

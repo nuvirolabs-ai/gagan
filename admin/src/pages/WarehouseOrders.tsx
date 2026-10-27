@@ -9,7 +9,7 @@ type QueueFilter = "all" | "confirmed" | "packed" | "out_for_delivery" | "delive
 type WarehouseOrder = {
   id: string;
   orderNo: number;
-  status: "confirmed" | "packed" | "out_for_delivery" | "delivered";
+  status: "confirmed" | "packed" | "out_for_delivery" | "delivered" | "rejected";
   commercialStatus?: string | null;
   isOnHold?: boolean;
   holdReason?: string | null;
@@ -242,6 +242,8 @@ function statusBadgeClass(status: WarehouseOrder["status"]) {
       return "warehouse-status out-for-delivery";
     case "delivered":
       return "warehouse-status delivered";
+    case "rejected":
+      return "warehouse-status rejected";
     default:
       return "warehouse-status";
   }
@@ -257,6 +259,8 @@ function statusHumanLabel(status: WarehouseOrder["status"]) {
       return "Out for Delivery";
     case "delivered":
       return "Delivered & Completed";
+    case "rejected":
+      return "Rejected";
     default:
       return status;
   }
@@ -387,6 +391,9 @@ export default function WarehouseOrders() {
   const [uploadedInvoiceName, setUploadedInvoiceName] = useState<string | null>(null);
   const inFlightRef = useRef(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date>(new Date());
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejecting, setRejecting] = useState(false);
 
   const load = useCallback(async (targetWarehouse = warehouseFilter, isSilent = false) => {
     if (inFlightRef.current) return;
@@ -698,6 +705,8 @@ export default function WarehouseOrders() {
     setDownloadingInvoice(false);
     setUploadedInvoiceName(null);
     setDeliveredLines(order.items.map((i) => ({ orderItemId: i.id, cases: i.qtyOrdered })));
+    setShowRejectModal(false);
+    setRejectReason("");
     setError(null);
     setNotice(null);
 
@@ -801,22 +810,46 @@ export default function WarehouseOrders() {
     }
   };
 
-  // Action: Pack inside modal
+  // Action: Pack inside modal / Sales Order Created
   const handlePack = async () => {
     if (!modalOrder || modalOrder.status !== "confirmed") return;
     setBusy(true);
     setError(null);
     setNotice(null);
     try {
+      await api.toggleCommercialStatus(modalOrder.id, "SALES_ORDER_PUNCHED", true).catch(() => null);
       const result = await api.packWarehouseOrder(modalOrder.id);
-      const packedOrder = (result.order as WarehouseOrder) || { ...modalOrder, status: "packed" };
+      const packedOrder = (result.order as WarehouseOrder) || { ...modalOrder, status: "packed", commercialStatus: "SALES_ORDER_PUNCHED" };
       setModalOrder(packedOrder);
-      setNotice("Packing complete");
-      await load();
+      setNotice("✓ Sales Order Created & Marked as Packed");
+      await load(warehouseFilter, false);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not pack order");
+      setError(cause instanceof Error ? cause.message : "Could not create sales order");
     } finally {
       setBusy(false);
+    }
+  };
+
+  // Action: Reject order with remarks
+  const handleConfirmReject = async () => {
+    if (!modalOrder) return;
+    const trimmed = rejectReason.trim();
+    if (!trimmed) {
+      setError("Please enter a remark explaining why this order is rejected.");
+      return;
+    }
+    setRejecting(true);
+    try {
+      await api.rejectWarehouseOrder(modalOrder.id, trimmed);
+      setNotice(`Order ${formatOrderRef(modalOrder)} has been rejected.`);
+      setShowRejectModal(false);
+      setRejectReason("");
+      setModalOrder(null);
+      await load(warehouseFilter, false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to reject order");
+    } finally {
+      setRejecting(false);
     }
   };
 
@@ -2905,6 +2938,167 @@ export default function WarehouseOrders() {
                         )}
                       </div>
                     </div>
+
+                    {/* Functional Action Row: Sales Order Created / Rejected */}
+                    <div
+                      style={{
+                        marginTop: 16,
+                        paddingTop: 14,
+                        borderTop: "1px dashed #bbf7d0",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "#166534" }}>
+                        Change Status To:
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => void handlePack()}
+                        disabled={busy || modalDetailLoading}
+                        style={{
+                          background: "#16a34a",
+                          color: "#ffffff",
+                          border: "none",
+                          padding: "8px 18px",
+                          borderRadius: 6,
+                          fontSize: 13,
+                          fontWeight: 700,
+                          cursor: busy || modalDetailLoading ? "not-allowed" : "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
+                          opacity: busy || modalDetailLoading ? 0.7 : 1,
+                        }}
+                      >
+                        <span style={{ fontSize: 14 }}>✓</span>
+                        <span>{busy ? "Updating…" : "Sales Order Created"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowRejectModal(true);
+                          setRejectReason("");
+                        }}
+                        disabled={busy || modalDetailLoading}
+                        style={{
+                          background: "#dc2626",
+                          color: "#ffffff",
+                          border: "none",
+                          padding: "8px 18px",
+                          borderRadius: 6,
+                          fontSize: 13,
+                          fontWeight: 700,
+                          cursor: busy || modalDetailLoading ? "not-allowed" : "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
+                          opacity: busy || modalDetailLoading ? 0.7 : 1,
+                        }}
+                      >
+                        <span style={{ fontSize: 14 }}>✕</span>
+                        <span>Order Rejected</span>
+                      </button>
+                    </div>
+
+                    {/* Rejection Prompt / Box */}
+                    {showRejectModal && (
+                      <div
+                        style={{
+                          marginTop: 14,
+                          padding: 14,
+                          background: "#fef2f2",
+                          border: "1.5px solid #fecaca",
+                          borderRadius: 8,
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                          <strong style={{ fontSize: 13, color: "#991b1b" }}>
+                            Remark if order is rejected:
+                          </strong>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowRejectModal(false);
+                              setRejectReason("");
+                            }}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "#6b7280",
+                              fontSize: 12,
+                              cursor: "pointer",
+                              textDecoration: "underline",
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                        <textarea
+                          value={rejectReason}
+                          onChange={(e) => setRejectReason(e.target.value)}
+                          placeholder="Enter reason for rejecting this order (e.g. Retailer unverified, incorrect price, stock unavailable)..."
+                          rows={3}
+                          style={{
+                            width: "100%",
+                            padding: "8px 10px",
+                            border: "1px solid #fca5a5",
+                            borderRadius: 6,
+                            fontSize: 13,
+                            color: "#1f2937",
+                            resize: "vertical",
+                            boxSizing: "border-box",
+                            fontFamily: "inherit",
+                          }}
+                        />
+                        <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowRejectModal(false);
+                              setRejectReason("");
+                            }}
+                            disabled={rejecting}
+                            style={{
+                              padding: "6px 14px",
+                              borderRadius: 4,
+                              border: "1px solid #d1d5db",
+                              background: "#ffffff",
+                              color: "#374151",
+                              fontSize: 12,
+                              fontWeight: 600,
+                              cursor: "pointer",
+                            }}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleConfirmReject()}
+                            disabled={rejecting || !rejectReason.trim()}
+                            style={{
+                              padding: "6px 16px",
+                              borderRadius: 4,
+                              border: "none",
+                              background: "#dc2626",
+                              color: "#ffffff",
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: rejecting || !rejectReason.trim() ? "not-allowed" : "pointer",
+                              opacity: rejecting || !rejectReason.trim() ? 0.6 : 1,
+                            }}
+                          >
+                            {rejecting ? "Rejecting..." : "Confirm Rejection"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -3162,6 +3356,38 @@ export default function WarehouseOrders() {
                         <span>📄 Download Invoice (PDF)</span>
                       </button>
                     </div>
+                  </div>
+                )}
+
+                {/* Rejected -> Step: Order Rejected */}
+                {modalOrder.status === "rejected" && (
+                  <div
+                    style={{
+                      background: "#fef2f2",
+                      border: "1px solid #fecaca",
+                      borderRadius: 8,
+                      padding: "20px 24px",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                      <span style={{ fontSize: 18, color: "#dc2626" }}>✕</span>
+                      <strong style={{ fontSize: 15, color: "#991b1b", fontWeight: 700 }}>
+                        Order Rejected
+                      </strong>
+                    </div>
+                    <p style={{ margin: "0 0 12px", fontSize: 13, color: "#7f1d1d", lineHeight: 1.5 }}>
+                      This order has been rejected and cancelled by the warehouse team.
+                    </p>
+                    {(modalOrder.cancellationDecisionNote || modalOrder.cancellationReason || modalOrder.remarks) && (
+                      <div style={{ background: "#fee2e2", padding: "10px 14px", borderRadius: 6, border: "1px solid #fecaca" }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "#991b1b", display: "block", marginBottom: 3 }}>
+                          Rejection Remark:
+                        </span>
+                        <span style={{ fontSize: 13, color: "#7f1d1d", fontWeight: 500 }}>
+                          "{modalOrder.cancellationDecisionNote || modalOrder.cancellationReason || modalOrder.remarks}"
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
               </section>

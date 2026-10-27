@@ -112,9 +112,26 @@ export default function OrderDetailScreen({ route, navigation }: any) {
         </View>
       </View>
 
-      {(isActive || order.status === "delivered") && (
+      {(isActive || order.status === "delivered") && order.status !== "rejected" && (
         <View style={styles.timelineBand}>
-          <OrderTimeline status={order.status} />
+          <OrderTimeline status={order.status} commercialStatus={order.commercialStatus} />
+        </View>
+      )}
+
+      {order.status === "rejected" && (
+        <View style={{ backgroundColor: "#fef2f2", borderColor: "#fca5a5", borderWidth: 1, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md }}>
+          <Text style={{ fontSize: 15, fontWeight: "700", color: "#991b1b" }}>Order Rejected by Warehouse</Text>
+          <Text style={{ fontSize: 13, color: "#7f1d1d", marginTop: 4, lineHeight: 18 }}>
+            This order has been rejected and cancelled.
+          </Text>
+          {(order.cancellationDecisionNote || order.cancellationReason || order.remarks) ? (
+            <View style={{ backgroundColor: "#fee2e2", padding: 8, borderRadius: 6, marginTop: 8, borderWidth: 1, borderColor: "#fecaca" }}>
+              <Text style={{ fontSize: 11.5, fontWeight: "700", color: "#991b1b" }}>Rejection Remark:</Text>
+              <Text style={{ fontSize: 12.5, color: "#7f1d1d", marginTop: 2, fontWeight: "500" }}>
+                "{order.cancellationDecisionNote || order.cancellationReason || (order.remarks?.includes("Rejected:") ? order.remarks.split("Rejected:")[1]?.trim() : order.remarks)}"
+              </Text>
+            </View>
+          ) : null}
         </View>
       )}
 

@@ -295,9 +295,9 @@ export function EmptyState({
 
 export const ORDER_STATUS_META: Record<string, { label: string; tint: string; bg: string }> = {
   placed: { label: "Placed", tint: colors.primary, bg: colors.surfaceSecondary },
-  confirmed: { label: "Confirmed", tint: colors.green, bg: colors.greenSoft },
-  packed: { label: "Packed", tint: colors.green, bg: colors.greenSoft },
-  out_for_delivery: { label: "Material Dispatched", tint: "#1d4ed8", bg: "#eff6ff" },
+  confirmed: { label: "Confirmation Pending", tint: "#b45309", bg: "#fef3c7" },
+  packed: { label: "Sales order created", tint: colors.green, bg: colors.greenSoft },
+  out_for_delivery: { label: "Dispatched", tint: "#1d4ed8", bg: "#eff6ff" },
   delivered: { label: "Delivered", tint: colors.onDark, bg: colors.green },
   rejected: { label: "Rejected", tint: colors.danger, bg: colors.dangerSoft },
 };
@@ -402,8 +402,35 @@ const TIMELINE_ICON: Record<string, string> = {
   delivered: "check-circle-outline",
 };
 
-export function OrderTimeline({ status }: { status: string }) {
+export function OrderTimeline({
+  status,
+  commercialStatus,
+}: {
+  status: string;
+  commercialStatus?: string | null;
+}) {
   const currentIndex = TIMELINE_STEPS.indexOf(status as any);
+
+  const getStepLabel = (step: typeof TIMELINE_STEPS[number]) => {
+    if (step === "confirmed") {
+      if (commercialStatus && COMMERCIAL_BADGE_META[commercialStatus]) {
+        const meta = COMMERCIAL_BADGE_META[commercialStatus];
+        return `${meta.emoji} ${meta.label}`;
+      }
+      return "Confirmation Pending";
+    }
+    if (step === "packed") {
+      return "Sales order created";
+    }
+    if (step === "out_for_delivery") {
+      return "Dispatched";
+    }
+    if (step === "delivered") {
+      return "Delivered";
+    }
+    return ORDER_STATUS_META[step]?.label ?? step;
+  };
+
   return (
     <View style={s.timeline}>
       {TIMELINE_STEPS.map((step, i) => {
@@ -419,8 +446,8 @@ export function OrderTimeline({ status }: { status: string }) {
                 color={done ? colors.onDark : colors.inkFaint}
               />
             </View>
-            <Text style={[s.tlLabel, isCurrent && s.tlLabelCurrent]} numberOfLines={1}>
-              {ORDER_STATUS_META[step].label}
+            <Text style={[s.tlLabel, isCurrent && s.tlLabelCurrent]} numberOfLines={2}>
+              {getStepLabel(step)}
             </Text>
           </View>
         );
@@ -950,7 +977,7 @@ const s = StyleSheet.create({
   },
   tlDotDone: { backgroundColor: colors.greenMid },
   tlDotCurrent: { backgroundColor: colors.green },
-  tlLabel: { fontSize: 9.5, color: colors.inkMuted, marginTop: 6, fontWeight: "600" },
+  tlLabel: { fontSize: 9.5, color: colors.inkMuted, marginTop: 6, fontWeight: "600", textAlign: "center" },
   tlLabelCurrent: { color: colors.green, fontWeight: "800" },
 });
 

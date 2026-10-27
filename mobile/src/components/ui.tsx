@@ -221,9 +221,9 @@ export function EmptyState({
 
 export const ORDER_STATUS_META: Record<string, { label: string; tint: string; bg: string }> = {
   placed: { label: "Placed", tint: "#8A6A12", bg: colors.goldSoft },
-  confirmed: { label: "Confirmed", tint: colors.green, bg: colors.greenSoft },
-  packed: { label: "Packed", tint: colors.green, bg: colors.greenSoft },
-  out_for_delivery: { label: "Material Dispatched", tint: "#2F5B8F", bg: "#DFEAF6" },
+  confirmed: { label: "Confirmation Pending", tint: "#8A6A12", bg: colors.goldSoft },
+  packed: { label: "Sales order created", tint: colors.green, bg: colors.greenSoft },
+  out_for_delivery: { label: "Dispatched", tint: "#2F5B8F", bg: "#DFEAF6" },
   delivered: { label: "Delivered", tint: colors.onDark, bg: colors.green },
   rejected: { label: "Rejected", tint: colors.danger, bg: colors.dangerSoft },
 };
@@ -332,9 +332,36 @@ export function OrderLifecycleCaption({ state }: { state?: SalesOrderState | nul
 
 const TIMELINE_STEPS = ["confirmed", "packed", "out_for_delivery", "delivered"] as const;
 
-export function OrderTimeline({ status }: { status: string }) {
+export function OrderTimeline({
+  status,
+  commercialStatus,
+}: {
+  status: string;
+  commercialStatus?: string | null;
+}) {
   const { t } = useLanguage();
   const currentIndex = TIMELINE_STEPS.indexOf(status as any);
+
+  const getStepLabel = (step: typeof TIMELINE_STEPS[number]) => {
+    if (step === "confirmed") {
+      if (commercialStatus && COMMERCIAL_BADGE_META[commercialStatus]) {
+        const meta = COMMERCIAL_BADGE_META[commercialStatus];
+        return `${meta.emoji} ${meta.label}`;
+      }
+      return t("status.confirmed", { status: "Confirmation Pending" });
+    }
+    if (step === "packed") {
+      return t("status.packed", { status: "Sales order created" });
+    }
+    if (step === "out_for_delivery") {
+      return t("status.out_for_delivery", { status: "Dispatched" });
+    }
+    if (step === "delivered") {
+      return t("status.delivered", { status: "Delivered" });
+    }
+    return t(`status.${step}`, { status: ORDER_STATUS_META[step]?.label ?? step });
+  };
+
   return (
     <View style={s.timeline}>
       {TIMELINE_STEPS.map((step, i) => {
@@ -344,8 +371,8 @@ export function OrderTimeline({ status }: { status: string }) {
           <View key={step} style={s.tlStep}>
             {i > 0 && <View style={[s.tlBar, done && s.tlBarDone]} />}
             <View style={[s.tlDot, done && s.tlDotDone, isCurrent && s.tlDotCurrent]} />
-            <Text style={[s.tlLabel, isCurrent && s.tlLabelCurrent]} numberOfLines={1}>
-              {t(`status.${step}`, { status: ORDER_STATUS_META[step].label })}
+            <Text style={[s.tlLabel, isCurrent && s.tlLabelCurrent]} numberOfLines={2}>
+              {getStepLabel(step)}
             </Text>
           </View>
         );
@@ -484,7 +511,7 @@ const s = StyleSheet.create({
   },
   tlDotDone: { backgroundColor: colors.greenMid },
   tlDotCurrent: { backgroundColor: colors.green, width: 12, height: 12, borderRadius: 6 },
-  tlLabel: { fontSize: 9.5, color: colors.inkMuted, marginTop: 6, fontWeight: "600" },
+  tlLabel: { fontSize: 9.5, color: colors.inkMuted, marginTop: 6, fontWeight: "600", textAlign: "center" },
   tlLabelCurrent: { color: colors.green, fontWeight: "800" },
 });
 

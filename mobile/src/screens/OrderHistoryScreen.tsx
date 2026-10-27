@@ -149,7 +149,7 @@ export default function OrderHistoryScreen({ navigation }: any) {
                   )}
                 </View>
 
-                {isActive && <OrderTimeline status={item.status} />}
+                {isActive && <OrderTimeline status={item.status} commercialStatus={item.commercialStatus} />}
 
                 <View style={styles.cardFoot}>
                   <TouchableOpacity style={styles.reorder} onPress={() => reorder(item)}>

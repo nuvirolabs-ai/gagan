@@ -244,6 +244,8 @@ export const api = {
   warehouseOrder: (id: string) => request(`/admin/warehouse-orders/${id}?_t=${Date.now()}`),
   warehouseRoutes: () => request("/admin/warehouse-orders/routes"),
   packWarehouseOrder: (id: string) => post(`/admin/warehouse-orders/${id}/pack`),
+  rejectWarehouseOrder: (id: string, reason: string) =>
+    post(`/admin/warehouse-orders/${id}/reject`, { reason }),
   dispatchWarehouseOrder: (id: string, routeId: string, deliverySlot?: string) =>
     post(`/admin/warehouse-orders/${id}/dispatch`, { routeId, deliverySlot }),
   deliverWarehouseOrder: (

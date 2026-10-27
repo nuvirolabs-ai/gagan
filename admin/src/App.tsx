@@ -33,6 +33,7 @@ import RetailerApprovals from "./pages/RetailerApprovals";
 import ImportCenter from "./pages/ImportCenter";
 import MarketSurveys from "./pages/MarketSurveys";
 import Settings from "./pages/Settings";
+import BillingEntitiesAudit from "./pages/BillingEntitiesAudit";
 import Broadcasts from "./pages/Broadcasts";
 import RolesPermissions from "./pages/RolesPermissions";
 import CommandPalette from "./components/CommandPalette";
@@ -229,6 +230,7 @@ function Shell() {
           <Route path="/retailers" element={<Guard anyOf={permissionsFor("retailers")}><Retailers /></Guard>} />
           <Route path="/ledger" element={<Guard anyOf={permissionsFor("ledger")}><Ledger /></Guard>} />
           <Route path="/ledger/:retailerId" element={<Guard anyOf={permissionsFor("ledger")}><Ledger /></Guard>} />
+          <Route path="/billing-entities" element={<Guard anyOf={permissionsFor("billing-entities")}><BillingEntitiesAudit /></Guard>} />
           <Route path="/catalog" element={<Guard anyOf={permissionsFor("catalog")}><Catalog /></Guard>} />
           <Route path="/commercial" element={<Guard anyOf={permissionsFor("commercial")}><Commercial /></Guard>} />
           <Route path="/staff" element={<Guard anyOf={permissionsFor("staff")}><Staff /></Guard>} />

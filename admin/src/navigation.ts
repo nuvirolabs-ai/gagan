@@ -229,6 +229,16 @@ export const ADMIN_NAV_GROUPS: { id: AdminGroupId; label: string; destinations: 
         relatedTo: ["/ledger", "/collections"],
       },
       {
+        id: "billing-entities",
+        group: "finance",
+        label: "Billing Entities (Jain / Padam)",
+        route: "/billing-entities",
+        description: "Audit and money flow across Jain Traders & Padam International",
+        keywords: ["billing", "entities", "jain", "padam", "routing", "tax", "gst", "audit", "money flow"],
+        permissions: LEDGER,
+        relatedTo: ["/billing-entities", "/commercial", "/ledger"],
+      },
+      {
         id: "corrections",
         group: "finance",
         label: "Corrections",

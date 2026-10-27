@@ -129,6 +129,17 @@ export const api = {
     return requestBlob(`/admin/exports/service-issues.xlsx${query.size ? `?${query}` : ""}`);
   },
   commercial:()=>request("/admin/commercial"),
+  entityBillingAudit: (params?: { from?: string; to?: string; city?: string; entity?: string; q?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.from) query.set("from", params.from);
+    if (params?.to) query.set("to", params.to);
+    if (params?.city && params.city !== "all") query.set("city", params.city);
+    if (params?.entity && params.entity !== "all") query.set("entity", params.entity);
+    if (params?.q) query.set("q", params.q);
+    const qs = query.toString();
+    return request(`/admin/commercial/entity-audit${qs ? `?${qs}` : ""}`);
+  },
+  simulateEntityRouting: (body: any) => post("/admin/commercial/entity-audit/simulate", body),
   deliveryQuote:(id:string,lines:unknown)=>post(`/admin/commercial/orders/${id}/delivery-quote`,{lines}),
   saveCommercialSku:(id:string,body:unknown)=>request(`/admin/commercial/skus/${id}`,{method:"PUT",body:JSON.stringify(body)}),
   saveCommercialFreight:(id:string,body:unknown)=>request(`/admin/commercial/quotes/${id}/freight`,{method:"PUT",body:JSON.stringify(body)}),

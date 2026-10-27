@@ -212,6 +212,16 @@ export async function transitionOrder(
     });
     if(claimed.count!==1) return null;
     const next=await tx.order.findUniqueOrThrow({where:{id:orderId},include:orderInclude});
+    if (to === "packed") {
+      await tx.commercialStatusEvent.create({
+        data: {
+          code: "SALES_ORDER_CREATED",
+          orderId,
+          retailerId: order.retailerId,
+          actorStaffId,
+        },
+      }).catch(() => null);
+    }
     await tx.auditEvent.create({
       data: {
         actorStaffId,

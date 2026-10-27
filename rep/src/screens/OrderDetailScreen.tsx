@@ -100,7 +100,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
               <Text style={styles.retailer}>{order.retailer?.name ?? "Assigned retailer"}</Text>
             </View>
             <View style={{ alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
-              <CommercialStatusBadge code={order.commercialStatus} showSubtitle={true} />
+              <CommercialStatusBadge code={order.commercialStatus} showSubtitle={false} />
               <StatusPill status={order.status} />
             </View>
           </View>

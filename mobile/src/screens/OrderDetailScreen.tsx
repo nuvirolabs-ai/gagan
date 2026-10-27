@@ -107,7 +107,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
           <OrderLifecycleCaption state={order.salesOrderState} />
         </View>
         <View style={{ alignItems: "flex-end", gap: 6 }}>
-          <CommercialStatusBadge code={order.commercialStatus} showSubtitle={true} />
+          <CommercialStatusBadge code={order.commercialStatus} showSubtitle={false} />
           <StatusPill status={order.status} />
         </View>
       </View>

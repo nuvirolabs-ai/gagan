@@ -817,9 +817,9 @@ export default function WarehouseOrders() {
     setError(null);
     setNotice(null);
     try {
-      await api.toggleCommercialStatus(modalOrder.id, "SALES_ORDER_PUNCHED", true).catch(() => null);
+      await api.toggleCommercialStatus(modalOrder.id, "SALES_ORDER_CREATED", true).catch(() => null);
       const result = await api.packWarehouseOrder(modalOrder.id);
-      const packedOrder = (result.order as WarehouseOrder) || { ...modalOrder, status: "packed", commercialStatus: "SALES_ORDER_PUNCHED" };
+      const packedOrder = (result.order as WarehouseOrder) || { ...modalOrder, status: "packed", commercialStatus: "SALES_ORDER_CREATED" };
       setModalOrder(packedOrder);
       setNotice("✓ Sales Order Created & Marked as Packed");
       await load(warehouseFilter, false);

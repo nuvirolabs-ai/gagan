@@ -332,9 +332,9 @@ export const COMMERCIAL_BADGE_META: Record<string, { label: string; emoji: strin
     bg: "#f0fdf4",
   },
   SALES_ORDER_CREATED: {
-    emoji: "👍",
-    label: "Order Punched",
-    subtitle: "Order confirmed & created in SAP",
+    emoji: "📦",
+    label: "Sales Order Created",
+    subtitle: "Sales order created in warehouse & SAP",
     tint: "#15803d",
     bg: "#f0fdf4",
   },
@@ -395,12 +395,6 @@ export function StatusPill({ status }: { status: string }) {
 }
 
 const TIMELINE_STEPS = ["confirmed", "packed", "out_for_delivery", "delivered"] as const;
-const TIMELINE_ICON: Record<string, string> = {
-  confirmed: "clipboard-check-outline",
-  packed: "package-variant-closed",
-  out_for_delivery: "truck-outline",
-  delivered: "check-circle-outline",
-};
 
 export function OrderTimeline({
   status,
@@ -409,45 +403,121 @@ export function OrderTimeline({
   status: string;
   commercialStatus?: string | null;
 }) {
-  const currentIndex = TIMELINE_STEPS.indexOf(status as any);
+  const isSalesOrderCreated =
+    status === "packed" ||
+    status === "out_for_delivery" ||
+    status === "delivered" ||
+    commercialStatus === "SALES_ORDER_CREATED";
 
-  const getStepLabel = (step: typeof TIMELINE_STEPS[number]) => {
+  const isDispatched = status === "out_for_delivery" || status === "delivered";
+  const isDelivered = status === "delivered";
+
+  // Check if warehouse manager has applied an operational tag before sales order is created
+  const activeCommercialMeta =
+    !isSalesOrderCreated && commercialStatus && COMMERCIAL_BADGE_META[commercialStatus] && commercialStatus !== "SALES_ORDER_PUNCHED"
+      ? COMMERCIAL_BADGE_META[commercialStatus]
+      : null;
+
+  const getStepConfig = (step: typeof TIMELINE_STEPS[number]) => {
     if (step === "confirmed") {
-      if (commercialStatus && COMMERCIAL_BADGE_META[commercialStatus]) {
-        const meta = COMMERCIAL_BADGE_META[commercialStatus];
-        return `${meta.emoji} ${meta.label}`;
-      }
-      return "Confirmation Pending";
+      return {
+        label: "👍 Order Punched",
+        icon: "clipboard-check-outline",
+        done: true,
+        isCurrent: (status === "confirmed" || status === "placed") && !activeCommercialMeta && !isSalesOrderCreated,
+        tint: undefined,
+      };
     }
     if (step === "packed") {
-      return "Sales order created";
+      if (isSalesOrderCreated) {
+        return {
+          label: "Sales order created",
+          icon: "package-variant-closed",
+          done: true,
+          isCurrent: status === "packed",
+          tint: undefined,
+        };
+      }
+      if (activeCommercialMeta) {
+        let tagIcon = "tag-outline";
+        if (commercialStatus === "ADVANCE_PAYMENT_RECEIVED") tagIcon = "handshake-outline";
+        else if (commercialStatus === "SALES_ORDER_ON_HOLD") tagIcon = "pause-circle-outline";
+        else if (commercialStatus === "RATE_APPROVAL_SENT") tagIcon = "tag-text-outline";
+        else if (commercialStatus === "SALES_ORDER_APPROVAL_SENT") tagIcon = "heart-outline";
+        else if (commercialStatus === "ACCOUNT_OPENED") tagIcon = "account-plus-outline";
+
+        return {
+          label: `${activeCommercialMeta.emoji} ${activeCommercialMeta.label}`,
+          icon: tagIcon,
+          done: false,
+          isCurrent: true,
+          tint: activeCommercialMeta.tint,
+        };
+      }
+      return {
+        label: "Sales order created",
+        icon: "package-variant-closed",
+        done: false,
+        isCurrent: false,
+        tint: undefined,
+      };
     }
     if (step === "out_for_delivery") {
-      return "Dispatched";
+      return {
+        label: "Dispatched",
+        icon: "truck-outline",
+        done: isDispatched,
+        isCurrent: status === "out_for_delivery",
+        tint: undefined,
+      };
     }
     if (step === "delivered") {
-      return "Delivered";
+      return {
+        label: "Delivered",
+        icon: "check-circle-outline",
+        done: isDelivered,
+        isCurrent: isDelivered,
+        tint: undefined,
+      };
     }
-    return ORDER_STATUS_META[step]?.label ?? step;
+    return {
+      label: step,
+      icon: "circle-outline",
+      done: false,
+      isCurrent: false,
+      tint: undefined,
+    };
   };
 
   return (
     <View style={s.timeline}>
       {TIMELINE_STEPS.map((step, i) => {
-        const done = currentIndex >= 0 && i <= currentIndex;
-        const isCurrent = i === currentIndex;
+        const config = getStepConfig(step);
+        const barDone = config.done || config.isCurrent;
         return (
           <View key={step} style={s.tlStep}>
-            {i > 0 && <View style={[s.tlBar, done && s.tlBarDone]} />}
-            <View style={[s.tlDot, done && s.tlDotDone, isCurrent && s.tlDotCurrent]}>
+            {i > 0 && <View style={[s.tlBar, barDone && s.tlBarDone]} />}
+            <View
+              style={[
+                s.tlDot,
+                config.done && s.tlDotDone,
+                config.isCurrent && (config.tint ? { backgroundColor: config.tint } : s.tlDotCurrent),
+              ]}
+            >
               <MaterialCommunityIcons
-                name={TIMELINE_ICON[step] as any}
+                name={config.icon as any}
                 size={13}
-                color={done ? colors.onDark : colors.inkFaint}
+                color={config.done || config.isCurrent ? colors.onDark : colors.inkFaint}
               />
             </View>
-            <Text style={[s.tlLabel, isCurrent && s.tlLabelCurrent]} numberOfLines={2}>
-              {getStepLabel(step)}
+            <Text
+              style={[
+                s.tlLabel,
+                config.isCurrent && (config.tint ? { color: config.tint, fontWeight: "800" } : s.tlLabelCurrent),
+              ]}
+              numberOfLines={2}
+            >
+              {config.label}
             </Text>
           </View>
         );

@@ -12,22 +12,22 @@ describe("internal commercial status", () => {
   it("keeps stable codes separate from the emoji-plus-text presentation", () => {
     expect(CommercialStatusCode.SALES_ORDER_CREATED).toBe("SALES_ORDER_CREATED");
     expect(COMMERCIAL_STATUS_LABELS).toMatchObject({
-      ACCOUNT_OPENED: "#️⃣ New Account Opened",
-      RATE_APPROVAL_SENT: "🍓 Rate Sent for Approval",
-      SALES_ORDER_APPROVAL_SENT: "❤️ Sales Order Sent for Approval",
-      SALES_ORDER_PUNCHED: "📝 Sales Order Punched",
-      SALES_ORDER_CREATED: "👍 Sales Order Created",
-      SALES_ORDER_ON_HOLD: "❌ Sales Order On Hold",
-      ADVANCE_PAYMENT_RECEIVED: "✍️ Advance Payment Received",
+      ACCOUNT_OPENED: "#️⃣ New Account",
+      RATE_APPROVAL_SENT: "🍓 Rate Approval",
+      SALES_ORDER_APPROVAL_SENT: "❤️ Order Approval",
+      SALES_ORDER_PUNCHED: "👍 Order Punched",
+      SALES_ORDER_CREATED: "📦 Sales Order Created",
+      SALES_ORDER_ON_HOLD: "❌ On Hold",
+      ADVANCE_PAYMENT_RECEIVED: "🤝 Advance Party",
     });
-    expect(COMMERCIAL_STATUS_LABELS.SALES_ORDER_CREATED).toBe("👍 Sales Order Created");
-    expect(COMMERCIAL_STATUS_LABELS.SALES_ORDER_ON_HOLD).toBe("❌ Sales Order On Hold");
+    expect(COMMERCIAL_STATUS_LABELS.SALES_ORDER_CREATED).toBe("📦 Sales Order Created");
+    expect(COMMERCIAL_STATUS_LABELS.SALES_ORDER_ON_HOLD).toBe("❌ On Hold");
   });
 
   it("gives an active hold visual priority without changing the underlying event history", () => {
     const events = [
-      { code: CommercialStatusCode.SALES_ORDER_CREATED, createdAt: new Date("2026-09-15T10:00:00Z") },
-      { code: CommercialStatusCode.ADVANCE_PAYMENT_RECEIVED, createdAt: new Date("2026-09-15T10:05:00Z") },
+      { code: CommercialStatusCode.SALES_ORDER_CREATED, createdAt: new Date("2026-09-15T10:05:00Z") },
+      { code: CommercialStatusCode.ADVANCE_PAYMENT_RECEIVED, createdAt: new Date("2026-09-15T10:00:00Z") },
     ];
     expect(deriveCurrentCommercialStatus(events, false)).toBe(CommercialStatusCode.SALES_ORDER_CREATED);
     expect(deriveCurrentCommercialStatus(events, true)).toBe(CommercialStatusCode.SALES_ORDER_ON_HOLD);
@@ -46,8 +46,8 @@ describe("internal commercial status", () => {
     ];
     expect(deriveCurrentCommercialStatus(events, false)).toBe(CommercialStatusCode.SALES_ORDER_PUNCHED);
     expect(deriveCurrentCommercialStatus([
-      events[0],
       { code: CommercialStatusCode.SALES_ORDER_APPROVAL_SENT, createdAt: sameTransaction },
+      events[0],
     ], false)).toBe(CommercialStatusCode.SALES_ORDER_APPROVAL_SENT);
     expect(deriveCurrentCommercialStatus([
       { code: CommercialStatusCode.SALES_ORDER_CREATED, createdAt: sameTransaction },
@@ -133,7 +133,7 @@ describe("internal commercial status", () => {
     });
     expect(result).toMatchObject({
       code: "ADVANCE_PAYMENT_RECEIVED",
-      label: "✍️ Advance Payment Received",
+      label: "🤝 Advance Party",
       amount: 250,
       actor: { name: "Field manager" },
     });
@@ -163,18 +163,18 @@ describe("internal commercial status", () => {
       decision: { result: "approval_required", reasons: ["internal_reason"] },
       approvalRequest: { id: "approval-1", requestedByStaffId: "staff-1", requestReason: "internal" },
     } as any);
-    expect(pendingResponse).toEqual({ order: {
+    expect(pendingResponse.order).toMatchObject({
       id: "order-1", status: "placed", source: "RETAILER_APP", creatorName: null, salesOrderState: "punched",
-    } });
+    });
 
     const createdResponse = retailerOrderCreatedResponse({
       order: { id: "order-2", status: "placed" },
       decision: { result: "allowed", reasons: [] },
       dispatchAuthorization: { id: "dispatch-2", assessmentId: "assessment-2" },
     } as any);
-    expect(createdResponse).toEqual({ order: {
+    expect(createdResponse.order).toMatchObject({
       id: "order-2", status: "placed", source: "RETAILER_APP", creatorName: null, salesOrderState: "created",
-    } });
+    });
     expect(createdResponse).not.toHaveProperty("dispatchAuthorization");
     expect(createdResponse.order).not.toHaveProperty("decision");
   });

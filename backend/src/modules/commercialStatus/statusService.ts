@@ -12,7 +12,7 @@ export const COMMERCIAL_STATUS_LABELS: Record<CommercialStatusCode, string> = {
   RATE_APPROVAL_SENT: "🍓 Rate Approval",
   SALES_ORDER_APPROVAL_SENT: "❤️ Order Approval",
   SALES_ORDER_PUNCHED: "👍 Order Punched",
-  SALES_ORDER_CREATED: "👍 Order Punched",
+  SALES_ORDER_CREATED: "📦 Sales Order Created",
   SALES_ORDER_ON_HOLD: "❌ On Hold",
   SALES_ORDER_HOLD_RELEASED: "↩️ Hold Released",
   ADVANCE_PAYMENT_RECEIVED: "🤝 Advance Party",
@@ -29,11 +29,11 @@ const CURRENT_STATUS_CODES = new Set<CommercialStatusCode>([
 
 const CURRENT_STATUS_PRIORITY: Partial<Record<CommercialStatusCode, number>> = {
   [CommercialStatusCode.ACCOUNT_OPENED]: 1,
-  [CommercialStatusCode.RATE_APPROVAL_SENT]: 2,
-  [CommercialStatusCode.ADVANCE_PAYMENT_RECEIVED]: 3,
-  [CommercialStatusCode.SALES_ORDER_APPROVAL_SENT]: 4,
-  [CommercialStatusCode.SALES_ORDER_PUNCHED]: 5,
-  [CommercialStatusCode.SALES_ORDER_CREATED]: 5,
+  [CommercialStatusCode.SALES_ORDER_PUNCHED]: 2,
+  [CommercialStatusCode.RATE_APPROVAL_SENT]: 3,
+  [CommercialStatusCode.ADVANCE_PAYMENT_RECEIVED]: 4,
+  [CommercialStatusCode.SALES_ORDER_APPROVAL_SENT]: 5,
+  [CommercialStatusCode.SALES_ORDER_CREATED]: 6,
 };
 
 type StatusDb = Prisma.TransactionClient | typeof prisma;

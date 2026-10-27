@@ -258,9 +258,9 @@ export const COMMERCIAL_BADGE_META: Record<string, { label: string; emoji: strin
     bg: "#f0fdf4",
   },
   SALES_ORDER_CREATED: {
-    emoji: "👍",
-    label: "Order Punched",
-    subtitle: "Order confirmed & created in SAP",
+    emoji: "📦",
+    label: "Sales Order Created",
+    subtitle: "Sales order created in warehouse & SAP",
     tint: "#15803d",
     bg: "#f0fdf4",
   },
@@ -339,40 +339,100 @@ export function OrderTimeline({
   status: string;
   commercialStatus?: string | null;
 }) {
-  const { t } = useLanguage();
-  const currentIndex = TIMELINE_STEPS.indexOf(status as any);
+  const isSalesOrderCreated =
+    status === "packed" ||
+    status === "out_for_delivery" ||
+    status === "delivered" ||
+    commercialStatus === "SALES_ORDER_CREATED";
 
-  const getStepLabel = (step: typeof TIMELINE_STEPS[number]) => {
+  const isDispatched = status === "out_for_delivery" || status === "delivered";
+  const isDelivered = status === "delivered";
+
+  const activeCommercialMeta =
+    !isSalesOrderCreated && commercialStatus && COMMERCIAL_BADGE_META[commercialStatus] && commercialStatus !== "SALES_ORDER_PUNCHED"
+      ? COMMERCIAL_BADGE_META[commercialStatus]
+      : null;
+
+  const getStepConfig = (step: typeof TIMELINE_STEPS[number]) => {
     if (step === "confirmed") {
-      if (commercialStatus && COMMERCIAL_BADGE_META[commercialStatus]) {
-        const meta = COMMERCIAL_BADGE_META[commercialStatus];
-        return `${meta.emoji} ${meta.label}`;
-      }
-      return t("status.confirmed", { status: "Confirmation Pending" });
+      return {
+        label: "👍 Order Punched",
+        done: true,
+        isCurrent: (status === "confirmed" || status === "placed") && !activeCommercialMeta && !isSalesOrderCreated,
+        tint: undefined,
+      };
     }
     if (step === "packed") {
-      return t("status.packed", { status: "Sales order created" });
+      if (isSalesOrderCreated) {
+        return {
+          label: "Sales order created",
+          done: true,
+          isCurrent: status === "packed",
+          tint: undefined,
+        };
+      }
+      if (activeCommercialMeta) {
+        return {
+          label: `${activeCommercialMeta.emoji} ${activeCommercialMeta.label}`,
+          done: false,
+          isCurrent: true,
+          tint: activeCommercialMeta.tint,
+        };
+      }
+      return {
+        label: "Sales order created",
+        done: false,
+        isCurrent: false,
+        tint: undefined,
+      };
     }
     if (step === "out_for_delivery") {
-      return t("status.out_for_delivery", { status: "Dispatched" });
+      return {
+        label: "Dispatched",
+        done: isDispatched,
+        isCurrent: status === "out_for_delivery",
+        tint: undefined,
+      };
     }
     if (step === "delivered") {
-      return t("status.delivered", { status: "Delivered" });
+      return {
+        label: "Delivered",
+        done: isDelivered,
+        isCurrent: isDelivered,
+        tint: undefined,
+      };
     }
-    return t(`status.${step}`, { status: ORDER_STATUS_META[step]?.label ?? step });
+    return {
+      label: step,
+      done: false,
+      isCurrent: false,
+      tint: undefined,
+    };
   };
 
   return (
     <View style={s.timeline}>
       {TIMELINE_STEPS.map((step, i) => {
-        const done = currentIndex >= 0 && i <= currentIndex;
-        const isCurrent = i === currentIndex;
+        const config = getStepConfig(step);
+        const barDone = config.done || config.isCurrent;
         return (
           <View key={step} style={s.tlStep}>
-            {i > 0 && <View style={[s.tlBar, done && s.tlBarDone]} />}
-            <View style={[s.tlDot, done && s.tlDotDone, isCurrent && s.tlDotCurrent]} />
-            <Text style={[s.tlLabel, isCurrent && s.tlLabelCurrent]} numberOfLines={2}>
-              {getStepLabel(step)}
+            {i > 0 && <View style={[s.tlBar, barDone && s.tlBarDone]} />}
+            <View
+              style={[
+                s.tlDot,
+                config.done && s.tlDotDone,
+                config.isCurrent && (config.tint ? { backgroundColor: config.tint } : s.tlDotCurrent),
+              ]}
+            />
+            <Text
+              style={[
+                s.tlLabel,
+                config.isCurrent && (config.tint ? { color: config.tint, fontWeight: "800" } : s.tlLabelCurrent),
+              ]}
+              numberOfLines={2}
+            >
+              {config.label}
             </Text>
           </View>
         );

@@ -12,6 +12,7 @@ type WarehouseOrder = {
   status: "confirmed" | "packed" | "out_for_delivery" | "delivered";
   commercialStatus?: string | null;
   isOnHold?: boolean;
+  holdReason?: string | null;
   cancellationRequestedAt?: string | null;
   cancellationReason?: string | null;
   cancellationRequestedByRepId?: string | null;

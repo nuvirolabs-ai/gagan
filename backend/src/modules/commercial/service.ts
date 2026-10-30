@@ -102,18 +102,22 @@ export async function quoteFor(retailerId: string, input: {variantId:string;qty:
       const rateBasis = (price.rateBasis ?? v.listRateBasis ?? "case") as "case" | "quintal";
       const draft = draftsMap.get(v.id);
       let effectiveRate = baseRate;
+      let unitDiscount = 0;
       if (!override && draft && draft.discount > 0) {
         if (draft.discountType === "percent") {
           const pct = Math.min(100, Math.max(0, draft.discount));
           effectiveRate = Math.round((baseRate * (1 - pct / 100)) * 100) / 100;
+          unitDiscount = Math.round((baseRate - effectiveRate) * 100) / 100;
         } else {
           effectiveRate = Math.max(0, Math.round((baseRate - draft.discount) * 100) / 100);
+          unitDiscount = Math.min(baseRate, draft.discount);
         }
       }
       return {variantId:v.id, productName:v.product.name, pack:`${v.unitSize} × ${v.unitsPerCase}`, itemCode:v.product.sapMaterialId,
         entity:selectedEntity as CommercialQuoteLine["entity"], cases:item.qty,
         caseWeightKg:v.unitWeightKg.mul(v.unitsPerCase).toString(),rate:effectiveRate.toFixed(2),
-        rateBasis,gstPercent:v.gstPercent?.toString() ?? "5"};
+        rateBasis,gstPercent:v.gstPercent?.toString() ?? "5",
+        discount: unitDiscount > 0 ? unitDiscount.toFixed(2) : undefined};
     });
     const commercial = calculateCommercialQuote({lines});
     const commercialSnapshot: CommercialSnapshot = routing ? { ...commercial, routing } : commercial;

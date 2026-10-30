@@ -27,15 +27,14 @@ function priceResolver(
 
 function shapeVariant(v: any, resolve: ReturnType<typeof priceResolver>, inventory?: any, req?: AuthedRequest, fallbackImageUrl?: string | null, discount = 0, discountType: "flat" | "percent" = "flat", category?: string, outerPackOverride?: "Bag" | "Box") {
   const { price:rate, isOverride,rateBasis } = resolve(v.id);
-  const effectiveDiscount = isOverride ? 0 : discount;
   const caseWeightKg = Number(v.unitWeightKg) * v.unitsPerCase;
   let effectiveRate = rate;
-  if (rate != null && effectiveDiscount > 0) {
+  if (rate != null && discount > 0 && !isOverride) {
     if (discountType === "percent") {
-      const pct = Math.min(100, Math.max(0, effectiveDiscount));
+      const pct = Math.min(100, Math.max(0, discount));
       effectiveRate = Math.round((rate * (1 - pct / 100)) * 100) / 100;
     } else {
-      effectiveRate = Math.max(0, Math.round((rate - effectiveDiscount) * 100) / 100);
+      effectiveRate = Math.max(0, Math.round((rate - discount) * 100) / 100);
     }
   }
   const basePrice = rate === null ? null : rateBasis === "quintal" ? Math.round(rate * caseWeightKg) / 100 : rate;
@@ -62,8 +61,8 @@ function shapeVariant(v: any, resolve: ReturnType<typeof priceResolver>, invento
     unitsPerCase: v.unitsPerCase,
     caseWeightKg,
     outerPack,
-    commercialRate: rate, rateBasis, ...retailerCommercialFields(v),
-    discount: effectiveDiscount,
+    commercialRate: effectiveRate ?? rate, rateBasis, ...retailerCommercialFields(v),
+    discount,
     discountType,
     originalPrice: basePrice,
     price: effectivePrice,

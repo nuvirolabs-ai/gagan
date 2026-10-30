@@ -732,15 +732,14 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
     variants: product.variants.map((v) => {
       const inventorySnapshot = selectInventorySnapshot(product, v, inventory);
       const override = overridePrice.get(v.id);
-      const isOverride = override != null;
       const rate = override ?? tierPrice.get(v.id) ?? null;
       const caseWeightKg = Number(v.unitWeightKg) * v.unitsPerCase;
       const rateBasis=(overrides.find(p=>p.variantId===v.id) ?? priceList.find(p=>p.variantId===v.id))?.rateBasis ?? "case";
       const draft = draftsMap.get(v.id);
-      const discount = isOverride ? 0 : (draft?.discount ?? 0);
+      const discount = draft?.discount ?? 0;
       const discountType = draft?.discountType ?? "flat";
       let effectiveRate = rate;
-      if (rate != null && discount > 0) {
+      if (rate != null && discount > 0 && !override) {
         if (discountType === "percent") {
           const pct = Math.min(100, Math.max(0, discount));
           effectiveRate = Math.round((rate * (1 - pct / 100)) * 100) / 100;
@@ -772,7 +771,7 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
         unitsPerCase: v.unitsPerCase,
         caseWeightKg,
         outerPack,
-        commercialRate: rate, rateBasis, ...retailerCommercialFields(v),
+        commercialRate: effectiveRate ?? rate, rateBasis, ...retailerCommercialFields(v),
         discount,
         discountType,
         originalPrice: price,
@@ -786,7 +785,7 @@ router.get("/retailers/:id/catalog", requireRep, async (req: RepRequest, res) =>
           const gstLabel = gst != null && Number.isFinite(gst) ? (gst === 0 ? "Including 0% GST (Nil)" : `Including ${gst}% GST`) : "Excluding GST";
           return `${rateBasis === "quintal" ? "per quintal" : `per ${outerPack.toLowerCase()}`} · ${gstLabel}`;
         })(),
-        isOverride,
+        isOverride: override != null,
         pricePerKg:
           effectivePrice != null && caseWeightKg > 0 ? Math.round((effectivePrice / caseWeightKg) * 100) / 100 : null,
         availability,

@@ -289,6 +289,20 @@ export const api = {
   },
   approve: (id: string) => post(`/admin/orders/${id}/approve`),
   reject: (id: string, reason?: string) => post(`/admin/orders/${id}/reject`, { reason }),
+  editOrder: (id: string, body: { remarks?: string; freightAmount?: number; items?: Array<{ orderItemId?: string; variantId?: string; qtyOrdered: number; unitPrice?: number }> }) =>
+    request(`/admin/orders/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  closeOrderAccounting: (id: string, notes?: string) =>
+    post(`/admin/orders/${id}/close-accounting`, { notes }),
+  bulkCloseAccounting: (orderIds: string[], notes?: string) =>
+    post("/admin/orders/bulk-close-accounting", { orderIds, notes }),
+  financialStatements: (params?: { from?: string; to?: string; period?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.from) query.set("from", params.from);
+    if (params?.to) query.set("to", params.to);
+    if (params?.period) query.set("period", params.period);
+    const qs = query.toString();
+    return request(`/admin/commercial/financial-statements${qs ? `?${qs}` : ""}`);
+  },
   approveCancellation: (id: string, note?: string) => post(`/admin/orders/${id}/cancellation/approve`, { note }),
   rejectCancellation: (id: string, note: string) => post(`/admin/orders/${id}/cancellation/reject`, { note }),
   pack: (id: string) => post(`/admin/orders/${id}/pack`),

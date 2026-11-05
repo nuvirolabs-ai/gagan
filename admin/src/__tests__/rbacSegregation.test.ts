@@ -36,6 +36,7 @@ describe("RBAC segregation of duties between Accounts and Sales Coordinator", ()
     expect(accessible).toContain("collections");
     expect(accessible).toContain("ledger");
     expect(accessible).toContain("billing-entities");
+    expect(accessible).toContain("financial-statements");
     expect(accessible).toContain("corrections");
     expect(accessible).toContain("recovery");
     expect(accessible).toContain("kyc");
@@ -82,6 +83,7 @@ describe("RBAC segregation of duties between Accounts and Sales Coordinator", ()
     // Strictly forbidden modules
     expect(accessible).not.toContain("ledger");
     expect(accessible).not.toContain("billing-entities");
+    expect(accessible).not.toContain("financial-statements");
     expect(accessible).not.toContain("collections");
     expect(accessible).not.toContain("corrections");
     expect(accessible).not.toContain("recovery");

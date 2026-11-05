@@ -251,6 +251,212 @@ router.post("/orders/:id/approve", (req: AdminRequest, res) => transitionOrder(r
 router.post("/orders/:id/reject", (req: AdminRequest, res) => transitionOrder(req.params.id, "rejected", res, req.staffAuth?.staffId ?? null));
 router.post("/orders/:id/pack", (req: AdminRequest, res) => transitionOrder(req.params.id, "packed", res, req.staffAuth?.staffId ?? null));
 
+const orderEditSchema = z.object({
+  remarks: z.string().trim().max(1000).optional(),
+  freightAmount: z.number().min(0).optional(),
+  items: z.array(
+    z.object({
+      orderItemId: z.string().optional(),
+      variantId: z.string().optional(),
+      qtyOrdered: z.number().int().positive(),
+      unitPrice: z.number().positive().optional(),
+    })
+  ).optional(),
+});
+
+router.put(
+  "/orders/:id",
+  requireAnyAdminPermission(
+    Permissions.STAFF_MANAGE,
+    Permissions.COLLECTION_CONFIRM,
+    Permissions.APPROVAL_SECOND_INVOICE,
+    Permissions.FINANCIAL_CORRECT
+  ),
+  async (req: AdminRequest, res) => {
+    const parsed = orderEditSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error });
+    const orderId = req.params.id;
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: orderInclude,
+    });
+    if (!order) return res.status(404).json({ error: "Order not found" });
+
+    let newOrderTotal = Number(order.orderTotal);
+    const snap = ((order.commercialSnapshot as any) || {}) as Record<string, any>;
+
+    if (parsed.data.items && parsed.data.items.length > 0) {
+      let subtotal = 0;
+
+      for (const item of parsed.data.items) {
+        const existingItem = item.orderItemId
+          ? order.items.find((it) => it.id === item.orderItemId)
+          : item.variantId
+          ? order.items.find((it) => it.variantId === item.variantId)
+          : undefined;
+
+        if (existingItem) {
+          const price = item.unitPrice ?? Number(existingItem.unitPrice);
+          const lineTotal = item.qtyOrdered * price;
+          await prisma.orderItem.update({
+            where: { id: existingItem.id },
+            data: {
+              qtyOrdered: item.qtyOrdered,
+              unitPrice: price,
+            },
+          });
+          subtotal += lineTotal;
+        }
+      }
+
+      const freightAmt = parsed.data.freightAmount !== undefined
+        ? parsed.data.freightAmount
+        : Number(snap.freight?.amount ?? 0);
+
+      const prevSubtotal = Number(snap.subtotal ?? (Number(order.orderTotal) - Number(snap.freight?.amount ?? 0)));
+      const gstRatio = prevSubtotal > 0 ? Number(snap.gstTotal ?? 0) / prevSubtotal : 0.05;
+      const totalGst = Math.round(subtotal * gstRatio * 100) / 100;
+
+      newOrderTotal = Math.round((subtotal + totalGst + freightAmt) * 100) / 100;
+
+      if (snap.lines && Array.isArray(snap.lines)) {
+        for (const snapLine of snap.lines) {
+          const matchingEdit = parsed.data.items.find(
+            (it) => it.variantId === snapLine.variantId || (it.orderItemId && order.items.find((oi) => oi.id === it.orderItemId)?.variantId === snapLine.variantId)
+          );
+          if (matchingEdit) {
+            snapLine.cases = matchingEdit.qtyOrdered;
+            if (matchingEdit.unitPrice) snapLine.rate = matchingEdit.unitPrice;
+            snapLine.base = Math.round(matchingEdit.qtyOrdered * (snapLine.rate || 0) * 100) / 100;
+            snapLine.total = Math.round((snapLine.base + (snapLine.gst || 0)) * 100) / 100;
+          }
+        }
+      }
+      snap.subtotal = subtotal;
+      snap.gstTotal = totalGst;
+      if (snap.freight) snap.freight.amount = freightAmt;
+      snap.total = newOrderTotal;
+    } else if (parsed.data.freightAmount !== undefined) {
+      const prevFreight = Number(snap.freight?.amount ?? 0);
+      newOrderTotal = Math.round((newOrderTotal - prevFreight + parsed.data.freightAmount) * 100) / 100;
+      if (snap.freight) snap.freight.amount = parsed.data.freightAmount;
+      snap.total = newOrderTotal;
+    }
+
+    if (parsed.data.remarks !== undefined) {
+      snap.accountingRemarks = parsed.data.remarks;
+    }
+
+    const updated = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        orderTotal: newOrderTotal,
+        ...(parsed.data.remarks !== undefined ? { remarks: parsed.data.remarks } : {}),
+        commercialSnapshot: snap,
+      },
+      include: orderInclude,
+    });
+
+    if (order.invoice) {
+      const currentPaid = Number(order.invoice.total) - Number(order.invoice.outstandingAmount);
+      await prisma.invoice.update({
+        where: { id: order.invoice.id },
+        data: {
+          total: newOrderTotal,
+          outstandingAmount: Math.max(0, newOrderTotal - currentPaid),
+        },
+      });
+    }
+
+    const { attributed } = await attributeOrdersWithWarehouses([updated]);
+    res.json({ success: true, order: attributed[0] });
+  }
+);
+
+router.post(
+  "/orders/:id/close-accounting",
+  requireAnyAdminPermission(
+    Permissions.STAFF_MANAGE,
+    Permissions.COLLECTION_CONFIRM,
+    Permissions.FINANCIAL_CORRECT
+  ),
+  async (req: AdminRequest, res) => {
+    const orderId = req.params.id;
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: orderInclude,
+    });
+    if (!order) return res.status(404).json({ error: "Order not found" });
+
+    const staffUser = req.staffAuth?.staffId
+      ? await prisma.staffUser.findUnique({ where: { id: req.staffAuth.staffId }, select: { name: true } })
+      : null;
+    const closedBy = staffUser?.name || "Accounts Team";
+
+    const snap = ((order.commercialSnapshot as any) || {}) as Record<string, any>;
+    snap.accountingStatus = "closed";
+    snap.accountingClosedAt = new Date().toISOString();
+    snap.accountingClosedBy = closedBy;
+    snap.accountingClosedByStaffId = req.staffAuth?.staffId || null;
+    if (req.body?.notes) snap.accountingNotes = req.body.notes;
+
+    const updated = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        commercialSnapshot: snap,
+        ...(order.status === "placed" ? { status: "confirmed" } : {}),
+      },
+      include: orderInclude,
+    });
+
+    const { attributed } = await attributeOrdersWithWarehouses([updated]);
+    res.json({ success: true, order: attributed[0] });
+  }
+);
+
+router.post(
+  "/orders/bulk-close-accounting",
+  requireAnyAdminPermission(
+    Permissions.STAFF_MANAGE,
+    Permissions.COLLECTION_CONFIRM,
+    Permissions.FINANCIAL_CORRECT
+  ),
+  async (req: AdminRequest, res) => {
+    const { orderIds, notes } = req.body as { orderIds: string[]; notes?: string };
+    if (!Array.isArray(orderIds) || orderIds.length === 0) {
+      return res.status(400).json({ error: "orderIds must be a non-empty array" });
+    }
+
+    const orders = await prisma.order.findMany({
+      where: { id: { in: orderIds } },
+    });
+
+    const staffUser = req.staffAuth?.staffId
+      ? await prisma.staffUser.findUnique({ where: { id: req.staffAuth.staffId }, select: { name: true } })
+      : null;
+    const closedBy = staffUser?.name || "Accounts Team";
+    const closedAt = new Date().toISOString();
+
+    for (const ord of orders) {
+      const snap = ((ord.commercialSnapshot as any) || {}) as Record<string, any>;
+      snap.accountingStatus = "closed";
+      snap.accountingClosedAt = closedAt;
+      snap.accountingClosedBy = closedBy;
+      if (notes) snap.accountingNotes = notes;
+
+      await prisma.order.update({
+        where: { id: ord.id },
+        data: {
+          commercialSnapshot: snap,
+          ...(ord.status === "placed" ? { status: "confirmed" } : {}),
+        },
+      });
+    }
+
+    res.json({ success: true, count: orders.length });
+  }
+);
+
 const cancellationReviewSchema = z.object({
   note: z.string().trim().max(500).optional(),
 });

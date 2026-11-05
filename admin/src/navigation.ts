@@ -240,6 +240,16 @@ export const ADMIN_NAV_GROUPS: { id: AdminGroupId; label: string; destinations: 
         relatedTo: ["/billing-entities", "/commercial", "/ledger"],
       },
       {
+        id: "financial-statements",
+        group: "finance",
+        label: "P&L & Balance Sheet",
+        route: "/financial-statements",
+        description: "Company-wise Profit & Loss account and Balance Sheet statement",
+        keywords: ["pl", "p&l", "profit", "loss", "balance sheet", "financial statements", "accounts", "jain", "padam"],
+        permissions: LEDGER,
+        relatedTo: ["/financial-statements", "/billing-entities", "/ledger"],
+      },
+      {
         id: "corrections",
         group: "finance",
         label: "Corrections",

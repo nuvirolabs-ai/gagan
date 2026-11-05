@@ -97,6 +97,47 @@ router.get("/auth/me", requireAdminIdentity, async (req: AdminRequest, res) => {
         }
       }
     }
+
+    // Canonical role mapping if no custom modules JSON was saved
+    if (!modules && staff?.roles) {
+      const roleNames = staff.roles.map((sr) => sr.role.name);
+      if (admin?.email === "accounts@gagantoordal.com" || roleNames.includes("accounts")) {
+        modules = [
+          "billing-entities",
+          "financial-statements",
+          "ledger",
+          "collections",
+          "corrections",
+          "recovery",
+          "kyc",
+          "approvals",
+        ];
+      } else if (admin?.email === "coordinator@gagantoordal.com" || roleNames.includes("sales_coordinator")) {
+        modules = [
+          "orders",
+          "retailers",
+          "commercial",
+          "catalog",
+          "retailer-approvals",
+          "approvals",
+          "sales-leader",
+          "sales-organisation",
+          "collections",
+          "market-surveys",
+          "salesperson-feedback",
+          "service-issues",
+          "field-planning",
+          "visits",
+        ];
+      } else if (roleNames.includes("warehouse_manager") || roleNames.includes("warehouse_operator")) {
+        modules = [
+          "warehouse-orders",
+          "warehouses",
+          "retailer-approvals",
+          "retailers",
+        ];
+      }
+    }
   }
 
   res.json({

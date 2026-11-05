@@ -21,7 +21,7 @@ export const MODULE_CATALOG: ModuleItem[] = [
     label: "Billing Entities Audit (Jain / Padam)",
     description: "Multi-firm split routing, order editing, payment reconciliation & accounting closing",
     route: "/billing-entities",
-    permissions: ["collection.confirm", "financial.correct", "recovery.view"],
+    permissions: ["financial.correct", "recovery.view"],
   },
   {
     id: "financial-statements",
@@ -29,7 +29,7 @@ export const MODULE_CATALOG: ModuleItem[] = [
     label: "P&L Account & Balance Sheet",
     description: "Company-wise Trading, Profit & Loss statement and Balance Sheet",
     route: "/financial-statements",
-    permissions: ["collection.confirm", "financial.correct", "recovery.view"],
+    permissions: ["financial.correct", "recovery.view"],
   },
   {
     id: "ledger",
@@ -37,7 +37,7 @@ export const MODULE_CATALOG: ModuleItem[] = [
     label: "Retailer Ledger & Balances",
     description: "Debtor accounts, invoice ledger, and statement export",
     route: "/ledger",
-    permissions: ["collection.confirm", "financial.correct", "recovery.view"],
+    permissions: ["financial.correct", "recovery.view"],
   },
   {
     id: "collections",
@@ -95,7 +95,7 @@ export const MODULE_CATALOG: ModuleItem[] = [
     label: "Orders Desk",
     description: "Manage sales orders, check credit limits, and confirm bookings",
     route: "/orders",
-    permissions: ["approval.second_invoice", "collection.confirm"],
+    permissions: ["approval.second_invoice", "performance.view_team"],
   },
   {
     id: "approvals",
@@ -111,7 +111,7 @@ export const MODULE_CATALOG: ModuleItem[] = [
     label: "Retailers Directory",
     description: "Customer accounts, addresses, price tiers, and store profiles",
     route: "/retailers",
-    permissions: ["retailer.proposal_review", "collection.confirm"],
+    permissions: ["retailer.proposal_review"],
   },
   {
     id: "retailer-approvals",
@@ -127,7 +127,7 @@ export const MODULE_CATALOG: ModuleItem[] = [
     label: "Commercial Quote Desk",
     description: "Freight quotes, special terms, and advance requirement checks",
     route: "/commercial",
-    permissions: ["commercial.status.view", "commercial.advance.view", "commercial.advance.confirm", "collection.confirm"],
+    permissions: ["commercial.status.view", "commercial.advance.view", "commercial.advance.confirm"],
   },
   {
     id: "catalog",
@@ -362,8 +362,44 @@ export function createUserAccessRouter() {
 
       // If no explicit modules stored (e.g. legacy accounts, sales_coordinator, or superadmin)
       if (!customRoleFound) {
+        const roleNames = staff?.roles.map((r) => r.role.name) ?? [];
         if (admin.email === "admin@gagan.test") {
           modules = MODULE_CATALOG.map((m) => m.id);
+        } else if (roleNames.includes("accounts") || admin.email === "accounts@gagantoordal.com") {
+          modules = [
+            "billing-entities",
+            "financial-statements",
+            "ledger",
+            "collections",
+            "corrections",
+            "recovery",
+            "kyc",
+            "approvals",
+          ];
+        } else if (roleNames.includes("sales_coordinator") || admin.email === "coordinator@gagantoordal.com") {
+          modules = [
+            "orders",
+            "retailers",
+            "commercial",
+            "catalog",
+            "retailer-approvals",
+            "approvals",
+            "sales-leader",
+            "sales-organisation",
+            "collections",
+            "market-surveys",
+            "salesperson-feedback",
+            "service-issues",
+            "field-planning",
+            "visits",
+          ];
+        } else if (roleNames.includes("warehouse_manager") || roleNames.includes("warehouse_operator")) {
+          modules = [
+            "warehouse-orders",
+            "warehouses",
+            "retailer-approvals",
+            "retailers",
+          ];
         } else {
           // Infer modules from held permissions
           const heldPermissions = new Set<string>();

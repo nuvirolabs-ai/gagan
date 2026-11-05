@@ -72,6 +72,35 @@ export async function ensureAdminAccountsAndCoordinator() {
         create: { staffId: accountsStaff.id, roleId: accountsRole.id },
         update: {},
       });
+
+      // Ensure explicit modules role for Accounts
+      const accountsModules = [
+        "billing-entities",
+        "financial-statements",
+        "ledger",
+        "collections",
+        "corrections",
+        "recovery",
+        "kyc",
+        "approvals",
+      ];
+      const accountsCustomRole = await prisma.role.upsert({
+        where: { name: "user_accounts_portal" },
+        create: {
+          name: "user_accounts_portal",
+          description: JSON.stringify({ modules: accountsModules }),
+          color: "#059669",
+          isSystem: false,
+        },
+        update: {
+          description: JSON.stringify({ modules: accountsModules }),
+        },
+      });
+      await prisma.staffRole.upsert({
+        where: { staffId_roleId: { staffId: accountsStaff.id, roleId: accountsCustomRole.id } },
+        create: { staffId: accountsStaff.id, roleId: accountsCustomRole.id },
+        update: {},
+      });
     }
 
     // Also update any legacy test account for accounts if present
@@ -137,6 +166,41 @@ export async function ensureAdminAccountsAndCoordinator() {
       await prisma.staffRole.upsert({
         where: { staffId_roleId: { staffId: coordinatorStaff.id, roleId: coordinatorRole.id } },
         create: { staffId: coordinatorStaff.id, roleId: coordinatorRole.id },
+        update: {},
+      });
+
+      // Ensure explicit modules role for Sales Coordinator
+      const coordinatorModules = [
+        "orders",
+        "retailers",
+        "commercial",
+        "catalog",
+        "retailer-approvals",
+        "approvals",
+        "sales-leader",
+        "sales-organisation",
+        "collections",
+        "market-surveys",
+        "salesperson-feedback",
+        "service-issues",
+        "field-planning",
+        "visits",
+      ];
+      const coordinatorCustomRole = await prisma.role.upsert({
+        where: { name: "user_coordinator_portal" },
+        create: {
+          name: "user_coordinator_portal",
+          description: JSON.stringify({ modules: coordinatorModules }),
+          color: "#2563eb",
+          isSystem: false,
+        },
+        update: {
+          description: JSON.stringify({ modules: coordinatorModules }),
+        },
+      });
+      await prisma.staffRole.upsert({
+        where: { staffId_roleId: { staffId: coordinatorStaff.id, roleId: coordinatorCustomRole.id } },
+        create: { staffId: coordinatorStaff.id, roleId: coordinatorCustomRole.id },
         update: {},
       });
     }

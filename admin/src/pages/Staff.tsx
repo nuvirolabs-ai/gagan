@@ -39,7 +39,7 @@ const PRESET_DEFINITIONS: Record<string, { label: string; modules: string[] }> =
       "corrections",
       "recovery",
       "kyc",
-      "orders",
+      "approvals",
     ],
   },
   salesCoordinator: {
@@ -53,11 +53,22 @@ const PRESET_DEFINITIONS: Record<string, { label: string; modules: string[] }> =
       "approvals",
       "sales-leader",
       "sales-organisation",
+      "collections",
+      "market-surveys",
+      "salesperson-feedback",
+      "service-issues",
+      "field-planning",
+      "visits",
     ],
   },
   warehouse: {
     label: "🏭 Warehouse Manager Preset",
-    modules: ["warehouse-orders", "warehouses"],
+    modules: [
+      "warehouse-orders",
+      "warehouses",
+      "retailer-approvals",
+      "retailers",
+    ],
   },
 };
 
@@ -967,7 +978,7 @@ export default function Staff() {
                     onClick={() => handleApplyPreset("salesCoordinator")}
                     style={{ background: "#eff6ff", borderColor: "#93c5fd", color: "#1e40af", fontWeight: 600 }}
                   >
-                    📈 Sales Coordinator Preset (8)
+                    📈 Sales Coordinator Preset (14)
                   </button>
                   <button
                     type="button"
@@ -975,7 +986,7 @@ export default function Staff() {
                     onClick={() => handleApplyPreset("warehouse")}
                     style={{ background: "#fefce8", borderColor: "#fde047", color: "#854d0e", fontWeight: 600 }}
                   >
-                    🏭 Warehouse Preset (2)
+                    🏭 Warehouse Preset (4)
                   </button>
                   <button
                     type="button"

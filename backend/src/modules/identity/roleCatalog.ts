@@ -224,7 +224,6 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     description: "Processes confirmed orders through the existing warehouse packing step.",
     permissions: [
       Permissions.ORDER_WAREHOUSE_PROCESS,
-      Permissions.COMMERCIAL_STATUS_VIEW,
     ],
   },
   {
@@ -233,8 +232,6 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     permissions: [
       Permissions.ORDER_WAREHOUSE_PROCESS,
       Permissions.DISPATCH_EXECUTE,
-      Permissions.COMMERCIAL_STATUS_VIEW,
-      Permissions.COMMERCIAL_ORDER_HOLD_MANAGE,
     ],
   },
   {

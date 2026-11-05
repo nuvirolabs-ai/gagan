@@ -21,9 +21,9 @@ export type AdminDestination = {
 };
 
 const STAFF = ["staff.manage"] as const;
-const ORDERS = ["staff.manage", "approval.second_invoice", "collection.confirm"] as const;
+const ORDERS = ["staff.manage", "performance.view_team"] as const;
 const CATALOG = ["staff.manage", "catalog.manage"] as const;
-const APPROVALS = ["approval.second_invoice", "approval.third_invoice", "legal.decide"] as const;
+const APPROVALS = ["approval.second_invoice", "approval.third_invoice", "legal.decide", "financial.correct"] as const;
 const COLLECTIONS = ["collection.confirm"] as const;
 const CREDIT = ["credit.rating_confirm"] as const;
 const SURVEYS = ["survey.manage"] as const;
@@ -31,11 +31,11 @@ const WAREHOUSE = ["order.warehouse_process"] as const;
 const RETAILER_REVIEW = ["retailer.proposal_review"] as const;
 const ORG = ["org.view_all"] as const;
 const TEAM_PERFORMANCE = ["performance.view_team"] as const;
-const COMMERCIAL = ["staff.manage", "collection.confirm"] as const;
+const COMMERCIAL = ["staff.manage", "commercial.status.view"] as const;
 const CORRECTIONS = ["financial.correct"] as const;
 const RECOVERY = ["recovery.view", "recovery.update"] as const;
-const LEDGER = ["staff.manage", "collection.confirm", "financial.correct", "recovery.view"] as const;
-const RETAILERS = ["staff.manage", "collection.confirm", "financial.correct", "recovery.view", "retailer.proposal_review"] as const;
+const LEDGER = ["staff.manage", "financial.correct", "recovery.view"] as const;
+const RETAILERS = ["staff.manage", "retailer.proposal_review"] as const;
 const LEGAL = ["staff.manage", "legal.decide"] as const;
 const KYC = ["kyc.view", "kyc.review"] as const;
 const ATTENDANCE = ["attendance.review"] as const;

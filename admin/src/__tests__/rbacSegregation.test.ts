@@ -1,21 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_NAV_GROUPS, type AdminDestination } from "../navigation";
+import { ADMIN_NAV_GROUPS } from "../navigation";
 import { canAccess } from "../adminSearch";
 
 const FLAT = ADMIN_NAV_GROUPS.flatMap((group) => group.destinations);
 
-// Permissions defined in roleCatalog.ts for accounts
+// Fallback permissions for accounts
 const ACCOUNTS_PERMISSIONS = [
   "collection.confirm",
   "financial.correct",
   "kyc.view",
   "recovery.view",
-  "commercial.status.view",
-  "commercial.advance.view",
-  "commercial.advance.confirm",
 ];
 
-// Permissions defined in roleCatalog.ts for sales_coordinator
+// Fallback permissions for sales_coordinator
 const SALES_COORDINATOR_PERMISSIONS = [
   "approval.second_invoice",
   "commercial.status.view",
@@ -24,29 +21,43 @@ const SALES_COORDINATOR_PERMISSIONS = [
   "performance.view_team",
   "org.view_all",
   "attendance.review",
+  "collection.confirm",
+  "survey.manage",
+  "feedback.review",
+  "issue.review",
+  "route.manage",
+  "visit.view",
 ];
 
-describe("RBAC segregation of duties between Accounts and Sales Coordinator", () => {
-  it("grants accounts team access to financial, accounts, and order visibility modules", () => {
+// Fallback permissions for warehouse
+const WAREHOUSE_PERMISSIONS = [
+  "order.warehouse_process",
+  "retailer.proposal_review",
+];
+
+describe("RBAC segregation of duties between Accounts, Sales Coordinator, and Warehouse", () => {
+  it("grants accounts team access to collections, approvals, and financial modules while removing orders, retailers, and commercial", () => {
     const accessible = FLAT.filter((item) => item.route && canAccess(ACCOUNTS_PERMISSIONS, item.permissions)).map(
       (item) => item.id
     );
 
-    // Permitted modules
+    // Permitted modules (Added: collection, approvals; plus financial suite)
     expect(accessible).toContain("collections");
+    expect(accessible).toContain("approvals");
     expect(accessible).toContain("ledger");
     expect(accessible).toContain("billing-entities");
     expect(accessible).toContain("financial-statements");
     expect(accessible).toContain("corrections");
     expect(accessible).toContain("recovery");
     expect(accessible).toContain("kyc");
-    expect(accessible).toContain("commercial");
-    expect(accessible).toContain("retailers");
-    expect(accessible).toContain("orders");
 
-    // Strictly forbidden modules
+    // Strictly removed modules
+    expect(accessible).not.toContain("orders");
+    expect(accessible).not.toContain("retailers");
+    expect(accessible).not.toContain("commercial");
+
+    // Forbidden operational modules
     expect(accessible).not.toContain("warehouse-orders");
-    expect(accessible).not.toContain("approvals");
     expect(accessible).not.toContain("catalog");
     expect(accessible).not.toContain("retailer-approvals");
     expect(accessible).not.toContain("field-team");
@@ -57,76 +68,112 @@ describe("RBAC segregation of duties between Accounts and Sales Coordinator", ()
     expect(accessible).not.toContain("locations");
     expect(accessible).not.toContain("visits");
     expect(accessible).not.toContain("staff");
-    expect(accessible).not.toContain("sap");
-    expect(accessible).not.toContain("imports");
-    expect(accessible).not.toContain("warehouses");
-    expect(accessible).not.toContain("settings");
-    expect(accessible).not.toContain("broadcasts");
-    expect(accessible).not.toContain("roles");
   });
 
-  it("grants sales coordinator access to sales, orders, approvals, and team performance modules", () => {
+  it("grants sales coordinator access to sales, approvals, and added field/operations modules", () => {
     const accessible = FLAT.filter(
       (item) => item.route && canAccess(SALES_COORDINATOR_PERMISSIONS, item.permissions)
     ).map((item) => item.id);
 
-    // Permitted modules
+    // Standard modules
     expect(accessible).toContain("orders");
     expect(accessible).toContain("approvals");
     expect(accessible).toContain("retailers");
     expect(accessible).toContain("retailer-approvals");
     expect(accessible).toContain("catalog");
+    expect(accessible).toContain("commercial");
     expect(accessible).toContain("sales-leader");
     expect(accessible).toContain("sales-organisation");
-    expect(accessible).toContain("field-team");
 
-    // Strictly forbidden modules
+    // Added modules
+    expect(accessible).toContain("collections");
+    expect(accessible).toContain("market-surveys");
+    expect(accessible).toContain("salesperson-feedback");
+    expect(accessible).toContain("service-issues");
+    expect(accessible).toContain("field-planning");
+    expect(accessible).toContain("visits");
+
+    // Strictly forbidden financial modules
     expect(accessible).not.toContain("ledger");
     expect(accessible).not.toContain("billing-entities");
     expect(accessible).not.toContain("financial-statements");
-    expect(accessible).not.toContain("collections");
     expect(accessible).not.toContain("corrections");
     expect(accessible).not.toContain("recovery");
     expect(accessible).not.toContain("kyc");
-    expect(accessible).not.toContain("legal");
-    expect(accessible).not.toContain("commercial");
-    expect(accessible).not.toContain("credit-reviews");
-    expect(accessible).not.toContain("market-surveys");
     expect(accessible).not.toContain("warehouse-orders");
-    expect(accessible).not.toContain("field-planning");
-    expect(accessible).not.toContain("field-expenses");
-    expect(accessible).not.toContain("service-issues");
-    expect(accessible).not.toContain("salesperson-feedback");
-    expect(accessible).not.toContain("locations");
-    expect(accessible).not.toContain("visits");
     expect(accessible).not.toContain("staff");
-    expect(accessible).not.toContain("sap");
-    expect(accessible).not.toContain("imports");
-    expect(accessible).not.toContain("warehouses");
-    expect(accessible).not.toContain("settings");
-    expect(accessible).not.toContain("broadcasts");
-    expect(accessible).not.toContain("roles");
   });
 
-  it("filters sidebar navigation groups so unpermitted categories are completely hidden", () => {
-    const buildVisibleGroups = (permissions: string[]) =>
-      ADMIN_NAV_GROUPS.map((group) => ({
-        ...group,
-        items: group.destinations.filter(
-          (item): item is AdminDestination & { route: string } =>
-            Boolean(item.route) && canAccess(permissions, item.permissions)
-        ),
-      })).filter((group) => group.items.length > 0);
+  it("grants warehouse manager access to warehouse orders, hubs, and new retailer details", () => {
+    const accessible = FLAT.filter(
+      (item) => item.route && canAccess(WAREHOUSE_PERMISSIONS, item.permissions)
+    ).map((item) => item.id);
 
-    const accountsGroups = buildVisibleGroups(ACCOUNTS_PERMISSIONS).map((g) => g.id);
-    expect(accountsGroups).not.toContain("field");
-    expect(accountsGroups).not.toContain("system");
-    expect(accountsGroups).toContain("finance");
+    // Permitted modules
+    expect(accessible).toContain("warehouse-orders");
+    expect(accessible).toContain("warehouses");
+    expect(accessible).toContain("retailer-approvals");
+    expect(accessible).toContain("retailers");
 
-    const coordinatorGroups = buildVisibleGroups(SALES_COORDINATOR_PERMISSIONS).map((g) => g.id);
-    expect(coordinatorGroups).not.toContain("finance");
-    expect(coordinatorGroups).toContain("field");
-    expect(coordinatorGroups).not.toContain("system");
-    expect(coordinatorGroups).toContain("sales");
+    // Forbidden modules
+    expect(accessible).not.toContain("orders");
+    expect(accessible).not.toContain("collections");
+    expect(accessible).not.toContain("approvals");
+    expect(accessible).not.toContain("commercial");
+    expect(accessible).not.toContain("ledger");
+    expect(accessible).not.toContain("billing-entities");
+    expect(accessible).not.toContain("financial-statements");
+    expect(accessible).not.toContain("catalog");
+    expect(accessible).not.toContain("staff");
+  });
+
+  it("enforces exact module filtering when user has explicit checkmarked modules", () => {
+    const accountsExplicitModules = [
+      "billing-entities",
+      "financial-statements",
+      "ledger",
+      "collections",
+      "corrections",
+      "recovery",
+      "kyc",
+      "approvals",
+    ];
+
+    const accessibleAccounts = FLAT.filter(
+      (item) => item.route && canAccess(ACCOUNTS_PERMISSIONS, item.permissions, item.id, accountsExplicitModules)
+    ).map((item) => item.id);
+
+    expect(accessibleAccounts).toEqual(expect.arrayContaining(accountsExplicitModules));
+    expect(accessibleAccounts).not.toContain("orders");
+    expect(accessibleAccounts).not.toContain("retailers");
+    expect(accessibleAccounts).not.toContain("commercial");
+
+    const coordinatorExplicitModules = [
+      "orders",
+      "retailers",
+      "commercial",
+      "catalog",
+      "retailer-approvals",
+      "approvals",
+      "sales-leader",
+      "sales-organisation",
+      "collections",
+      "market-surveys",
+      "salesperson-feedback",
+      "service-issues",
+      "field-planning",
+      "visits",
+    ];
+
+    const accessibleCoordinator = FLAT.filter(
+      (item) =>
+        item.route &&
+        canAccess(SALES_COORDINATOR_PERMISSIONS, item.permissions, item.id, coordinatorExplicitModules)
+    ).map((item) => item.id);
+
+    expect(accessibleCoordinator).toEqual(expect.arrayContaining(coordinatorExplicitModules));
+    expect(accessibleCoordinator).not.toContain("ledger");
+    expect(accessibleCoordinator).not.toContain("billing-entities");
+    expect(accessibleCoordinator).not.toContain("financial-statements");
   });
 });

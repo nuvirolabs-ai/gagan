@@ -18,7 +18,12 @@ const router = Router();
 
 router.get(
   "/tiers",
-  requireAnyAdminPermission(Permissions.STAFF_MANAGE, Permissions.RETAILER_PROPOSAL_REVIEW, Permissions.CATALOG_MANAGE),
+  requireAnyAdminPermission(
+    Permissions.STAFF_MANAGE,
+    Permissions.RETAILER_PROPOSAL_REVIEW,
+    Permissions.CATALOG_MANAGE,
+    Permissions.ORDER_WAREHOUSE_PROCESS
+  ),
   async (_req, res) => {
     const tiers = await prisma.tier.findMany({ orderBy: { name: "asc" } });
     res.json({ tiers });
@@ -34,7 +39,8 @@ router.use(
     Permissions.RECOVERY_VIEW,
     Permissions.COMMERCIAL_STATUS_VIEW,
     Permissions.RETAILER_PROPOSAL_REVIEW,
-    Permissions.APPROVAL_SECOND_INVOICE
+    Permissions.APPROVAL_SECOND_INVOICE,
+    Permissions.ORDER_WAREHOUSE_PROCESS
   )
 );
 

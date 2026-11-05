@@ -3,7 +3,7 @@ import { z } from "zod";
 import { asyncRoute } from "../../platform/http/asyncRoute";
 import { publicMediaUrl } from "../../lib/media";
 import { groupCatalog } from "../catalog/catalogGrouping";
-import { requirePermission, type StaffAuthedRequest } from "../identity/permissions";
+import { requirePermission, requireAnyPermission, type StaffAuthedRequest } from "../identity/permissions";
 import { Permissions } from "../identity/roleCatalog";
 import { ScopeError, ScopeResolver, scopeResolver as defaultScopeResolver } from "../org/scope";
 import {
@@ -234,8 +234,17 @@ export function createRetailerProposalAdminRouter(options: {
   const router = Router();
   router.use("/retailer-proposals", options.authenticate);
 
-  const scopeOf = async (req: StaffAuthedRequest, narrowTo?: string | null) =>
-    (await scopes.resolveFor(req.staffAuth!, narrowTo)).staffIds;
+  const scopeOf = async (req: StaffAuthedRequest, narrowTo?: string | null) => {
+    if (
+      req.staffAuth?.permissions.includes(Permissions.ORDER_WAREHOUSE_PROCESS) ||
+      req.staffAuth?.permissions.includes(Permissions.ORG_VIEW_ALL) ||
+      req.staffAuth?.permissions.includes(Permissions.STAFF_MANAGE)
+    ) {
+      if (narrowTo) return [narrowTo];
+      return null;
+    }
+    return (await scopes.resolveFor(req.staffAuth!, narrowTo)).staffIds;
+  };
 
   const sendError = (error: unknown, res: any, next: any) => {
     if (error instanceof ScopeError) return res.status(error.status).json({ error: error.code });
@@ -244,7 +253,7 @@ export function createRetailerProposalAdminRouter(options: {
 
   router.get(
     "/retailer-proposals",
-    requirePermission(Permissions.RETAILER_PROPOSAL_REVIEW),
+    requireAnyPermission(Permissions.RETAILER_PROPOSAL_REVIEW, Permissions.ORDER_WAREHOUSE_PROCESS, Permissions.STAFF_MANAGE),
     asyncRoute(async (req: StaffAuthedRequest, res, next) => {
       try {
         const narrowTo =
@@ -265,7 +274,7 @@ export function createRetailerProposalAdminRouter(options: {
 
   router.post(
     "/retailer-proposals/:id/approve",
-    requirePermission(Permissions.RETAILER_PROPOSAL_REVIEW),
+    requireAnyPermission(Permissions.RETAILER_PROPOSAL_REVIEW, Permissions.ORDER_WAREHOUSE_PROCESS, Permissions.STAFF_MANAGE),
     asyncRoute(async (req: StaffAuthedRequest, res, next) => {
       const parsed = z.object({ tierId: z.string().uuid().optional() }).safeParse(req.body ?? {});
       if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
@@ -286,7 +295,7 @@ export function createRetailerProposalAdminRouter(options: {
 
   router.post(
     "/retailer-proposals/:id/reject",
-    requirePermission(Permissions.RETAILER_PROPOSAL_REVIEW),
+    requireAnyPermission(Permissions.RETAILER_PROPOSAL_REVIEW, Permissions.ORDER_WAREHOUSE_PROCESS, Permissions.STAFF_MANAGE),
     asyncRoute(async (req: StaffAuthedRequest, res, next) => {
       const parsed = z.object({ reason: z.string().trim().min(3).max(500) }).safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "rejection_reason_required" });

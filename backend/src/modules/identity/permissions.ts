@@ -125,3 +125,16 @@ export function requirePermission(permission: string): RequestHandler {
     next();
   };
 }
+
+export function requireAnyPermission(...permissions: string[]): RequestHandler {
+  return (req: StaffAuthedRequest, res: Response, next: NextFunction) => {
+    if (!req.staffAuth) {
+      return res.status(401).json({ error: "authentication_required" });
+    }
+    const hasAny = permissions.length === 0 || permissions.some((p) => req.staffAuth!.permissions.includes(p));
+    if (!hasAny) {
+      return res.status(403).json({ error: "permission_required", permissions });
+    }
+    next();
+  };
+}

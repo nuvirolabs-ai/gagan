@@ -205,7 +205,61 @@ export async function ensureAdminAccountsAndCoordinator() {
       });
     }
 
-    console.log("[PROVISIONING] Accounts and Sales Coordinator identities verified successfully.");
+    // 4. Provision / Update Warehouse Manager Admin Users
+    const warehouseEmails = ["warehouse-lead@gagan.test", "warehouse@gagan.test"];
+    const warehouseModules = [
+      "warehouse-orders",
+      "warehouses",
+      "retailer-approvals",
+      "retailers",
+    ];
+
+    const whRolePermNames = ["order.warehouse_process", "dispatch.execute", "retailer.proposal_review"];
+    for (const pName of whRolePermNames) {
+      await prisma.permission.upsert({
+        where: { name: pName },
+        update: {},
+        create: { name: pName },
+      });
+    }
+    const whDbPerms = await prisma.permission.findMany({
+      where: { name: { in: whRolePermNames } },
+      select: { id: true },
+    });
+
+    const whCustomRole = await prisma.role.upsert({
+      where: { name: "user_warehouse_portal" },
+      create: {
+        name: "user_warehouse_portal",
+        description: JSON.stringify({ modules: warehouseModules }),
+        color: "#f59e0b",
+        isSystem: false,
+        permissions: {
+          create: whDbPerms.map((p) => ({ permissionId: p.id })),
+        },
+      },
+      update: {
+        description: JSON.stringify({ modules: warehouseModules }),
+      },
+    });
+
+    for (const whEmail of warehouseEmails) {
+      const whAdmin = await prisma.adminUser.findUnique({ where: { email: whEmail } });
+      if (whAdmin) {
+        let whStaff = await prisma.staffUser.findFirst({
+          where: { OR: [{ email: whEmail }, { adminUserId: whAdmin.id }] },
+        });
+        if (whStaff) {
+          await prisma.staffRole.upsert({
+            where: { staffId_roleId: { staffId: whStaff.id, roleId: whCustomRole.id } },
+            create: { staffId: whStaff.id, roleId: whCustomRole.id },
+            update: {},
+          });
+        }
+      }
+    }
+
+    console.log("[PROVISIONING] Accounts, Sales Coordinator, and Warehouse identities verified successfully.");
   } catch (err) {
     console.error("[PROVISIONING] Error ensuring Accounts and Coordinator:", err);
   }

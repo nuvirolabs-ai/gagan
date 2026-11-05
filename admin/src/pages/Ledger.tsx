@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, inr } from "../api";
 
@@ -120,6 +120,13 @@ export default function Ledger() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
+  const [paymentMode, setPaymentMode] = useState("NEFT / RTGS");
+  const [bankAccount, setBankAccount] = useState("Jain Traders - HDFC Bank A/C 50200012345678");
+  const [reference, setReference] = useState("");
+  const [notes, setNotes] = useState("");
+  const [invoiceScopeId, setInvoiceScopeId] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -160,9 +167,18 @@ export default function Ledger() {
     }
     setBusy(true);
     try {
-      await api.recordPayment(selected!, value, crypto.randomUUID());
-      setNotice(`Payment of ${inr(value)} recorded`);
+      await api.recordPayment(selected!, value, crypto.randomUUID(), {
+        paymentMode,
+        bankAccount,
+        reference: reference.trim() || undefined,
+        notes: notes.trim() || undefined,
+        invoiceScopeId: invoiceScopeId || undefined,
+      });
+      setNotice(`Payment of ${inr(value)} recorded via ${paymentMode}${reference ? ` (Ref: ${reference})` : ""}`);
       setAmount("");
+      setReference("");
+      setNotes("");
+      setInvoiceScopeId("");
       setError(null);
       await load();
     } catch (err) {
@@ -174,6 +190,69 @@ export default function Ledger() {
 
   const current = retailers.find((r) => r.id === selected);
   const reconciliationRequired = Boolean(data?.financialSummary?.reconciliationRequired);
+
+  const filteredEntries = useMemo(() => {
+    if (!data?.entries) return [];
+    return data.entries.filter((e: any) => {
+      const entryDate = new Date(e.createdAt);
+      if (dateFrom && entryDate < new Date(dateFrom)) return false;
+      if (dateTo) {
+        const toDateObj = new Date(dateTo);
+        toDateObj.setHours(23, 59, 59, 999);
+        if (entryDate > toDateObj) return false;
+      }
+      return true;
+    });
+  }, [data?.entries, dateFrom, dateTo]);
+
+  const exportLedgerCsv = () => {
+    if (!filteredEntries || filteredEntries.length === 0) return;
+    const retailerName = current?.name || "Retailer";
+    const headers = [
+      "Date",
+      "Retailer",
+      "Type",
+      "Reference",
+      "Jain Traders (INR)",
+      "Padam International (INR)",
+      "Debit (+INR)",
+      "Credit (-INR)",
+      "Balance After (INR)",
+    ];
+    const rows = filteredEntries.map((e: any) => {
+      const isDebit = e.direction ? e.direction === "debit" : e.type === "invoice";
+      const amt = Number(e.amount);
+      const jainAmt = e.entityBreakdown?.jainTraders ?? "";
+      const padamAmt = e.entityBreakdown?.padamInternational ?? "";
+      const ref = e.invoice ? `Invoice #${e.invoice.invoiceNumber}` : (e.payment?.id || e.idempotencyKey || "—");
+      const d = new Date(e.createdAt).toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+      return [
+        d,
+        retailerName,
+        LEDGER_LABELS[e.kind] ?? (isDebit ? "Invoice" : "Payment"),
+        ref,
+        jainAmt ? Number(jainAmt).toFixed(2) : "0.00",
+        padamAmt ? Number(padamAmt).toFixed(2) : "0.00",
+        isDebit ? amt.toFixed(2) : "",
+        !isDebit ? amt.toFixed(2) : "",
+        Number(e.balanceAfter).toFixed(2),
+      ].map((val) => `"${String(val).replace(/"/g, '""')}"`);
+    });
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((r: string[]) => r.join(","))].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `ledger_${retailerName.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div>
@@ -237,28 +316,215 @@ export default function Ledger() {
             expectedTotal={Number(data.currentBalance)}
           />}
 
-          {!reconciliationRequired && <form className="card" onSubmit={recordPayment}>
-            <h3 style={{ marginTop: 0, fontSize: 15 }}>Record a payment</h3>
-            <div className="row">
-              <div className="grow" style={{ maxWidth: 220 }}>
-                <input
-                  type="number"
-                  min={1}
-                  placeholder="Amount received"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                />
+          {!reconciliationRequired && (
+            <form className="card" onSubmit={recordPayment} style={{ background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: 8, padding: 18 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, borderBottom: "1px solid #f1f5f9", paddingBottom: 8 }}>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#0f172a", display: "flex", alignItems: "center", gap: 6 }}>
+                  💳 Record Offline Payment / Bank Collection
+                </h3>
+                <span style={{ fontSize: 11, background: "#e0f2fe", color: "#0369a1", padding: "2px 8px", borderRadius: 12, fontWeight: 600 }}>
+                  Accounts Entry
+                </span>
               </div>
-              <button type="submit" disabled={busy || !current}>
-                {busy ? "Recording…" : "Record payment"}
-              </button>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 12 }}>
+                <div className="field" style={{ margin: 0 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>Amount Received (₹) *</label>
+                  <input
+                    type="number"
+                    min={1}
+                    step="0.01"
+                    placeholder="e.g. 50000"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="field" style={{ margin: 0 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>Payment Mode</label>
+                  <select value={paymentMode} onChange={(e) => setPaymentMode(e.target.value)}>
+                    <option value="NEFT / RTGS">NEFT / RTGS (Bank Transfer)</option>
+                    <option value="Cheque / DD">Cheque / Demand Draft</option>
+                    <option value="UPI">UPI (QR / VPA)</option>
+                    <option value="IMPS">IMPS Immediate Transfer</option>
+                    <option value="Cash Counter">Cash Counter Collection</option>
+                  </select>
+                </div>
+
+                <div className="field" style={{ margin: 0 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>Deposited To Bank Account</label>
+                  <select value={bankAccount} onChange={(e) => setBankAccount(e.target.value)}>
+                    <option value="Jain Traders - HDFC Bank A/C 50200012345678">Jain Traders - HDFC Bank (Indore Branch)</option>
+                    <option value="Padam International - ICICI Bank A/C 001105001234">Padam International - ICICI Bank (Indore Branch)</option>
+                    <option value="Cash Counter">Cash Counter / Petty Cash</option>
+                  </select>
+                </div>
+
+                <div className="field" style={{ margin: 0 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>UTR / Cheque No / Ref</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. UTR12345678 / CHQ-00123"
+                    value={reference}
+                    onChange={(e) => setReference(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+                <div className="field" style={{ margin: 0 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>
+                    Bill-by-Bill Allocation (Optional)
+                  </label>
+                  <select value={invoiceScopeId} onChange={(e) => setInvoiceScopeId(e.target.value)}>
+                    <option value="">Auto-allocate across oldest invoices (FIFO)</option>
+                    {(data.openInvoices ?? []).map((inv: any) => (
+                      <option key={inv.id} value={inv.id}>
+                        Invoice #{inv.invoiceNumber} · {inv.billingEntity} · Due: {inr(inv.outstandingAmount)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="field" style={{ margin: 0 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>Remarks / Narration</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Received against Indore dispatch"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <button type="submit" disabled={busy || !current} className="primary" style={{ padding: "8px 20px" }}>
+                  {busy ? "Recording & Settling…" : "✓ Confirm & Post Payment"}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {data.openInvoices && data.openInvoices.length > 0 && (
+            <div className="card" style={{ padding: 14, marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <strong style={{ fontSize: 14, color: "#0f172a", display: "flex", alignItems: "center", gap: 6 }}>
+                  📑 Open / Unsettled Invoices ({data.openInvoices.length})
+                </strong>
+                <span style={{ fontSize: 12, color: "#64748b" }}>
+                  Total Outstanding: <strong>{inr(data.openInvoices.reduce((s: number, i: any) => s + i.outstandingAmount, 0))}</strong>
+                </span>
+              </div>
+              <table style={{ width: "100%", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: "#f8fafc" }}>
+                    <th style={{ textAlign: "left", padding: "6px 10px" }}>Invoice #</th>
+                    <th style={{ textAlign: "left", padding: "6px 10px" }}>Billing Entity</th>
+                    <th style={{ textAlign: "left", padding: "6px 10px" }}>Date</th>
+                    <th style={{ textAlign: "right", padding: "6px 10px" }}>Total</th>
+                    <th style={{ textAlign: "right", padding: "6px 10px" }}>Outstanding</th>
+                    <th style={{ textAlign: "center", padding: "6px 10px" }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.openInvoices.map((inv: any) => (
+                    <tr key={inv.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                      <td style={{ padding: "8px 10px", fontWeight: 600 }}>#{inv.invoiceNumber}</td>
+                      <td style={{ padding: "8px 10px" }}>
+                        <span style={{
+                          padding: "2px 6px",
+                          borderRadius: 4,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          background: inv.billingEntity === "Padam International" ? "#fef3c7" : "#e0f2fe",
+                          color: inv.billingEntity === "Padam International" ? "#92400e" : "#0369a1",
+                        }}>
+                          {inv.billingEntity}
+                        </span>
+                      </td>
+                      <td style={{ padding: "8px 10px", color: "#64748b", fontSize: 12 }}>
+                        {new Date(inv.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                      </td>
+                      <td style={{ padding: "8px 10px", textAlign: "right" }}>{inr(inv.total)}</td>
+                      <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 700, color: "#b91c1c" }}>
+                        {inr(inv.outstandingAmount)}
+                      </td>
+                      <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                        <button
+                          type="button"
+                          className="button compact ghost"
+                          style={{ fontSize: 11, padding: "3px 8px", height: "auto" }}
+                          onClick={() => {
+                            setInvoiceScopeId(inv.id);
+                            setAmount(String(inv.outstandingAmount));
+                            if (inv.billingEntity === "Padam International") {
+                              setBankAccount("Padam International - ICICI Bank A/C 001105001234");
+                            } else {
+                              setBankAccount("Jain Traders - HDFC Bank A/C 50200012345678");
+                            }
+                          }}
+                        >
+                          Select Bill
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </form>}
+          )}
 
           <div className="card" style={{ padding: 0 }}>
-            {data.entries.length === 0 ? (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: "1px solid #e2e8f0", background: "#f8fafc", flexWrap: "wrap", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <strong style={{ fontSize: 14, color: "#0f172a" }}>Statement Entries</strong>
+                <span style={{ fontSize: 12, color: "#64748b" }}>({filteredEntries.length} transactions)</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>Filter Date:</span>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  style={{ fontSize: 12, padding: "3px 6px", borderRadius: 4, border: "1px solid #cbd5e1" }}
+                  placeholder="From Date"
+                  aria-label="From Date"
+                />
+                <span style={{ fontSize: 12, color: "#94a3b8" }}>to</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  style={{ fontSize: 12, padding: "3px 6px", borderRadius: 4, border: "1px solid #cbd5e1" }}
+                  placeholder="To Date"
+                  aria-label="To Date"
+                />
+                {(dateFrom || dateTo) && (
+                  <button
+                    type="button"
+                    className="button compact ghost"
+                    style={{ fontSize: 11, padding: "3px 6px", height: "auto" }}
+                    onClick={() => { setDateFrom(""); setDateTo(""); }}
+                  >
+                    Reset
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={exportLedgerCsv}
+                  disabled={filteredEntries.length === 0}
+                  className="button compact primary"
+                  style={{ fontSize: 12, padding: "5px 12px", height: "auto", display: "inline-flex", alignItems: "center", gap: 4 }}
+                >
+                  📥 Export Statement (CSV)
+                </button>
+              </div>
+            </div>
+
+            {filteredEntries.length === 0 ? (
               <div style={{ padding: 22 }} className="muted">
-                No transactions yet. Invoices post automatically when an order is delivered.
+                No transactions match the selected date range.
               </div>
             ) : (
               <table>
@@ -272,7 +538,7 @@ export default function Ledger() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.entries.map((e: any) => (
+                  {filteredEntries.map((e: any) => (
                     <tr key={e.id}>
                       <td className="small">
                         {new Date(e.createdAt).toLocaleDateString("en-IN", {

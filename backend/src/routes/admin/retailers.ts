@@ -213,10 +213,27 @@ router.delete("/retailers/:id/price-override/:variantId", async (req, res) => {
 });
 
 router.get("/retailers/:id/ledger", async (req, res) => {
-  const [retailer, entries, financialSummary] = await Promise.all([
+  const [retailer, entries, financialSummary, openInvoices] = await Promise.all([
     prisma.retailer.findUnique({ where: { id: req.params.id } }),
     financialLedgerFor(prisma, req.params.id),
     financialSummaryFor(prisma, req.params.id),
+    prisma.invoice.findMany({
+      where: {
+        retailerId: req.params.id,
+        status: { in: ["open", "partially_paid"] },
+        outstandingAmount: { gt: 0 },
+      },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        total: true,
+        outstandingAmount: true,
+        dueDate: true,
+        createdAt: true,
+        commercialSnapshot: true,
+      },
+      orderBy: { createdAt: "asc" },
+    }),
   ]);
   if (!retailer) return res.status(404).json({ error: "Retailer not found" });
 
@@ -227,6 +244,17 @@ router.get("/retailers/:id/ledger", async (req, res) => {
     ageing: financialSummary?.invoiceAgeing ?? null,
     financialSummary,
     entries,
+    openInvoices: openInvoices.map((inv) => ({
+      id: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      total: Number(inv.total),
+      outstandingAmount: Number(inv.outstandingAmount),
+      dueDate: inv.dueDate,
+      createdAt: inv.createdAt,
+      billingEntity: ((inv.commercialSnapshot as any)?.routing?.entity === "padam_international" || (inv.commercialSnapshot as any)?.billingEntity?.name === "Padam International")
+        ? "Padam International"
+        : "Jain Traders",
+    })),
   });
 });
 
@@ -240,6 +268,11 @@ const paymentSchema = z.object({
   retailerId: z.string(),
   amount: z.number().positive(),
   idempotencyKey: z.string().trim().min(8).max(100),
+  paymentMode: z.string().trim().optional(),
+  bankAccount: z.string().trim().optional(),
+  reference: z.string().trim().optional(),
+  notes: z.string().trim().optional(),
+  invoiceScopeId: z.string().trim().optional(),
 });
 
 /**
@@ -269,6 +302,13 @@ router.post(
       return res.status(409).json({ error: "financial_reconciliation_required" });
     }
   }
+  const staffId = (req as AdminRequest).staffAuth?.staffId;
+  const paymentRef = [
+    parsed.data.bankAccount ? `[Bank: ${parsed.data.bankAccount}]` : null,
+    parsed.data.reference ? `Ref: ${parsed.data.reference}` : null,
+    parsed.data.notes ? `Note: ${parsed.data.notes}` : null,
+  ].filter(Boolean).join(" | ") || undefined;
+
   const payment = await prisma.payment.upsert({
     where: { providerRef },
     update: {},
@@ -279,6 +319,10 @@ router.post(
       channel: "manual",
       provider: "manual",
       providerRef,
+      confirmedMethod: parsed.data.paymentMode || "OFFLINE_RECORDED",
+      confirmedReference: paymentRef,
+      confirmedByStaffId: staffId || null,
+      invoiceScopeId: parsed.data.invoiceScopeId || null,
     },
   });
   if (

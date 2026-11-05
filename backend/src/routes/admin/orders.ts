@@ -23,7 +23,8 @@ router.use(
   requireAnyAdminPermission(
     Permissions.STAFF_MANAGE,
     Permissions.APPROVAL_SECOND_INVOICE,
-    Permissions.ORDER_WAREHOUSE_PROCESS
+    Permissions.ORDER_WAREHOUSE_PROCESS,
+    Permissions.COLLECTION_CONFIRM
   )
 );
 class OrderTransitionConflict extends Error {}

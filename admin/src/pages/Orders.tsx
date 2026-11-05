@@ -34,6 +34,23 @@ const TABS = [
   { key: "cancellation_requests", label: "⚠️ Cancellation Requests" },
 ] as const;
 
+export function orderBillingEntity(order: any): { label: string; code: string; bg: string; color: string } {
+  const snap = order.commercialSnapshot;
+  if (!snap) return { label: "Jain Traders", code: "jain_traders", bg: "#e0f2fe", color: "#0369a1" };
+  const entities = new Set<string>();
+  if (snap.lines && Array.isArray(snap.lines)) {
+    snap.lines.forEach((l: any) => { if (l.entity) entities.add(l.entity); });
+  }
+  if (snap.routing?.entity) entities.add(snap.routing.entity);
+  if (entities.has("jain_traders") && entities.has("padam_international")) {
+    return { label: "Split (Jain + Padam)", code: "split", bg: "#f3e8ff", color: "#6b21a8" };
+  }
+  if (entities.has("padam_international")) {
+    return { label: "Padam International", code: "padam_international", bg: "#fef3c7", color: "#92400e" };
+  }
+  return { label: "Jain Traders", code: "jain_traders", bg: "#e0f2fe", color: "#0369a1" };
+}
+
 export type DuplicateMatch = {
   isDuplicate: boolean;
   duplicateOfOrderRef: string;
@@ -210,6 +227,7 @@ function AdminOrders() {
 
   const [folderCategory, setFolderCategory] = useState<"salesman" | "status" | "date" | "none">("salesman");
   const [activeFolderLabel, setActiveFolderLabel] = useState<string | null>(null);
+  const [onlyBottlenecks, setOnlyBottlenecks] = useState(false);
 
   const clearDeparture = () => {
     if (departureTimer.current != null) {
@@ -394,6 +412,20 @@ function AdminOrders() {
       });
     }
 
+    if (onlyBottlenecks) {
+      result = result.filter((o) => {
+        const code = o.internalStatus?.currentCode;
+        return (
+          o.status === "placed" ||
+          code === "RATE_APPROVAL_SENT" ||
+          code === "SALES_ORDER_APPROVAL_SENT" ||
+          code === "SALES_ORDER_ON_HOLD" ||
+          code === "ADVANCE_PAYMENT_RECEIVED" ||
+          o.cancellationStatus === "pending"
+        );
+      });
+    }
+
     return [...result].sort((a, b) => {
       const valA = Number(a.orderTotal ?? 0);
       const valB = Number(b.orderTotal ?? 0);
@@ -405,7 +437,136 @@ function AdminOrders() {
       if (sortBy === "date_asc") return dateA - dateB;
       return dateB - dateA;
     });
-  }, [orders, salespersonFilter, dateFilter, customDate, searchTerm, sortBy]);
+  }, [orders, salespersonFilter, dateFilter, customDate, searchTerm, sortBy, onlyBottlenecks]);
+
+  const todayIntake = useMemo(() => {
+    const todayStr = new Date().toDateString();
+    const allOrders: any[] = [];
+    const seen = new Set<string>();
+    Object.values(queueData).forEach((list) => {
+      (list || []).forEach((o: any) => {
+        if (!seen.has(o.id)) {
+          seen.add(o.id);
+          allOrders.push(o);
+        }
+      });
+    });
+
+    const todayOrders = allOrders.filter((o) => new Date(o.createdAt).toDateString() === todayStr);
+    const totalTodayValue = todayOrders.reduce((sum, o) => sum + Number(o.orderTotal ?? 0), 0);
+    const totalTodayCount = todayOrders.length;
+
+    const repStats: Record<string, { count: number; total: number }> = {};
+    salespersons.forEach((rep) => {
+      repStats[rep] = { count: 0, total: 0 };
+    });
+
+    todayOrders.forEach((o) => {
+      const name = o.punchedByName || o.salespersonName || o.creatorName;
+      if (name && name !== "Direct" && name !== "Customer") {
+        if (!repStats[name]) repStats[name] = { count: 0, total: 0 };
+        repStats[name].count += 1;
+        repStats[name].total += Number(o.orderTotal ?? 0);
+      }
+    });
+
+    const performingReps = Object.entries(repStats)
+      .filter(([_, stat]) => stat.count > 0)
+      .sort((a, b) => b[1].total - a[1].total);
+
+    const zeroOrderReps = Object.entries(repStats)
+      .filter(([_, stat]) => stat.count === 0)
+      .map(([name]) => name);
+
+    return {
+      todayCount: totalTodayCount,
+      todayValue: totalTodayValue,
+      performingReps,
+      zeroOrderReps,
+    };
+  }, [queueData, salespersons]);
+
+  const bottleneckCount = useMemo(() => {
+    return orders.filter((o) => {
+      const code = o.internalStatus?.currentCode;
+      return (
+        o.status === "placed" ||
+        code === "RATE_APPROVAL_SENT" ||
+        code === "SALES_ORDER_APPROVAL_SENT" ||
+        code === "SALES_ORDER_ON_HOLD" ||
+        code === "ADVANCE_PAYMENT_RECEIVED" ||
+        o.cancellationStatus === "pending"
+      );
+    }).length;
+  }, [orders]);
+
+  const exportSalesRegisterCsv = () => {
+    if (displayedOrders.length === 0) return;
+    const headers = [
+      "Order Ref",
+      "Date",
+      "Retailer Name",
+      "Retailer Phone",
+      "Delivery City",
+      "Salesperson",
+      "Punched By",
+      "Warehouse",
+      "Order Status",
+      "Commercial Status",
+      "Billing Entity",
+      "Subtotal (INR)",
+      "GST (INR)",
+      "Freight (INR)",
+      "Total Amount (INR)",
+      "Payment Terms",
+    ];
+
+    const rows = displayedOrders.map((o) => {
+      const snap = o.commercialSnapshot;
+      const entity = orderBillingEntity(o).label;
+      const goodsVal = snap?.subtotal ?? (Number(o.orderTotal ?? 0) - (snap?.gstTotal ?? 0) - (snap?.freight?.amount ?? 0));
+      const gstVal = snap?.gstTotal ?? 0;
+      const freightVal = snap?.freight?.amount ?? 0;
+      const terms = o.paymentTerms || o.retailer?.paymentTerms || "Cash / Standard";
+      const dateFormatted = new Date(o.createdAt).toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+      return [
+        formatOrderRef(o),
+        dateFormatted,
+        o.retailer?.name || "Direct Customer",
+        o.retailer?.phone || "",
+        o.retailer?.deliveryCity || o.retailer?.city || "",
+        o.salespersonName || "Direct",
+        o.punchedByName || o.punchedByLabel || "Direct",
+        o.warehouseCode || "WH-001",
+        STATUS_LABEL[o.status] || o.status,
+        queueStatusLabel(o),
+        entity,
+        Number(goodsVal).toFixed(2),
+        Number(gstVal).toFixed(2),
+        Number(freightVal).toFixed(2),
+        Number(o.orderTotal ?? 0).toFixed(2),
+        terms,
+      ].map((val) => `"${String(val).replace(/"/g, '""')}"`);
+    });
+
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((r: string[]) => r.join(","))].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `sales_register_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   const queueValue = metricOrders.reduce((sum, order) => sum + Number(order.orderTotal ?? 0), 0);
   const ages = useMemo(() => ageCounts(metricOrders), [metricOrders]);
@@ -595,6 +756,113 @@ function AdminOrders() {
     <section className="queue-summary" aria-label="Queue health"><div><span>active queue</span><strong>{selectedTab}</strong></div><div><span>oldest order</span><strong>{ageLabel(oldest?.createdAt)}</strong></div><div><span>outside SLA</span><strong className={outsideSla > 0 ? "red-text" : "green-text"}>{outsideSla} orders</strong></div><div><span>queue value</span><strong>{loading ? "—" : inr(queueValue)}</strong></div><AgeDistribution counts={ages} /></section>
     {error && !reviewOrder && <div className="banner error" role="alert">{error}</div>}{notice && <div className="banner success" role="status">{notice}</div>}
     
+    {/* Live Daily Rep Order Intake Scoreboard for Coordinator & Accounts */}
+    <section className="rep-intake-scoreboard" style={{
+      background: "#ffffff",
+      border: "1px solid #cbd5e1",
+      borderRadius: 8,
+      padding: "12px 16px",
+      marginBottom: 16,
+      boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 8, borderBottom: "1px solid #f1f5f9", paddingBottom: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <strong style={{ fontSize: 13, color: "#0f172a", textTransform: "uppercase", letterSpacing: 0.5, display: "flex", alignItems: "center", gap: 6 }}>
+            📊 Daily Rep Intake & Performance Scoreboard
+          </strong>
+          <span style={{ fontSize: 11, background: "#dcfce7", color: "#15803d", padding: "2px 8px", borderRadius: 12, fontWeight: 700 }}>
+            Today: {todayIntake.todayCount} Orders · {inr(todayIntake.todayValue)}
+          </span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button
+            type="button"
+            className={`button compact ${onlyBottlenecks ? "primary" : "ghost"}`}
+            style={{ fontSize: 12, padding: "4px 10px", height: "auto" }}
+            onClick={() => setOnlyBottlenecks((prev) => !prev)}
+          >
+            ⚡ {onlyBottlenecks ? "Showing Bottlenecks" : "Filter Bottlenecks"} ({bottleneckCount})
+          </button>
+          <button
+            type="button"
+            onClick={exportSalesRegisterCsv}
+            disabled={displayedOrders.length === 0}
+            className="button compact primary"
+            style={{ fontSize: 12, padding: "4px 12px", height: "auto", display: "inline-flex", alignItems: "center", gap: 4 }}
+          >
+            📥 Export Sales Register (CSV)
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>Active Reps Today:</span>
+        {todayIntake.performingReps.length === 0 ? (
+          <span style={{ fontSize: 12, color: "#94a3b8", fontStyle: "italic" }}>No rep orders booked today yet.</span>
+        ) : (
+          todayIntake.performingReps.map(([rep, stat]) => {
+            const isSelected = salespersonFilter.toLowerCase() === rep.toLowerCase();
+            return (
+              <button
+                type="button"
+                key={rep}
+                onClick={() => {
+                  if (isSelected) {
+                    setSalespersonFilter("all");
+                    setActiveFolderLabel(null);
+                  } else {
+                    setSalespersonFilter(rep);
+                    setActiveFolderLabel(`Salesman: ${rep}`);
+                  }
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "4px 10px",
+                  borderRadius: 6,
+                  border: isSelected ? "2px solid #0284c7" : "1px solid #93c5fd",
+                  background: isSelected ? "#e0f2fe" : "#f0f9ff",
+                  color: "#0369a1",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                <span>👤 {rep}</span>
+                <span style={{ background: "#0284c7", color: "#ffffff", padding: "1px 6px", borderRadius: 10, fontSize: 10, fontWeight: 700 }}>
+                  {stat.count} orders · {inr(stat.total)}
+                </span>
+              </button>
+            );
+          })
+        )}
+
+        {todayIntake.zeroOrderReps.length > 0 && (
+          <div style={{ display: "flex", gap: 6, alignItems: "center", marginLeft: "auto", flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, color: "#dc2626", fontWeight: 700 }}>Zero Orders Today:</span>
+            {todayIntake.zeroOrderReps.map((rep) => (
+              <span
+                key={rep}
+                style={{
+                  fontSize: 11,
+                  padding: "2px 8px",
+                  borderRadius: 4,
+                  background: "#fee2e2",
+                  color: "#991b1b",
+                  fontWeight: 600,
+                  border: "1px solid #fecaca",
+                }}
+                title="This active sales rep has not logged an order today"
+              >
+                ⚠️ {rep}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+
     {/* Folders Navigation: Salesman, Under Process Status, Date-wise (Points 1 & 3) */}
     <section className="order-folders-section" aria-label="Order folder directories" style={{
       background: "#f8fafc",
@@ -843,22 +1111,37 @@ function AdminOrders() {
   {dateFilter === "custom" && <input type="date" aria-label="Custom Date Picker" value={customDate} onChange={(e) => setCustomDate(e.target.value)} style={{ fontSize: 12, padding: "2px 6px", borderRadius: 4, border: "1px solid #16a34a", background: "var(--surface)" }} />}<select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} style={{ fontSize: 12, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--surface)" }} aria-label="Sort orders"><option value="date_desc">⚡ Date: Newest First</option><option value="date_asc">Date: Oldest First</option><option value="value_desc">Value: High to Low</option><option value="value_asc">Value: Low to High</option></select><label className="search" style={{ margin: 0 }}><span>⌕</span><input aria-label="Search order, retailer, or rep" placeholder="Search order, retailer, rep…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></label></div></div><div className="order-table"><div className="order-table-header"><span>order / retailer</span><span>salesperson</span><span>warehouse</span><span>age</span><span>items</span><span>value</span><span>state</span><span>owner / next</span><span /></div>{loading ? <div className="table-loading"><div className="skeleton skeleton-row" /><div className="skeleton skeleton-row" /><div className="skeleton skeleton-row" /></div> : displayedOrders.length === 0 ? <div className="empty-state quiet">No orders match the selected filters or state.</div> : displayedOrders.map((order) => {
         const isDuplicate = duplicateMap.has(order.id);
         const dupMatch = duplicateMap.get(order.id);
+        const entityInfo = orderBillingEntity(order);
         return (
           <button type="button" key={order.id} data-order-id={order.id} className={`order-table-row row-${rowSurface(order)} ${selectedId === order.id ? "selected" : ""}`} aria-pressed={selectedId === order.id} aria-haspopup="dialog" onClick={(event) => { event.currentTarget.focus(); openReview(order.id); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.focus(); openReview(order.id); } }}>
             <span className="table-order">
               <i className={`status-rail ${toneFor(order)}`} />
               <b>{formatOrderRef(order)}</b>
               <small>{order.retailer?.name ?? "Retailer unavailable"}</small>
-              {isDuplicate && (
-                <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", background: "#fef3c7", color: "#b45309", border: "1px solid #fde68a", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 3, marginTop: 3, width: "fit-content" }}>
-                  ⚠️ Duplicate: {dupMatch?.duplicateOfOrderRef}
+              <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap", marginTop: 3 }}>
+                <span style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: "1px 6px",
+                  borderRadius: 4,
+                  background: entityInfo.bg,
+                  color: entityInfo.color,
+                  display: "inline-flex",
+                  alignItems: "center",
+                }}>
+                  {entityInfo.label}
                 </span>
-              )}
-              {order.cancellationStatus === "pending" && (
-                <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", background: "#fee2e2", color: "#b91c1c", border: "1px solid #fca5a5", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 3, marginTop: 3, width: "fit-content" }}>
-                  ⚠️ Cancellation Requested
-                </span>
-              )}
+                {isDuplicate && (
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", background: "#fef3c7", color: "#b45309", border: "1px solid #fde68a", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                    ⚠️ Dup: {dupMatch?.duplicateOfOrderRef}
+                  </span>
+                )}
+                {order.cancellationStatus === "pending" && (
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", background: "#fee2e2", color: "#b91c1c", border: "1px solid #fca5a5", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                    ⚠️ Cancel Req
+                  </span>
+                )}
+              </div>
             </span>
             <span className="table-salesperson" style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}><strong style={{ fontSize: 12, color: "#0284c7", display: "inline-flex", alignItems: "center", gap: 3 }}>👤 {order.salespersonName || "Direct"}</strong><small style={{ fontSize: 10, color: "#64748b" }}>{order.punchedByRole === "Salesperson" ? (order.salespersonPhone ? `Rep · ${order.salespersonPhone}` : "Sales Rep") : "Retailer Direct"}</small></span><span className="table-warehouse" style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}><span style={{ fontSize: 11, fontWeight: 700, padding: "2px 6px", background: order.warehouseCode === "WH-002" ? "#fef3c7" : "#f1f5f9", color: order.warehouseCode === "WH-002" ? "#92400e" : "#334155", borderRadius: 4, width: "fit-content" }}>🏢 {order.warehouseCode || "WH-001"}</span><small style={{ fontSize: 10, color: "#64748b" }}>{order.warehouseCity || "Indore"}</small></span><span className={`table-age ${(ageHours(order.createdAt) ?? 0) > 12 ? "critical" : ""}`}><Icon name="clock" size={13} />{ageLabel(order.createdAt)}</span><span className="tabular">{order.items?.length ?? 0} lines</span><strong className="tabular">{inr(Number(order.orderTotal ?? 0))}</strong><span className={`constraint ${toneFor(order)}`}>{queueStatusLabel(order)}</span><span className="table-next"><b>{order.delivery?.routeId ?? "Operations"}</b><small>{NEXT_ACTION[order.status] ?? "Inspect order"} <Icon name="arrow" size={13} /></small></span><Icon name="chevron" size={15} />
           </button>
@@ -866,7 +1149,7 @@ function AdminOrders() {
       })}</div></section>
       <aside className="order-side-note"><SectionLabel>Queue read</SectionLabel><strong>{outsideSla > 0 ? `${outsideSla} orders have crossed the twelve-hour band.` : "No order has crossed the twelve-hour band."}</strong><p>{selected ? `${formatOrderRef(selected)} is ${ageLabel(selected.createdAt)} old. Review and act from the queue. Open the full workspace only for ledger, retailer, or SAP detail.` : "Open an order to review the next safe action without leaving this list."}</p>{selected ? <button className="text-button" onClick={() => { setSelectedId(null); setReviewId(null); setDetailId(null); }}>clear selection <Icon name="arrow" size={14} /></button> : null}</aside>
     </div>
-    {detailOrder ? <section className="order-workspace" id="order-workspace" aria-label="Selected order workspace"><div className="workspace-heading"><div><SectionLabel>Order workspace / selected object</SectionLabel><h2>{formatOrderRef(detailOrder)}</h2><p>{detailOrder.retailer?.name ?? "Retailer unavailable"} · placed {ageLabel(detailOrder.createdAt)} ago{detailOrder.retailer?.phone ? ` · ${detailOrder.retailer.phone}` : ""}</p></div><div className={`workspace-status ${toneFor(detailOrder)}`}><span className="status-dot" />{STATUS_LABEL[detailOrder.status] ?? detailOrder.status}<strong>{inr(Number(detailOrder.orderTotal ?? 0))}</strong></div></div><div className="workspace-hero"><div className="hero-value"><span>order value</span><strong>{inr(Number(detailOrder.orderTotal ?? 0))}</strong><small>{detailOrder.items?.length ?? 0} lines · {detailOrder.delivery?.routeId ? `route ${detailOrder.delivery.routeId}` : "route not assigned"}</small><div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}><span style={{ padding: "2px 8px", background: "#e0f2fe", borderRadius: 4, fontSize: 12, color: "#0369a1", fontWeight: 600 }}>👤 Salesperson: {detailOrder.salespersonName || "Direct"} ({detailOrder.punchedByLabel || "Retailer Direct"})</span><span style={{ padding: "2px 8px", background: "#f3e8ff", borderRadius: 4, fontSize: 12, color: "#6b21a8", fontWeight: 600 }}>🏢 Fulfillment Warehouse: {detailOrder.warehouseName || "Indore Central Fulfillment Hub"} ({detailOrder.warehouseCode || "WH-001"})</span></div></div><div className={`hero-decision ${detailOrder.status === "placed" || detailOrder.sapSyncStatus === "failed" ? "critical" : ""}`}><span className="decision-kicker"><i className="status-dot" /> next safe action</span><strong>{NEXT_ACTION[detailOrder.status] ?? "Inspect order"}</strong><p>{dependencyCopy(detailOrder)}</p>{actionControls(detailOrder, "workspace")}</div></div><div className="workspace-columns"><main><section className="diagnostic-section"><div className="section-head"><div><SectionLabel>Diagnostic instrument</SectionLabel><h2>Order health</h2></div><span className="small-note">canonical fields only</span></div><HealthMatrix order={detailOrder} /><Journey order={detailOrder} /></section><section className="items-section"><div className="section-head"><div><SectionLabel>Commercial lines</SectionLabel><h2>Items <em>{detailOrder.items?.length ?? 0} lines</em></h2></div><span className="small-note">unit prices from order</span></div>{detailOrder.commercialSnapshot ? <Breakdown value={detailOrder.commercialSnapshot}/> : null}<div className="item-ledger" hidden={!!detailOrder.commercialSnapshot}><div><span>item</span><span>ordered</span><span>unit price</span><span>line value</span></div>{(detailOrder.items ?? []).map((item: any) => {
+    {detailOrder ? <section className="order-workspace" id="order-workspace" aria-label="Selected order workspace"><div className="workspace-heading"><div><SectionLabel>Order workspace / selected object</SectionLabel><h2>{formatOrderRef(detailOrder)}</h2><p>{detailOrder.retailer?.name ?? "Retailer unavailable"} · placed {ageLabel(detailOrder.createdAt)} ago{detailOrder.retailer?.phone ? ` · ${detailOrder.retailer.phone}` : ""}</p></div><div className={`workspace-status ${toneFor(detailOrder)}`}><span className="status-dot" />{STATUS_LABEL[detailOrder.status] ?? detailOrder.status}<strong>{inr(Number(detailOrder.orderTotal ?? 0))}</strong></div></div><div className="workspace-hero"><div className="hero-value"><span>order value</span><strong>{inr(Number(detailOrder.orderTotal ?? 0))}</strong><small>{detailOrder.items?.length ?? 0} lines · {detailOrder.delivery?.routeId ? `route ${detailOrder.delivery.routeId}` : "route not assigned"}</small><div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}><span style={{ padding: "2px 8px", background: "#e0f2fe", borderRadius: 4, fontSize: 12, color: "#0369a1", fontWeight: 600 }}>👤 Salesperson: {detailOrder.salespersonName || "Direct"} ({detailOrder.punchedByLabel || "Retailer Direct"})</span><span style={{ padding: "2px 8px", background: "#f3e8ff", borderRadius: 4, fontSize: 12, color: "#6b21a8", fontWeight: 600 }}>🏢 Fulfillment Warehouse: {detailOrder.warehouseName || "Indore Central Fulfillment Hub"} ({detailOrder.warehouseCode || "WH-001"})</span><span style={{ padding: "2px 8px", background: orderBillingEntity(detailOrder).bg, borderRadius: 4, fontSize: 12, color: orderBillingEntity(detailOrder).color, fontWeight: 600 }}>📑 Billing Entity: {orderBillingEntity(detailOrder).label}</span></div></div><div className={`hero-decision ${detailOrder.status === "placed" || detailOrder.sapSyncStatus === "failed" ? "critical" : ""}`}><span className="decision-kicker"><i className="status-dot" /> next safe action</span><strong>{NEXT_ACTION[detailOrder.status] ?? "Inspect order"}</strong><p>{dependencyCopy(detailOrder)}</p>{actionControls(detailOrder, "workspace")}</div></div><div className="workspace-columns"><main><section className="diagnostic-section"><div className="section-head"><div><SectionLabel>Diagnostic instrument</SectionLabel><h2>Order health</h2></div><span className="small-note">canonical fields only</span></div><HealthMatrix order={detailOrder} /><Journey order={detailOrder} /></section><section className="items-section"><div className="section-head"><div><SectionLabel>Commercial lines</SectionLabel><h2>Items <em>{detailOrder.items?.length ?? 0} lines</em></h2></div><span className="small-note">unit prices from order</span></div>{detailOrder.commercialSnapshot ? <Breakdown value={detailOrder.commercialSnapshot}/> : null}<div className="item-ledger" hidden={!!detailOrder.commercialSnapshot}><div><span>item</span><span>ordered</span><span>unit price</span><span>line value</span></div>{(detailOrder.items ?? []).map((item: any) => {
   const unitRate = Number(item.unitPrice ?? 0);
   const caseWeightKg = Number(item.caseWeightKg ?? item.caseWeightKgSnapshot ?? (item.variant?.unitWeightKg ? Number(item.variant.unitWeightKg) * (item.variant.unitsPerCase ?? 1) : 0));
   const isBox = (item.outerPack === "Box") || item.variant?.catalogIdentityMasterPack?.toUpperCase()?.includes("BOX");

@@ -147,12 +147,15 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
   },
   {
     name: "sales_coordinator",
-    description: "Approves second invoices, reviews proposals, monitors orders and catalog.",
+    description: "Approves second invoices, reviews proposals, monitors orders, catalog and team performance.",
     permissions: [
       Permissions.APPROVAL_SECOND_INVOICE,
       Permissions.COMMERCIAL_STATUS_VIEW,
       Permissions.RETAILER_PROPOSAL_REVIEW,
       Permissions.CATALOG_MANAGE,
+      Permissions.PERFORMANCE_VIEW_TEAM,
+      Permissions.ORG_VIEW_ALL,
+      Permissions.ATTENDANCE_REVIEW,
     ],
   },
   {

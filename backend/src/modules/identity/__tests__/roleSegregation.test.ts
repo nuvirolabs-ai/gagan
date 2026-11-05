@@ -34,6 +34,9 @@ describe("Backend RBAC Role Definitions", () => {
     expect(coordinatorRole?.permissions).toContain(Permissions.COMMERCIAL_STATUS_VIEW);
     expect(coordinatorRole?.permissions).toContain(Permissions.RETAILER_PROPOSAL_REVIEW);
     expect(coordinatorRole?.permissions).toContain(Permissions.CATALOG_MANAGE);
+    expect(coordinatorRole?.permissions).toContain(Permissions.PERFORMANCE_VIEW_TEAM);
+    expect(coordinatorRole?.permissions).toContain(Permissions.ORG_VIEW_ALL);
+    expect(coordinatorRole?.permissions).toContain(Permissions.ATTENDANCE_REVIEW);
 
     // Must NOT have financial or system administrative powers
     expect(coordinatorRole?.permissions).not.toContain(Permissions.STAFF_MANAGE);

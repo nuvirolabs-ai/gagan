@@ -322,8 +322,24 @@ export const api = {
   setPriceOverride: (id: string, variantId: string, price: number) =>
     post(`/admin/retailers/${id}/price-override`, { variantId, price }),
   ledger: (id: string) => request(`/admin/retailers/${id}/ledger`),
-  recordPayment: (retailerId: string, amount: number, idempotencyKey: string) =>
-    post("/admin/payments", { retailerId, amount, idempotencyKey }),
+  recordPayment: (
+    retailerId: string,
+    amount: number,
+    idempotencyKey: string,
+    details?: {
+      paymentMode?: string;
+      reference?: string;
+      bankAccount?: string;
+      invoiceScopeId?: string;
+      notes?: string;
+    }
+  ) =>
+    post("/admin/payments", {
+      retailerId,
+      amount,
+      idempotencyKey,
+      ...details,
+    }),
   correctionTargets: () => request("/admin/financial/correction-targets"),
   issueCreditNote: (
     invoiceId: string,

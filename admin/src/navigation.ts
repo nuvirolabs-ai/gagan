@@ -21,7 +21,7 @@ export type AdminDestination = {
 };
 
 const STAFF = ["staff.manage"] as const;
-const ORDERS = ["staff.manage", "approval.second_invoice"] as const;
+const ORDERS = ["staff.manage", "approval.second_invoice", "collection.confirm"] as const;
 const CATALOG = ["staff.manage", "catalog.manage"] as const;
 const APPROVALS = ["approval.second_invoice", "approval.third_invoice", "legal.decide"] as const;
 const COLLECTIONS = ["collection.confirm"] as const;

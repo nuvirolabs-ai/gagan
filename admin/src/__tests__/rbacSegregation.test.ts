@@ -21,10 +21,13 @@ const SALES_COORDINATOR_PERMISSIONS = [
   "commercial.status.view",
   "retailer.proposal_review",
   "catalog.manage",
+  "performance.view_team",
+  "org.view_all",
+  "attendance.review",
 ];
 
 describe("RBAC segregation of duties between Accounts and Sales Coordinator", () => {
-  it("grants accounts team access ONLY to financial and accounts modules", () => {
+  it("grants accounts team access to financial, accounts, and order visibility modules", () => {
     const accessible = FLAT.filter((item) => item.route && canAccess(ACCOUNTS_PERMISSIONS, item.permissions)).map(
       (item) => item.id
     );
@@ -38,9 +41,9 @@ describe("RBAC segregation of duties between Accounts and Sales Coordinator", ()
     expect(accessible).toContain("kyc");
     expect(accessible).toContain("commercial");
     expect(accessible).toContain("retailers");
+    expect(accessible).toContain("orders");
 
     // Strictly forbidden modules
-    expect(accessible).not.toContain("orders");
     expect(accessible).not.toContain("warehouse-orders");
     expect(accessible).not.toContain("approvals");
     expect(accessible).not.toContain("catalog");
@@ -61,7 +64,7 @@ describe("RBAC segregation of duties between Accounts and Sales Coordinator", ()
     expect(accessible).not.toContain("roles");
   });
 
-  it("grants sales coordinator access ONLY to sales, orders, and approvals modules", () => {
+  it("grants sales coordinator access to sales, orders, approvals, and team performance modules", () => {
     const accessible = FLAT.filter(
       (item) => item.route && canAccess(SALES_COORDINATOR_PERMISSIONS, item.permissions)
     ).map((item) => item.id);
@@ -72,6 +75,9 @@ describe("RBAC segregation of duties between Accounts and Sales Coordinator", ()
     expect(accessible).toContain("retailers");
     expect(accessible).toContain("retailer-approvals");
     expect(accessible).toContain("catalog");
+    expect(accessible).toContain("sales-leader");
+    expect(accessible).toContain("sales-organisation");
+    expect(accessible).toContain("field-team");
 
     // Strictly forbidden modules
     expect(accessible).not.toContain("ledger");
@@ -85,9 +91,6 @@ describe("RBAC segregation of duties between Accounts and Sales Coordinator", ()
     expect(accessible).not.toContain("credit-reviews");
     expect(accessible).not.toContain("market-surveys");
     expect(accessible).not.toContain("warehouse-orders");
-    expect(accessible).not.toContain("sales-organisation");
-    expect(accessible).not.toContain("sales-leader");
-    expect(accessible).not.toContain("field-team");
     expect(accessible).not.toContain("field-planning");
     expect(accessible).not.toContain("field-expenses");
     expect(accessible).not.toContain("service-issues");
@@ -120,7 +123,7 @@ describe("RBAC segregation of duties between Accounts and Sales Coordinator", ()
 
     const coordinatorGroups = buildVisibleGroups(SALES_COORDINATOR_PERMISSIONS).map((g) => g.id);
     expect(coordinatorGroups).not.toContain("finance");
-    expect(coordinatorGroups).not.toContain("field");
+    expect(coordinatorGroups).toContain("field");
     expect(coordinatorGroups).not.toContain("system");
     expect(coordinatorGroups).toContain("sales");
   });

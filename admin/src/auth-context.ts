@@ -14,6 +14,7 @@ export interface AuthValue {
    */
   staffId: string | null;
   permissions: string[];
+  modules?: string[] | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;

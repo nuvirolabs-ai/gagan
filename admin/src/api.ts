@@ -230,6 +230,18 @@ export const api = {
     post(`/admin/staff/${delegateeId}/delegations`, data),
   revokeDelegation: (id: string) => remove(`/admin/staff/delegations/${id}`),
 
+  // Portal Users & Module Access Control
+  userAccessModules: () => request("/admin/user-access/modules"),
+  userAccessUsers: () => request("/admin/user-access/users"),
+  createUserAccess: (body: { name: string; email: string; phone: string; password?: string; modules: string[] }) =>
+    post("/admin/user-access/users", body),
+  updateUserAccess: (id: string, body: { name: string; email: string; phone: string; password?: string; modules: string[] }) =>
+    put(`/admin/user-access/users/${id}`, body),
+  resetUserPassword: (id: string, newPassword: string) =>
+    post(`/admin/user-access/users/${id}/reset-password`, { newPassword }),
+  setUserAccessStatus: (id: string, status: "active" | "suspended") =>
+    patch(`/admin/user-access/users/${id}/status`, { status }),
+
   orders: (status?: string, warehouseCode?: string) => {
     const params = new URLSearchParams();
     if (status) params.set("status", status);

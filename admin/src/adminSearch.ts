@@ -24,7 +24,16 @@ export function clearRecentAdminSearches() {
   recentSearches.splice(0, recentSearches.length);
 }
 
-export function canAccess(held: readonly string[], needed: readonly string[]) {
+export function canAccess(
+  held: readonly string[],
+  needed: readonly string[],
+  destinationId?: string,
+  userModules?: readonly string[] | null
+) {
+  if (userModules && userModules.length > 0 && destinationId) {
+    if (destinationId === "work" && userModules.length > 0) return true;
+    return userModules.includes(destinationId);
+  }
   return needed.some((permission) => held.includes(permission));
 }
 
@@ -108,8 +117,13 @@ function contextScore(destination: AdminDestination, pathname: string) {
   return (current ? 500 : 0) + (related ? 80 : 0);
 }
 
-export function searchAdmin(query: string, options: { permissions: readonly string[]; pathname: string }) {
-  const allowed = searchable.filter((destination) => canAccess(options.permissions, destination.permissions));
+export function searchAdmin(
+  query: string,
+  options: { permissions: readonly string[]; modules?: readonly string[] | null; pathname: string }
+) {
+  const allowed = searchable.filter((destination) =>
+    canAccess(options.permissions, destination.permissions, destination.id, options.modules)
+  );
   const trimmed = query.trim();
   if (!trimmed) {
     return allowed

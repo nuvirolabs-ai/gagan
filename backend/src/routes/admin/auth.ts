@@ -72,6 +72,33 @@ router.get("/auth/me", requireAdminIdentity, async (req: AdminRequest, res) => {
     where: { id: req.adminId },
     select: { id: true, name: true, email: true },
   });
+
+  let modules: string[] | null = null;
+  if (req.staffAuth?.staffId) {
+    const staff = await prisma.staffUser.findUnique({
+      where: { id: req.staffAuth.staffId },
+      include: {
+        roles: {
+          include: { role: true },
+        },
+      },
+    });
+
+    for (const sr of staff?.roles ?? []) {
+      if (sr.role.description?.startsWith('{"modules":')) {
+        try {
+          const parsed = JSON.parse(sr.role.description);
+          if (Array.isArray(parsed.modules)) {
+            modules = parsed.modules;
+            break;
+          }
+        } catch {
+          // ignore invalid JSON
+        }
+      }
+    }
+  }
+
   res.json({
     admin,
     // The portal needs the *employee* id, not the login id: reporting scope,
@@ -79,6 +106,7 @@ router.get("/auth/me", requireAdminIdentity, async (req: AdminRequest, res) => {
     // StaffUser behind the login.
     staffId: req.staffAuth?.staffId ?? null,
     permissions: req.staffAuth?.permissions ?? [],
+    modules,
   });
 });
 

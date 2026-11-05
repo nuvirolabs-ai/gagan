@@ -26,6 +26,7 @@ import { createFieldTasksRouter } from "./routes/admin/fieldTasks";
 import { createFieldApprovalsRouter } from "./routes/admin/fieldApprovals";
 import { createBroadcastsRouter } from "./routes/admin/broadcasts";
 import { createRbacRouter } from "./routes/admin/roles";
+import { createUserAccessRouter } from "./routes/admin/userAccess";
 import { createAdminStaffRouter } from "./modules/identity/adminStaffRoutes";
 import { StaffManagementService } from "./modules/identity/staffManagementService";
 import { requireAdmin, requireAdminIdentity } from "./lib/adminAuth";
@@ -287,6 +288,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/admin", createFieldApprovalsRouter());
   app.use("/admin", createBroadcastsRouter());
   app.use("/admin", createRbacRouter());
+  app.use("/admin", createUserAccessRouter());
   app.use(
     "/admin",
     createAdminStaffRouter({

@@ -9,7 +9,7 @@ function shortcutLabel() {
 }
 
 export default function CommandPalette() {
-  const { permissions } = useAuth();
+  const { permissions, modules } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -22,8 +22,8 @@ export default function CommandPalette() {
   const suppressOpen = useRef(false);
 
   const results = useMemo(
-    () => searchAdmin(query, { permissions, pathname: location.pathname }),
-    [query, permissions, location.pathname],
+    () => searchAdmin(query, { permissions, modules, pathname: location.pathname }),
+    [query, permissions, modules, location.pathname],
   );
   const active = results.length ? Math.min(activeIndex, results.length - 1) : 0;
   const activeId = results[active] ? `command-option-${results[active].id}` : undefined;

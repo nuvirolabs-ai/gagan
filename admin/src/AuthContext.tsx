@@ -11,6 +11,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [admin, setAdmin] = useState<Admin | null>(null);
   const [staffId, setStaffId] = useState<string | null>(null);
   const [permissions, setPermissions] = useState<string[]>([]);
+  const [modules, setModules] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -18,6 +19,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAdmin(null);
       setStaffId(null);
       setPermissions([]);
+      setModules(null);
     });
     return () => setUnauthorizedHandler(null);
   }, []);
@@ -30,6 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAdmin({ id: "demo-admin", name: "Ananya Shah", email: "demo@gagan.test" });
       setStaffId(null);
       setPermissions(["dashboard.view"]);
+      setModules(null);
       setLoading(false);
       return;
     }
@@ -41,11 +44,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAdmin(res.admin);
         setStaffId(res.staffId ?? null);
         setPermissions(res.permissions ?? []);
+        setModules(res.modules ?? null);
       } catch {
         clearAccessToken();
         setAdmin(null);
         setStaffId(null);
         setPermissions([]);
+        setModules(null);
       } finally {
         setLoading(false);
       }
@@ -59,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAdmin(identity.admin);
     setStaffId(identity.staffId ?? null);
     setPermissions(identity.permissions ?? []);
+    setModules(identity.modules ?? null);
   };
 
   const logout = async () => {
@@ -67,12 +73,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       clearAccessToken();
       setAdmin(null);
+      setStaffId(null);
       setPermissions([]);
+      setModules(null);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ admin, staffId, permissions, loading, login, logout }}>
+    <AuthContext.Provider value={{ admin, staffId, permissions, modules, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

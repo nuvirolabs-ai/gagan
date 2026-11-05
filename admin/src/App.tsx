@@ -54,10 +54,10 @@ const NAV_GLYPHS: Record<string, string> = {
   system: "·",
 };
 
-function Guard({ anyOf, children }: { anyOf: readonly string[]; children: ReactNode }) {
-  const { permissions } = useAuth();
-  const available = FLAT.filter((item) => item.route && canAccess(permissions, item.permissions));
-  if (!canAccess(permissions, anyOf)) {
+function Guard({ anyOf, destinationId, children }: { anyOf: readonly string[]; destinationId?: string; children: ReactNode }) {
+  const { permissions, modules } = useAuth();
+  const available = FLAT.filter((item) => item.route && canAccess(permissions, item.permissions, item.id, modules));
+  if (!canAccess(permissions, anyOf, destinationId, modules)) {
     return <Navigate to={available[0]?.route ?? "/no-access"} replace />;
   }
   return children;
@@ -132,7 +132,7 @@ function LoadingWorkspace() {
 }
 
 function Shell() {
-  const { admin, permissions, logout } = useAuth();
+  const { admin, permissions, modules, logout } = useAuth();
   // Left-Side Panel: Completely hidden by default with floating/topbar hamburger button (Requirement 8)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
@@ -159,12 +159,15 @@ function Shell() {
 
   const groups = NAV.map((group) => ({
     ...group,
-    items: group.destinations.filter((item): item is AdminDestination & { route: string } => Boolean(item.route) && canAccess(permissions, item.permissions)),
+    items: group.destinations.filter(
+      (item): item is AdminDestination & { route: string } =>
+        Boolean(item.route) && canAccess(permissions, item.permissions, item.id, modules)
+    ),
   })).filter((group) => group.items.length > 0);
   // The base Admin URL is a deliberate product entry point: return operators
   // to Work/Home whenever they can see it, regardless of nav group ordering.
   const home = FLAT.find((item) => item.route === "/");
-  const landingPath = home && canAccess(permissions, home.permissions) ? "/" : groups[0]?.items[0]?.route ?? "/no-access";
+  const landingPath = home && canAccess(permissions, home.permissions, home.id, modules) ? "/" : groups[0]?.items[0]?.route ?? "/no-access";
 
   return (
     <div className={`layout ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
@@ -212,42 +215,42 @@ function Shell() {
       <main className="main">
         <TopBar onToggleSidebar={toggleSidebar} sidebarCollapsed={sidebarCollapsed} />
         <div className="route-stage"><Routes>
-          <Route path="/" element={<Guard anyOf={permissionsFor("work")}><Dashboard /></Guard>} />
-          <Route path="/warehouses" element={<Guard anyOf={permissionsFor("warehouses")}><Warehouses /></Guard>} />
-          <Route path="/settings" element={<Guard anyOf={permissionsFor("settings")}><Settings /></Guard>} />
-          <Route path="/broadcasts" element={<Guard anyOf={permissionsFor("broadcasts")}><Broadcasts /></Guard>} />
-          <Route path="/roles" element={<Guard anyOf={permissionsFor("roles")}><RolesPermissions /></Guard>} />
-          <Route path="/sap" element={<Guard anyOf={permissionsFor("sap")}><SapSync /></Guard>} />
-          <Route path="/imports" element={<Guard anyOf={permissionsFor("imports")}><ImportCenter /></Guard>} />
-          <Route path="/approvals" element={<Guard anyOf={permissionsFor("approvals")}><Approvals /></Guard>} />
-          <Route path="/collections" element={<Guard anyOf={permissionsFor("collections")}><Collections /></Guard>} />
-          <Route path="/credit-reviews" element={<Guard anyOf={permissionsFor("credit-reviews")}><CreditReviews /></Guard>} />
-          <Route path="/market-surveys" element={<Guard anyOf={permissionsFor("market-surveys")}><MarketSurveys /></Guard>} />
-          <Route path="/kyc" element={<Guard anyOf={permissionsFor("kyc")}><Kyc /></Guard>} />
-          <Route path="/recovery" element={<Guard anyOf={permissionsFor("recovery")}><Recovery /></Guard>} />
-          <Route path="/legal" element={<Guard anyOf={permissionsFor("legal")}><Legal /></Guard>} />
-          <Route path="/orders" element={<Guard anyOf={permissionsFor("orders")}><Orders /></Guard>} />
-          <Route path="/warehouse-orders" element={<Guard anyOf={permissionsFor("warehouse-orders")}><Orders mode="warehouse" /></Guard>} />
-          <Route path="/retailers" element={<Guard anyOf={permissionsFor("retailers")}><Retailers /></Guard>} />
-          <Route path="/ledger" element={<Guard anyOf={permissionsFor("ledger")}><Ledger /></Guard>} />
-          <Route path="/ledger/:retailerId" element={<Guard anyOf={permissionsFor("ledger")}><Ledger /></Guard>} />
-          <Route path="/billing-entities" element={<Guard anyOf={permissionsFor("billing-entities")}><BillingEntitiesAudit /></Guard>} />
-          <Route path="/financial-statements" element={<Guard anyOf={permissionsFor("financial-statements")}><FinancialStatements /></Guard>} />
-          <Route path="/catalog" element={<Guard anyOf={permissionsFor("catalog")}><Catalog /></Guard>} />
-          <Route path="/commercial" element={<Guard anyOf={permissionsFor("commercial")}><Commercial /></Guard>} />
-          <Route path="/staff" element={<Guard anyOf={permissionsFor("staff")}><Staff /></Guard>} />
-          <Route path="/staff/:staffId" element={<Guard anyOf={permissionsFor("staff")}><StaffDetail /></Guard>} />
-          <Route path="/corrections" element={<Guard anyOf={permissionsFor("corrections")}><Corrections /></Guard>} />
-          <Route path="/locations" element={<Guard anyOf={permissionsFor("locations")}><Locations /></Guard>} />
-          <Route path="/visits" element={<Guard anyOf={permissionsFor("visits")}><Visits /></Guard>} />
-          <Route path="/sales-leader" element={<Guard anyOf={permissionsFor("sales-leader")}><SalesLeader /></Guard>} />
-          <Route path="/sales-organisation" element={<Guard anyOf={permissionsFor("sales-organisation")}><SalesOrganisation /></Guard>} />
-          <Route path="/retailer-approvals" element={<Guard anyOf={permissionsFor("retailer-approvals")}><RetailerApprovals /></Guard>} />
-          <Route path="/field-team" element={<Guard anyOf={permissionsFor("field-team")}><FieldTeam /></Guard>} />
-          <Route path="/field-planning" element={<Guard anyOf={permissionsFor("field-planning")}><FieldPlanning /></Guard>} />
-          <Route path="/field-expenses" element={<Guard anyOf={permissionsFor("field-expenses")}><FieldExpenses /></Guard>} />
-          <Route path="/service-issues" element={<Guard anyOf={permissionsFor("service-issues")}><ServiceIssues /></Guard>} />
-          <Route path="/salesperson-feedback" element={<Guard anyOf={permissionsFor("salesperson-feedback")}><SalespersonFeedback /></Guard>} />
+          <Route path="/" element={<Guard anyOf={permissionsFor("work")} destinationId="work"><Dashboard /></Guard>} />
+          <Route path="/warehouses" element={<Guard anyOf={permissionsFor("warehouses")} destinationId="warehouses"><Warehouses /></Guard>} />
+          <Route path="/settings" element={<Guard anyOf={permissionsFor("settings")} destinationId="settings"><Settings /></Guard>} />
+          <Route path="/broadcasts" element={<Guard anyOf={permissionsFor("broadcasts")} destinationId="broadcasts"><Broadcasts /></Guard>} />
+          <Route path="/roles" element={<Guard anyOf={permissionsFor("roles")} destinationId="roles"><RolesPermissions /></Guard>} />
+          <Route path="/sap" element={<Guard anyOf={permissionsFor("sap")} destinationId="sap"><SapSync /></Guard>} />
+          <Route path="/imports" element={<Guard anyOf={permissionsFor("imports")} destinationId="imports"><ImportCenter /></Guard>} />
+          <Route path="/approvals" element={<Guard anyOf={permissionsFor("approvals")} destinationId="approvals"><Approvals /></Guard>} />
+          <Route path="/collections" element={<Guard anyOf={permissionsFor("collections")} destinationId="collections"><Collections /></Guard>} />
+          <Route path="/credit-reviews" element={<Guard anyOf={permissionsFor("credit-reviews")} destinationId="credit-reviews"><CreditReviews /></Guard>} />
+          <Route path="/market-surveys" element={<Guard anyOf={permissionsFor("market-surveys")} destinationId="market-surveys"><MarketSurveys /></Guard>} />
+          <Route path="/kyc" element={<Guard anyOf={permissionsFor("kyc")} destinationId="kyc"><Kyc /></Guard>} />
+          <Route path="/recovery" element={<Guard anyOf={permissionsFor("recovery")} destinationId="recovery"><Recovery /></Guard>} />
+          <Route path="/legal" element={<Guard anyOf={permissionsFor("legal")} destinationId="legal"><Legal /></Guard>} />
+          <Route path="/orders" element={<Guard anyOf={permissionsFor("orders")} destinationId="orders"><Orders /></Guard>} />
+          <Route path="/warehouse-orders" element={<Guard anyOf={permissionsFor("warehouse-orders")} destinationId="warehouse-orders"><Orders mode="warehouse" /></Guard>} />
+          <Route path="/retailers" element={<Guard anyOf={permissionsFor("retailers")} destinationId="retailers"><Retailers /></Guard>} />
+          <Route path="/ledger" element={<Guard anyOf={permissionsFor("ledger")} destinationId="ledger"><Ledger /></Guard>} />
+          <Route path="/ledger/:retailerId" element={<Guard anyOf={permissionsFor("ledger")} destinationId="ledger"><Ledger /></Guard>} />
+          <Route path="/billing-entities" element={<Guard anyOf={permissionsFor("billing-entities")} destinationId="billing-entities"><BillingEntitiesAudit /></Guard>} />
+          <Route path="/financial-statements" element={<Guard anyOf={permissionsFor("financial-statements")} destinationId="financial-statements"><FinancialStatements /></Guard>} />
+          <Route path="/catalog" element={<Guard anyOf={permissionsFor("catalog")} destinationId="catalog"><Catalog /></Guard>} />
+          <Route path="/commercial" element={<Guard anyOf={permissionsFor("commercial")} destinationId="commercial"><Commercial /></Guard>} />
+          <Route path="/staff" element={<Guard anyOf={permissionsFor("staff")} destinationId="staff"><Staff /></Guard>} />
+          <Route path="/staff/:staffId" element={<Guard anyOf={permissionsFor("staff")} destinationId="staff"><StaffDetail /></Guard>} />
+          <Route path="/corrections" element={<Guard anyOf={permissionsFor("corrections")} destinationId="corrections"><Corrections /></Guard>} />
+          <Route path="/locations" element={<Guard anyOf={permissionsFor("locations")} destinationId="locations"><Locations /></Guard>} />
+          <Route path="/visits" element={<Guard anyOf={permissionsFor("visits")} destinationId="visits"><Visits /></Guard>} />
+          <Route path="/sales-leader" element={<Guard anyOf={permissionsFor("sales-leader")} destinationId="sales-leader"><SalesLeader /></Guard>} />
+          <Route path="/sales-organisation" element={<Guard anyOf={permissionsFor("sales-organisation")} destinationId="sales-organisation"><SalesOrganisation /></Guard>} />
+          <Route path="/retailer-approvals" element={<Guard anyOf={permissionsFor("retailer-approvals")} destinationId="retailer-approvals"><RetailerApprovals /></Guard>} />
+          <Route path="/field-team" element={<Guard anyOf={permissionsFor("field-team")} destinationId="field-team"><FieldTeam /></Guard>} />
+          <Route path="/field-planning" element={<Guard anyOf={permissionsFor("field-planning")} destinationId="field-planning"><FieldPlanning /></Guard>} />
+          <Route path="/field-expenses" element={<Guard anyOf={permissionsFor("field-expenses")} destinationId="field-expenses"><FieldExpenses /></Guard>} />
+          <Route path="/service-issues" element={<Guard anyOf={permissionsFor("service-issues")} destinationId="service-issues"><ServiceIssues /></Guard>} />
+          <Route path="/salesperson-feedback" element={<Guard anyOf={permissionsFor("salesperson-feedback")} destinationId="salesperson-feedback"><SalespersonFeedback /></Guard>} />
           <Route
             path="/no-access"
             element={<div className="empty-state">No portal permissions are assigned.</div>}

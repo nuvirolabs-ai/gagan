@@ -2,7 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 import { CommercialStatusCode, OrderStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
-import { AdminRequest, requireAdmin } from "../../lib/adminAuth";
+import { AdminRequest, requireAdmin, requireAnyAdminPermission } from "../../lib/adminAuth";
+import { Permissions } from "../../modules/identity/roleCatalog";
 import {
   createInvoiceForDelivery,
   InvoiceCreationError,
@@ -17,7 +18,14 @@ import {
 } from "../../modules/orders/orderAttribution";
 
 const router = Router();
-router.use(["/orders", "/dispatch"], requireAdmin);
+router.use(
+  ["/orders", "/dispatch"],
+  requireAnyAdminPermission(
+    Permissions.STAFF_MANAGE,
+    Permissions.APPROVAL_SECOND_INVOICE,
+    Permissions.ORDER_WAREHOUSE_PROCESS
+  )
+);
 class OrderTransitionConflict extends Error {}
 
 // Orders move forward only, one step at a time. Anything else is a bad request

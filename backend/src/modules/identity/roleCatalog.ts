@@ -147,8 +147,13 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
   },
   {
     name: "sales_coordinator",
-    description: "Approves second invoices and acts only through explicit delegation.",
-    permissions: [Permissions.APPROVAL_SECOND_INVOICE, Permissions.COMMERCIAL_STATUS_VIEW],
+    description: "Approves second invoices, reviews proposals, monitors orders and catalog.",
+    permissions: [
+      Permissions.APPROVAL_SECOND_INVOICE,
+      Permissions.COMMERCIAL_STATUS_VIEW,
+      Permissions.RETAILER_PROPOSAL_REVIEW,
+      Permissions.CATALOG_MANAGE,
+    ],
   },
   {
     name: "credit_team_lead",

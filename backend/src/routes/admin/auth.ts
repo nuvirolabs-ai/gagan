@@ -2,7 +2,8 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
-import { requireAdminIdentity, AdminRequest } from "../../lib/adminAuth";
+import { requireAdminIdentity, requireAdmin, AdminRequest } from "../../lib/adminAuth";
+import { ensureAdminAccountsAndCoordinator } from "../../modules/identity/adminProvisioning";
 import { createSessionRouter } from "../../modules/identity/sessionRoutes";
 import { lazyIdentitySessionService } from "../../modules/identity/sessionRuntime";
 import { lazyIdentityOtpService } from "../../modules/identity/otpRuntime";
@@ -78,6 +79,15 @@ router.get("/auth/me", requireAdminIdentity, async (req: AdminRequest, res) => {
     // StaffUser behind the login.
     staffId: req.staffAuth?.staffId ?? null,
     permissions: req.staffAuth?.permissions ?? [],
+  });
+});
+
+router.post("/auth/provision-users", requireAdmin, async (_req, res) => {
+  await ensureAdminAccountsAndCoordinator();
+  res.json({
+    success: true,
+    accounts: { email: "accounts@gagantoordal.com", role: "accounts" },
+    coordinator: { email: "coordinator@gagantoordal.com", role: "sales_coordinator" },
   });
 });
 

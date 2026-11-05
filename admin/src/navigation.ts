@@ -21,6 +21,7 @@ export type AdminDestination = {
 };
 
 const STAFF = ["staff.manage"] as const;
+const ORDERS = ["staff.manage", "approval.second_invoice"] as const;
 const CATALOG = ["staff.manage", "catalog.manage"] as const;
 const APPROVALS = ["approval.second_invoice", "approval.third_invoice", "legal.decide"] as const;
 const COLLECTIONS = ["collection.confirm"] as const;
@@ -34,7 +35,7 @@ const COMMERCIAL = ["staff.manage", "collection.confirm"] as const;
 const CORRECTIONS = ["financial.correct"] as const;
 const RECOVERY = ["recovery.view", "recovery.update"] as const;
 const LEDGER = ["staff.manage", "collection.confirm", "financial.correct", "recovery.view"] as const;
-const RETAILERS = ["staff.manage", "collection.confirm", "financial.correct", "recovery.view"] as const;
+const RETAILERS = ["staff.manage", "collection.confirm", "financial.correct", "recovery.view", "retailer.proposal_review"] as const;
 const LEGAL = ["staff.manage", "legal.decide"] as const;
 const KYC = ["kyc.view", "kyc.review"] as const;
 const ATTENDANCE = ["attendance.review"] as const;
@@ -149,7 +150,7 @@ export const ADMIN_NAV_GROUPS: { id: AdminGroupId; label: string; destinations: 
         route: "/orders",
         description: "Review and approve orders",
         keywords: ["order", "approve order", "order approval"],
-        permissions: STAFF,
+        permissions: ORDERS,
         relatedTo: ["/orders", "/approvals", "/warehouse-orders"],
       },
       {
@@ -442,7 +443,7 @@ export const ADMIN_ACTIONS: AdminDestination[] = [
     route: "/orders",
     description: "Open orders ready for approval",
     keywords: ["approve", "order", "order approval"],
-    permissions: STAFF,
+    permissions: ORDERS,
     relatedTo: ["/orders", "/approvals"],
   },
   {
@@ -462,7 +463,7 @@ export const ADMIN_ACTIONS: AdminDestination[] = [
     route: "/retailers",
     description: "Open retailers",
     keywords: ["create retailer", "new shop", "customer"],
-    permissions: STAFF,
+    permissions: RETAILERS,
     relatedTo: ["/retailers"],
   },
   {

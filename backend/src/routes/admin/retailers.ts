@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
-import { AdminRequest, requireAdmin, requireAnyAdminPermission } from "../../lib/adminAuth";
+import { AdminRequest, requireAdmin, requireAdminPermission, requireAnyAdminPermission } from "../../lib/adminAuth";
 import { Permissions } from "../../modules/identity/roleCatalog";
 import { ageAllRetailers } from "../../lib/ageing";
 import { financialLedgerFor } from "../../modules/finance/financialQueries";
@@ -25,7 +25,18 @@ router.get(
   }
 );
 
-router.use(["/retailers", "/ageing", "/payments"], requireAdmin);
+router.use(
+  ["/retailers", "/ageing", "/payments"],
+  requireAnyAdminPermission(
+    Permissions.STAFF_MANAGE,
+    Permissions.COLLECTION_CONFIRM,
+    Permissions.FINANCIAL_CORRECT,
+    Permissions.RECOVERY_VIEW,
+    Permissions.COMMERCIAL_STATUS_VIEW,
+    Permissions.RETAILER_PROPOSAL_REVIEW,
+    Permissions.APPROVAL_SECOND_INVOICE
+  )
+);
 
 router.get("/retailers", async (_req, res) => {
   const retailers = await prisma.retailer.findMany({
@@ -97,7 +108,7 @@ const createSchema = z.object({
   salesRepId: z.string().optional(),
 });
 
-router.post("/retailers", async (req: AdminRequest, res) => {
+router.post("/retailers", requireAnyAdminPermission(Permissions.STAFF_MANAGE, Permissions.RETAILER_PROPOSAL_REVIEW), async (req: AdminRequest, res) => {
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
@@ -127,7 +138,7 @@ router.post("/retailers", async (req: AdminRequest, res) => {
   res.status(201).json({ retailer });
 });
 
-router.post("/retailers/:id/tier", async (req, res) => {
+router.post("/retailers/:id/tier", requireAdminPermission(Permissions.STAFF_MANAGE), async (req, res) => {
   const parsed = z.object({ tierId: z.string() }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
 
@@ -163,7 +174,7 @@ router.post("/retailers/:id/delivery-city", async (req, res) => {
   res.json({ retailer });
 });
 
-router.post("/retailers/:id/credit-limit", async (req, res) => {
+router.post("/retailers/:id/credit-limit", requireAdminPermission(Permissions.STAFF_MANAGE), async (req, res) => {
   const parsed = z.object({ creditLimit: z.number().min(0) }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
 
@@ -236,7 +247,14 @@ const paymentSchema = z.object({
  * same settlement path as an in-app payment so both allocate against invoices
  * and re-age the account identically.
  */
-router.post("/payments", async (req, res) => {
+router.post(
+  "/payments",
+  requireAnyAdminPermission(
+    Permissions.STAFF_MANAGE,
+    Permissions.COLLECTION_CONFIRM,
+    Permissions.FINANCIAL_CORRECT
+  ),
+  async (req, res) => {
   const parsed = paymentSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
 

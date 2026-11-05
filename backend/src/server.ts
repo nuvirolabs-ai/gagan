@@ -3,6 +3,7 @@ import { createApp } from "./app";
 import { startScheduledJobs } from "./jobs";
 import { prisma } from "./lib/prisma";
 import { loadEnv } from "./platform/config/env";
+import { ensureAdminAccountsAndCoordinator } from "./modules/identity/adminProvisioning";
 
 const env = loadEnv();
 const stopJobs =
@@ -11,6 +12,11 @@ const stopJobs =
     : () => undefined;
 const server = createApp({ corsOrigins: env.CORS_ORIGINS }).listen(env.PORT, () => {
   console.log(`Gagan backend listening on port ${env.PORT}`);
+
+  // Provision Accounts Team and Sales Coordinator role permissions & credentials
+  ensureAdminAccountsAndCoordinator().catch((err) => {
+    console.error("[STARTUP] Admin provisioning failed:", err);
+  });
 
   // Auto-sync product images to variants so apps reading variant images always reflect uploads
   prisma.$executeRawUnsafe(`

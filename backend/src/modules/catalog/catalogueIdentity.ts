@@ -81,6 +81,13 @@ export function validVariantCatalogueIdentity(catalogKey: string | null | undefi
   return Boolean(match && internalCode === `GAGAN-INT-V-${match[1]}`);
 }
 
+function parsePiecePack(text: string) {
+  const match = normalizeCatalogueText(text).match(/^([0-9]+(?:\.[0-9]+)?)\s*(PCS|PC|PIECE|PIECES)$/);
+  if (!match) return null;
+  const count = Number(match[1]);
+  return Number.isSafeInteger(count) && count > 0 ? count : null;
+}
+
 function parseMassKg(text: string) {
   const match = normalizeCatalogueText(text).match(/^([0-9]+(?:\.[0-9]+)?)(KG|KGS|GM|G|GRAMS|QUINTAL|QTL)$/);
   if (!match) return null;
@@ -103,10 +110,28 @@ export function semanticPackMatches(
   semantic: { skuName: string; packingSize: string; masterBagBoxSize: string },
   pack: { unitWeightKg: number; unitsPerCase: number },
 ) {
-  const packingKg = parseMassKg(semantic.packingSize);
   const masterKg = parseMasterKg(semantic.masterBagBoxSize);
   const caseWeightKg = pack.unitWeightKg * pack.unitsPerCase;
-  if (packingKg == null || masterKg == null || !close(packingKg, pack.unitWeightKg) || !close(masterKg, caseWeightKg)) return false;
+  if (masterKg == null || !close(masterKg, caseWeightKg)) return false;
+
+  const pieceCount = parsePiecePack(semantic.packingSize);
+  if (pieceCount != null) {
+    if (!(pack.unitWeightKg > 0)) return false;
+    const sku = clean(semantic.skuName).match(/^(.*?)\s*\(\s*([0-9]+(?:\.[0-9]+)?)\s*(kg|kgs|gm|g|grams|quintal|qtl|pcs|pc|piece|pieces)\s*[x×*]\s*([0-9]+(?:\.[0-9]+)?)\s*\)$/i);
+    if (!sku) return true;
+    const skuUnit = sku[3].toUpperCase();
+    const skuUnits = Number(sku[4]);
+    if (skuUnit === "PCS" || skuUnit === "PC" || skuUnit === "PIECE" || skuUnit === "PIECES") {
+      const count = Number(sku[2]);
+      return count === pieceCount && skuUnits === pack.unitsPerCase;
+    }
+    const weight = Number(sku[2]) * (MASS_TO_KG[skuUnit] ?? 1);
+    return Number.isSafeInteger(skuUnits) && skuUnits > 0 && close(weight, pack.unitWeightKg) && skuUnits === pack.unitsPerCase;
+  }
+
+  const packingKg = parseMassKg(semantic.packingSize);
+  if (packingKg == null || !close(packingKg, pack.unitWeightKg)) return false;
+
   const sku = clean(semantic.skuName).match(/^(.*?)\s*\(\s*([0-9]+(?:\.[0-9]+)?)\s*(kg|kgs|gm|g|grams|quintal|qtl)\s*[x×*]\s*([0-9]+(?:\.[0-9]+)?)\s*\)$/i);
   if (!sku) return true;
   const units = Number(sku[4]);

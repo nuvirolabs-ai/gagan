@@ -153,6 +153,7 @@ export function humanizePackFailure(body: { error?: string; details?: unknown } 
   }
   if (!messages.length && body?.error === "product_name_exists") messages.push("A product with this name already exists.");
   if (!messages.length && body?.error === "duplicate_pack") messages.push("This pack is already on the product.");
+  if (!messages.length && body?.error === "catalogue_semantics_pack_mismatch") messages.push("Packaging details do not match the case configuration. Please review pack size, unit, and case weight.");
   if (!messages.length && body?.error && body.error !== "invalid_pack") messages.push("Could not save this draft pack.");
   if (!messages.length && body?.error === "invalid_pack") messages.push("Check the pack size, unit, and units per case.");
   return { message: messages[0] ?? "Could not save this draft pack.", fields };

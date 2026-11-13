@@ -100,4 +100,27 @@ describe("catalogue identity", () => {
     expect(semanticPackMatches({ skuName: "TESTING (500 g x 20)", packingSize: "500 G", masterBagBoxSize: "10KG BAG" }, actual)).toBe(false);
     expect(semanticPackMatches({ skuName: "TESTING (1 Kg x 30)", packingSize: "1 KG", masterBagBoxSize: "20KG BAG" }, actual)).toBe(false);
   });
+
+  it("supports piece-based packs (pcs) with measured weight", () => {
+    const actual = { unitWeightKg: 0.4, unitsPerCase: 75 };
+    expect(semanticPackMatches({
+      skuName: "Loose Sehmat Khaman Mix Flour (400 gm) (1 pcs x 75)",
+      packingSize: "1 pcs",
+      masterBagBoxSize: "30KG BAG",
+    }, actual)).toBe(true);
+
+    // Mismatched unitsPerCase
+    expect(semanticPackMatches({
+      skuName: "Loose Sehmat Khaman Mix Flour (400 gm) (1 pcs x 50)",
+      packingSize: "1 pcs",
+      masterBagBoxSize: "20KG BAG",
+    }, actual)).toBe(false);
+
+    // Mismatched master weight
+    expect(semanticPackMatches({
+      skuName: "Loose Sehmat Khaman Mix Flour (400 gm) (1 pcs x 75)",
+      packingSize: "1 pcs",
+      masterBagBoxSize: "25KG BAG",
+    }, actual)).toBe(false);
+  });
 });

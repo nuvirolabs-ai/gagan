@@ -744,6 +744,7 @@ function skuMessage(body: { error?: string } | null | undefined) {
   if (body?.error === "manual_stock_cannot_override_sap") return "SAP stock is authoritative for this product.";
   if (body?.error === "canonical_pack_exists") return "A current catalogue pack already exists.";
   if (body?.error === "canonical_product_exists") return "This product already has a catalogue identity. Add the pack to that product.";
+  if (body?.error === "catalogue_semantics_pack_mismatch") return "Packaging details do not match the case configuration. Please review pack size, unit, and case weight.";
   return "Could not save this product.";
 }
 

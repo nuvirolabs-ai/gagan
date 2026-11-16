@@ -1855,9 +1855,25 @@ export default function WarehouseOrders() {
               {FILTERS.find((f) => f.value === filter)?.label ?? "Orders"} <em>{filteredOrders.length}</em>
             </h2>
           </div>
-          <span style={{ fontSize: 12, color: "#6b7280" }}>
-            💡 Click any order to open fulfillment checklist pop-up window
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 11, fontWeight: 600, background: "#f8fafc", padding: "4px 10px", borderRadius: 20, border: "1px solid #e2e8f0" }}>
+              <span style={{ color: "#475569" }}>Entity color code:</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#0369a1" }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: "#0284c7" }} /> Jain Traders (Blue)
+              </span>
+              <span style={{ color: "#cbd5e1" }}>•</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#92400e" }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: "#d97706" }} /> Padam International (Amber)
+              </span>
+              <span style={{ color: "#cbd5e1" }}>•</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#6b21a8" }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: "#9333ea" }} /> Split (Purple)
+              </span>
+            </div>
+            <span style={{ fontSize: 12, color: "#6b7280" }}>
+              💡 Click any order to open fulfillment checklist pop-up window
+            </span>
+          </div>
         </div>
 
         {loading ? (
@@ -1881,12 +1897,13 @@ export default function WarehouseOrders() {
               {filteredOrders.map((order) => {
                 const isDuplicate = duplicateMap.has(order.id) && !acceptedDuplicates.has(order.id);
                 const totalCases = order.items.reduce((sum, item) => sum + (item.qtyOrdered || 0), 0);
+                const ent = orderBillingEntity(order);
+                const entityClass = `entity-${ent.code}`;
                 return (
                   <button
                     type="button"
                     key={order.id}
-                    className={`warehouse-order-row ${isDuplicate ? "duplicate-order-row" : ""}`}
-                    style={isDuplicate ? { background: "#fffdf0", borderLeft: "4px solid #f59e0b" } : undefined}
+                    className={`warehouse-order-row ${entityClass} ${isDuplicate ? "duplicate-order-row" : ""}`}
                     aria-haspopup="dialog"
                     onClick={() => void openOrderModal(order)}
                   >
@@ -1897,33 +1914,26 @@ export default function WarehouseOrders() {
                           🧾 INV-{order.invoice.invoiceNumber}
                         </div>
                       ) : null}
-                      {(() => {
-                        const ent = orderBillingEntity(order);
-                        return (
-                          <div style={{ marginTop: 4 }}>
-                            <span
-                              style={{
-                                fontSize: 11,
-                                fontWeight: 700,
-                                padding: "2px 7px",
-                                borderRadius: 4,
-                                background: ent.bg,
-                                color: ent.color,
-                                border: `1px solid ${ent.color}40`,
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: 4,
-                              }}
-                            >
-                              {ent.code === "padam_international"
-                                ? "🏢 Padam International"
-                                : ent.code === "split"
-                                ? "🔀 Split (Jain + Padam)"
-                                : "🏛️ Jain Traders"}
-                            </span>
-                          </div>
-                        );
-                      })()}
+                      {ent.code !== "jain_traders" && (
+                        <div style={{ marginTop: 4 }}>
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: "2px 6px",
+                              borderRadius: 4,
+                              background: ent.bg,
+                              color: ent.color,
+                              border: `1px solid ${ent.color}40`,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 3,
+                            }}
+                          >
+                            {ent.code === "padam_international" ? "Padam International" : "Split (Jain + Padam)"}
+                          </span>
+                        </div>
+                      )}
                       {isNewRetailerOrder(order) && (
                         <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
                           <span

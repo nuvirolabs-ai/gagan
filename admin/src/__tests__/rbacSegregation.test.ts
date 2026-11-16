@@ -33,6 +33,8 @@ const SALES_COORDINATOR_PERMISSIONS = [
 const WAREHOUSE_PERMISSIONS = [
   "order.warehouse_process",
   "retailer.proposal_review",
+  "financial.correct",
+  "recovery.view",
 ];
 
 describe("RBAC segregation of duties between Accounts, Sales Coordinator, and Warehouse", () => {
@@ -104,7 +106,7 @@ describe("RBAC segregation of duties between Accounts, Sales Coordinator, and Wa
     expect(accessible).not.toContain("staff");
   });
 
-  it("grants warehouse manager access to warehouse orders, hubs, and new retailer details", () => {
+  it("grants warehouse manager access to warehouse orders, hubs, retailers, and accounting suite", () => {
     const accessible = FLAT.filter(
       (item) => item.route && canAccess(WAREHOUSE_PERMISSIONS, item.permissions)
     ).map((item) => item.id);
@@ -114,15 +116,12 @@ describe("RBAC segregation of duties between Accounts, Sales Coordinator, and Wa
     expect(accessible).toContain("warehouses");
     expect(accessible).toContain("retailer-approvals");
     expect(accessible).toContain("retailers");
+    expect(accessible).toContain("ledger");
+    expect(accessible).toContain("billing-entities");
+    expect(accessible).toContain("financial-statements");
 
     // Forbidden modules
     expect(accessible).not.toContain("orders");
-    expect(accessible).not.toContain("collections");
-    expect(accessible).not.toContain("approvals");
-    expect(accessible).not.toContain("commercial");
-    expect(accessible).not.toContain("ledger");
-    expect(accessible).not.toContain("billing-entities");
-    expect(accessible).not.toContain("financial-statements");
     expect(accessible).not.toContain("catalog");
     expect(accessible).not.toContain("staff");
   });
@@ -175,5 +174,26 @@ describe("RBAC segregation of duties between Accounts, Sales Coordinator, and Wa
     expect(accessibleCoordinator).not.toContain("ledger");
     expect(accessibleCoordinator).not.toContain("billing-entities");
     expect(accessibleCoordinator).not.toContain("financial-statements");
+
+    const warehouseExplicitModules = [
+      "warehouse-orders",
+      "warehouses",
+      "retailer-approvals",
+      "retailers",
+      "billing-entities",
+      "financial-statements",
+      "ledger",
+    ];
+
+    const accessibleWarehouse = FLAT.filter(
+      (item) =>
+        item.route &&
+        canAccess(WAREHOUSE_PERMISSIONS, item.permissions, item.id, warehouseExplicitModules)
+    ).map((item) => item.id);
+
+    expect(accessibleWarehouse).toEqual(expect.arrayContaining(warehouseExplicitModules));
+    expect(accessibleWarehouse).not.toContain("orders");
+    expect(accessibleWarehouse).not.toContain("catalog");
+    expect(accessibleWarehouse).not.toContain("staff");
   });
 });

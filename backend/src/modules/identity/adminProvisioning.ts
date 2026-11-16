@@ -206,15 +206,31 @@ export async function ensureAdminAccountsAndCoordinator() {
     }
 
     // 4. Provision / Update Warehouse Manager Admin Users
-    const warehouseEmails = ["warehouse-lead@gagan.test", "warehouse@gagan.test"];
+    const warehouseEmails = [
+      "warehouse-lead@gagan.test",
+      "warehouse@gagan.test",
+      "warehouse@gagantoordal.com",
+      "warehouse-manager@gagantoordal.com",
+      "warehouse-lead@gagantoordal.com",
+    ];
     const warehouseModules = [
       "warehouse-orders",
       "warehouses",
       "retailer-approvals",
       "retailers",
+      "billing-entities",
+      "financial-statements",
+      "ledger",
     ];
 
-    const whRolePermNames = ["order.warehouse_process", "dispatch.execute", "retailer.proposal_review"];
+    const whRolePermNames = [
+      "order.warehouse_process",
+      "dispatch.execute",
+      "retailer.proposal_review",
+      "financial.correct",
+      "recovery.view",
+      "staff.manage",
+    ];
     for (const pName of whRolePermNames) {
       await prisma.permission.upsert({
         where: { name: pName },
@@ -242,6 +258,38 @@ export async function ensureAdminAccountsAndCoordinator() {
         description: JSON.stringify({ modules: warehouseModules }),
       },
     });
+
+    // Keep permissions on whCustomRole synchronized
+    await prisma.rolePermission.deleteMany({
+      where: { roleId: whCustomRole.id },
+    });
+    await prisma.rolePermission.createMany({
+      data: whDbPerms.map((p) => ({
+        roleId: whCustomRole.id,
+        permissionId: p.id,
+      })),
+      skipDuplicates: true,
+    });
+
+    // Ensure all warehouse-related staff have this custom role
+    const allWhStaff = await prisma.staffUser.findMany({
+      where: {
+        OR: [
+          { email: { in: warehouseEmails } },
+          { email: { contains: "warehouse", mode: "insensitive" } },
+          { name: { contains: "warehouse", mode: "insensitive" } },
+          { roles: { some: { role: { name: { in: ["warehouse_manager", "warehouse_operator", "user_warehouse_portal"] } } } } },
+        ],
+      },
+    });
+
+    for (const whStaff of allWhStaff) {
+      await prisma.staffRole.upsert({
+        where: { staffId_roleId: { staffId: whStaff.id, roleId: whCustomRole.id } },
+        create: { staffId: whStaff.id, roleId: whCustomRole.id },
+        update: {},
+      });
+    }
 
     for (const whEmail of warehouseEmails) {
       const whAdmin = await prisma.adminUser.findUnique({ where: { email: whEmail } });

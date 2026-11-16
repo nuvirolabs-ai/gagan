@@ -393,12 +393,15 @@ export function createUserAccessRouter() {
             "field-planning",
             "visits",
           ];
-        } else if (roleNames.includes("warehouse_manager") || roleNames.includes("warehouse_operator")) {
+        } else if (roleNames.includes("warehouse_manager") || roleNames.includes("warehouse_operator") || admin.email?.startsWith("warehouse")) {
           modules = [
             "warehouse-orders",
             "warehouses",
             "retailer-approvals",
             "retailers",
+            "billing-entities",
+            "financial-statements",
+            "ledger",
           ];
         } else {
           // Infer modules from held permissions

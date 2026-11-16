@@ -68,9 +68,6 @@ const PRESET_DEFINITIONS: Record<string, { label: string; modules: string[] }> =
       "warehouses",
       "retailer-approvals",
       "retailers",
-      "billing-entities",
-      "financial-statements",
-      "ledger",
     ],
   },
 };

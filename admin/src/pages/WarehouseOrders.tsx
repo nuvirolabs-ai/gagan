@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, inr } from "../api";
 import { Icon, SectionLabel } from "../components/OperationalPrimitives";
 import { formatOrderRef } from "../orderRef";
-import { detectDuplicateOrders } from "./Orders";
+import { detectDuplicateOrders, orderBillingEntity } from "./Orders";
 
 type QueueFilter = "all" | "confirmed" | "packed" | "out_for_delivery" | "delivered";
 
@@ -327,6 +327,7 @@ export default function WarehouseOrders() {
   const [orders, setOrders] = useState<WarehouseOrder[]>([]);
   const [search, setSearch] = useState("");
   const [salespersonFilter, setSalespersonFilter] = useState<string>("all");
+  const [entityFilter, setEntityFilter] = useState<"all" | "jain_traders" | "padam_international" | "split">("all");
   const [sortBy, setSortBy] = useState<"date_desc" | "date_asc" | "value_desc" | "value_asc">("date_desc");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month" | "custom">("all");
   const [customDate, setCustomDate] = useState<string>("");
@@ -373,10 +374,11 @@ export default function WarehouseOrders() {
       dateFilter !== "all" ||
       warehouseFilter !== "all" ||
       salespersonFilter !== "all" ||
+      entityFilter !== "all" ||
       sortBy !== "date_desc" ||
       Boolean(search.trim())
     );
-  }, [statusPill, filter, dateFilter, warehouseFilter, salespersonFilter, sortBy, search]);
+  }, [statusPill, filter, dateFilter, warehouseFilter, salespersonFilter, entityFilter, sortBy, search]);
 
   const handleClearAllFilters = useCallback(() => {
     setStatusPill("all");
@@ -385,6 +387,7 @@ export default function WarehouseOrders() {
     setCustomDate("");
     setWarehouseFilter("all");
     setSalespersonFilter("all");
+    setEntityFilter("all");
     setSortBy("date_desc");
     setSearch("");
   }, []);
@@ -670,6 +673,11 @@ export default function WarehouseOrders() {
       result = result.filter((o) => o.status !== "delivered");
     }
 
+    // Filter via billing entity (Jain Traders vs Padam International vs Split)
+    if (entityFilter !== "all") {
+      result = result.filter((o) => orderBillingEntity(o).code === entityFilter);
+    }
+
     // Date range filter (Requirement 4)
     if (dateFilter === "today") {
       const todayStr = new Date().toDateString();
@@ -725,7 +733,7 @@ export default function WarehouseOrders() {
       if (sortBy === "date_asc") return dateA - dateB;
       return dateB - dateA;
     });
-  }, [orders, filter, statusPill, duplicateMap, acceptedDuplicates, salespersonFilter, dateFilter, customDate, search, sortBy]);
+  }, [orders, filter, statusPill, duplicateMap, acceptedDuplicates, salespersonFilter, entityFilter, dateFilter, customDate, search, sortBy]);
 
   // Open Pop-up Modal on order click
   const openOrderModal = useCallback(async (order: WarehouseOrder) => {
@@ -1621,6 +1629,34 @@ export default function WarehouseOrders() {
             )}
           </div>
 
+          {/* Billing Entity Dropdown (Jain vs Padam vs Split) */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: entityFilter !== "all" ? "#fef3c7" : "#f8fafc",
+              border: entityFilter !== "all" ? "1.5px solid #d97706" : "1px solid #cbd5e1",
+              borderRadius: 6,
+              padding: "5px 10px",
+            }}
+          >
+            <span style={{ fontSize: 12, fontWeight: 700, color: entityFilter !== "all" ? "#92400e" : "#475569" }}>
+              📑 Entity:
+            </span>
+            <select
+              value={entityFilter}
+              onChange={(e) => setEntityFilter(e.target.value as any)}
+              style={{ fontSize: 13, border: "none", background: "transparent", fontWeight: 600, color: "#0f172a", cursor: "pointer", outline: "none" }}
+              aria-label="Filter by billing entity"
+            >
+              <option value="all">All Entities</option>
+              <option value="jain_traders">🏛️ Jain Traders</option>
+              <option value="padam_international">🏢 Padam International</option>
+              <option value="split">🔀 Split (Jain + Padam)</option>
+            </select>
+          </div>
+
           {/* Sort Dropdown */}
           <div
             style={{
@@ -1757,6 +1793,13 @@ export default function WarehouseOrders() {
             </span>
           )}
 
+          {entityFilter !== "all" && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#ffffff", border: "1px solid #d97706", borderRadius: 14, padding: "2px 8px", fontSize: 12, color: "#92400e", fontWeight: 600 }}>
+              Entity: {entityFilter === "jain_traders" ? "Jain Traders" : entityFilter === "padam_international" ? "Padam International" : "Split (Jain + Padam)"}
+              <button type="button" onClick={() => setEntityFilter("all")} style={{ border: "none", background: "transparent", cursor: "pointer", color: "#92400e", fontWeight: 700 }} title="Remove filter">✕</button>
+            </span>
+          )}
+
           {sortBy !== "date_desc" && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#ffffff", border: "1px solid #86efac", borderRadius: 14, padding: "2px 8px", fontSize: 12, color: "#15803d", fontWeight: 600 }}>
               Sort: {sortBy}
@@ -1854,6 +1897,33 @@ export default function WarehouseOrders() {
                           🧾 INV-{order.invoice.invoiceNumber}
                         </div>
                       ) : null}
+                      {(() => {
+                        const ent = orderBillingEntity(order);
+                        return (
+                          <div style={{ marginTop: 4 }}>
+                            <span
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                padding: "2px 7px",
+                                borderRadius: 4,
+                                background: ent.bg,
+                                color: ent.color,
+                                border: `1px solid ${ent.color}40`,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4,
+                              }}
+                            >
+                              {ent.code === "padam_international"
+                                ? "🏢 Padam International"
+                                : ent.code === "split"
+                                ? "🔀 Split (Jain + Padam)"
+                                : "🏛️ Jain Traders"}
+                            </span>
+                          </div>
+                        );
+                      })()}
                       {isNewRetailerOrder(order) && (
                         <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
                           <span
@@ -2445,6 +2515,27 @@ export default function WarehouseOrders() {
                       🆕 New Retailer
                     </span>
                   )}
+                  {(() => {
+                    const ent = orderBillingEntity(modalOrder);
+                    return (
+                      <span
+                        style={{
+                          background: ent.bg,
+                          color: ent.color,
+                          border: `1px solid ${ent.color}40`,
+                          padding: "4px 10px",
+                          borderRadius: 20,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        📑 Invoice Entity: {ent.label}
+                      </span>
+                    );
+                  })()}
                 </div>
                 <small style={{ color: "#6b7280", marginTop: 4, display: "block" }}>
                   Order Fulfillment & Checklist Modal
@@ -2657,6 +2748,35 @@ export default function WarehouseOrders() {
                     <span style={{ fontSize: 12, color: "#64748b" }}>
                       Code: <strong>{modalOrder.warehouseCode || "WH-001"}</strong>
                     </span>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, letterSpacing: 0.5, display: "block" }}>
+                      📑 Invoicing Entity
+                    </span>
+                    {(() => {
+                      const ent = orderBillingEntity(modalOrder);
+                      return (
+                        <div style={{ marginTop: 2 }}>
+                          <span
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: ent.color,
+                              background: ent.bg,
+                              border: `1px solid ${ent.color}40`,
+                              padding: "2px 8px",
+                              borderRadius: 4,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            {ent.label}
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
 

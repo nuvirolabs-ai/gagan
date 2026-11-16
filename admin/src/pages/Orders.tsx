@@ -36,12 +36,27 @@ const TABS = [
 
 export function orderBillingEntity(order: any): { label: string; code: string; bg: string; color: string } {
   const snap = order.commercialSnapshot;
-  if (!snap) return { label: "Jain Traders", code: "jain_traders", bg: "#e0f2fe", color: "#0369a1" };
   const entities = new Set<string>();
-  if (snap.lines && Array.isArray(snap.lines)) {
+
+  if (snap?.lines && Array.isArray(snap.lines)) {
     snap.lines.forEach((l: any) => { if (l.entity) entities.add(l.entity); });
   }
-  if (snap.routing?.entity) entities.add(snap.routing.entity);
+  if (snap?.routing?.entity) entities.add(snap.routing.entity);
+  if (snap?.routing?.lines && Array.isArray(snap.routing.lines)) {
+    snap.routing.lines.forEach((l: any) => { if (l.entity) entities.add(l.entity); });
+  }
+  if (snap?.billingEntity?.name) {
+    if (snap.billingEntity.name.toLowerCase().includes("padam")) entities.add("padam_international");
+    if (snap.billingEntity.name.toLowerCase().includes("jain")) entities.add("jain_traders");
+  }
+  if (order.items && Array.isArray(order.items)) {
+    order.items.forEach((item: any) => {
+      const v = item.variant;
+      if (v?.sellingEntity === "padam_international") entities.add("padam_international");
+      if (v?.sellingEntity === "jain_traders") entities.add("jain_traders");
+    });
+  }
+
   if (entities.has("jain_traders") && entities.has("padam_international")) {
     return { label: "Split (Jain + Padam)", code: "split", bg: "#f3e8ff", color: "#6b21a8" };
   }

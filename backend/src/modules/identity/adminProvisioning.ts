@@ -218,18 +218,12 @@ export async function ensureAdminAccountsAndCoordinator() {
       "warehouses",
       "retailer-approvals",
       "retailers",
-      "billing-entities",
-      "financial-statements",
-      "ledger",
     ];
 
     const whRolePermNames = [
       "order.warehouse_process",
       "dispatch.execute",
       "retailer.proposal_review",
-      "financial.correct",
-      "recovery.view",
-      "staff.manage",
     ];
     for (const pName of whRolePermNames) {
       await prisma.permission.upsert({

@@ -399,9 +399,6 @@ export function createUserAccessRouter() {
             "warehouses",
             "retailer-approvals",
             "retailers",
-            "billing-entities",
-            "financial-statements",
-            "ledger",
           ];
         } else {
           // Infer modules from held permissions

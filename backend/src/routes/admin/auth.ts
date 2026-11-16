@@ -135,9 +135,6 @@ router.get("/auth/me", requireAdminIdentity, async (req: AdminRequest, res) => {
           "warehouses",
           "retailer-approvals",
           "retailers",
-          "billing-entities",
-          "financial-statements",
-          "ledger",
         ];
       }
     }

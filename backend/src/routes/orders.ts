@@ -18,8 +18,9 @@ const router = Router();
 export type RetailerSalesOrderState = "punched" | "created";
 
 function retailerSalesOrderState(order: any): RetailerSalesOrderState | undefined {
+  if (order.status === "packed" || order.status === "out_for_delivery" || order.status === "delivered") return "created";
   const events = Array.isArray(order.commercialStatusEvents) ? order.commercialStatusEvents : [];
-  if (events.some((event: any) => event.code === CommercialStatusCode.SALES_ORDER_CREATED)) return "created";
+  if (events.some((event: any) => event.code === CommercialStatusCode.SALES_ORDER_CREATED && order.status !== "confirmed" && order.status !== "placed")) return "created";
   if (events.some((event: any) => event.code === CommercialStatusCode.SALES_ORDER_PUNCHED)) return "punched";
   return undefined;
 }

@@ -8,6 +8,7 @@ import {
   createInvoiceForDelivery,
   InvoiceCreationError,
 } from "../../modules/invoicing/invoiceService";
+import { enqueueSalesOrder } from "../../lib/sap/outbox";
 import { renderInvoicePdf } from "../../modules/invoicing/invoicePdf";
 import { ensureKycApprovedForDispatch, KycGateError } from "../../modules/kyc/kycGate";
 import {
@@ -222,6 +223,7 @@ export async function transitionOrder(
     if(claimed.count!==1) return null;
     const next=await tx.order.findUniqueOrThrow({where:{id:orderId},include:orderInclude});
     if (to === "packed") {
+      await enqueueSalesOrder(tx, orderId).catch((err) => console.warn("enqueueSalesOrder error:", err));
       await tx.commercialStatusEvent.create({
         data: {
           code: "SALES_ORDER_CREATED",

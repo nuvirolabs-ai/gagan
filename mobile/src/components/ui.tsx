@@ -220,8 +220,8 @@ export function EmptyState({
 }
 
 export const ORDER_STATUS_META: Record<string, { label: string; tint: string; bg: string }> = {
-  placed: { label: "Placed", tint: "#8A6A12", bg: colors.goldSoft },
-  confirmed: { label: "Confirmation Pending", tint: "#8A6A12", bg: colors.goldSoft },
+  placed: { label: "Pending Update", tint: "#854d0e", bg: "#fefce8" },
+  confirmed: { label: "Pending Update", tint: "#854d0e", bg: "#fefce8" },
   packed: { label: "Sales order created", tint: colors.green, bg: colors.greenSoft },
   out_for_delivery: { label: "Dispatched", tint: "#2F5B8F", bg: "#DFEAF6" },
   delivered: { label: "Delivered", tint: colors.onDark, bg: colors.green },
@@ -251,11 +251,11 @@ export const COMMERCIAL_BADGE_META: Record<string, { label: string; emoji: strin
     bg: "#fff1f2",
   },
   SALES_ORDER_PUNCHED: {
-    emoji: "👍",
-    label: "Order Punched",
-    subtitle: "Order confirmed & created in SAP",
-    tint: "#15803d",
-    bg: "#f0fdf4",
+    emoji: "⏳",
+    label: "Pending Update",
+    subtitle: "New order received, pending dispatch update",
+    tint: "#854d0e",
+    bg: "#fefce8",
   },
   SALES_ORDER_CREATED: {
     emoji: "📦",
@@ -342,8 +342,7 @@ export function OrderTimeline({
   const isSalesOrderCreated =
     status === "packed" ||
     status === "out_for_delivery" ||
-    status === "delivered" ||
-    commercialStatus === "SALES_ORDER_CREATED";
+    status === "delivered";
 
   const isDispatched = status === "out_for_delivery" || status === "delivered";
   const isDelivered = status === "delivered";
@@ -356,7 +355,7 @@ export function OrderTimeline({
   const getStepConfig = (step: typeof TIMELINE_STEPS[number]) => {
     if (step === "confirmed") {
       return {
-        label: "👍 Order Punched",
+        label: "⏳ Pending Update",
         done: true,
         isCurrent: (status === "confirmed" || status === "placed") && !activeCommercialMeta && !isSalesOrderCreated,
         tint: undefined,

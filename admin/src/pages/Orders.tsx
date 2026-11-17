@@ -25,9 +25,9 @@ import {
 } from "../orderReviewModel";
 
 const TABS = [
-  { key: "placed", label: "📝 Sales Order Created (Awaiting approval)" },
-  { key: "confirmed", label: "Confirmed" },
-  { key: "packed", label: "Packed" },
+  { key: "placed", label: "⏳ Pending Update (Awaiting dispatch)" },
+  { key: "confirmed", label: "Pending Update" },
+  { key: "packed", label: "📦 Sales Order Created" },
   { key: "out_for_delivery", label: "🚚 Order Dispatched" },
   { key: "delivered", label: "🧾 Invoices" },
   { key: "rejected", label: "Rejected" },

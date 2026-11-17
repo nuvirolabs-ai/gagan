@@ -3,9 +3,9 @@ import type { VisualTone } from "./components/operationalUtils";
 export const ORDER_DEPARTURE_MS = 700;
 
 export const STATUS_LABEL: Record<string, string> = {
-  placed: "Sales Order Created",
-  confirmed: "Confirmed",
-  packed: "Packed",
+  placed: "Pending Update",
+  confirmed: "Pending Update",
+  packed: "Sales Order Created",
   out_for_delivery: "Order Dispatched",
   delivered: "Delivered",
   rejected: "Rejected",

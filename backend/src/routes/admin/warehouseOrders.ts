@@ -208,7 +208,7 @@ function projectWarehouseOrder(
     status: order.status,
     isOnHold: Boolean(order.isOnHold),
     holdReason: order.holdReason ?? null,
-    commercialStatus: deriveCurrentCommercialStatus(order.commercialStatusEvents ?? [], Boolean(order.isOnHold)),
+    commercialStatus: deriveCurrentCommercialStatus(order.commercialStatusEvents ?? [], Boolean(order.isOnHold), order.status),
     commercialStatusEvents: order.commercialStatusEvents ?? [],
     orderTotal: order.orderTotal ? Number(order.orderTotal) : 0,
     createdAt: order.createdAt,

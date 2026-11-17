@@ -11,7 +11,7 @@ export const COMMERCIAL_STATUS_LABELS: Record<CommercialStatusCode, string> = {
   ACCOUNT_OPENED: "#️⃣ New Account",
   RATE_APPROVAL_SENT: "🍓 Rate Approval",
   SALES_ORDER_APPROVAL_SENT: "❤️ Order Approval",
-  SALES_ORDER_PUNCHED: "👍 Order Punched",
+  SALES_ORDER_PUNCHED: "⏳ Pending Update",
   SALES_ORDER_CREATED: "📦 Sales Order Created",
   SALES_ORDER_ON_HOLD: "❌ On Hold",
   SALES_ORDER_HOLD_RELEASED: "↩️ Hold Released",
@@ -169,10 +169,15 @@ export function statusLabel(code: CommercialStatusCode) {
 
 export function deriveCurrentCommercialStatus(
   events: Array<{ code: CommercialStatusCode; createdAt: Date }>,
-  isOnHold: boolean
+  isOnHold: boolean,
+  orderStatus?: string
 ) {
   if (isOnHold) return CommercialStatusCode.SALES_ORDER_ON_HOLD;
-  const current = events.reduce<(typeof events)[number] | null>((latest, event) => {
+  // If order is newly placed or confirmed, the dispatch user has not yet packed/created the sales order
+  const filteredEvents = (orderStatus === "confirmed" || orderStatus === "placed")
+    ? events.filter((e) => e.code !== CommercialStatusCode.SALES_ORDER_CREATED)
+    : events;
+  const current = filteredEvents.reduce<(typeof events)[number] | null>((latest, event) => {
     if (!CURRENT_STATUS_CODES.has(event.code)) return latest;
     if (!latest) return event;
     const timeDifference = event.createdAt.getTime() - latest.createdAt.getTime();
@@ -212,6 +217,7 @@ export async function internalStatusForOrder(orderId: string, db: StatusDb = pri
     where: { id: orderId },
     select: {
       id: true,
+      status: true,
       retailerId: true,
       isOnHold: true,
       holdReason: true,
@@ -225,6 +231,7 @@ export async function internalStatusForOrder(orderId: string, db: StatusDb = pri
 }
 
 export function statusFromOrderWithEvents(order: {
+  status?: string;
   isOnHold: boolean;
   holdReason: string | null;
   heldAt: Date | null;
@@ -232,7 +239,7 @@ export function statusFromOrderWithEvents(order: {
   commercialStatusEvents: any[];
 }) {
   const events = order.commercialStatusEvents;
-  const currentCode = deriveCurrentCommercialStatus(events, order.isOnHold);
+  const currentCode = deriveCurrentCommercialStatus(events, order.isOnHold, order.status);
   const advance = events.find((event) => event.code === CommercialStatusCode.ADVANCE_PAYMENT_RECEIVED) ?? null;
   return {
     currentCode,

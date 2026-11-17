@@ -148,10 +148,11 @@ const FILTERS: Array<{ value: QueueFilter; label: string; step: string; icon: st
 
 const STATUS_PILLS = [
   { id: "all", key: "all", label: "All Orders", icon: "📋" },
+  { id: "pending_update", key: "pending_update", label: "Pending Update", icon: "⏳" },
   { id: "new_buyer", key: "new_buyer", label: "#New Account", icon: "#️⃣" },
   { id: "rate_approval", key: "rate_approval", label: "Rate Approval", icon: "🍓" },
   { id: "order_approval", key: "order_approval", label: "Order Approval", icon: "❤️" },
-  { id: "sale_order_punched", key: "sale_order_punched", label: "Order Punched", icon: "👍" },
+  { id: "sale_order_created", key: "sale_order_created", label: "Sales Order Created", icon: "📦" },
   { id: "hold", key: "hold", label: "On Hold", icon: "❌" },
   { id: "advance", key: "advance", label: "Advance Party", icon: "🤝" },
   { id: "double_order", key: "double_order", label: "Double order placed", icon: "🔁" },
@@ -162,7 +163,7 @@ const EMOJI_ACTIONS = [
   { code: "ACCOUNT_OPENED", label: "New Account", emoji: "#️⃣", key: "new_buyer" },
   { code: "RATE_APPROVAL_SENT", label: "Rate Approval", emoji: "🍓", key: "rate_approval" },
   { code: "SALES_ORDER_APPROVAL_SENT", label: "Order Approval", emoji: "❤️", key: "order_approval" },
-  { code: "SALES_ORDER_PUNCHED", label: "Order Punched", emoji: "👍", key: "sale_order_punched" },
+  { code: "SALES_ORDER_PUNCHED", label: "Pending Update", emoji: "⏳", key: "pending_update" },
   { code: "SALES_ORDER_ON_HOLD", label: "On Hold", emoji: "❌", key: "hold" },
   { code: "ADVANCE_PAYMENT_RECEIVED", label: "Advance Party", emoji: "🤝", key: "advance" },
 ] as const;
@@ -225,7 +226,7 @@ function getUnifiedOrderStatus(order: WarehouseOrder): {
     };
   }
 
-  if (order.status === "packed" || order.commercialStatus === "SALES_ORDER_CREATED") {
+  if (order.status === "packed") {
     return {
       label: "Sales Order Created",
       emoji: "📦",
@@ -235,7 +236,7 @@ function getUnifiedOrderStatus(order: WarehouseOrder): {
     };
   }
 
-  // Before Sales Order Created: show the tags warehouse manager is putting
+  // Before Sales Order Created (confirmed / placed): show specific tags or Pending Update
   const code = order.isOnHold ? "SALES_ORDER_ON_HOLD" : (order.commercialStatus || "SALES_ORDER_PUNCHED");
   switch (code) {
     case "ACCOUNT_OPENED":
@@ -250,7 +251,7 @@ function getUnifiedOrderStatus(order: WarehouseOrder): {
       return { label: "On Hold", emoji: "❌", bg: "#fff7ed", color: "#c2410c", border: "#fed7aa" };
     case "SALES_ORDER_PUNCHED":
     default:
-      return { label: "Order Punched", emoji: "👍", bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" };
+      return { label: "Pending Update", emoji: "⏳", bg: "#fefce8", color: "#854d0e", border: "#fef08a" };
   }
 }
 
@@ -647,8 +648,10 @@ export default function WarehouseOrders() {
       result = result.filter((o: any) => o.isOnHold === true || o.commercialStatus === "SALES_ORDER_ON_HOLD" || o.internalStatus?.code === "SALES_ORDER_ON_HOLD");
     } else if (statusPill === "advance") {
       result = result.filter((o: any) => o.commercialStatus === "ADVANCE_PAYMENT_RECEIVED" || o.internalStatus?.code === "ADVANCE_PAYMENT_RECEIVED");
-    } else if (statusPill === "sale_order_punched" || statusPill === "sale_order_created") {
-      result = result.filter((o: any) => o.commercialStatus === "SALES_ORDER_PUNCHED" || o.commercialStatus === "SALES_ORDER_CREATED" || o.status === "confirmed" || o.internalStatus?.code === "SALES_ORDER_PUNCHED" || o.internalStatus?.code === "SALES_ORDER_CREATED" || o.status === "placed");
+    } else if (statusPill === "pending_update" || statusPill === "sale_order_punched") {
+      result = result.filter((o: any) => (o.status === "confirmed" || o.status === "placed") && getUnifiedOrderStatus(o).label === "Pending Update");
+    } else if (statusPill === "sale_order_created" || statusPill === "sales_order_created") {
+      result = result.filter((o: any) => o.status === "packed" || o.commercialStatus === "SALES_ORDER_CREATED");
     } else if (statusPill === "cancelled") {
       result = result.filter((o: any) => o.cancellationRequestedAt != null || o.status === "rejected" || o.cancellationStatus != null);
     } else if (statusPill === "double_order") {

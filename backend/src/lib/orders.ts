@@ -532,7 +532,8 @@ export async function createOrderForRetailer(
         reason: rollout.mode === "shadow" ? "shadow_legacy_allowed" : "credit_engine_allowed",
       },
     });
-    await enqueueSalesOrder(tx, orderWithIdentity.id);
+    // Order starts as "Pending Update" until dispatch user packs / confirms it.
+    // enqueueSalesOrder is called in transitionOrder when marked packed / sales order created.
     return { ok: true, order: orderWithIdentity, decision: effectiveDecision, dispatchAuthorization: authorization };
   });
 }

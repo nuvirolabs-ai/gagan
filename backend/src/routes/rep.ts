@@ -837,7 +837,7 @@ router.get("/orders/:id", requireRep, async (req: RepRequest, res) => {
     select: { id: true, action: true, metadata: true, createdAt: true },
   });
   const commercial = await internalStatusForOrder(order.id);
-  const currentCode = commercial?.currentCode ?? deriveCurrentCommercialStatus(order.commercialStatusEvents ?? [], Boolean(order.isOnHold));
+  const currentCode = commercial?.currentCode ?? deriveCurrentCommercialStatus(order.commercialStatusEvents ?? [], Boolean(order.isOnHold), order.status);
   res.json({
     order: {
       ...attributedOrder,
@@ -879,7 +879,7 @@ router.get("/orders", requireRep, async (req: RepRequest, res) => {
   const enriched = attributed.map((order, index) => ({
     ...order,
     isOnHold: Boolean(orders[index].isOnHold),
-    commercialStatus: deriveCurrentCommercialStatus(orders[index].commercialStatusEvents ?? [], Boolean(orders[index].isOnHold)),
+    commercialStatus: deriveCurrentCommercialStatus(orders[index].commercialStatusEvents ?? [], Boolean(orders[index].isOnHold), orders[index].status),
   }));
   res.json({ orders: enriched });
 });

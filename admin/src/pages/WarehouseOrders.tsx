@@ -148,7 +148,7 @@ const FILTERS: Array<{ value: QueueFilter; label: string; step: string; icon: st
 
 const STATUS_PILLS = [
   { id: "all", key: "all", label: "All Orders", icon: "📋" },
-  { id: "pending_update", key: "pending_update", label: "Pending Update", icon: "⏳" },
+  { id: "pending_order", key: "pending_order", label: "Pending Order", icon: "⏳" },
   { id: "new_buyer", key: "new_buyer", label: "#New Account", icon: "#️⃣" },
   { id: "rate_approval", key: "rate_approval", label: "Rate Approval", icon: "🍓" },
   { id: "order_approval", key: "order_approval", label: "Order Approval", icon: "❤️" },
@@ -163,7 +163,7 @@ const EMOJI_ACTIONS = [
   { code: "ACCOUNT_OPENED", label: "New Account", emoji: "#️⃣", key: "new_buyer" },
   { code: "RATE_APPROVAL_SENT", label: "Rate Approval", emoji: "🍓", key: "rate_approval" },
   { code: "SALES_ORDER_APPROVAL_SENT", label: "Order Approval", emoji: "❤️", key: "order_approval" },
-  { code: "SALES_ORDER_PUNCHED", label: "Pending Update", emoji: "⏳", key: "pending_update" },
+  { code: "SALES_ORDER_PUNCHED", label: "Pending Order", emoji: "⏳", key: "pending_order" },
   { code: "SALES_ORDER_ON_HOLD", label: "On Hold", emoji: "❌", key: "hold" },
   { code: "ADVANCE_PAYMENT_RECEIVED", label: "Advance Party", emoji: "🤝", key: "advance" },
 ] as const;
@@ -236,7 +236,7 @@ function getUnifiedOrderStatus(order: WarehouseOrder): {
     };
   }
 
-  // Before Sales Order Created (confirmed / placed): show specific tags or Pending Update
+  // Before Sales Order Created (confirmed / placed): show specific tags or Pending Order
   const code = order.isOnHold ? "SALES_ORDER_ON_HOLD" : (order.commercialStatus || "SALES_ORDER_PUNCHED");
   switch (code) {
     case "ACCOUNT_OPENED":
@@ -251,7 +251,7 @@ function getUnifiedOrderStatus(order: WarehouseOrder): {
       return { label: "On Hold", emoji: "❌", bg: "#fff7ed", color: "#c2410c", border: "#fed7aa" };
     case "SALES_ORDER_PUNCHED":
     default:
-      return { label: "Pending Update", emoji: "⏳", bg: "#fefce8", color: "#854d0e", border: "#fef08a" };
+      return { label: "Pending Order", emoji: "⏳", bg: "#fefce8", color: "#854d0e", border: "#fef08a" };
   }
 }
 
@@ -648,8 +648,8 @@ export default function WarehouseOrders() {
       result = result.filter((o: any) => o.isOnHold === true || o.commercialStatus === "SALES_ORDER_ON_HOLD" || o.internalStatus?.code === "SALES_ORDER_ON_HOLD");
     } else if (statusPill === "advance") {
       result = result.filter((o: any) => o.commercialStatus === "ADVANCE_PAYMENT_RECEIVED" || o.internalStatus?.code === "ADVANCE_PAYMENT_RECEIVED");
-    } else if (statusPill === "pending_update" || statusPill === "sale_order_punched") {
-      result = result.filter((o: any) => (o.status === "confirmed" || o.status === "placed") && getUnifiedOrderStatus(o).label === "Pending Update");
+    } else if (statusPill === "pending_order" || statusPill === "pending_update" || statusPill === "sale_order_punched") {
+      result = result.filter((o: any) => (o.status === "confirmed" || o.status === "placed") && getUnifiedOrderStatus(o).label === "Pending Order");
     } else if (statusPill === "sale_order_created" || statusPill === "sales_order_created") {
       result = result.filter((o: any) => o.status === "packed" || o.commercialStatus === "SALES_ORDER_CREATED");
     } else if (statusPill === "cancelled") {
@@ -1439,7 +1439,7 @@ export default function WarehouseOrders() {
           else if (pill.key === "order_approval") count = orders.filter((o: any) => o.commercialStatus === "SALES_ORDER_APPROVAL_SENT" || o.internalStatus?.code === "SALES_ORDER_APPROVAL_SENT").length;
           else if (pill.key === "advance") count = orders.filter((o: any) => o.commercialStatus === "ADVANCE_PAYMENT_RECEIVED" || o.internalStatus?.code === "ADVANCE_PAYMENT_RECEIVED").length;
           else if (pill.key === "hold") count = orders.filter((o: any) => o.isOnHold === true || o.commercialStatus === "SALES_ORDER_ON_HOLD" || o.internalStatus?.code === "SALES_ORDER_ON_HOLD").length;
-          else if (pill.key === "pending_update" || pill.key === "sale_order_punched") count = orders.filter((o: any) => (o.status === "confirmed" || o.status === "placed") && getUnifiedOrderStatus(o).label === "Pending Update").length;
+          else if (pill.key === "pending_order") count = orders.filter((o: any) => (o.status === "confirmed" || o.status === "placed") && getUnifiedOrderStatus(o).label === "Pending Order").length;
           else if (pill.key === "sale_order_created") count = orders.filter((o: any) => o.status === "packed" || o.commercialStatus === "SALES_ORDER_CREATED").length;
           else if (pill.key === "cancelled") count = orders.filter((o: any) => o.cancellationRequestedAt != null || o.status === "rejected" || o.cancellationStatus != null).length;
           else if (pill.key === "double_order") count = orders.filter((o) => duplicateMap.has(o.id) && !acceptedDuplicates.has(o.id)).length;

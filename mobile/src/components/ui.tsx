@@ -220,8 +220,8 @@ export function EmptyState({
 }
 
 export const ORDER_STATUS_META: Record<string, { label: string; tint: string; bg: string }> = {
-  placed: { label: "Pending Update", tint: "#854d0e", bg: "#fefce8" },
-  confirmed: { label: "Pending Update", tint: "#854d0e", bg: "#fefce8" },
+  placed: { label: "Pending Order", tint: "#854d0e", bg: "#fefce8" },
+  confirmed: { label: "Pending Order", tint: "#854d0e", bg: "#fefce8" },
   packed: { label: "Sales order created", tint: colors.green, bg: colors.greenSoft },
   out_for_delivery: { label: "Dispatched", tint: "#2F5B8F", bg: "#DFEAF6" },
   delivered: { label: "Delivered", tint: colors.onDark, bg: colors.green },
@@ -252,7 +252,7 @@ export const COMMERCIAL_BADGE_META: Record<string, { label: string; emoji: strin
   },
   SALES_ORDER_PUNCHED: {
     emoji: "⏳",
-    label: "Pending Update",
+    label: "Pending Order",
     subtitle: "New order received, pending dispatch update",
     tint: "#854d0e",
     bg: "#fefce8",
@@ -355,7 +355,7 @@ export function OrderTimeline({
   const getStepConfig = (step: typeof TIMELINE_STEPS[number]) => {
     if (step === "confirmed") {
       return {
-        label: "⏳ Pending Update",
+        label: "⏳ Pending Order",
         done: true,
         isCurrent: (status === "confirmed" || status === "placed") && !activeCommercialMeta && !isSalesOrderCreated,
         tint: undefined,

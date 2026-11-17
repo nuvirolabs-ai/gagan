@@ -11,7 +11,7 @@ export const COMMERCIAL_STATUS_LABELS: Record<CommercialStatusCode, string> = {
   ACCOUNT_OPENED: "#️⃣ New Account",
   RATE_APPROVAL_SENT: "🍓 Rate Approval",
   SALES_ORDER_APPROVAL_SENT: "❤️ Order Approval",
-  SALES_ORDER_PUNCHED: "⏳ Pending Update",
+  SALES_ORDER_PUNCHED: "⏳ Pending Order",
   SALES_ORDER_CREATED: "📦 Sales Order Created",
   SALES_ORDER_ON_HOLD: "❌ On Hold",
   SALES_ORDER_HOLD_RELEASED: "↩️ Hold Released",

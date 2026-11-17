@@ -3,8 +3,8 @@ import type { VisualTone } from "./components/operationalUtils";
 export const ORDER_DEPARTURE_MS = 700;
 
 export const STATUS_LABEL: Record<string, string> = {
-  placed: "Pending Update",
-  confirmed: "Pending Update",
+  placed: "Pending Order",
+  confirmed: "Pending Order",
   packed: "Sales Order Created",
   out_for_delivery: "Order Dispatched",
   delivered: "Delivered",

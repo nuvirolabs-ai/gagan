@@ -818,7 +818,7 @@ export default function WarehouseOrders() {
     try {
       const isCurrentlyActive =
         modalOrder.commercialStatus === code ||
-        (code === "SALES_ORDER_PUNCHED" && modalOrder.commercialStatus === "SALES_ORDER_CREATED");
+        (code === "SALES_ORDER_PUNCHED" && (!modalOrder.commercialStatus || modalOrder.commercialStatus === "SALES_ORDER_PUNCHED"));
       const nextActive = !isCurrentlyActive;
       await api.toggleCommercialStatus(modalOrder.id, code, nextActive);
       const newStatus = nextActive ? code : null;
@@ -1439,7 +1439,8 @@ export default function WarehouseOrders() {
           else if (pill.key === "order_approval") count = orders.filter((o: any) => o.commercialStatus === "SALES_ORDER_APPROVAL_SENT" || o.internalStatus?.code === "SALES_ORDER_APPROVAL_SENT").length;
           else if (pill.key === "advance") count = orders.filter((o: any) => o.commercialStatus === "ADVANCE_PAYMENT_RECEIVED" || o.internalStatus?.code === "ADVANCE_PAYMENT_RECEIVED").length;
           else if (pill.key === "hold") count = orders.filter((o: any) => o.isOnHold === true || o.commercialStatus === "SALES_ORDER_ON_HOLD" || o.internalStatus?.code === "SALES_ORDER_ON_HOLD").length;
-          else if (pill.key === "sale_order_punched") count = orders.filter((o: any) => o.commercialStatus === "SALES_ORDER_PUNCHED" || o.commercialStatus === "SALES_ORDER_CREATED" || o.status === "confirmed" || o.internalStatus?.code === "SALES_ORDER_PUNCHED" || o.internalStatus?.code === "SALES_ORDER_CREATED").length;
+          else if (pill.key === "pending_update" || pill.key === "sale_order_punched") count = orders.filter((o: any) => (o.status === "confirmed" || o.status === "placed") && getUnifiedOrderStatus(o).label === "Pending Update").length;
+          else if (pill.key === "sale_order_created") count = orders.filter((o: any) => o.status === "packed" || o.commercialStatus === "SALES_ORDER_CREATED").length;
           else if (pill.key === "cancelled") count = orders.filter((o: any) => o.cancellationRequestedAt != null || o.status === "rejected" || o.cancellationStatus != null).length;
           else if (pill.key === "double_order") count = orders.filter((o) => duplicateMap.has(o.id) && !acceptedDuplicates.has(o.id)).length;
 
@@ -3065,7 +3066,7 @@ export default function WarehouseOrders() {
                         {EMOJI_ACTIONS.map((action) => {
                           const isActive =
                             modalOrder.commercialStatus === action.code ||
-                            (action.code === "SALES_ORDER_PUNCHED" && modalOrder.commercialStatus === "SALES_ORDER_CREATED");
+                            (action.code === "SALES_ORDER_PUNCHED" && (!modalOrder.commercialStatus || modalOrder.commercialStatus === "SALES_ORDER_PUNCHED"));
                           return (
                             <button
                               type="button"

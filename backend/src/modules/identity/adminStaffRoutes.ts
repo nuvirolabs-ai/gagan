@@ -107,7 +107,7 @@ export function createAdminStaffRouter(options: AdminStaffRouterOptions) {
 
   const setupSellingLeader: RequestHandler = asyncRoute(async (req: StaffAuthedRequest, res) => {
     const body = sellingLeaderSetupSchema.safeParse(req.body);
-    if (!body.success) return res.status(400).json({ error: "invalid_input" });
+    if (!body.success) return res.status(400).json({ error: "invalid_input", details: body.error.flatten() });
     if ((body.data.managerId !== undefined || body.data.reportIds !== undefined) &&
         !req.staffAuth!.permissions.includes(Permissions.ORG_MANAGE)) {
       return res.status(403).json({ error: "permission_required", permission: Permissions.ORG_MANAGE });
@@ -129,7 +129,7 @@ export function createAdminStaffRouter(options: AdminStaffRouterOptions) {
           employeeRef: z.string().trim().min(1).max(50).optional(),
         }),
       }).safeParse(req.body);
-      if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+      if (!parsed.success) return res.status(400).json({ error: "invalid_input", details: parsed.error.flatten() });
       if ((parsed.data.managerId !== undefined || parsed.data.reportIds !== undefined) &&
           !req.staffAuth!.permissions.includes(Permissions.ORG_MANAGE)) {
         return res.status(403).json({ error: "permission_required", permission: Permissions.ORG_MANAGE });
@@ -142,7 +142,7 @@ export function createAdminStaffRouter(options: AdminStaffRouterOptions) {
     "/staff/:id/salesperson-setup",
     asyncRoute(async (req: StaffAuthedRequest, res) => {
       const parsed = salespersonSetupSchema.safeParse(req.body);
-      if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+      if (!parsed.success) return res.status(400).json({ error: "invalid_input", details: parsed.error.flatten() });
       if (parsed.data.managerId !== undefined && !req.staffAuth!.permissions.includes(Permissions.ORG_MANAGE)) {
         return res.status(403).json({ error: "permission_required", permission: Permissions.ORG_MANAGE });
       }
@@ -160,7 +160,7 @@ export function createAdminStaffRouter(options: AdminStaffRouterOptions) {
           employeeRef: z.string().trim().min(1).max(50).optional(),
         }),
       }).safeParse(req.body);
-      if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+      if (!parsed.success) return res.status(400).json({ error: "invalid_input", details: parsed.error.flatten() });
       if (parsed.data.managerId !== undefined && !req.staffAuth!.permissions.includes(Permissions.ORG_MANAGE)) {
         return res.status(403).json({ error: "permission_required", permission: Permissions.ORG_MANAGE });
       }

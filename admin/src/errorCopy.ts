@@ -62,11 +62,23 @@ export const ERROR_COPY: Record<string, string> = {
   role_permission_mismatch: "This role is missing a required permission. Repair the role catalog before setup.",
   selling_leader_setup_required: "Use the guided Sales Leader setup to link the salesperson identity and roles together.",
   setup_conflict_retry: "Another setup changed this identity. Reload the staff record and try again.",
+  invalid_input: "Invalid input. Please check the entered fields.",
 };
 
 /** The sentence for an error, falling back to whatever the API actually said. */
 export function explain(error: unknown, fallback = "Something went wrong."): string {
-  const body = (error as { body?: { error?: string } } | null)?.body?.error;
+  const errBody = (error as { body?: { error?: string; details?: { fieldErrors?: Record<string, string[]> } } } | null)?.body;
+  const body = errBody?.error;
+  const details = errBody?.details;
+  if (details?.fieldErrors) {
+    const entries = Object.entries(details.fieldErrors);
+    if (entries.length > 0) {
+      const [field, msgs] = entries[0];
+      const msg = Array.isArray(msgs) && msgs.length > 0 ? msgs[0] : "";
+      const fieldName = field.includes(".") ? field.split(".").pop() : field;
+      return `Invalid input on ${fieldName}: ${msg || "please verify the entered value"}`;
+    }
+  }
   const message = error instanceof Error ? error.message : undefined;
   return ERROR_COPY[body ?? ""] ?? ERROR_COPY[message ?? ""] ?? body ?? message ?? fallback;
 }

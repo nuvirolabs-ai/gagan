@@ -332,13 +332,20 @@ export default function Staff() {
   // Classic Staff create
   const createStaffSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setBusy(true);
     setError(null);
+
+    const cleanedPhone = staffForm.phone.replace(/[\s-]/g, "");
+    if (!/^\+?[0-9]{10,15}$/.test(cleanedPhone)) {
+      setError(`Please enter a valid 10-digit mobile number for Phone (you entered "${staffForm.phone}").`);
+      return;
+    }
+
+    setBusy(true);
     try {
       const newStaff = {
-        name: staffForm.name,
-        phone: staffForm.phone,
-        email: staffForm.email,
+        name: staffForm.name.trim(),
+        phone: cleanedPhone,
+        email: staffForm.email.trim(),
         employeeRef: staffForm.employeeRef.trim() || undefined,
       };
       if (newMode === "selling_leader") {
@@ -465,15 +472,17 @@ export default function Staff() {
                 id="staff-name"
                 value={staffForm.name}
                 onChange={(event) => setStaffForm({ ...staffForm, name: event.target.value })}
+                placeholder="e.g. Lakhan Sharma"
                 required
               />
             </div>
             <div className="field">
-              <label htmlFor="staff-phone">Phone</label>
+              <label htmlFor="staff-phone">Phone (10-digit Mobile No.)</label>
               <input
                 id="staff-phone"
                 value={staffForm.phone}
                 onChange={(event) => setStaffForm({ ...staffForm, phone: event.target.value })}
+                placeholder="e.g. 9876543210"
                 inputMode="tel"
                 required
               />
@@ -485,6 +494,7 @@ export default function Staff() {
                 type="email"
                 value={staffForm.email}
                 onChange={(event) => setStaffForm({ ...staffForm, email: event.target.value })}
+                placeholder="e.g. lakhan.sharma@example.com"
                 required
               />
             </div>
@@ -494,6 +504,7 @@ export default function Staff() {
                 id="staff-ref"
                 value={staffForm.employeeRef}
                 onChange={(event) => setStaffForm({ ...staffForm, employeeRef: event.target.value })}
+                placeholder="e.g. EMP-001"
               />
             </div>
           </div>

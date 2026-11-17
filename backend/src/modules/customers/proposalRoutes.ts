@@ -27,6 +27,12 @@ function optionalPattern(pattern: RegExp, message: string) {
   return z.string().trim().refine((value) => !value || pattern.test(value), { message }).optional();
 }
 
+const imageMimeTypeSchema = z
+  .string()
+  .trim()
+  .transform((val) => (val.toLowerCase() === "image/jpg" ? "image/jpeg" : val.toLowerCase()))
+  .pipe(z.enum(["image/jpeg", "image/png", "image/webp"]));
+
 const submitSchema = z.object({
   businessName: z.string().trim().min(2).max(160),
   groupName: z.string().trim().min(2).max(160),
@@ -44,12 +50,12 @@ const submitSchema = z.object({
   gstin: z.string().trim().toUpperCase().refine((value) => !value || GSTIN_RE.test(value), { message: "gstin_invalid" }).optional(),
   aadhaarNumber: z.string().trim().min(12).max(16),
   aadhaarPhoto: z.object({
-    contentType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+    contentType: imageMimeTypeSchema,
     bodyBase64: z.string().min(4).max(14_000_000),
     checksum: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   }),
   aadhaarPhotoBack: z.object({
-    contentType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+    contentType: imageMimeTypeSchema,
     bodyBase64: z.string().min(4).max(14_000_000),
     checksum: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   }).optional(),
@@ -94,7 +100,9 @@ export function createRetailerProposalRouter(options: {
     requirePermission(Permissions.RETAILER_PROPOSE),
     asyncRoute(async (req: StaffAuthedRequest, res, next) => {
       const parsed = submitSchema.safeParse(req.body);
-      if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+      if (!parsed.success) {
+        return res.status(400).json({ error: "invalid_input", details: parsed.error.flatten() });
+      }
       try {
         const proposal = await service.submit({
           ...parsed.data,

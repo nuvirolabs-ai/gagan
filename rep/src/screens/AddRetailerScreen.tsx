@@ -59,7 +59,7 @@ type Draft = {
 };
 
 type FieldKey = keyof Draft | "aadhaarNumber" | "aadhaarPhoto" | "aadhaarPhotoBack";
-type Photo = { uri: string; contentType: string; name?: string; size?: number };
+type Photo = { uri: string; contentType: string; name?: string; size?: number; base64?: string };
 
 const EMPTY_DRAFT: Draft = {
   businessName: "",
@@ -193,12 +193,20 @@ export default function AddRetailerScreen({ navigation }: any) {
     }
     const result =
       source === "camera"
-        ? await ImagePicker.launchCameraAsync({ mediaTypes: ["images" as any], quality: 0.78, allowsEditing: false })
-        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images" as any], quality: 0.78, allowsEditing: false });
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: ["images" as any], quality: 0.75, allowsEditing: false, base64: true })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images" as any], quality: 0.75, allowsEditing: false, base64: true });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
     if (asset.fileSize && asset.fileSize > 10_000_000) return setFieldErrors((current) => ({ ...current, [errorKey]: "Photo must be smaller than 10 MB." }));
-    const pickedPhoto = { uri: asset.uri, contentType: asset.mimeType ?? "image/jpeg", name: asset.fileName ?? undefined, size: asset.fileSize };
+    const rawMime = (asset.mimeType ?? "image/jpeg").toLowerCase();
+    const contentType = rawMime === "image/jpg" ? "image/jpeg" : rawMime;
+    const pickedPhoto: Photo = {
+      uri: asset.uri,
+      contentType,
+      name: asset.fileName ?? undefined,
+      size: asset.fileSize,
+      base64: asset.base64 ?? undefined,
+    };
     if (side === "front") {
       setPhotoFront(pickedPhoto);
     } else {
@@ -255,8 +263,16 @@ export default function AddRetailerScreen({ navigation }: any) {
     setSaving(true);
     setError("");
     try {
-      const base64Front = await new File(photoFront.uri).base64();
-      const base64Back = photoBack ? await new File(photoBack.uri).base64() : undefined;
+      const readBase64 = async (photo: Photo): Promise<string> => {
+        if (photo.base64) return photo.base64;
+        try {
+          return await new File(photo.uri).base64();
+        } catch {
+          return "";
+        }
+      };
+      const base64Front = await readBase64(photoFront);
+      const base64Back = photoBack ? await readBase64(photoBack) : undefined;
       const digits = form.phone.replace(/\D/g, "").replace(/^91(?=\d{10}$)/, "");
       const result = await repApi.proposeRetailer({
         businessName: form.businessName.trim(),
@@ -274,8 +290,18 @@ export default function AddRetailerScreen({ navigation }: any) {
         shopDurationYears: Number(form.shopDurationYears),
         gstin: form.gstin.trim().toUpperCase() || undefined,
         aadhaarNumber: aadhaarNumber.replace(/[\s-]/g, ""),
-        aadhaarPhoto: { contentType: photoFront.contentType, bodyBase64: base64Front },
-        ...(photoBack && base64Back ? { aadhaarPhotoBack: { contentType: photoBack.contentType, bodyBase64: base64Back } } : {}),
+        aadhaarPhoto: {
+          contentType: photoFront.contentType === "image/jpg" ? "image/jpeg" : photoFront.contentType,
+          bodyBase64: base64Front,
+        },
+        ...(photoBack && base64Back
+          ? {
+              aadhaarPhotoBack: {
+                contentType: photoBack.contentType === "image/jpg" ? "image/jpeg" : photoBack.contentType,
+                bodyBase64: base64Back,
+              },
+            }
+          : {}),
         paymentTerms: form.paymentTerms.trim(),
         upiId: form.upiId.trim() || undefined,
         notes: form.notes.trim() || undefined,
@@ -295,14 +321,41 @@ export default function AddRetailerScreen({ navigation }: any) {
       Alert.alert(t("addRetailer.sent"), "The store is awaiting approval. You can open it in My requests to punch demand now; it becomes an official order only after approval.");
     } catch (err: any) {
       const code = err?.message;
+      const details = err?.body?.details;
+      let fieldHint = "";
+      if (details && typeof details === "object" && details.fieldErrors) {
+        const errors = details.fieldErrors;
+        const firstKey = Object.keys(errors)[0];
+        if (firstKey && Array.isArray(errors[firstKey]) && errors[firstKey][0]) {
+          fieldHint = ` (${firstKey}: ${errors[firstKey][0]})`;
+        }
+      }
       setError(
         code === "retailer_already_exists"
           ? "This shop is already on the customer list."
           : code === "proposal_already_pending"
             ? "You have already sent this shop for approval."
-            : code === "PII_ENCRYPTION_KEY is required for sensitive identity data"
-              ? "Identity submission is unavailable until secure staging storage is configured."
-              : "Could not send this request. Try again when you have a connection."
+            : code === "phone_invalid"
+              ? "The mobile number is invalid. Please check the 10-digit number."
+              : code === "aadhaar_invalid"
+                ? "The Aadhaar number is invalid. Enter a valid 12-digit number."
+                : code === "aadhaar_photo_required"
+                  ? "Aadhaar Card Front photo is required."
+                  : code === "pin_code_invalid"
+                    ? "PIN code must be 6 digits."
+                    : code === "gstin_invalid"
+                      ? "GSTIN format is invalid."
+                      : code === "upi_id_invalid"
+                        ? "UPI ID format is invalid."
+                        : code === "invalid_input"
+                          ? `Please check the entered store details${fieldHint}.`
+                          : code === "salesperson_not_available"
+                            ? "Your account is not linked as an active sales rep. Contact Admin."
+                            : code === "PII_ENCRYPTION_KEY is required for sensitive identity data"
+                              ? "Identity submission is unavailable until secure storage is configured."
+                              : typeof code === "string" && code.length > 0 && !code.includes("failed with status")
+                                ? code
+                                : "Could not send this request. Try again when you have a connection."
       );
     } finally {
       setSaving(false);

@@ -268,6 +268,7 @@ export function createRetailerProposalAdminRouter(options: {
           typeof req.query.salespersonId === "string" && req.query.salespersonId.trim()
             ? req.query.salespersonId.trim()
             : null;
+        void service.convertAllPendingApprovedIntents().catch(() => undefined);
         res.json({
           proposals: await service.listForReview({
             status: typeof req.query.status === "string" ? req.query.status : undefined,

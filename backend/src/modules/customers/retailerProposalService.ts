@@ -10,6 +10,7 @@ import { CommercialStatusCode } from "@prisma/client";
 import { recordCommercialStatusEvent } from "../commercialStatus/statusService";
 import { createOrderForRetailer, type OrderLineInput } from "../../lib/orders";
 import { catalogueImageState, catalogueOrderingState } from "../catalog/catalogueVisibility";
+import { quoteFor } from "../commercial/service";
 
 type Db = PrismaClient | any;
 
@@ -646,6 +647,15 @@ export class RetailerProposalService {
             id: true,
             punchedAt: true,
             submittedBy: { select: { id: true, name: true } },
+            items: {
+              select: {
+                variantId: true,
+                qty: true,
+                productName: true,
+                unitSize: true,
+                unitsPerCase: true,
+              },
+            },
           },
           orderBy: { punchedAt: "desc" },
         },
@@ -824,6 +834,167 @@ export class RetailerProposalService {
 
       return { proposal: updated, retailer };
     });
+
+    try {
+      await this.autoConvertPendingIntents({
+        proposalId: proposal.id,
+        retailerId: result.retailer.id,
+        salespersonStaffId: proposal.submittedByStaffId,
+        salesRepId: proposal.submittedBy?.salesRepId ?? undefined,
+        actorStaffId: input.reviewerStaffId,
+      });
+    } catch (conversionErr) {
+      console.error(`[RetailerProposalService] Auto-conversion failed for proposal ${proposal.id}:`, conversionErr);
+    }
+
+    return result;
+  }
+
+  /**
+   * Automatically convert pending preliminary order intents for a proposal
+   * into canonical orders immediately upon manager approval so they enter
+   * the warehouse dispatch queue without requiring a second manual review step.
+   */
+  async autoConvertPendingIntents(params: {
+    proposalId: string;
+    retailerId: string;
+    salespersonStaffId: string;
+    salesRepId?: string | null;
+    actorStaffId?: string | null;
+  }) {
+    if (!this.prisma.retailerProposalOrderIntent?.findMany) return [];
+
+    const pendingIntents = await this.prisma.retailerProposalOrderIntent.findMany({
+      where: {
+        proposalId: params.proposalId,
+        convertedOrderId: null,
+      },
+      include: {
+        items: {
+          select: {
+            variantId: true,
+            qty: true,
+          },
+        },
+      },
+    });
+
+    if (!pendingIntents || !pendingIntents.length) return [];
+
+    let salesRepId = params.salesRepId;
+    if (!salesRepId && this.prisma.staffUser?.findUnique) {
+      try {
+        const staff = await this.prisma.staffUser.findUnique({
+          where: { id: params.salespersonStaffId },
+          select: { salesRepId: true },
+        });
+        salesRepId = staff?.salesRepId ?? undefined;
+      } catch {
+        salesRepId = undefined;
+      }
+    }
+
+    const converted: any[] = [];
+    for (const intent of pendingIntents) {
+      const items = normalizeProposalDemand(intent.items);
+      if (!items || items.length === 0) continue;
+
+      try {
+        let commercial: { quoteId: string; revision: number } | undefined;
+        try {
+          const q = await quoteFor(params.retailerId, items);
+          if (q) {
+            commercial = { quoteId: q.id, revision: q.revision };
+          }
+        } catch {
+          // If quote generation failed (e.g. non-routed items without quote or in mock tests), continue
+        }
+
+        const orderResult = await this.createOfficialOrder(
+          params.retailerId,
+          items,
+          "rep",
+          salesRepId ?? undefined,
+          params.salespersonStaffId,
+          `retailer-proposal-intent:${intent.id}`,
+          commercial,
+        );
+
+        if (orderResult.ok && orderResult.order?.id) {
+          await this.prisma.$transaction(async (tx: Db) => {
+            if (tx.retailerProposalOrderIntent?.updateMany) {
+              await tx.retailerProposalOrderIntent.updateMany({
+                where: { id: intent.id, convertedOrderId: null },
+                data: {
+                  convertedOrderId: orderResult.order.id,
+                  convertedAt: new Date(),
+                  conversionCommercialQuoteId: commercial?.quoteId ?? null,
+                },
+              });
+            }
+
+            if (tx.auditEvent?.create) {
+              await tx.auditEvent.create({
+                data: {
+                  actorStaffId: params.actorStaffId ?? params.salespersonStaffId,
+                  action: "retailer_proposal.order_auto_converted",
+                  subjectType: "retailer_proposal_order_intent",
+                  subjectId: intent.id,
+                  metadata: {
+                    proposalId: params.proposalId,
+                    retailerId: params.retailerId,
+                    orderId: orderResult.order.id,
+                  },
+                },
+              });
+            }
+          });
+          converted.push(orderResult.order);
+        } else {
+          console.error(
+            `[RetailerProposalService] Auto-conversion order creation failed for intent ${intent.id}:`,
+            (orderResult as any)?.body
+          );
+        }
+      } catch (err) {
+        console.error(`[RetailerProposalService] Error during auto-conversion for intent ${intent.id}:`, err);
+      }
+    }
+    return converted;
+  }
+
+  /**
+   * Backfill/sweep helper to auto-convert any approved proposals that have unconverted order intents.
+   */
+  async convertAllPendingApprovedIntents() {
+    if (!this.prisma.retailerProposal?.findMany) return [];
+
+    const proposals = await this.prisma.retailerProposal.findMany({
+      where: {
+        status: "approved",
+        retailerId: { not: null },
+        orderIntents: {
+          some: { convertedOrderId: null },
+        },
+      },
+      include: {
+        submittedBy: { select: { salesRepId: true } },
+      },
+    });
+
+    const results = [];
+    for (const proposal of proposals) {
+      if (!proposal.retailerId) continue;
+      const orders = await this.autoConvertPendingIntents({
+        proposalId: proposal.id,
+        retailerId: proposal.retailerId,
+        salespersonStaffId: proposal.submittedByStaffId,
+        salesRepId: proposal.submittedBy?.salesRepId ?? undefined,
+        actorStaffId: proposal.reviewedByStaffId ?? proposal.submittedByStaffId,
+      });
+      results.push({ proposalId: proposal.id, count: orders.length });
+    }
+    return results;
   }
 
   async reject(input: {

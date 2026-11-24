@@ -28,6 +28,11 @@ function fakePrisma(overrides: Record<string, any> = {}) {
       create: vi.fn().mockImplementation(async ({ data }: any) => ({ id: "proposal-1", ...data })),
       update: vi.fn().mockImplementation(async ({ data }: any) => ({ id: "proposal-1", ...data })),
     },
+    retailerProposalOrderIntent: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findFirst: vi.fn().mockResolvedValue(null),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
     evidenceAsset: {
       create: vi.fn().mockImplementation(async ({ data }: any) => ({ id: "asset-1", ...data })),
     },

@@ -721,7 +721,7 @@ export default function RetailerApprovals() {
                     <div style={{ marginTop: 4, color: "#334155" }}>
                       Lines:{" "}
                       {intent.items
-                        .map((i: any) => `${i.qty} cases (SKU: ${i.variantId})`)
+                        .map((i: any) => `${i.qty} case${i.qty === 1 ? "" : "s"}${i.productName ? ` · ${i.productName}` : ` (SKU: ${i.variantId})`}`)
                         .join(", ")}
                     </div>
                   ) : null}

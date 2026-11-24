@@ -4,6 +4,7 @@ import { startScheduledJobs } from "./jobs";
 import { prisma } from "./lib/prisma";
 import { loadEnv } from "./platform/config/env";
 import { ensureAdminAccountsAndCoordinator } from "./modules/identity/adminProvisioning";
+import { defaultRetailerProposalService } from "./modules/customers/retailerProposalService";
 
 const env = loadEnv();
 const stopJobs =
@@ -31,6 +32,16 @@ const server = createApp({ corsOrigins: env.CORS_ORIGINS }).listen(env.PORT, () 
     if (Number(count) > 0) console.log(`[STARTUP] Synced ${count} variant images from uploaded product images`);
   }).catch((err) => {
     console.warn("[STARTUP] Variant image sync warning:", err);
+  });
+
+  // Auto-convert any pending order intents for already-approved retailer proposals
+  defaultRetailerProposalService.convertAllPendingApprovedIntents().then((results) => {
+    const total = results.reduce((acc, r) => acc + r.count, 0);
+    if (total > 0) {
+      console.log(`[STARTUP] Auto-converted ${total} pending order(s) for approved retailer proposals`);
+    }
+  }).catch((err) => {
+    console.warn("[STARTUP] Auto-conversion of approved proposal orders warning:", err);
   });
 });
 

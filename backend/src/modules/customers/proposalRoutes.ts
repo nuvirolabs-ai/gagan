@@ -282,6 +282,19 @@ export function createRetailerProposalAdminRouter(options: {
   );
 
   router.post(
+    "/retailer-proposals/convert-pending",
+    requireAnyPermission(Permissions.RETAILER_PROPOSAL_REVIEW, Permissions.ORDER_WAREHOUSE_PROCESS, Permissions.STAFF_MANAGE),
+    asyncRoute(async (_req: StaffAuthedRequest, res, next) => {
+      try {
+        const results = await service.convertAllPendingApprovedIntents();
+        res.json({ ok: true, results });
+      } catch (error) {
+        sendError(error, res, next);
+      }
+    })
+  );
+
+  router.post(
     "/retailer-proposals/:id/approve",
     requireAnyPermission(Permissions.RETAILER_PROPOSAL_REVIEW, Permissions.ORDER_WAREHOUSE_PROCESS, Permissions.STAFF_MANAGE),
     asyncRoute(async (req: StaffAuthedRequest, res, next) => {

@@ -646,6 +646,9 @@ export class RetailerProposalService {
           select: {
             id: true,
             punchedAt: true,
+            convertedOrderId: true,
+            conversionCommercialQuoteId: true,
+            convertedOrder: { select: { id: true, orderNo: true, status: true } },
             submittedBy: { select: { id: true, name: true } },
             items: {
               select: {
@@ -690,9 +693,15 @@ export class RetailerProposalService {
         }
         return {
           ...publicProposal(proposal, photoUrl, photoBackUrl),
-          orderIntents: (proposal.orderIntents ?? []).map((intent: any) =>
-            attributedOrderIntent(proposal, intent)
-          ),
+          orderIntents: (proposal.orderIntents ?? []).map((intent: any) => ({
+            ...attributedOrderIntent(proposal, intent),
+            items: intent.items ?? [],
+            demandState: proposal.status === "pending"
+              ? "waiting_for_retailer_approval"
+              : proposal.status === "approved"
+                ? intent.convertedOrderId ? "converted" : "ready_for_official_order"
+                : "not_available",
+          })),
         };
       })
     );
@@ -992,7 +1001,12 @@ export class RetailerProposalService {
         salesRepId: proposal.submittedBy?.salesRepId ?? undefined,
         actorStaffId: proposal.reviewedByStaffId ?? proposal.submittedByStaffId,
       });
-      results.push({ proposalId: proposal.id, count: orders.length });
+      results.push({
+        proposalId: proposal.id,
+        retailerId: proposal.retailerId,
+        count: orders.length,
+        orderIds: orders.map((o: any) => o.id),
+      });
     }
     return results;
   }

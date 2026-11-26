@@ -38,6 +38,8 @@ function fakePrisma(overrides: Record<string, any> = {}) {
     },
     evidenceAsset: {
       create: vi.fn().mockImplementation(async ({ data }: any) => ({ id: "asset-1", ...data })),
+      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
     },
     tier: { findUnique: vi.fn().mockResolvedValue({ id: "tier-1", name: "Silver" }) },
     auditEvent: { create: vi.fn() },
@@ -739,5 +741,83 @@ describe("what a salesperson can see", () => {
     await expect(
       new RetailerProposalService(prisma).withdraw({ proposalId: "proposal-1", salespersonId: "staff-1" })
     ).rejects.toMatchObject({ code: "proposal_not_found", status: 404 });
+  });
+});
+
+describe("Aadhaar preview URLs and durable DB photo serving", () => {
+  it("maps local-storage:// URLs and DB-backed missing local files to the authenticated HTTP photo endpoint", async () => {
+    const prisma = fakePrisma();
+    prisma.retailerProposal.findMany.mockResolvedValue([
+      {
+        id: "prop-local",
+        status: "pending",
+        submittedByStaffId: "staff-1",
+        aadhaarLast4: "1973",
+        aadhaarPhotoAsset: {
+          id: "asset-front",
+          objectKey: "retailer_proposal_aadhaar/2026/11/front",
+          contentType: "image/jpeg",
+          sizeBytes: 1200,
+          deletedAt: null,
+        },
+        notes: "[AADHAAR_BACK_ASSET_ID:asset-back]",
+        orderIntents: [],
+      },
+    ]);
+    prisma.evidenceAsset.findMany
+      .mockResolvedValueOnce([
+        {
+          id: "asset-back",
+          objectKey: "retailer_proposal_aadhaar/2026/11/back",
+          contentType: "image/jpeg",
+          sizeBytes: 900,
+          deletedAt: null,
+        },
+      ])
+      .mockResolvedValueOnce([{ id: "asset-back" }]);
+
+    const localLikeStorage = {
+      ...testStorage,
+      signedReadUrl: vi
+        .fn()
+        .mockResolvedValueOnce("local-storage://abc123")
+        .mockRejectedValueOnce(new Error("object_not_found")),
+    };
+
+    const [row] = await new RetailerProposalService(prisma, localLikeStorage as any).listForReview();
+    expect(row.aadhaarPhoto).toMatchObject({
+      available: true,
+      signedUrl: "/admin/retailer-proposals/prop-local/aadhaar-photo/front",
+    });
+    expect(row.aadhaarPhotoBack).toMatchObject({
+      available: true,
+      signedUrl: "/admin/retailer-proposals/prop-local/aadhaar-photo/back",
+    });
+  });
+
+  it("streams Aadhaar bytes from DB contentBytes and enforces reviewer scope", async () => {
+    const prisma = fakePrisma();
+    prisma.retailerProposal.findUnique.mockResolvedValue({
+      id: "prop-1",
+      submittedByStaffId: "staff-1",
+      aadhaarPhotoAssetId: "asset-front",
+      notes: "[AADHAAR_BACK_ASSET_ID:asset-back]",
+    });
+    prisma.evidenceAsset.findUnique.mockResolvedValue({
+      id: "asset-front",
+      objectKey: "retailer_proposal_aadhaar/2026/11/front",
+      contentType: "image/png",
+      contentBytes: Buffer.from("png-bytes"),
+      deletedAt: null,
+    });
+
+    const svc = new RetailerProposalService(prisma, testStorage as any);
+    const photo = await svc.getAadhaarPhoto({ proposalId: "prop-1", side: "front", scopeStaffIds: null });
+    expect(photo.contentType).toBe("image/png");
+    expect(photo.buffer.toString()).toBe("png-bytes");
+
+    await expect(
+      svc.getAadhaarPhoto({ proposalId: "prop-1", side: "front", scopeStaffIds: ["other-staff"] })
+    ).rejects.toMatchObject({ code: "outside_reporting_scope", status: 403 });
   });
 });

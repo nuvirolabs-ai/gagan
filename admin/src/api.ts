@@ -558,6 +558,7 @@ export const api = {
     const qs = params.toString();
     return request(`/admin/retailer-proposals${qs ? `?${qs}` : ""}`);
   },
+  retailerProposalPhoto: (path: string) => requestBlob(path),
   approveRetailerProposal: (id: string, tierId?: string) =>
     post(`/admin/retailer-proposals/${id}/approve`, tierId ? { tierId } : {}),
   rejectRetailerProposal: (id: string, reason: string) =>

@@ -294,6 +294,27 @@ export function createRetailerProposalAdminRouter(options: {
     })
   );
 
+  router.get(
+    "/retailer-proposals/:id/aadhaar-photo/:side",
+    requireAnyPermission(Permissions.RETAILER_PROPOSAL_REVIEW, Permissions.ORDER_WAREHOUSE_PROCESS, Permissions.STAFF_MANAGE),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      const side = req.params.side === "back" ? "back" : req.params.side === "front" ? "front" : null;
+      if (!side) return res.status(400).json({ error: "invalid_photo_side" });
+      try {
+        const photo = await service.getAadhaarPhoto({
+          proposalId: req.params.id,
+          side,
+          scopeStaffIds: await scopeOf(req),
+        });
+        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+        res.setHeader("Cache-Control", "private, max-age=300");
+        res.type(photo.contentType).send(photo.buffer);
+      } catch (error) {
+        sendError(error, res, next);
+      }
+    })
+  );
+
   router.post(
     "/retailer-proposals/:id/approve",
     requireAnyPermission(Permissions.RETAILER_PROPOSAL_REVIEW, Permissions.ORDER_WAREHOUSE_PROCESS, Permissions.STAFF_MANAGE),

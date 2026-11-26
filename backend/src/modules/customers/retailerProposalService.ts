@@ -112,7 +112,7 @@ function decodePhoto(bodyBase64: string) {
   return body;
 }
 
-function publicProposal(proposal: any, photoUrl?: string | null, photoBackUrl?: string | null) {
+function publicProposal(proposal: any, photoUrl?: string | null, photoBackUrl?: string | null, backAsset?: any) {
   const {
     aadhaarEncrypted: _encrypted,
     aadhaarLast4,
@@ -128,7 +128,7 @@ function publicProposal(proposal: any, photoUrl?: string | null, photoBackUrl?: 
     aadhaarNumberMasked: maskAadhaar(aadhaarLast4),
     aadhaarPhoto: aadhaarPhotoAsset
       ? {
-          available: !aadhaarPhotoAsset.deletedAt,
+          available: !aadhaarPhotoAsset.deletedAt && (photoUrl === undefined ? true : Boolean(photoUrl)),
           contentType: aadhaarPhotoAsset.contentType,
           sizeBytes: aadhaarPhotoAsset.sizeBytes,
           ...(photoUrl ? { signedUrl: photoUrl } : {}),
@@ -137,9 +137,16 @@ function publicProposal(proposal: any, photoUrl?: string | null, photoBackUrl?: 
     aadhaarPhotoBack: photoBackUrl
       ? {
           available: true,
+          ...(backAsset ? { contentType: backAsset.contentType, sizeBytes: backAsset.sizeBytes } : {}),
           signedUrl: photoBackUrl,
         }
-      : null,
+      : backAsset && !backAsset.deletedAt
+        ? {
+            available: false,
+            contentType: backAsset.contentType,
+            sizeBytes: backAsset.sizeBytes,
+          }
+        : null,
   };
 }
 
@@ -244,18 +251,21 @@ export class RetailerProposalService {
     if (existingProposal) throw new ProposalError("proposal_already_pending", 409);
 
     const storage = this.objectStorage();
+    const frontPhotoBody = decodePhoto(input.aadhaarPhoto.bodyBase64);
     const stored = await storage.put({
       purpose: EvidencePurpose.retailer_proposal_aadhaar,
       contentType: input.aadhaarPhoto.contentType,
-      body: decodePhoto(input.aadhaarPhoto.bodyBase64),
+      body: frontPhotoBody,
       checksum: input.aadhaarPhoto.checksum,
     });
+    let backPhotoBody: Buffer | null = null;
     let storedBack: any = null;
     if (input.aadhaarPhotoBack) {
+      backPhotoBody = decodePhoto(input.aadhaarPhotoBack.bodyBase64);
       storedBack = await storage.put({
         purpose: EvidencePurpose.retailer_proposal_aadhaar,
         contentType: input.aadhaarPhotoBack.contentType,
-        body: decodePhoto(input.aadhaarPhotoBack.bodyBase64),
+        body: backPhotoBody,
         checksum: input.aadhaarPhotoBack.checksum,
       });
     }
@@ -267,6 +277,7 @@ export class RetailerProposalService {
             checksum: stored.checksum,
             contentType: stored.contentType,
             sizeBytes: stored.sizeBytes,
+            contentBytes: frontPhotoBody,
             purpose: EvidencePurpose.retailer_proposal_aadhaar,
             createdByStaffId: input.submittedByStaffId,
           },
@@ -279,6 +290,7 @@ export class RetailerProposalService {
               checksum: storedBack.checksum,
               contentType: storedBack.contentType,
               sizeBytes: storedBack.sizeBytes,
+              contentBytes: backPhotoBody,
               purpose: EvidencePurpose.retailer_proposal_aadhaar,
               createdByStaffId: input.submittedByStaffId,
             },
@@ -329,7 +341,9 @@ export class RetailerProposalService {
       where: { submittedByStaffId: salespersonId },
       include: {
         proposedTier: { select: { id: true, name: true } },
-        aadhaarPhotoAsset: true,
+        aadhaarPhotoAsset: {
+          select: { id: true, objectKey: true, contentType: true, sizeBytes: true, deletedAt: true },
+        },
         orderIntents: {
           orderBy: { punchedAt: "desc" },
           include: {
@@ -649,7 +663,9 @@ export class RetailerProposalService {
         submittedBy: { select: { id: true, name: true } },
         reviewedBy: { select: { id: true, name: true } },
         proposedTier: { select: { id: true, name: true } },
-        aadhaarPhotoAsset: true,
+        aadhaarPhotoAsset: {
+          select: { id: true, objectKey: true, contentType: true, sizeBytes: true, deletedAt: true },
+        },
         orderIntents: {
           select: {
             id: true,
@@ -674,33 +690,97 @@ export class RetailerProposalService {
       orderBy: [{ status: "asc" }, { submittedAt: "desc" }],
       take: 200,
     });
+
+    const backAssetIdByProposal = new Map<string, string>();
+    for (const proposal of proposals) {
+      const match = proposal.notes?.match(/\[AADHAAR_BACK_ASSET_ID:([a-zA-Z0-9_-]+)\]/);
+      if (match?.[1]) backAssetIdByProposal.set(proposal.id, match[1]);
+    }
+
+    const backAssetIds = [...new Set(backAssetIdByProposal.values())];
+    const backAssetsById = new Map<string, any>();
+    if (backAssetIds.length > 0 && this.prisma.evidenceAsset?.findMany) {
+      try {
+        const backAssets = await this.prisma.evidenceAsset.findMany({
+          where: { id: { in: backAssetIds } },
+          select: { id: true, objectKey: true, contentType: true, sizeBytes: true, deletedAt: true },
+        });
+        for (const a of backAssets) backAssetsById.set(a.id, a);
+      } catch {
+        // Fallback to single lookup per proposal if mock does not implement findMany
+      }
+    }
+
+    const candidateAssetIds: string[] = [];
+    for (const proposal of proposals) {
+      if (proposal.aadhaarPhotoAsset && !proposal.aadhaarPhotoAsset.deletedAt && proposal.aadhaarPhotoAsset.id) {
+        candidateAssetIds.push(proposal.aadhaarPhotoAsset.id);
+      }
+      const backId = backAssetIdByProposal.get(proposal.id);
+      if (backId) candidateAssetIds.push(backId);
+    }
+
+    const dbBackedAssetIds = new Set<string>();
+    if (candidateAssetIds.length > 0 && this.prisma.evidenceAsset?.findMany) {
+      try {
+        const backedRows = await this.prisma.evidenceAsset.findMany({
+          where: {
+            id: { in: [...new Set(candidateAssetIds)] },
+            deletedAt: null,
+            contentBytes: { not: null },
+          },
+          select: { id: true },
+        });
+        for (const row of backedRows) {
+          if (row?.id) dbBackedAssetIds.add(row.id);
+        }
+      } catch {
+        // Ignore if mock prisma lacks contentBytes filtering
+      }
+    }
+
+    const resolvePhotoUrl = async (proposalId: string, side: "front" | "back", asset: any): Promise<string | null> => {
+      if (!asset || asset.deletedAt) return null;
+      const proxyPath = `/admin/retailer-proposals/${proposalId}/aadhaar-photo/${side}`;
+      try {
+        const url = await this.objectStorage().signedReadUrl(asset.objectKey, 300);
+        if (url && !url.startsWith("local-storage://")) {
+          return url;
+        }
+        // Browsers cannot load local-storage:// URIs directly; serve via authenticated Admin HTTP endpoint
+        return proxyPath;
+      } catch {
+        // Storage read failed (e.g. ephemeral disk wiped on restart): fall back to durable DB contentBytes if present
+        if (asset.id && dbBackedAssetIds.has(asset.id)) {
+          return proxyPath;
+        }
+        return null;
+      }
+    };
+
     return Promise.all(
       proposals.map(async (proposal: any) => {
-        let photoUrl: string | null = null;
-        if (proposal.aadhaarPhotoAsset && !proposal.aadhaarPhotoAsset.deletedAt) {
-          // A storage outage must not turn the whole review queue into a 500.
-          // The proposal remains reviewable with masked identity data and an
-          // explicit unavailable-photo state; the object is never made public.
-          try {
-            photoUrl = await this.objectStorage().signedReadUrl(proposal.aadhaarPhotoAsset.objectKey, 300);
-          } catch {
-            photoUrl = null;
-          }
-        }
-        let photoBackUrl: string | null = null;
-        const match = proposal.notes?.match(/\[AADHAAR_BACK_ASSET_ID:([a-zA-Z0-9_-]+)\]/);
-        if (match && match[1]) {
-          try {
-            const backAsset = await this.prisma.evidenceAsset.findUnique({ where: { id: match[1] } });
-            if (backAsset && !backAsset.deletedAt) {
-              photoBackUrl = await this.objectStorage().signedReadUrl(backAsset.objectKey, 300);
+        const photoUrl = await resolvePhotoUrl(proposal.id, "front", proposal.aadhaarPhotoAsset);
+
+        let backAsset: any = null;
+        const backAssetId = backAssetIdByProposal.get(proposal.id);
+        if (backAssetId) {
+          backAsset = backAssetsById.get(backAssetId) ?? null;
+          if (!backAsset && this.prisma.evidenceAsset?.findUnique) {
+            try {
+              backAsset = await this.prisma.evidenceAsset.findUnique({
+                where: { id: backAssetId },
+                select: { id: true, objectKey: true, contentType: true, sizeBytes: true, deletedAt: true },
+              });
+            } catch {
+              backAsset = null;
             }
-          } catch {
-            photoBackUrl = null;
           }
         }
+        const photoBackUrl = await resolvePhotoUrl(proposal.id, "back", backAsset);
+
         return {
-          ...publicProposal(proposal, photoUrl, photoBackUrl),
+          ...publicProposal(proposal, photoUrl, photoBackUrl, backAsset),
           orderIntents: (proposal.orderIntents ?? []).map((intent: any) => ({
             ...attributedOrderIntent(proposal, intent),
             items: intent.items ?? [],
@@ -713,6 +793,68 @@ export class RetailerProposalService {
         };
       })
     );
+  }
+
+  /**
+   * Streams protected Aadhaar image bytes (front or back) for authorized reviewers.
+   * Uses durable Postgres contentBytes first when present, falling back to objectStorage.
+   */
+  async getAadhaarPhoto(input: {
+    proposalId: string;
+    side: "front" | "back";
+    scopeStaffIds?: string[] | null;
+  }): Promise<{ contentType: string; buffer: Buffer }> {
+    const proposal = await this.prisma.retailerProposal.findUnique({
+      where: { id: input.proposalId },
+      select: {
+        id: true,
+        submittedByStaffId: true,
+        aadhaarPhotoAssetId: true,
+        notes: true,
+      },
+    });
+    if (!proposal) throw new ProposalError("proposal_not_found", 404);
+    if (!isWithinScope(proposal.submittedByStaffId, input.scopeStaffIds)) {
+      throw new ProposalError("outside_reporting_scope", 403);
+    }
+
+    let assetId: string | null = null;
+    if (input.side === "front") {
+      assetId = proposal.aadhaarPhotoAssetId ?? null;
+    } else {
+      const match = proposal.notes?.match(/\[AADHAAR_BACK_ASSET_ID:([a-zA-Z0-9_-]+)\]/);
+      assetId = match?.[1] ?? null;
+    }
+    if (!assetId) throw new ProposalError("aadhaar_photo_not_found", 404);
+
+    const asset = await this.prisma.evidenceAsset.findUnique({
+      where: { id: assetId },
+      select: {
+        id: true,
+        objectKey: true,
+        contentType: true,
+        contentBytes: true,
+        deletedAt: true,
+      },
+    });
+    if (!asset || asset.deletedAt) throw new ProposalError("aadhaar_photo_not_found", 404);
+
+    if (asset.contentBytes) {
+      return {
+        contentType: asset.contentType || "image/jpeg",
+        buffer: Buffer.isBuffer(asset.contentBytes) ? asset.contentBytes : Buffer.from(asset.contentBytes),
+      };
+    }
+
+    try {
+      const buffer = await this.objectStorage().read(asset.objectKey);
+      return {
+        contentType: asset.contentType || "image/jpeg",
+        buffer,
+      };
+    } catch {
+      throw new ProposalError("aadhaar_photo_not_found", 404);
+    }
   }
 
   async withdraw(input: { proposalId: string; salespersonId: string }) {

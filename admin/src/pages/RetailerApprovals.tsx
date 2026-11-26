@@ -5,6 +5,123 @@ import { explain } from "../errorCopy";
 
 const TABS = ["pending", "approved", "rejected"] as const;
 
+type AadhaarPhotoMeta = {
+  available?: boolean;
+  signedUrl?: string | null;
+  contentType?: string;
+  sizeBytes?: number;
+} | null | undefined;
+
+function AadhaarPhotoPreview({
+  label,
+  alt,
+  photo,
+  onZoom,
+}: {
+  label: string;
+  alt: string;
+  photo: AadhaarPhotoMeta;
+  onZoom: (src: string, title: string) => void;
+}) {
+  const rawUrl = photo?.signedUrl ?? null;
+  const isDirect = Boolean(
+    rawUrl && /^(https?:|data:|blob:)/i.test(rawUrl)
+  );
+  const isApiProxy = Boolean(rawUrl && rawUrl.startsWith("/"));
+
+  const [resolvedSrc, setResolvedSrc] = useState<string | null>(isDirect ? rawUrl : null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+    if (!rawUrl) {
+      setResolvedSrc(null);
+      return;
+    }
+    if (isDirect) {
+      setResolvedSrc(rawUrl);
+      return;
+    }
+    if (!isApiProxy || typeof api.retailerProposalPhoto !== "function") {
+      // Never pass unsupported schemes like local-storage:// to <img>
+      setResolvedSrc(null);
+      return;
+    }
+
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    api
+      .retailerProposalPhoto(rawUrl)
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setResolvedSrc(objectUrl);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setResolvedSrc(null);
+          setFailed(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [rawUrl, isDirect, isApiProxy]);
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-muted)", marginBottom: 4 }}>
+        {label}
+      </div>
+      {resolvedSrc && !failed ? (
+        <button
+          type="button"
+          onClick={() => onZoom(resolvedSrc, alt)}
+          title="Click to enlarge Aadhaar photo"
+          style={{
+            padding: 0,
+            border: "1px solid var(--border)",
+            borderRadius: 6,
+            background: "#fff",
+            cursor: "zoom-in",
+            overflow: "hidden",
+            display: "block",
+          }}
+        >
+          <img
+            src={resolvedSrc}
+            alt={alt}
+            onError={() => setFailed(true)}
+            style={{
+              display: "block",
+              maxWidth: 200,
+              maxHeight: 130,
+              objectFit: "contain",
+            }}
+          />
+        </button>
+      ) : (
+        <div
+          className="small muted"
+          style={{
+            padding: "10px 12px",
+            border: "1px dashed var(--border)",
+            borderRadius: 6,
+            maxWidth: 220,
+            background: "#f8fafc",
+          }}
+        >
+          {photo && (photo.available === false || failed || rawUrl?.startsWith("local-storage://"))
+            ? "Photo file not available on server (earlier upload cleared on restart)"
+            : "Photo unavailable"}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const STATUS_PILL: Record<string, string> = {
   pending: "placed",
   approved: "confirmed",
@@ -35,6 +152,7 @@ export default function RetailerApprovals() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [showTutorial, setShowTutorial] = useState<boolean>(true);
   const [batchBusy, setBatchBusy] = useState<boolean>(false);
+  const [lightbox, setLightbox] = useState<{ src: string; title: string } | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -644,46 +762,19 @@ export default function RetailerApprovals() {
                 Full Aadhaar is encrypted and is never returned to this page.
               </div>
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 10 }}>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-muted)", marginBottom: 4 }}>
-                    FRONT SIDE
-                  </div>
-                  {selectedProposal.aadhaarPhoto?.signedUrl ? (
-                    <img
-                      src={selectedProposal.aadhaarPhoto.signedUrl}
-                      alt="Aadhaar Front Side Preview"
-                      style={{
-                        display: "block",
-                        maxWidth: 200,
-                        maxHeight: 130,
-                        objectFit: "contain",
-                        border: "1px solid var(--border)",
-                        borderRadius: 6,
-                      }}
-                    />
-                  ) : (
-                    <div className="small muted">Front photo unavailable</div>
-                  )}
-                </div>
-
-                {selectedProposal.aadhaarPhotoBack?.signedUrl ? (
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-muted)", marginBottom: 4 }}>
-                      BACK SIDE
-                    </div>
-                    <img
-                      src={selectedProposal.aadhaarPhotoBack.signedUrl}
-                      alt="Aadhaar Back Side Preview"
-                      style={{
-                        display: "block",
-                        maxWidth: 200,
-                        maxHeight: 130,
-                        objectFit: "contain",
-                        border: "1px solid var(--border)",
-                        borderRadius: 6,
-                      }}
-                    />
-                  </div>
+                <AadhaarPhotoPreview
+                  label="FRONT SIDE"
+                  alt="Aadhaar Front Side Preview"
+                  photo={selectedProposal.aadhaarPhoto}
+                  onZoom={(src, title) => setLightbox({ src, title })}
+                />
+                {selectedProposal.aadhaarPhotoBack ? (
+                  <AadhaarPhotoPreview
+                    label="BACK SIDE"
+                    alt="Aadhaar Back Side Preview"
+                    photo={selectedProposal.aadhaarPhotoBack}
+                    onZoom={(src, title) => setLightbox({ src, title })}
+                  />
                 ) : null}
               </div>
             </div>
@@ -746,6 +837,51 @@ export default function RetailerApprovals() {
               <div>{selectedProposal.notes}</div>
             </div>
           ) : null}
+        </div>
+      ) : null}
+
+      {lightbox ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={lightbox.title}
+          onClick={() => setLightbox(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.78)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+            zIndex: 2000,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              borderRadius: 10,
+              padding: 16,
+              maxWidth: "90vw",
+              maxHeight: "90vh",
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
+              <strong>{lightbox.title}</strong>
+              <button type="button" className="secondary" onClick={() => setLightbox(null)}>
+                Close
+              </button>
+            </div>
+            <img
+              src={lightbox.src}
+              alt={lightbox.title}
+              style={{ maxWidth: "82vw", maxHeight: "76vh", objectFit: "contain", borderRadius: 6 }}
+            />
+          </div>
         </div>
       ) : null}
     </div>

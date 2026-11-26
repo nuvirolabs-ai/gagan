@@ -33,6 +33,9 @@ function fakePrisma(overrides: Record<string, any> = {}) {
       findFirst: vi.fn().mockResolvedValue(null),
       updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
+    order: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
     evidenceAsset: {
       create: vi.fn().mockImplementation(async ({ data }: any) => ({ id: "asset-1", ...data })),
     },
@@ -599,6 +602,56 @@ describe("approving a proposal", () => {
       actorStaffId: "manager-1",
       action: "retailer_proposal.approved",
     });
+  });
+
+  it("automatically converts punched order intents into official orders upon approval", async () => {
+    const prisma = fakePrisma();
+    prisma.retailerProposal.findUnique.mockResolvedValue(pending);
+    prisma.retailer.create.mockResolvedValue({ id: "retailer-9" });
+    prisma.retailerProposalOrderIntent.findMany.mockResolvedValue([
+      {
+        id: "intent-1",
+        proposalId: "proposal-1",
+        items: [{ variantId: "sku-1", qty: 2 }],
+      },
+    ]);
+    prisma.retailerProposalOrderIntent.updateMany.mockResolvedValue({ count: 1 });
+    const mockCreateOrder = vi.fn().mockResolvedValue({
+      ok: true,
+      order: { id: "order-99", orderNo: 99, status: "confirmed" },
+      decision: { result: "allowed", reasons: [] },
+    });
+    const mockQuote = vi.fn().mockResolvedValue({ id: "quote-1", revision: 1 });
+
+    const service = new RetailerProposalService(
+      prisma,
+      testStorage as any,
+      mockCreateOrder as any,
+      mockQuote as any
+    );
+    const result = await service.approve({
+      proposalId: "proposal-1",
+      reviewerStaffId: "manager-1",
+    });
+
+    expect(mockQuote).toHaveBeenCalledWith("retailer-9", [{ variantId: "sku-1", qty: 2 }]);
+    expect(mockCreateOrder).toHaveBeenCalledWith(
+      "retailer-9",
+      [{ variantId: "sku-1", qty: 2 }],
+      "rep",
+      "rep-1",
+      "staff-1",
+      "retailer-proposal-intent:intent-1",
+      { quoteId: "quote-1", revision: 1 }
+    );
+    expect(prisma.retailerProposalOrderIntent.updateMany).toHaveBeenCalledWith({
+      where: { id: "intent-1", convertedOrderId: null },
+      data: expect.objectContaining({
+        convertedOrderId: "order-99",
+        conversionCommercialQuoteId: "quote-1",
+      }),
+    });
+    expect(result.convertedOrders).toHaveLength(1);
   });
 });
 

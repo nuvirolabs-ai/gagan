@@ -163,10 +163,18 @@ function attributedOrderIntent(proposal: any, intent: any) {
  * shortcuts the KYC gate that dispatch and credit depend on.
  */
 export class RetailerProposalService {
+  private pendingBackfillPromise: Promise<Array<{
+    proposalId: string;
+    retailerId: string;
+    count: number;
+    orderIds: string[];
+  }>> | null = null;
+
   constructor(
     private readonly prisma: Db = defaultPrisma,
     private readonly storage?: ObjectStorage,
     private readonly createOfficialOrder: typeof createOrderForRetailer = createOrderForRetailer,
+    private readonly createCommercialQuote: typeof quoteFor = quoteFor,
   ) {}
 
   private objectStorage() {
@@ -764,7 +772,7 @@ export class RetailerProposalService {
     });
     if (duplicate) throw new ProposalError("retailer_already_exists", 409);
 
-    return this.prisma.$transaction(async (tx: Db) => {
+    const result = await this.prisma.$transaction(async (tx: Db) => {
       // Claim the decision before creating its customer. A losing transaction
       // cannot leave an approved customer behind a rejected/withdrawn proposal.
       await decidePending(tx, proposal.id, { status: "approved" });
@@ -844,19 +852,18 @@ export class RetailerProposalService {
       return { proposal: updated, retailer };
     });
 
-    try {
-      await this.autoConvertPendingIntents({
-        proposalId: proposal.id,
-        retailerId: result.retailer.id,
-        salespersonStaffId: proposal.submittedByStaffId,
-        salesRepId: proposal.submittedBy?.salesRepId ?? undefined,
-        actorStaffId: input.reviewerStaffId,
-      });
-    } catch (conversionErr) {
+    const convertedOrders = await this.autoConvertPendingIntents({
+      proposalId: proposal.id,
+      retailerId: result.retailer.id,
+      salespersonStaffId: proposal.submittedByStaffId,
+      salesRepId: proposal.submittedBy?.salesRepId ?? undefined,
+      actorStaffId: input.reviewerStaffId,
+    }).catch((conversionErr) => {
       console.error(`[RetailerProposalService] Auto-conversion failed for proposal ${proposal.id}:`, conversionErr);
-    }
+      return [] as any[];
+    });
 
-    return result;
+    return { ...result, convertedOrders };
   }
 
   /**
@@ -886,6 +893,7 @@ export class RetailerProposalService {
           },
         },
       },
+      orderBy: { punchedAt: "asc" },
     });
 
     if (!pendingIntents || !pendingIntents.length) return [];
@@ -908,15 +916,44 @@ export class RetailerProposalService {
       const items = normalizeProposalDemand(intent.items);
       if (!items || items.length === 0) continue;
 
+      const idempotencyKey = `retailer-proposal-intent:${intent.id}`;
       try {
+        if (this.prisma.order?.findUnique) {
+          const existingOrder = await this.prisma.order.findUnique({
+            where: {
+              retailerId_idempotencyKey: {
+                retailerId: params.retailerId,
+                idempotencyKey,
+              },
+            },
+          });
+          if (existingOrder?.id) {
+            if (this.prisma.retailerProposalOrderIntent?.updateMany) {
+              await this.prisma.retailerProposalOrderIntent.updateMany({
+                where: { id: intent.id, convertedOrderId: null },
+                data: {
+                  convertedOrderId: existingOrder.id,
+                  convertedAt: new Date(),
+                  conversionCommercialQuoteId: existingOrder.commercialQuoteId ?? null,
+                },
+              });
+            }
+            converted.push(existingOrder);
+            continue;
+          }
+        }
+
         let commercial: { quoteId: string; revision: number } | undefined;
         try {
-          const q = await quoteFor(params.retailerId, items);
+          const q = await this.createCommercialQuote(params.retailerId, items);
           if (q) {
             commercial = { quoteId: q.id, revision: q.revision };
           }
-        } catch {
-          // If quote generation failed (e.g. non-routed items without quote or in mock tests), continue
+        } catch (quoteErr) {
+          console.warn(
+            `[RetailerProposalService] Commercial quote failed during auto-conversion for intent ${intent.id}:`,
+            quoteErr
+          );
         }
 
         const orderResult = await this.createOfficialOrder(
@@ -925,7 +962,7 @@ export class RetailerProposalService {
           "rep",
           salesRepId ?? undefined,
           params.salespersonStaffId,
-          `retailer-proposal-intent:${intent.id}`,
+          idempotencyKey,
           commercial,
         );
 
@@ -975,40 +1012,67 @@ export class RetailerProposalService {
   /**
    * Backfill/sweep helper to auto-convert any approved proposals that have unconverted order intents.
    */
-  async convertAllPendingApprovedIntents() {
+  async convertAllPendingApprovedIntents(): Promise<Array<{
+    proposalId: string;
+    retailerId: string;
+    count: number;
+    orderIds: string[];
+  }>> {
+    if (this.pendingBackfillPromise) return this.pendingBackfillPromise;
     if (!this.prisma.retailerProposal?.findMany) return [];
 
-    const proposals = await this.prisma.retailerProposal.findMany({
-      where: {
-        status: "approved",
-        retailerId: { not: null },
-        orderIntents: {
-          some: { convertedOrderId: null },
+    this.pendingBackfillPromise = (async () => {
+      const proposals = await this.prisma.retailerProposal.findMany({
+        where: {
+          status: "approved",
+          retailerId: { not: null },
+          orderIntents: {
+            some: { convertedOrderId: null },
+          },
         },
-      },
-      include: {
-        submittedBy: { select: { salesRepId: true } },
-      },
-    });
+        include: {
+          submittedBy: { select: { salesRepId: true } },
+          orderIntents: { select: { id: true, convertedOrderId: true } },
+        },
+      });
 
-    const results = [];
-    for (const proposal of proposals) {
-      if (!proposal.retailerId) continue;
-      const orders = await this.autoConvertPendingIntents({
-        proposalId: proposal.id,
-        retailerId: proposal.retailerId,
-        salespersonStaffId: proposal.submittedByStaffId,
-        salesRepId: proposal.submittedBy?.salesRepId ?? undefined,
-        actorStaffId: proposal.reviewedByStaffId ?? proposal.submittedByStaffId,
-      });
-      results.push({
-        proposalId: proposal.id,
-        retailerId: proposal.retailerId,
-        count: orders.length,
-        orderIds: orders.map((o: any) => o.id),
-      });
+      const results: Array<{
+        proposalId: string;
+        retailerId: string;
+        count: number;
+        orderIds: string[];
+      }> = [];
+      for (const proposal of proposals) {
+        if (!proposal.retailerId) continue;
+        // Skip proposals that already have a converted intent (e.g. from earlier duplicate punches
+        // where only one intent was manually converted via the legacy flow).
+        const hasAlreadyConvertedIntent = (proposal.orderIntents ?? []).some(
+          (i: any) => Boolean(i.convertedOrderId)
+        );
+        if (hasAlreadyConvertedIntent) continue;
+
+        const orders = await this.autoConvertPendingIntents({
+          proposalId: proposal.id,
+          retailerId: proposal.retailerId,
+          salespersonStaffId: proposal.submittedByStaffId,
+          salesRepId: proposal.submittedBy?.salesRepId ?? undefined,
+          actorStaffId: proposal.reviewedByStaffId ?? proposal.submittedByStaffId,
+        });
+        results.push({
+          proposalId: proposal.id,
+          retailerId: proposal.retailerId,
+          count: orders.length,
+          orderIds: orders.map((o: any) => String(o.id)),
+        });
+      }
+      return results;
+    })();
+
+    try {
+      return await this.pendingBackfillPromise;
+    } finally {
+      this.pendingBackfillPromise = null;
     }
-    return results;
   }
 
   async reject(input: {

@@ -106,8 +106,13 @@ export default function RetailerApprovals() {
 
   const approve = async (id: string) => {
     try {
-      await api.approveRetailerProposal(id, tierId || undefined);
-      setMessage("Store added to the customer master. It starts at pending KYC.");
+      const res = await api.approveRetailerProposal(id, tierId || undefined);
+      const convertedCount = Array.isArray(res?.convertedOrders) ? res.convertedOrders.length : 0;
+      setMessage(
+        convertedCount > 0
+          ? `Store added to the customer master. It starts at pending KYC, and ${convertedCount} punched order${convertedCount === 1 ? "" : "s"} moved to Warehouse Orders.`
+          : "Store added to the customer master. It starts at pending KYC."
+      );
       setError(null);
       await load();
     } catch (err) {
@@ -723,6 +728,11 @@ export default function RetailerApprovals() {
                       {intent.items
                         .map((i: any) => `${i.qty} case${i.qty === 1 ? "" : "s"}${i.productName ? ` · ${i.productName}` : ` (SKU: ${i.variantId})`}`)
                         .join(", ")}
+                    </div>
+                  ) : null}
+                  {intent.convertedOrder ? (
+                    <div style={{ marginTop: 4, color: "#15803d", fontWeight: 600 }}>
+                      Converted to Warehouse Order #GGN-{String(intent.convertedOrder.orderNo).padStart(8, "0")}
                     </div>
                   ) : null}
                 </div>

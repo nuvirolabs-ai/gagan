@@ -317,12 +317,14 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
       stateHi?: string;
       customLocationUsed?: boolean;
       references: Array<{
-        referencedRetailerId?: string;
-        referencedShopName: string;
-        referencedPhone?: string;
-        referencedCity?: string;
-        referencedAddress?: string;
-        notes?: string;
+        existingRetailerId?: string | null;
+        retailerName: string;
+        ownerName?: string | null;
+        phone?: string | null;
+        shopAddress?: string | null;
+        city: string;
+        isExistingCustomer?: boolean;
+        notes?: string | null;
       }>;
       latitude?: number;
       longitude?: number;

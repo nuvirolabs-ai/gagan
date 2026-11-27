@@ -1131,9 +1131,9 @@ export default function Retailers() {
                         <ul style={{ margin: 0, paddingLeft: 18 }}>
                           {fullProfileData.retailer.proposal.references.map((ref: any, idx: number) => (
                             <li key={ref.id ?? idx}>
-                              <strong>{ref.referencedShopName}</strong>
-                              {ref.referencedPhone ? ` · ${ref.referencedPhone}` : ""}
-                              {ref.referencedCity ? ` · ${ref.referencedCity}` : ""}
+                              <strong>{ref.existingRetailer?.name || ref.retailerName}</strong>
+                              {(ref.existingRetailer?.phone || ref.phone) ? ` · ${ref.existingRetailer?.phone || ref.phone}` : ""}
+                              {ref.city ? ` · ${ref.city}` : ""}
                               {ref.isExistingCustomer ? " (DB Customer)" : " (Market Ref)"}
                             </li>
                           ))}

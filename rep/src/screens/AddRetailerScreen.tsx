@@ -102,11 +102,12 @@ const STATUS_TONE: Record<string, { backgroundColor: string; color: string }> = 
 };
 
 type ReferenceDraft = {
-  referencedRetailerId?: string;
-  referencedShopName: string;
-  referencedPhone: string;
-  referencedCity: string;
-  referencedAddress: string;
+  existingRetailerId?: string;
+  retailerName: string;
+  ownerName: string;
+  phone: string;
+  city: string;
+  shopAddress: string;
   notes: string;
   isManualFallback: boolean;
 };
@@ -153,10 +154,11 @@ type FieldKey = keyof Draft | "aadhaarNumber" | "aadhaarPhoto" | "aadhaarPhotoBa
 type Photo = { uri: string; contentType: string; name?: string; size?: number; base64?: string };
 
 const emptyReference = (): ReferenceDraft => ({
-  referencedShopName: "",
-  referencedPhone: "",
-  referencedCity: "",
-  referencedAddress: "",
+  retailerName: "",
+  ownerName: "",
+  phone: "",
+  city: "",
+  shopAddress: "",
   notes: "",
   isManualFallback: false,
 });
@@ -202,11 +204,11 @@ const EMPTY_DRAFT: Draft = {
 type CityRetailerCandidate = {
   id: string;
   name: string;
+  ownerName?: string | null;
   phone?: string;
   deliveryCity?: string | null;
   shopAddress?: string | null;
-  grade?: string | null;
-  buyerCategory?: string | null;
+  tehsil?: string | null;
 };
 
 type FormMetadata = {
@@ -422,20 +424,22 @@ export default function AddRetailerScreen({ navigation }: any) {
     repApi
       .lookupRetailerPinCode(cleanPin)
       .then((res: any) => {
-        if (!res?.found) {
+        const loc = res?.location ?? res;
+        if (!loc || !loc.state) {
           setPinNotice("PIN details not found automatically — select State/District below.");
           return;
         }
+        const firstCity = Array.isArray(loc.cities) ? loc.cities[0] : loc.city;
         setForm((cur) => ({
           ...cur,
-          state: res.state || cur.state,
-          district: res.district || cur.district,
-          tehsil: res.tehsil || cur.tehsil,
-          deliveryCity: cur.deliveryCity || res.city || "",
+          state: loc.state || cur.state,
+          district: loc.district || cur.district,
+          tehsil: loc.tehsil || cur.tehsil,
+          deliveryCity: cur.deliveryCity || firstCity || "",
           customLocationUsed: false,
         }));
         setPinNotice(
-          `PIN ${cleanPin} matched: ${[res.tehsil, res.district, res.state].filter(Boolean).join(", ")}`
+          `PIN ${cleanPin} matched: ${[loc.tehsil, loc.district, loc.state].filter(Boolean).join(", ")}`
         );
       })
       .catch(() => {
@@ -457,7 +461,7 @@ export default function AddRetailerScreen({ navigation }: any) {
       const list: CityRetailerCandidate[] = Array.isArray(res?.retailers) ? res.retailers : [];
       if (!query) {
         setCityRetailers(list);
-        setCityRetailerCount(Number(res?.totalInCity ?? list.length));
+        setCityRetailerCount(Number(res?.cityRetailerCount ?? res?.totalInCity ?? list.length));
       } else {
         setRefPickerResults(list);
       }
@@ -509,7 +513,7 @@ export default function AddRetailerScreen({ navigation }: any) {
           district: form.district,
           state: form.state,
         });
-        const hi = res?.hindi ?? {};
+        const hi = res?.hindi ?? res ?? {};
         setForm((cur) => ({
           ...cur,
           businessNameHi: forceOverwrite || !cur.businessNameHi.trim() ? hi.businessNameHi ?? cur.businessNameHi : cur.businessNameHi,
@@ -706,16 +710,16 @@ export default function AddRetailerScreen({ navigation }: any) {
       }
     }
     if (candidateStep === 3) {
-      const filledRefs = form.references.filter((r) => r.referencedShopName.trim().length >= 2);
+      const filledRefs = form.references.filter((r) => r.retailerName.trim().length >= 2);
       if (filledRefs.length < 3) {
         issues.references = `At least 3 existing retailer references in ${form.deliveryCity || "this city"} are required (${filledRefs.length}/3 added).`;
       } else {
-        const dbIds = filledRefs.map((r) => r.referencedRetailerId).filter(Boolean);
+        const dbIds = filledRefs.map((r) => r.existingRetailerId).filter(Boolean);
         if (new Set(dbIds).size !== dbIds.length) {
           issues.references = "Select distinct retailers — the same store cannot be listed twice.";
         }
         const badManual = filledRefs.find(
-          (r) => !r.referencedRetailerId && !mobileIsValid(r.referencedPhone)
+          (r) => !r.existingRetailerId && !mobileIsValid(r.phone)
         );
         if (badManual) {
           issues.references = "Enter a valid 10-digit mobile number for any manual market reference.";
@@ -773,15 +777,15 @@ export default function AddRetailerScreen({ navigation }: any) {
       const digits = normalizePhoneDigits(form.phone);
 
       const filledReferences = form.references
-        .filter((r) => r.referencedShopName.trim().length >= 2)
+        .filter((r) => r.retailerName.trim().length >= 2)
         .map((r) => ({
-          referencedRetailerId: r.referencedRetailerId || undefined,
-          referencedShopName: r.referencedShopName.trim(),
-          referencedPhone: r.referencedPhone.trim()
-            ? normalizePhoneDigits(r.referencedPhone)
-            : undefined,
-          referencedCity: r.referencedCity.trim() || form.deliveryCity.trim(),
-          referencedAddress: r.referencedAddress.trim() || undefined,
+          existingRetailerId: r.existingRetailerId || undefined,
+          retailerName: r.retailerName.trim(),
+          ownerName: r.ownerName.trim() || undefined,
+          phone: r.phone.trim() ? normalizePhoneDigits(r.phone) : undefined,
+          city: r.city.trim() || form.deliveryCity.trim(),
+          shopAddress: r.shopAddress.trim() || undefined,
+          isExistingCustomer: Boolean(r.existingRetailerId),
           notes: r.notes.trim() || undefined,
         }));
 
@@ -876,17 +880,32 @@ export default function AddRetailerScreen({ navigation }: any) {
         }
       }
       const messageMap: Record<string, string> = {
+        retailer_already_exists: "A store is already registered with this mobile number.",
         retailer_phone_already_registered: "A store is already registered with this mobile number.",
         aadhaar_already_registered: "This Aadhaar number is already linked to an existing store.",
+        proposal_already_pending: "A pending review already exists for this store.",
         duplicate_pending_proposal: "A pending review already exists for this phone or Aadhaar.",
         aadhaar_photo_too_large: "Aadhaar photo exceeds the 5 MB size limit.",
         aadhaar_photo_type_not_allowed: "Use JPG, PNG, or WEBP photo for Aadhaar.",
+        aadhaar_photo_back_required: "Aadhaar Card Back photo is mandatory.",
         aadhaar_back_photo_required: "Aadhaar Card Back photo is mandatory.",
         references_minimum_three:
           err?.body?.message || "At least 3 same-city retailer references are mandatory.",
+        references_must_be_existing_city_retailers:
+          "Please select at least 3 existing retailers from this city.",
+        reference_duplicate: "Please select distinct retailers — do not repeat the same reference.",
         duplicate_reference: "Please select distinct retailers — do not repeat the same reference.",
+        reference_city_mismatch: "All references must belong to the same delivery city.",
+        reference_phone_invalid: "Each manual market reference requires a valid 10-digit mobile.",
+        hindi_fields_required:
+          "Hindi Party Name, Transporter, Address - 1, and City are required.",
         hindi_translation_required:
           "Hindi Party Name, Transporter, Address - 1, and City are required.",
+        tehsil_required: "Tehsil is required.",
+        district_required: "District is required.",
+        state_required: "State is required.",
+        grade_required: "Buyer grade is required.",
+        buyer_category_required: "Buyer category is required.",
         location_pin_tehsil_district_state_required:
           "PIN Code, Tehsil, District, and State are all required.",
         missing_required_fields:
@@ -935,7 +954,7 @@ export default function AddRetailerScreen({ navigation }: any) {
   const selectedRefIds = useMemo(
     () =>
       new Set(
-        form.references.map((r) => r.referencedRetailerId).filter((v): v is string => Boolean(v))
+        form.references.map((r) => r.existingRetailerId).filter((v): v is string => Boolean(v))
       ),
     [form.references]
   );
@@ -1190,7 +1209,7 @@ export default function AddRetailerScreen({ navigation }: any) {
     }
 
     if (step === 3) {
-      const filledCount = form.references.filter((r) => r.referencedShopName.trim().length >= 2).length;
+      const filledCount = form.references.filter((r) => r.retailerName.trim().length >= 2).length;
       const allowManualFallback = cityRetailerCount < 3;
       return (
         <View style={styles.section}>
@@ -1239,20 +1258,20 @@ export default function AddRetailerScreen({ navigation }: any) {
                 onPress={() => openReferencePicker(idx)}
               >
                 <Text
-                  style={ref.referencedShopName ? styles.pickerValue : styles.pickerPlaceholder}
+                  style={ref.retailerName ? styles.pickerValue : styles.pickerPlaceholder}
                   numberOfLines={1}
                 >
-                  {ref.referencedShopName
-                    ? `${ref.referencedShopName}${ref.referencedPhone ? ` · ${ref.referencedPhone}` : ""}`
+                  {ref.retailerName
+                    ? `${ref.retailerName}${ref.phone ? ` · ${ref.phone}` : ""}`
                     : `Select retailer in ${form.deliveryCity || "city"}`}
                 </Text>
                 <Ionicons name="search-outline" size={18} color={colors.primary} />
               </Pressable>
 
-              {ref.referencedRetailerId ? (
+              {ref.existingRetailerId ? (
                 <Text style={styles.fieldHint}>
-                  Linked DB Customer · {ref.referencedCity || form.deliveryCity}
-                  {ref.referencedAddress ? ` · ${ref.referencedAddress}` : ""}
+                  Linked DB Customer · {ref.city || form.deliveryCity}
+                  {ref.shopAddress ? ` · ${ref.shopAddress}` : ""}
                 </Text>
               ) : null}
 
@@ -1262,7 +1281,7 @@ export default function AddRetailerScreen({ navigation }: any) {
                     onPress={() =>
                       updateReferenceSlot(idx, {
                         isManualFallback: !ref.isManualFallback,
-                        referencedRetailerId: undefined,
+                        existingRetailerId: undefined,
                       })
                     }
                   >
@@ -1276,11 +1295,11 @@ export default function AddRetailerScreen({ navigation }: any) {
                     <View style={{ gap: 8, marginTop: 6 }}>
                       <TextInput
                         style={styles.input}
-                        value={ref.referencedShopName}
+                        value={ref.retailerName}
                         onChangeText={(v) =>
                           updateReferenceSlot(idx, {
-                            referencedShopName: v,
-                            referencedRetailerId: undefined,
+                            retailerName: v,
+                            existingRetailerId: undefined,
                           })
                         }
                         placeholder="Vouching shop / retailer name *"
@@ -1288,8 +1307,8 @@ export default function AddRetailerScreen({ navigation }: any) {
                       />
                       <TextInput
                         style={styles.input}
-                        value={ref.referencedPhone}
-                        onChangeText={(v) => updateReferenceSlot(idx, { referencedPhone: v })}
+                        value={ref.phone}
+                        onChangeText={(v) => updateReferenceSlot(idx, { phone: v })}
                         placeholder="10-digit mobile number *"
                         placeholderTextColor={colors.textTertiary}
                         keyboardType="phone-pad"
@@ -1436,7 +1455,7 @@ export default function AddRetailerScreen({ navigation }: any) {
           </Text>
           <Text style={styles.reviewLine}>
             References:{" "}
-            {form.references.filter((r) => r.referencedShopName.trim().length >= 2).length} same-city
+            {form.references.filter((r) => r.retailerName.trim().length >= 2).length} same-city
             stores attached
           </Text>
         </View>
@@ -1830,7 +1849,7 @@ export default function AddRetailerScreen({ navigation }: any) {
             {refPickerResults.map((candidate) => {
               const alreadyChosenElsewhere =
                 selectedRefIds.has(candidate.id) &&
-                form.references[refPickerIndex ?? -1]?.referencedRetailerId !== candidate.id;
+                form.references[refPickerIndex ?? -1]?.existingRetailerId !== candidate.id;
               return (
                 <Pressable
                   key={candidate.id}
@@ -1839,11 +1858,12 @@ export default function AddRetailerScreen({ navigation }: any) {
                   onPress={() => {
                     if (refPickerIndex === null) return;
                     updateReferenceSlot(refPickerIndex, {
-                      referencedRetailerId: candidate.id,
-                      referencedShopName: candidate.name,
-                      referencedPhone: candidate.phone ?? "",
-                      referencedCity: candidate.deliveryCity ?? form.deliveryCity,
-                      referencedAddress: candidate.shopAddress ?? "",
+                      existingRetailerId: candidate.id,
+                      retailerName: candidate.name,
+                      ownerName: candidate.ownerName ?? "",
+                      phone: candidate.phone ?? "",
+                      city: candidate.deliveryCity ?? form.deliveryCity,
+                      shopAddress: candidate.shopAddress ?? "",
                       isManualFallback: false,
                     });
                     setRefPickerIndex(null);

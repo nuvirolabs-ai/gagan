@@ -311,51 +311,7 @@ export default function CreditReviews() {
         {/* Exposure Metrics */}
         {(policyData?.exposure || policyData?.stats) && (() => {
           const exp = policyData.exposure || policyData.stats;
-          const verifyNewRetailer = async (
-    proposalId: string,
-    status: "pending" | "verified" | "flagged"
-  ) => {
-    setCreditVerifyBusy(true);
-    setCreditVerifyError(null);
-    setCreditVerifyNotice(null);
-    try {
-      const res = await api.verifyCreditNewRetailer(proposalId, {
-        status,
-        notes: creditVerifyNotes.trim() || undefined,
-      });
-      if (res?.proposal) {
-        setNewRetailerProposals((prev) =>
-          prev.map((p) => (p.id === proposalId ? { ...p, ...res.proposal } : p))
-        );
-      } else {
-        await load();
-      }
-      setCreditVerifyNotice(
-        status === "verified"
-          ? "Same-city retailer references verified for this new store."
-          : status === "flagged"
-          ? "New store references flagged for follow-up."
-          : "Verification status reset to pending."
-      );
-      setCreditVerifyNotes("");
-    } catch (err: any) {
-      setCreditVerifyError(explain(err));
-    } finally {
-      setCreditVerifyBusy(false);
-    }
-  };
-
-  const filteredNewRetailers = newRetailerProposals.filter((p) =>
-    newRetailerFilter === "all"
-      ? true
-      : (p.creditVerificationStatus || "pending") === newRetailerFilter
-  );
-  const selectedNewRetailer =
-    filteredNewRetailers.find((p) => p.id === selectedNewRetailerId) ??
-    filteredNewRetailers[0] ??
-    null;
-
-  return (
+          return (
             <div className="metrics" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 16 }}>
               <div className="metric card" style={{ padding: 12 }}>
                 <div className="metric-label" style={{ fontSize: 11 }}>Monitored Accounts</div>
@@ -397,51 +353,7 @@ export default function CreditReviews() {
       {(() => {
         const overridesList = policyData?.recentOverrides ?? policyData?.overrides ?? [];
         if (overridesList.length === 0) return null;
-        const verifyNewRetailer = async (
-    proposalId: string,
-    status: "pending" | "verified" | "flagged"
-  ) => {
-    setCreditVerifyBusy(true);
-    setCreditVerifyError(null);
-    setCreditVerifyNotice(null);
-    try {
-      const res = await api.verifyCreditNewRetailer(proposalId, {
-        status,
-        notes: creditVerifyNotes.trim() || undefined,
-      });
-      if (res?.proposal) {
-        setNewRetailerProposals((prev) =>
-          prev.map((p) => (p.id === proposalId ? { ...p, ...res.proposal } : p))
-        );
-      } else {
-        await load();
-      }
-      setCreditVerifyNotice(
-        status === "verified"
-          ? "Same-city retailer references verified for this new store."
-          : status === "flagged"
-          ? "New store references flagged for follow-up."
-          : "Verification status reset to pending."
-      );
-      setCreditVerifyNotes("");
-    } catch (err: any) {
-      setCreditVerifyError(explain(err));
-    } finally {
-      setCreditVerifyBusy(false);
-    }
-  };
-
-  const filteredNewRetailers = newRetailerProposals.filter((p) =>
-    newRetailerFilter === "all"
-      ? true
-      : (p.creditVerificationStatus || "pending") === newRetailerFilter
-  );
-  const selectedNewRetailer =
-    filteredNewRetailers.find((p) => p.id === selectedNewRetailerId) ??
-    filteredNewRetailers[0] ??
-    null;
-
-  return (
+        return (
           <section className="card" style={{ marginBottom: 20 }}>
             <h3 style={{ marginTop: 0 }}>Recent Credit Limit Overrides</h3>
             <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
@@ -458,51 +370,7 @@ export default function CreditReviews() {
               <tbody>
                 {overridesList.map((ov: any) => {
                   const isExpired = ov.expiresAt && new Date(ov.expiresAt) < new Date();
-                  const verifyNewRetailer = async (
-    proposalId: string,
-    status: "pending" | "verified" | "flagged"
-  ) => {
-    setCreditVerifyBusy(true);
-    setCreditVerifyError(null);
-    setCreditVerifyNotice(null);
-    try {
-      const res = await api.verifyCreditNewRetailer(proposalId, {
-        status,
-        notes: creditVerifyNotes.trim() || undefined,
-      });
-      if (res?.proposal) {
-        setNewRetailerProposals((prev) =>
-          prev.map((p) => (p.id === proposalId ? { ...p, ...res.proposal } : p))
-        );
-      } else {
-        await load();
-      }
-      setCreditVerifyNotice(
-        status === "verified"
-          ? "Same-city retailer references verified for this new store."
-          : status === "flagged"
-          ? "New store references flagged for follow-up."
-          : "Verification status reset to pending."
-      );
-      setCreditVerifyNotes("");
-    } catch (err: any) {
-      setCreditVerifyError(explain(err));
-    } finally {
-      setCreditVerifyBusy(false);
-    }
-  };
-
-  const filteredNewRetailers = newRetailerProposals.filter((p) =>
-    newRetailerFilter === "all"
-      ? true
-      : (p.creditVerificationStatus || "pending") === newRetailerFilter
-  );
-  const selectedNewRetailer =
-    filteredNewRetailers.find((p) => p.id === selectedNewRetailerId) ??
-    filteredNewRetailers[0] ??
-    null;
-
-  return (
+                  return (
                   <tr key={ov.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
                     <td style={{ padding: "8px 10px", fontWeight: 600 }}>
                       {ov.retailer?.name ?? "Retailer"}

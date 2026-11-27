@@ -105,6 +105,10 @@ const TOKEN_TRANSLATIONS: Record<string, string> = {
   sales: "सेल्स",
   self: "स्वयं",
   "self pickup": "स्वयं पिकअप",
+  mg: "एमजी",
+  ab: "एबी",
+  tt: "टीटी",
+  mp: "एमपी",
 };
 
 const CONSONANTS: Array<[string, string]> = [

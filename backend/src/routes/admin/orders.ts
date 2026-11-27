@@ -111,7 +111,7 @@ router.get("/orders", async (req, res) => {
         : undefined,
     include: orderInclude,
     orderBy: { createdAt: "desc" },
-    take: 200,
+    take: 1000,
   });
 
   const { attributed, warehouses } = await attributeOrdersWithWarehouses(orders);

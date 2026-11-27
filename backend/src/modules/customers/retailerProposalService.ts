@@ -994,18 +994,24 @@ export class RetailerProposalService {
       return { proposal: updated, retailer };
     });
 
+    const conversionErrors: string[] = [];
     const convertedOrders = await this.autoConvertPendingIntents({
       proposalId: proposal.id,
       retailerId: result.retailer.id,
       salespersonStaffId: proposal.submittedByStaffId,
       salesRepId: proposal.submittedBy?.salesRepId ?? undefined,
       actorStaffId: input.reviewerStaffId,
+      onError: (reason) => conversionErrors.push(reason),
     }).catch((conversionErr) => {
+      const reason = conversionErr instanceof Error ? conversionErr.message : String(conversionErr);
+      conversionErrors.push(reason);
       console.error(`[RetailerProposalService] Auto-conversion failed for proposal ${proposal.id}:`, conversionErr);
       return [] as any[];
     });
 
-    return { ...result, convertedOrders };
+    return conversionErrors.length > 0
+      ? { ...result, convertedOrders, conversionErrors }
+      : { ...result, convertedOrders };
   }
 
   /**
@@ -1019,6 +1025,7 @@ export class RetailerProposalService {
     salespersonStaffId: string;
     salesRepId?: string | null;
     actorStaffId?: string | null;
+    onError?: (reason: string) => void;
   }) {
     if (!this.prisma.retailerProposalOrderIntent?.findMany) return [];
 
@@ -1139,12 +1146,16 @@ export class RetailerProposalService {
           });
           converted.push(orderResult.order);
         } else {
+          const reason = String((orderResult as any)?.body?.error ?? "order_creation_failed");
+          params.onError?.(reason);
           console.error(
             `[RetailerProposalService] Auto-conversion order creation failed for intent ${intent.id}:`,
             (orderResult as any)?.body
           );
         }
       } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        params.onError?.(reason);
         console.error(`[RetailerProposalService] Error during auto-conversion for intent ${intent.id}:`, err);
       }
     }

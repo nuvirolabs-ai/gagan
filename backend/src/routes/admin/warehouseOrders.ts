@@ -316,7 +316,7 @@ router.get("/warehouse-orders", async (req, res) => {
       where: { status: statusFilter },
       select: warehouseOrderSelect,
       orderBy: { createdAt: "desc" },
-      take: 200,
+      take: 1000,
     }),
     prisma.warehouse.findMany({
       where: { isActive: true },

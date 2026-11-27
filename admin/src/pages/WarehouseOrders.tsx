@@ -427,13 +427,16 @@ export default function WarehouseOrders() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadedInvoiceName, setUploadedInvoiceName] = useState<string | null>(null);
   const inFlightRef = useRef(false);
+  const requestSeqRef = useRef(0);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date>(new Date());
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [rejecting, setRejecting] = useState(false);
 
   const load = useCallback(async (targetWarehouse = warehouseFilter, isSilent = false) => {
-    if (inFlightRef.current) return;
+    // Only skip overlapping background polls; explicit stage/warehouse changes must always apply.
+    if (isSilent && inFlightRef.current) return;
+    const reqId = ++requestSeqRef.current;
     inFlightRef.current = true;
     if (!isSilent) setLoading(true);
 
@@ -442,6 +445,8 @@ export default function WarehouseOrders() {
         filter === "all" ? Promise.resolve(null) : api.warehouseOrders(filter, targetWarehouse),
         api.warehouseOrders("all", targetWarehouse),
       ]);
+
+      if (reqId !== requestSeqRef.current) return;
 
       const nextAll = Array.isArray(allResult?.orders) ? (allResult.orders as WarehouseOrder[]) : [];
       const nextFiltered = filter === "all"
@@ -476,12 +481,14 @@ export default function WarehouseOrders() {
       setLastSyncedAt(new Date());
       setError(null);
     } catch (cause) {
-      if (!isSilent) {
+      if (reqId === requestSeqRef.current && !isSilent) {
         setError(cause instanceof Error ? cause.message : "Could not load warehouse orders");
       }
     } finally {
-      inFlightRef.current = false;
-      if (!isSilent) setLoading(false);
+      if (reqId === requestSeqRef.current) {
+        inFlightRef.current = false;
+        if (!isSilent) setLoading(false);
+      }
     }
   }, [filter, warehouseFilter]);
 

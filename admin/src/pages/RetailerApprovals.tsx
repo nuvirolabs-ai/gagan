@@ -225,13 +225,23 @@ export default function RetailerApprovals() {
   const approve = async (id: string) => {
     try {
       const res = await api.approveRetailerProposal(id, tierId || undefined);
-      const convertedCount = Array.isArray(res?.convertedOrders) ? res.convertedOrders.length : 0;
+      const convertedOrders = Array.isArray(res?.convertedOrders) ? res.convertedOrders : [];
+      const convertedCount = convertedOrders.length;
+      const orderRefs = convertedOrders
+        .map((o: any) => (o?.orderNo ? `#GGN-${String(o.orderNo).padStart(8, "0")}` : null))
+        .filter(Boolean)
+        .join(", ");
+      const conversionErrors = Array.isArray(res?.conversionErrors) ? res.conversionErrors : [];
       setMessage(
         convertedCount > 0
-          ? `Store added to the customer master. It starts at pending KYC, and ${convertedCount} punched order${convertedCount === 1 ? "" : "s"} moved to Warehouse Orders.`
+          ? `Store added to the customer master. It starts at pending KYC, and ${convertedCount} punched order${convertedCount === 1 ? "" : "s"}${orderRefs ? ` (${orderRefs})` : ""} moved to Warehouse Orders.`
           : "Store added to the customer master. It starts at pending KYC."
       );
-      setError(null);
+      setError(
+        conversionErrors.length > 0
+          ? `Store approved, but ${conversionErrors.length} punched order(s) failed to auto-convert (${conversionErrors.join("; ")}).`
+          : null
+      );
       await load();
     } catch (err) {
       setMessage(null);
@@ -270,14 +280,23 @@ export default function RetailerApprovals() {
     setError(null);
     setMessage(null);
     let count = 0;
+    let convertedCount = 0;
+    const batchErrors: string[] = [];
     try {
       for (const item of pendingList) {
-        await api.approveRetailerProposal(item.id, tierId || undefined);
+        const res = await api.approveRetailerProposal(item.id, tierId || undefined);
         count++;
+        if (Array.isArray(res?.convertedOrders)) convertedCount += res.convertedOrders.length;
+        if (Array.isArray(res?.conversionErrors) && res.conversionErrors.length > 0) {
+          batchErrors.push(`${item.businessName}: ${res.conversionErrors.join(", ")}`);
+        }
       }
       setMessage(
-        `Successfully approved all ${count} stores into the customer master. They start at pending KYC.`
+        `Successfully approved all ${count} stores into the customer master. They start at pending KYC${convertedCount > 0 ? `, and ${convertedCount} punched order${convertedCount === 1 ? "" : "s"} moved to Warehouse Orders` : ""}.`
       );
+      if (batchErrors.length > 0) {
+        setError(`Some punched orders failed to auto-convert: ${batchErrors.join(" | ")}`);
+      }
       await load();
     } catch (err) {
       setError(explain(err, `Approved ${count} stores before encountering an issue`));

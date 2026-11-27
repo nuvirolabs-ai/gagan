@@ -598,15 +598,14 @@ export default function CreditReviews() {
           <div className="muted small">No new retailer proposals match this filter.</div>
         ) : (
           <div style={{ overflowX: "auto" }}>
-            <table className="table">
+            <table className="table" style={{ fontSize: 12.5, width: "100%" }}>
               <thead>
                 <tr>
                   <th>Party / Hindi</th>
                   <th>Location</th>
                   <th>Grade &amp; Limit</th>
-                  <th>References</th>
-                  <th>Dispatch</th>
-                  <th>Credit Status</th>
+                  <th>Refs</th>
+                  <th>Status</th>
                   <th></th>
                 </tr>
               </thead>
@@ -651,23 +650,23 @@ export default function CreditReviews() {
                             color: refCount >= 3 ? "#166534" : "#92400e",
                           }}
                         >
-                          {refCount} ref{refCount === 1 ? "" : "s"}
+                          {refCount}
                         </span>
                       </td>
                       <td>
-                        <span className="pill">{p.status}</span>
-                      </td>
-                      <td>
-                        <span
-                          className="pill"
-                          style={{
-                            background:
-                              cStatus === "verified" ? "#dcfce7" : cStatus === "flagged" ? "#fee2e2" : "#fef3c7",
-                            color: cStatus === "verified" ? "#166534" : cStatus === "flagged" ? "#991b1b" : "#92400e",
-                          }}
-                        >
-                          {cStatus}
-                        </span>
+                        <div style={{ display: "grid", gap: 3 }}>
+                          <span
+                            className="pill"
+                            style={{
+                              background:
+                                cStatus === "verified" ? "#dcfce7" : cStatus === "flagged" ? "#fee2e2" : "#fef3c7",
+                              color: cStatus === "verified" ? "#166534" : cStatus === "flagged" ? "#991b1b" : "#92400e",
+                            }}
+                          >
+                            {cStatus}
+                          </span>
+                          <span className="small muted">dispatch: {p.status}</span>
+                        </div>
                       </td>
                       <td>
                         <button

@@ -190,7 +190,7 @@ export function BilingualProposalReview({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
             gap: 20,
             flex: "1 1 560px",
           }}
@@ -248,7 +248,14 @@ export function BilingualProposalReview({
       {/* Mirrored 2-column bilingual rows */}
       <div style={{ display: "grid", gap: 18, marginTop: 16 }}>
         {/* 1. BUSINESS */}
-        <div className="detail-grid" style={{ alignItems: "start" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+            gap: 20,
+            alignItems: "start",
+          }}
+        >
           <div>
             <div className="section-kicker">BUSINESS</div>
             <KV label="Group" value={proposal.groupName} />
@@ -271,8 +278,14 @@ export function BilingualProposalReview({
 
         {/* 2. ADDRESS & DELIVERY */}
         <div
-          className="detail-grid"
-          style={{ alignItems: "start", borderTop: "1px solid #f1f5f9", paddingTop: 14 }}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+            gap: 20,
+            alignItems: "start",
+            borderTop: "1px solid #f1f5f9",
+            paddingTop: 14,
+          }}
         >
           <div>
             <div className="section-kicker">ADDRESS &amp; DELIVERY</div>
@@ -321,8 +334,14 @@ export function BilingualProposalReview({
 
         {/* 3. COMMERCIAL */}
         <div
-          className="detail-grid"
-          style={{ alignItems: "start", borderTop: "1px solid #f1f5f9", paddingTop: 14 }}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+            gap: 20,
+            alignItems: "start",
+            borderTop: "1px solid #f1f5f9",
+            paddingTop: 14,
+          }}
         >
           <div>
             <div className="section-kicker">COMMERCIAL</div>
@@ -359,8 +378,14 @@ export function BilingualProposalReview({
 
         {/* 4. IDENTITY */}
         <div
-          className="detail-grid"
-          style={{ alignItems: "start", borderTop: "1px solid #f1f5f9", paddingTop: 14 }}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+            gap: 20,
+            alignItems: "start",
+            borderTop: "1px solid #f1f5f9",
+            paddingTop: 14,
+          }}
         >
           <div>
             <div className="section-kicker">IDENTITY</div>

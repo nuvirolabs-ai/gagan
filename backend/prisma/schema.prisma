@@ -403,15 +403,39 @@ model Retailer {
   commercialQuotes          CommercialQuote[]
   id                        String                     @id @default(uuid())
   name                      String
+  groupName                 String?
   ownerName                 String?
   shopAddress               String
+  addressLine2              String?
+  beatName                  String?
   pincode                   String?
+  tehsil                    String?
+  district                  String?
+  state                     String?
   /// Explicit destination city used by the Jain/Padam routing policy. This is
   /// never inferred from shopAddress; null means routing is not configured.
   deliveryCity              String?
   phone                     String                     @unique
+  telephone                 String?
+  transporter               String?
+  broker                    String?
+  shopDurationYears         Int?
   gstin                     String?
   pan                       String?
+  upiId                     String?
+  grade                     String?
+  buyerCategory             String?
+  buyerSubCategory          String?
+  remark                    String?
+  businessNameHi            String?
+  transporterHi             String?
+  shopAddressHi             String?
+  addressLine2Hi            String?
+  beatNameHi                String?
+  deliveryCityHi            String?
+  tehsilHi                  String?
+  districtHi                String?
+  stateHi                   String?
   status                    RetailerLifecycle          @default(pending_kyc)
   tierId                    String
   tier                      Tier                       @relation(fields: [tierId], references: [id])
@@ -452,6 +476,7 @@ model Retailer {
   beatTemplateStops         BeatTemplateStop[]
   customerActivities        CustomerActivity[]
   proposal                  RetailerProposal?
+  vouchedForProposals       RetailerProposalReference[] @relation("VouchingRetailer")
   fieldTasks                FieldTask[]
   fieldTaskEvidence         FieldTaskEvidence[]
   serviceIssues             ServiceIssue[]
@@ -622,6 +647,7 @@ model StaffUser {
   salesTargets                 SalesTarget[]                 @relation("SalespersonTargets")
   retailerProposalsSubmitted   RetailerProposal[]            @relation("RetailerProposalsSubmitted")
   retailerProposalsReviewed    RetailerProposal[]            @relation("RetailerProposalsReviewed")
+  creditVerifiedProposals      RetailerProposal[]            @relation("RetailerProposalCreditVerifiedBy")
   retailerProposalOrderIntents RetailerProposalOrderIntent[] @relation("RetailerProposalOrderIntentSubmitter")
   surveysCreated               Survey[]                      @relation("SurveyCreatedBy")
   surveyAssignments            SurveyAssignment[]            @relation("SurveyAssignedSalesperson")
@@ -2848,53 +2874,100 @@ enum RetailerProposalStatus {
 /// creates one canonical `Retailer` and links back to it. Nothing reads a
 /// proposal as if it were a customer.
 model RetailerProposal {
-  id                  String                        @id @default(uuid())
-  status              RetailerProposalStatus        @default(pending)
-  businessName        String
-  groupName           String?
-  ownerName           String?
-  phone               String
-  telephone           String?
-  transporter         String?
-  shopAddress         String
-  pinCode             String?
-  tehsil              String?
-  district            String?
-  state               String?
-  deliveryCity        String?
-  shopDurationYears   Int?
-  gstin               String?
-  paymentTerms        String?
-  upiId               String?
+  id                       String                        @id @default(uuid())
+  status                   RetailerProposalStatus        @default(pending)
+  businessName             String
+  groupName                String?
+  ownerName                String?
+  phone                    String
+  telephone                String?
+  transporter              String?
+  broker                   String?
+  shopAddress              String
+  addressLine2             String?
+  beatName                 String?
+  pinCode                  String?
+  tehsil                   String?
+  district                 String?
+  state                    String?
+  deliveryCity             String?
+  shopDurationYears        Int?
+  gstin                    String?
+  paymentTerms             String?
+  proposedCreditLimit      Decimal?                      @db.Decimal(12, 2)
+  grade                    String?
+  buyerCategory            String?
+  buyerSubCategory         String?
+  remark                   String?
+  upiId                    String?
+  businessNameHi           String?
+  transporterHi            String?
+  shopAddressHi            String?
+  addressLine2Hi           String?
+  beatNameHi               String?
+  deliveryCityHi           String?
+  tehsilHi                 String?
+  districtHi               String?
+  stateHi                  String?
+  hindiSnapshot            Json?
+  locationStandardized     Boolean                       @default(true)
+  locationNeedsReview      Boolean                       @default(false)
+  creditVerificationStatus String                        @default("pending")
+  creditVerifiedByStaffId  String?
+  creditVerifiedBy         StaffUser?                    @relation("RetailerProposalCreditVerifiedBy", fields: [creditVerifiedByStaffId], references: [id], onDelete: SetNull)
+  creditVerifiedAt         DateTime?
+  creditVerificationNotes  String?
   /// Encrypted with the application PII key. Never expose this field in an API response.
-  aadhaarEncrypted    String?
-  aadhaarLast4        String?
-  aadhaarPhotoAssetId String?                       @unique
-  aadhaarPhotoAsset   EvidenceAsset?                @relation("RetailerProposalAadhaar", fields: [aadhaarPhotoAssetId], references: [id], onDelete: SetNull)
+  aadhaarEncrypted         String?
+  aadhaarLast4             String?
+  aadhaarPhotoAssetId      String?                       @unique
+  aadhaarPhotoAsset        EvidenceAsset?                @relation("RetailerProposalAadhaar", fields: [aadhaarPhotoAssetId], references: [id], onDelete: SetNull)
   /// Captured at the storefront where the device could provide it.
-  latitude            Decimal?                      @db.Decimal(10, 7)
-  longitude           Decimal?                      @db.Decimal(10, 7)
-  accuracyMeters      Decimal?                      @db.Decimal(8, 2)
+  latitude                 Decimal?                      @db.Decimal(10, 7)
+  longitude                Decimal?                      @db.Decimal(10, 7)
+  accuracyMeters           Decimal?                      @db.Decimal(8, 2)
   /// Proposed classification. The reviewer decides the tier that is applied.
-  proposedTierId      String?
-  proposedTier        Tier?                         @relation(fields: [proposedTierId], references: [id], onDelete: SetNull)
-  notes               String?
-  submittedByStaffId  String
-  submittedBy         StaffUser                     @relation("RetailerProposalsSubmitted", fields: [submittedByStaffId], references: [id], onDelete: Restrict)
-  submittedAt         DateTime                      @default(now())
-  reviewedByStaffId   String?
-  reviewedBy          StaffUser?                    @relation("RetailerProposalsReviewed", fields: [reviewedByStaffId], references: [id], onDelete: Restrict)
-  reviewedAt          DateTime?
-  rejectionReason     String?
+  proposedTierId           String?
+  proposedTier             Tier?                         @relation(fields: [proposedTierId], references: [id], onDelete: SetNull)
+  notes                    String?
+  submittedByStaffId       String
+  submittedBy              StaffUser                     @relation("RetailerProposalsSubmitted", fields: [submittedByStaffId], references: [id], onDelete: Restrict)
+  submittedAt              DateTime                      @default(now())
+  reviewedByStaffId        String?
+  reviewedBy               StaffUser?                    @relation("RetailerProposalsReviewed", fields: [reviewedByStaffId], references: [id], onDelete: Restrict)
+  reviewedAt               DateTime?
+  rejectionReason          String?
   /// Set when approval created the customer.
-  retailerId          String?                       @unique
-  retailer            Retailer?                     @relation(fields: [retailerId], references: [id], onDelete: SetNull)
-  orderIntents        RetailerProposalOrderIntent[]
-  createdAt           DateTime                      @default(now())
-  updatedAt           DateTime                      @updatedAt
+  retailerId               String?                       @unique
+  retailer                 Retailer?                     @relation(fields: [retailerId], references: [id], onDelete: SetNull)
+  orderIntents             RetailerProposalOrderIntent[]
+  references               RetailerProposalReference[]
+  createdAt                DateTime                      @default(now())
+  updatedAt                DateTime                      @updatedAt
 
   @@index([status, submittedAt])
   @@index([submittedByStaffId, submittedAt])
+  @@index([creditVerificationStatus, submittedAt])
+}
+
+/// Same-city existing retailer vouching/reference attached during new-retailer onboarding.
+model RetailerProposalReference {
+  id                 String           @id @default(uuid())
+  proposalId         String
+  proposal           RetailerProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  existingRetailerId String?
+  existingRetailer   Retailer?        @relation("VouchingRetailer", fields: [existingRetailerId], references: [id], onDelete: SetNull)
+  retailerName       String
+  ownerName          String?
+  phone              String?
+  shopAddress        String?
+  city               String
+  isExistingCustomer Boolean          @default(true)
+  notes              String?
+  createdAt          DateTime         @default(now())
+
+  @@index([proposalId])
+  @@index([existingRetailerId])
 }
 
 /// Unpriced salesperson demand captured while customer-master admission is pending.

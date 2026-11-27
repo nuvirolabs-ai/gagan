@@ -257,6 +257,17 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
     /* ------------------------------ new retailers ------------------------------ */
 
     retailerProposals: () => request("/rep/retailer-proposals"),
+    retailerProposalMetadata: () => request("/rep/retailer-proposals/form-metadata"),
+    lookupRetailerPinCode: (pin: string) =>
+      request(`/rep/retailer-proposals/pincode/${encodeURIComponent(pin)}`),
+    translateRetailerHindi: (body: Record<string, unknown>) =>
+      post("/rep/retailer-proposals/translate-hindi", body),
+    sameCityRetailers: (city: string, q?: string) =>
+      request(
+        `/rep/retailer-proposals/city-retailers?city=${encodeURIComponent(city)}${
+          q ? `&q=${encodeURIComponent(q)}` : ""
+        }`
+      ),
     proposalDemandCatalog: (proposalId: string) => request(`/rep/retailer-proposals/${proposalId}/catalog`),
     punchProposalOrderIntent: (proposalId: string, items: { variantId: string; qty: number }[], idempotencyKey: string) =>
       request(`/rep/retailer-proposals/${proposalId}/order-intents`, {
@@ -274,18 +285,45 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
       phone: string;
       telephone?: string;
       transporter: string;
+      broker?: string;
       shopAddress: string;
-      pinCode?: string;
-      tehsil?: string;
-      district?: string;
-      state?: string;
+      addressLine2?: string;
+      beatName?: string;
+      pinCode: string;
+      tehsil: string;
+      district: string;
+      state: string;
       deliveryCity: string;
       shopDurationYears: number;
       gstin?: string;
       aadhaarNumber: string;
       aadhaarPhoto: { contentType: string; bodyBase64: string; checksum?: string };
+      aadhaarPhotoBack: { contentType: string; bodyBase64: string; checksum?: string };
       paymentTerms: string;
+      proposedCreditLimit?: number;
+      grade: string;
+      buyerCategory: string;
+      buyerSubCategory?: string;
+      remark?: string;
       upiId?: string;
+      businessNameHi: string;
+      transporterHi: string;
+      shopAddressHi: string;
+      addressLine2Hi?: string;
+      beatNameHi?: string;
+      deliveryCityHi: string;
+      tehsilHi?: string;
+      districtHi?: string;
+      stateHi?: string;
+      customLocationUsed?: boolean;
+      references: Array<{
+        referencedRetailerId?: string;
+        referencedShopName: string;
+        referencedPhone?: string;
+        referencedCity?: string;
+        referencedAddress?: string;
+        notes?: string;
+      }>;
       latitude?: number;
       longitude?: number;
       accuracyMeters?: number;

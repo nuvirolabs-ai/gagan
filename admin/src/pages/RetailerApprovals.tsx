@@ -1,126 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { proposalIntentSourceLabel } from "../orderAttribution";
+import { BilingualProposalReview } from "../components/BilingualProposalReview";
 import { explain } from "../errorCopy";
 
 const TABS = ["pending", "approved", "rejected"] as const;
-
-type AadhaarPhotoMeta = {
-  available?: boolean;
-  signedUrl?: string | null;
-  contentType?: string;
-  sizeBytes?: number;
-} | null | undefined;
-
-function AadhaarPhotoPreview({
-  label,
-  alt,
-  photo,
-  onZoom,
-}: {
-  label: string;
-  alt: string;
-  photo: AadhaarPhotoMeta;
-  onZoom: (src: string, title: string) => void;
-}) {
-  const rawUrl = photo?.signedUrl ?? null;
-  const isDirect = Boolean(
-    rawUrl && /^(https?:|data:|blob:)/i.test(rawUrl)
-  );
-  const isApiProxy = Boolean(rawUrl && rawUrl.startsWith("/"));
-
-  const [resolvedSrc, setResolvedSrc] = useState<string | null>(isDirect ? rawUrl : null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    setFailed(false);
-    if (!rawUrl) {
-      setResolvedSrc(null);
-      return;
-    }
-    if (isDirect) {
-      setResolvedSrc(rawUrl);
-      return;
-    }
-    if (!isApiProxy || typeof api.retailerProposalPhoto !== "function") {
-      // Never pass unsupported schemes like local-storage:// to <img>
-      setResolvedSrc(null);
-      return;
-    }
-
-    let cancelled = false;
-    let objectUrl: string | null = null;
-    api
-      .retailerProposalPhoto(rawUrl)
-      .then((blob) => {
-        if (cancelled) return;
-        objectUrl = URL.createObjectURL(blob);
-        setResolvedSrc(objectUrl);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setResolvedSrc(null);
-          setFailed(true);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [rawUrl, isDirect, isApiProxy]);
-
-  return (
-    <div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-muted)", marginBottom: 4 }}>
-        {label}
-      </div>
-      {resolvedSrc && !failed ? (
-        <button
-          type="button"
-          onClick={() => onZoom(resolvedSrc, alt)}
-          title="Click to enlarge Aadhaar photo"
-          style={{
-            padding: 0,
-            border: "1px solid var(--border)",
-            borderRadius: 6,
-            background: "#fff",
-            cursor: "zoom-in",
-            overflow: "hidden",
-            display: "block",
-          }}
-        >
-          <img
-            src={resolvedSrc}
-            alt={alt}
-            onError={() => setFailed(true)}
-            style={{
-              display: "block",
-              maxWidth: 200,
-              maxHeight: 130,
-              objectFit: "contain",
-            }}
-          />
-        </button>
-      ) : (
-        <div
-          className="small muted"
-          style={{
-            padding: "10px 12px",
-            border: "1px dashed var(--border)",
-            borderRadius: 6,
-            maxWidth: 220,
-            background: "#f8fafc",
-          }}
-        >
-          {photo && (photo.available === false || failed || rawUrl?.startsWith("local-storage://"))
-            ? "Photo file not available on server (earlier upload cleared on restart)"
-            : "Photo unavailable"}
-        </div>
-      )}
-    </div>
-  );
-}
 
 const STATUS_PILL: Record<string, string> = {
   pending: "placed",
@@ -693,17 +577,11 @@ export default function RetailerApprovals() {
 
       {/* Selected Proposal Inspection Panel */}
       {selectedProposal ? (
-        <div className="card" style={{ marginTop: 14 }}>
-          <div className="between" style={{ alignItems: "flex-start" }}>
-            <div>
-              <div className="eyebrow">Proposal review</div>
-              <h2 style={{ margin: "0 0 4px" }}>{selectedProposal.businessName}</h2>
-              <div className="small muted">
-                Submitted by {selectedProposal.submittedBy?.name ?? selectedProposal.submittedByStaffId} ·{" "}
-                {selectedProposal.phone}
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <BilingualProposalReview
+          proposal={selectedProposal}
+          onZoom={(src, title) => setLightbox({ src, title })}
+          headerActions={
+            <>
               <span className={`pill ${STATUS_PILL[selectedProposal.status] ?? ""}`}>
                 {selectedProposal.status}
               </span>
@@ -717,146 +595,9 @@ export default function RetailerApprovals() {
                   </button>
                 </div>
               )}
-            </div>
-          </div>
-
-          <div className="form-grid" style={{ marginTop: 18 }}>
-            <div>
-              <div className="section-kicker">Business</div>
-              <div><strong>Group:</strong> {selectedProposal.groupName ?? "—"}</div>
-              <div><strong>Contact:</strong> {selectedProposal.ownerName ?? "—"}</div>
-              <div><strong>Mobile:</strong> {selectedProposal.phone}</div>
-              <div><strong>Telephone:</strong> {selectedProposal.telephone ?? "—"}</div>
-              <div><strong>Transporter:</strong> {selectedProposal.transporter ?? "—"}</div>
-            </div>
-            <div>
-              <div className="section-kicker">Address & delivery</div>
-              <div>{selectedProposal.shopAddress}</div>
-              <div>
-                {[
-                  selectedProposal.pinCode,
-                  selectedProposal.tehsil,
-                  selectedProposal.district,
-                  selectedProposal.state,
-                ]
-                  .filter(Boolean)
-                  .join(" · ") || "Location details not supplied"}
-              </div>
-              <div><strong>Delivery city:</strong> {selectedProposal.deliveryCity ?? "—"}</div>
-              <div>
-                <strong>Shop duration:</strong>{" "}
-                {selectedProposal.shopDurationYears == null
-                  ? "—"
-                  : `${selectedProposal.shopDurationYears} years`}
-              </div>
-              {selectedProposal.latitude != null && (
-                <div style={{ marginTop: 4 }}>
-                  <a
-                    href={`https://www.google.com/maps?q=${selectedProposal.latitude},${selectedProposal.longitude}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ fontSize: 12, color: "#2563eb" }}
-                  >
-                    📍 Open GPS coordinates in Google Maps
-                  </a>
-                </div>
-              )}
-            </div>
-            <div>
-              <div className="section-kicker">Commercial</div>
-              <div><strong>GSTIN:</strong> {selectedProposal.gstin ?? "—"}</div>
-              <div><strong>Payment terms:</strong> {selectedProposal.paymentTerms ?? "—"}</div>
-              <div><strong>UPI ID:</strong> {selectedProposal.upiId ?? "—"}</div>
-              <div>
-                <strong>Salesman:</strong>{" "}
-                {selectedProposal.submittedBy?.name ?? "Authenticated salesperson"}
-              </div>
-            </div>
-            <div>
-              <div className="section-kicker">Identity</div>
-              <div>
-                <strong>Aadhaar:</strong> {selectedProposal.aadhaarNumberMasked ?? "Not supplied"}
-              </div>
-              <div className="small muted">
-                Full Aadhaar is encrypted and is never returned to this page.
-              </div>
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 10 }}>
-                <AadhaarPhotoPreview
-                  label="FRONT SIDE"
-                  alt="Aadhaar Front Side Preview"
-                  photo={selectedProposal.aadhaarPhoto}
-                  onZoom={(src, title) => setLightbox({ src, title })}
-                />
-                {selectedProposal.aadhaarPhotoBack ? (
-                  <AadhaarPhotoPreview
-                    label="BACK SIDE"
-                    alt="Aadhaar Back Side Preview"
-                    photo={selectedProposal.aadhaarPhotoBack}
-                    onZoom={(src, title) => setLightbox({ src, title })}
-                  />
-                ) : null}
-              </div>
-            </div>
-          </div>
-
-          {selectedProposal.orderIntents?.length ? (
-            <div
-              style={{
-                marginTop: 18,
-                background: "#f8fafc",
-                padding: "12px 16px",
-                borderRadius: 6,
-                border: "1px solid #e2e8f0",
-              }}
-            >
-              <div className="section-kicker" style={{ color: "#2563eb" }}>
-                Punched Order Demand ({selectedProposal.orderIntents.length})
-              </div>
-              <p style={{ margin: "4px 0 10px", fontSize: 13, color: "#475569" }}>
-                This store has preliminary punched demand submitted from the mobile field app. Approving
-                this proposal will automatically convert it into an official order for the warehouse.
-              </p>
-              {selectedProposal.orderIntents.map((intent: any) => (
-                <div
-                  key={intent.id}
-                  style={{
-                    fontSize: 12,
-                    padding: "6px 0",
-                    borderBottom: "1px dashed #e2e8f0",
-                  }}
-                >
-                  <strong>{proposalIntentSourceLabel(intent)}</strong> · Punched at{" "}
-                  {intent.punchedAt
-                    ? new Date(intent.punchedAt).toLocaleString("en-IN", {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      })
-                    : "—"}
-                  {intent.items?.length ? (
-                    <div style={{ marginTop: 4, color: "#334155" }}>
-                      Lines:{" "}
-                      {intent.items
-                        .map((i: any) => `${i.qty} case${i.qty === 1 ? "" : "s"}${i.productName ? ` · ${i.productName}` : ` (SKU: ${i.variantId})`}`)
-                        .join(", ")}
-                    </div>
-                  ) : null}
-                  {intent.convertedOrder ? (
-                    <div style={{ marginTop: 4, color: "#15803d", fontWeight: 600 }}>
-                      Converted to Warehouse Order #GGN-{String(intent.convertedOrder.orderNo).padStart(8, "0")}
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          ) : null}
-
-          {selectedProposal.notes ? (
-            <div style={{ marginTop: 18 }}>
-              <div className="section-kicker">Notes</div>
-              <div>{selectedProposal.notes}</div>
-            </div>
-          ) : null}
-        </div>
+            </>
+          }
+        />
       ) : null}
 
       {lightbox ? (

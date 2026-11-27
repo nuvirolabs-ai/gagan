@@ -1,9 +1,19 @@
 import { useEffect, useState } from "react";
 import { api, inr } from "../api";
+import { BilingualProposalReview } from "../components/BilingualProposalReview";
+import { explain } from "../errorCopy";
 
 export default function CreditReviews() {
   // Existing state
   const [proposals, setProposals] = useState<any[]>([]);
+  const [newRetailerProposals, setNewRetailerProposals] = useState<any[]>([]);
+  const [selectedNewRetailerId, setSelectedNewRetailerId] = useState<string | null>(null);
+  const [newRetailerFilter, setNewRetailerFilter] = useState<"all" | "pending" | "verified" | "flagged">("all");
+  const [creditVerifyNotes, setCreditVerifyNotes] = useState("");
+  const [creditVerifyBusy, setCreditVerifyBusy] = useState(false);
+  const [creditVerifyNotice, setCreditVerifyNotice] = useState<string | null>(null);
+  const [creditVerifyError, setCreditVerifyError] = useState<string | null>(null);
+  const [creditLightbox, setCreditLightbox] = useState<{ src: string; title: string } | null>(null);
   const [reason, setReason] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [challengeId, setChallengeId] = useState("");
@@ -42,14 +52,22 @@ export default function CreditReviews() {
 
   const load = async () => {
     try {
-      const [ratingResult, shadowResult, kycResult] = await Promise.all([
+      const [ratingResult, shadowResult, kycResult, newRetailersResult] = await Promise.all([
         api.ratingProposals().catch(() => ({ proposals: [] })),
         api.shadowComparisons().catch(() => ({ comparisons: [] })),
         api.kycPending().catch(() => ({ profiles: [], cases: [] })),
+        typeof api.creditNewRetailerReviews === "function"
+          ? api.creditNewRetailerReviews().catch(() => ({ proposals: [] }))
+          : Promise.resolve({ proposals: [] }),
       ]);
       setProposals(ratingResult?.proposals ?? []);
       setComparisons(shadowResult?.comparisons ?? []);
       setKycPending(kycResult?.profiles ?? kycResult?.cases ?? []);
+      const nrList = newRetailersResult?.proposals ?? [];
+      setNewRetailerProposals(nrList);
+      setSelectedNewRetailerId((prev) =>
+        prev && nrList.some((p: any) => p.id === prev) ? prev : nrList[0]?.id ?? null
+      );
     } catch {
       // Non-blocking
     }
@@ -186,6 +204,50 @@ export default function CreditReviews() {
     }
   };
 
+  const verifyNewRetailer = async (
+    proposalId: string,
+    status: "pending" | "verified" | "flagged"
+  ) => {
+    setCreditVerifyBusy(true);
+    setCreditVerifyError(null);
+    setCreditVerifyNotice(null);
+    try {
+      const res = await api.verifyCreditNewRetailer(proposalId, {
+        status,
+        notes: creditVerifyNotes.trim() || undefined,
+      });
+      if (res?.proposal) {
+        setNewRetailerProposals((prev) =>
+          prev.map((p) => (p.id === proposalId ? { ...p, ...res.proposal } : p))
+        );
+      } else {
+        await load();
+      }
+      setCreditVerifyNotice(
+        status === "verified"
+          ? "Same-city retailer references verified for this new store."
+          : status === "flagged"
+          ? "New store references flagged for follow-up."
+          : "Verification status reset to pending."
+      );
+      setCreditVerifyNotes("");
+    } catch (err: any) {
+      setCreditVerifyError(explain(err));
+    } finally {
+      setCreditVerifyBusy(false);
+    }
+  };
+
+  const filteredNewRetailers = newRetailerProposals.filter((p) =>
+    newRetailerFilter === "all"
+      ? true
+      : (p.creditVerificationStatus || "pending") === newRetailerFilter
+  );
+  const selectedNewRetailer =
+    filteredNewRetailers.find((p) => p.id === selectedNewRetailerId) ??
+    filteredNewRetailers[0] ??
+    null;
+
   return (
     <div className="detail-narrow">
       <div className="between" style={{ marginBottom: 16 }}>
@@ -249,7 +311,51 @@ export default function CreditReviews() {
         {/* Exposure Metrics */}
         {(policyData?.exposure || policyData?.stats) && (() => {
           const exp = policyData.exposure || policyData.stats;
-          return (
+          const verifyNewRetailer = async (
+    proposalId: string,
+    status: "pending" | "verified" | "flagged"
+  ) => {
+    setCreditVerifyBusy(true);
+    setCreditVerifyError(null);
+    setCreditVerifyNotice(null);
+    try {
+      const res = await api.verifyCreditNewRetailer(proposalId, {
+        status,
+        notes: creditVerifyNotes.trim() || undefined,
+      });
+      if (res?.proposal) {
+        setNewRetailerProposals((prev) =>
+          prev.map((p) => (p.id === proposalId ? { ...p, ...res.proposal } : p))
+        );
+      } else {
+        await load();
+      }
+      setCreditVerifyNotice(
+        status === "verified"
+          ? "Same-city retailer references verified for this new store."
+          : status === "flagged"
+          ? "New store references flagged for follow-up."
+          : "Verification status reset to pending."
+      );
+      setCreditVerifyNotes("");
+    } catch (err: any) {
+      setCreditVerifyError(explain(err));
+    } finally {
+      setCreditVerifyBusy(false);
+    }
+  };
+
+  const filteredNewRetailers = newRetailerProposals.filter((p) =>
+    newRetailerFilter === "all"
+      ? true
+      : (p.creditVerificationStatus || "pending") === newRetailerFilter
+  );
+  const selectedNewRetailer =
+    filteredNewRetailers.find((p) => p.id === selectedNewRetailerId) ??
+    filteredNewRetailers[0] ??
+    null;
+
+  return (
             <div className="metrics" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 16 }}>
               <div className="metric card" style={{ padding: 12 }}>
                 <div className="metric-label" style={{ fontSize: 11 }}>Monitored Accounts</div>
@@ -291,7 +397,51 @@ export default function CreditReviews() {
       {(() => {
         const overridesList = policyData?.recentOverrides ?? policyData?.overrides ?? [];
         if (overridesList.length === 0) return null;
-        return (
+        const verifyNewRetailer = async (
+    proposalId: string,
+    status: "pending" | "verified" | "flagged"
+  ) => {
+    setCreditVerifyBusy(true);
+    setCreditVerifyError(null);
+    setCreditVerifyNotice(null);
+    try {
+      const res = await api.verifyCreditNewRetailer(proposalId, {
+        status,
+        notes: creditVerifyNotes.trim() || undefined,
+      });
+      if (res?.proposal) {
+        setNewRetailerProposals((prev) =>
+          prev.map((p) => (p.id === proposalId ? { ...p, ...res.proposal } : p))
+        );
+      } else {
+        await load();
+      }
+      setCreditVerifyNotice(
+        status === "verified"
+          ? "Same-city retailer references verified for this new store."
+          : status === "flagged"
+          ? "New store references flagged for follow-up."
+          : "Verification status reset to pending."
+      );
+      setCreditVerifyNotes("");
+    } catch (err: any) {
+      setCreditVerifyError(explain(err));
+    } finally {
+      setCreditVerifyBusy(false);
+    }
+  };
+
+  const filteredNewRetailers = newRetailerProposals.filter((p) =>
+    newRetailerFilter === "all"
+      ? true
+      : (p.creditVerificationStatus || "pending") === newRetailerFilter
+  );
+  const selectedNewRetailer =
+    filteredNewRetailers.find((p) => p.id === selectedNewRetailerId) ??
+    filteredNewRetailers[0] ??
+    null;
+
+  return (
           <section className="card" style={{ marginBottom: 20 }}>
             <h3 style={{ marginTop: 0 }}>Recent Credit Limit Overrides</h3>
             <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
@@ -308,7 +458,51 @@ export default function CreditReviews() {
               <tbody>
                 {overridesList.map((ov: any) => {
                   const isExpired = ov.expiresAt && new Date(ov.expiresAt) < new Date();
-                  return (
+                  const verifyNewRetailer = async (
+    proposalId: string,
+    status: "pending" | "verified" | "flagged"
+  ) => {
+    setCreditVerifyBusy(true);
+    setCreditVerifyError(null);
+    setCreditVerifyNotice(null);
+    try {
+      const res = await api.verifyCreditNewRetailer(proposalId, {
+        status,
+        notes: creditVerifyNotes.trim() || undefined,
+      });
+      if (res?.proposal) {
+        setNewRetailerProposals((prev) =>
+          prev.map((p) => (p.id === proposalId ? { ...p, ...res.proposal } : p))
+        );
+      } else {
+        await load();
+      }
+      setCreditVerifyNotice(
+        status === "verified"
+          ? "Same-city retailer references verified for this new store."
+          : status === "flagged"
+          ? "New store references flagged for follow-up."
+          : "Verification status reset to pending."
+      );
+      setCreditVerifyNotes("");
+    } catch (err: any) {
+      setCreditVerifyError(explain(err));
+    } finally {
+      setCreditVerifyBusy(false);
+    }
+  };
+
+  const filteredNewRetailers = newRetailerProposals.filter((p) =>
+    newRetailerFilter === "all"
+      ? true
+      : (p.creditVerificationStatus || "pending") === newRetailerFilter
+  );
+  const selectedNewRetailer =
+    filteredNewRetailers.find((p) => p.id === selectedNewRetailerId) ??
+    filteredNewRetailers[0] ??
+    null;
+
+  return (
                   <tr key={ov.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
                     <td style={{ padding: "8px 10px", fontWeight: 600 }}>
                       {ov.retailer?.name ?? "Retailer"}
@@ -494,6 +688,201 @@ export default function CreditReviews() {
         ))
       )}
 
+      {/* New Retailer Verification & Same-City References */}
+      <div className="card" style={{ marginTop: 24 }}>
+        <div className="between" style={{ gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+          <div>
+            <h2 style={{ margin: 0 }}>New Retailer Verification &amp; Same-City References</h2>
+            <p className="page-sub" style={{ margin: "4px 0 0" }}>
+              Review full bilingual retailer profiles, KYC documents, proposed credit limit, Grade/Category, and the 3+ mandatory same-city retailer references before extending supply credit.
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {(["all", "pending", "verified", "flagged"] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                className={newRetailerFilter === tab ? "sm" : "sm secondary"}
+                onClick={() => setNewRetailerFilter(tab)}
+              >
+                {tab === "all"
+                  ? `All (${newRetailerProposals.length})`
+                  : `${tab[0].toUpperCase()}${tab.slice(1)} (${
+                      newRetailerProposals.filter((p) => (p.creditVerificationStatus || "pending") === tab).length
+                    })`}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {creditVerifyError ? (
+          <div className="banner danger" style={{ marginBottom: 10 }}>
+            {creditVerifyError}
+          </div>
+        ) : null}
+        {creditVerifyNotice ? (
+          <div className="banner success" style={{ marginBottom: 10 }}>
+            {creditVerifyNotice}
+          </div>
+        ) : null}
+
+        {filteredNewRetailers.length === 0 ? (
+          <div className="muted small">No new retailer proposals match this filter.</div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Party / Hindi</th>
+                  <th>Location</th>
+                  <th>Grade &amp; Limit</th>
+                  <th>References</th>
+                  <th>Dispatch</th>
+                  <th>Credit Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredNewRetailers.map((p) => {
+                  const refCount = Array.isArray(p.references) ? p.references.length : 0;
+                  const cStatus = p.creditVerificationStatus || "pending";
+                  return (
+                    <tr
+                      key={p.id}
+                      className={selectedNewRetailer?.id === p.id ? "selected" : ""}
+                      onClick={() => {
+                        setSelectedNewRetailerId(p.id);
+                        setCreditVerifyNotes(p.creditVerificationNotes ?? "");
+                      }}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <td>
+                        <strong>{p.businessName}</strong>
+                        <div className="small muted">{p.businessNameHi ?? "—"}</div>
+                      </td>
+                      <td>
+                        <div>{p.deliveryCity}</div>
+                        <div className="small muted">
+                          {[p.pinCode, p.tehsil, p.district].filter(Boolean).join(" · ") || "—"}
+                        </div>
+                      </td>
+                      <td>
+                        <div>
+                          {p.grade ? `Grade ${p.grade}` : "Grade —"}
+                          {p.buyerCategory ? ` · ${p.buyerCategory}` : ""}
+                        </div>
+                        <div className="small muted">
+                          {p.proposedCreditLimit != null ? `Limit: ${inr(p.proposedCreditLimit)}` : p.paymentTerms ?? "—"}
+                        </div>
+                      </td>
+                      <td>
+                        <span
+                          className="pill"
+                          style={{
+                            background: refCount >= 3 ? "#dcfce7" : "#fef3c7",
+                            color: refCount >= 3 ? "#166534" : "#92400e",
+                          }}
+                        >
+                          {refCount} ref{refCount === 1 ? "" : "s"}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="pill">{p.status}</span>
+                      </td>
+                      <td>
+                        <span
+                          className="pill"
+                          style={{
+                            background:
+                              cStatus === "verified" ? "#dcfce7" : cStatus === "flagged" ? "#fee2e2" : "#fef3c7",
+                            color: cStatus === "verified" ? "#166534" : cStatus === "flagged" ? "#991b1b" : "#92400e",
+                          }}
+                        >
+                          {cStatus}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="sm secondary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedNewRetailerId(p.id);
+                            setCreditVerifyNotes(p.creditVerificationNotes ?? "");
+                          }}
+                        >
+                          Inspect
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {selectedNewRetailer ? (
+          <BilingualProposalReview
+            proposal={selectedNewRetailer}
+            onZoom={(src, title) => setCreditLightbox({ src, title })}
+            creditActionSlot={
+              <div style={{ display: "grid", gap: 8 }}>
+                {selectedNewRetailer.creditVerifiedAt ? (
+                  <div className="small muted">
+                    Last updated by{" "}
+                    <strong>{selectedNewRetailer.creditVerifiedBy?.name ?? "Credit Team"}</strong> on{" "}
+                    {new Date(selectedNewRetailer.creditVerifiedAt).toLocaleString("en-IN", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })}
+                    {selectedNewRetailer.creditVerificationNotes
+                      ? ` · Note: "${selectedNewRetailer.creditVerificationNotes}"`
+                      : ""}
+                  </div>
+                ) : null}
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  <input
+                    type="text"
+                    placeholder="Credit verification call notes (e.g. Confirmed with all 3 market references)..."
+                    value={creditVerifyNotes}
+                    onChange={(e) => setCreditVerifyNotes(e.target.value)}
+                    style={{ flex: "1 1 280px", padding: "7px 10px" }}
+                  />
+                  <button
+                    type="button"
+                    className="sm"
+                    disabled={creditVerifyBusy}
+                    onClick={() => void verifyNewRetailer(selectedNewRetailer.id, "verified")}
+                  >
+                    Mark References Verified
+                  </button>
+                  <button
+                    type="button"
+                    className="sm danger"
+                    disabled={creditVerifyBusy}
+                    onClick={() => void verifyNewRetailer(selectedNewRetailer.id, "flagged")}
+                  >
+                    Flag Reference Issue
+                  </button>
+                  {selectedNewRetailer.creditVerificationStatus &&
+                  selectedNewRetailer.creditVerificationStatus !== "pending" ? (
+                    <button
+                      type="button"
+                      className="sm secondary"
+                      disabled={creditVerifyBusy}
+                      onClick={() => void verifyNewRetailer(selectedNewRetailer.id, "pending")}
+                    >
+                      Reset Pending
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            }
+          />
+        ) : null}
+      </div>
+
       {/* Shadow mode comparisons */}
       {comparisons.length > 0 ? (
         <div style={{ marginTop: 24 }}>
@@ -508,6 +897,51 @@ export default function CreditReviews() {
               <span className="pill status-suspended">Review</span>
             </div>
           ))}
+        </div>
+      ) : null}
+
+      {creditLightbox ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={creditLightbox.title}
+          onClick={() => setCreditLightbox(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.78)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+            zIndex: 2000,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              borderRadius: 10,
+              padding: 16,
+              maxWidth: "90vw",
+              maxHeight: "90vh",
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
+              <strong>{creditLightbox.title}</strong>
+              <button type="button" className="secondary" onClick={() => setCreditLightbox(null)}>
+                Close
+              </button>
+            </div>
+            <img
+              src={creditLightbox.src}
+              alt={creditLightbox.title}
+              style={{ maxWidth: "82vw", maxHeight: "76vh", objectFit: "contain", borderRadius: 6 }}
+            />
+          </div>
         </div>
       ) : null}
     </div>

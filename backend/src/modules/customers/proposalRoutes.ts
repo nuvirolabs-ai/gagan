@@ -33,6 +33,17 @@ const imageMimeTypeSchema = z
   .transform((val) => (val.toLowerCase() === "image/jpg" ? "image/jpeg" : val.toLowerCase()))
   .pipe(z.enum(["image/jpeg", "image/png", "image/webp"]));
 
+const referenceItemSchema = z.object({
+  existingRetailerId: z.string().trim().min(1).nullable().optional(),
+  retailerName: z.string().trim().min(2).max(160),
+  ownerName: z.string().trim().max(120).nullable().optional(),
+  phone: z.string().trim().max(20).nullable().optional(),
+  shopAddress: z.string().trim().max(400).nullable().optional(),
+  city: z.string().trim().min(2).max(120),
+  isExistingCustomer: z.boolean().optional(),
+  notes: z.string().trim().max(400).nullable().optional(),
+});
+
 const submitSchema = z.object({
   businessName: z.string().trim().min(2).max(160),
   groupName: z.string().trim().min(2).max(160),
@@ -40,11 +51,14 @@ const submitSchema = z.object({
   phone: z.string().trim().min(10).max(20),
   telephone: z.string().trim().max(20).optional(),
   transporter: z.string().trim().min(2).max(160),
+  broker: z.string().trim().max(160).optional(),
   shopAddress: z.string().trim().min(4).max(400),
-  pinCode: optionalPattern(INDIAN_PIN_RE, "pin_code_invalid"),
-  tehsil: z.string().trim().max(120).optional(),
-  district: z.string().trim().max(120).optional(),
-  state: z.string().trim().max(120).optional(),
+  addressLine2: z.string().trim().max(240).optional(),
+  beatName: z.string().trim().max(160).optional(),
+  pinCode: z.string().trim().regex(INDIAN_PIN_RE, "pin_code_invalid"),
+  tehsil: z.string().trim().min(2).max(120),
+  district: z.string().trim().min(2).max(120),
+  state: z.string().trim().min(2).max(120),
   deliveryCity: z.string().trim().min(2).max(120),
   shopDurationYears: z.number().int().min(0).max(200),
   gstin: z.string().trim().toUpperCase().refine((value) => !value || GSTIN_RE.test(value), { message: "gstin_invalid" }).optional(),
@@ -58,9 +72,25 @@ const submitSchema = z.object({
     contentType: imageMimeTypeSchema,
     bodyBase64: z.string().min(4).max(14_000_000),
     checksum: z.string().regex(/^[a-f0-9]{64}$/).optional(),
-  }).optional(),
+  }),
   paymentTerms: z.string().trim().min(2).max(120),
+  proposedCreditLimit: z.number().finite().min(0).max(100_000_000).optional(),
+  grade: z.string().trim().min(1).max(60),
+  buyerCategory: z.string().trim().min(2).max(120),
+  buyerSubCategory: z.string().trim().max(120).optional(),
+  remark: z.string().trim().max(1000).optional(),
   upiId: optionalPattern(UPI_ID_RE, "upi_id_invalid"),
+  businessNameHi: z.string().trim().max(240).optional(),
+  transporterHi: z.string().trim().max(240).optional(),
+  shopAddressHi: z.string().trim().max(500).optional(),
+  addressLine2Hi: z.string().trim().max(320).optional(),
+  beatNameHi: z.string().trim().max(240).optional(),
+  deliveryCityHi: z.string().trim().max(180).optional(),
+  tehsilHi: z.string().trim().max(180).optional(),
+  districtHi: z.string().trim().max(180).optional(),
+  stateHi: z.string().trim().max(180).optional(),
+  customLocationUsed: z.boolean().optional(),
+  references: z.array(referenceItemSchema).min(3).max(20),
   latitude: z.number().finite().min(-90).max(90).optional(),
   longitude: z.number().finite().min(-180).max(180).optional(),
   accuracyMeters: z.number().finite().positive().optional(),
@@ -82,6 +112,68 @@ export function createRetailerProposalRouter(options: {
     requirePermission(Permissions.RETAILER_PROPOSE),
     requirePermission(Permissions.ORDER_CREATE_FOR_RETAILER),
   ];
+
+  router.get(
+    "/retailer-proposals/form-metadata",
+    requirePermission(Permissions.RETAILER_PROPOSE),
+    asyncRoute(async (_req: StaffAuthedRequest, res, next) => {
+      try {
+        res.json(await service.getFormMetadata());
+      } catch (error) {
+        sendProposalError(error, res, next);
+      }
+    })
+  );
+
+  router.get(
+    "/retailer-proposals/pincode/:pin",
+    requirePermission(Permissions.RETAILER_PROPOSE),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      if (!INDIAN_PIN_RE.test(req.params.pin.trim())) {
+        return res.status(400).json({ error: "pin_code_invalid" });
+      }
+      try {
+        const result = await service.lookupPin(req.params.pin.trim());
+        res.json({ location: result });
+      } catch (error) {
+        sendProposalError(error, res, next);
+      }
+    })
+  );
+
+  router.post(
+    "/retailer-proposals/translate-hindi",
+    requirePermission(Permissions.RETAILER_PROPOSE),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      try {
+        const result = await service.translateHindiPreview(req.body ?? {});
+        res.json(result);
+      } catch (error) {
+        sendProposalError(error, res, next);
+      }
+    })
+  );
+
+  router.get(
+    "/retailer-proposals/city-retailers",
+    requirePermission(Permissions.RETAILER_PROPOSE),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      const city = typeof req.query.city === "string" ? req.query.city.trim() : "";
+      if (!city || city.length < 2) {
+        return res.json({ city, retailers: [], cityRetailerCount: 0 });
+      }
+      try {
+        res.json(
+          await service.listSameCityRetailers({
+            city,
+            query: typeof req.query.q === "string" ? req.query.q : undefined,
+          })
+        );
+      } catch (error) {
+        sendProposalError(error, res, next);
+      }
+    })
+  );
 
   router.get(
     "/retailer-proposals",
@@ -258,6 +350,136 @@ export function createRetailerProposalAdminRouter(options: {
     if (error instanceof ScopeError) return res.status(error.status).json({ error: error.code });
     return sendProposalError(error, res, next);
   };
+
+  router.get(
+    "/retailer-proposals/form-metadata",
+    requireAnyPermission(
+      Permissions.RETAILER_PROPOSAL_REVIEW,
+      Permissions.ORDER_WAREHOUSE_PROCESS,
+      Permissions.STAFF_MANAGE,
+      Permissions.CREDIT_RATING_CONFIRM,
+      Permissions.CREDIT_BLOCK,
+      Permissions.KYC_REVIEW
+    ),
+    asyncRoute(async (_req: StaffAuthedRequest, res, next) => {
+      try {
+        res.json(await service.getFormMetadata());
+      } catch (error) {
+        sendError(error, res, next);
+      }
+    })
+  );
+
+  router.get(
+    "/retailer-proposals/pincode/:pin",
+    requireAnyPermission(
+      Permissions.RETAILER_PROPOSAL_REVIEW,
+      Permissions.ORDER_WAREHOUSE_PROCESS,
+      Permissions.STAFF_MANAGE
+    ),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      if (!INDIAN_PIN_RE.test(req.params.pin.trim())) {
+        return res.status(400).json({ error: "pin_code_invalid" });
+      }
+      try {
+        res.json({ location: await service.lookupPin(req.params.pin.trim()) });
+      } catch (error) {
+        sendError(error, res, next);
+      }
+    })
+  );
+
+  router.get(
+    "/credit/new-retailer-reviews",
+    options.authenticate,
+    requireAnyPermission(
+      Permissions.CREDIT_RATING_CONFIRM,
+      Permissions.CREDIT_BLOCK,
+      Permissions.KYC_REVIEW,
+      Permissions.KYC_VIEW,
+      Permissions.STAFF_MANAGE
+    ),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      try {
+        const raw = await service.listForReview({
+          status: typeof req.query.status === "string" && req.query.status ? req.query.status : undefined,
+          scopeStaffIds: null,
+        });
+        const proposals = raw.map((item: any) => ({
+          ...item,
+          aadhaarPhoto: item.aadhaarPhoto?.available
+            ? { ...item.aadhaarPhoto, signedUrl: `/admin/credit/new-retailer-reviews/${item.id}/aadhaar-photo/front` }
+            : item.aadhaarPhoto,
+          aadhaarPhotoBack: item.aadhaarPhotoBack?.available
+            ? { ...item.aadhaarPhotoBack, signedUrl: `/admin/credit/new-retailer-reviews/${item.id}/aadhaar-photo/back` }
+            : item.aadhaarPhotoBack,
+        }));
+        res.json({ proposals });
+      } catch (error) {
+        sendError(error, res, next);
+      }
+    })
+  );
+
+  router.get(
+    "/credit/new-retailer-reviews/:id/aadhaar-photo/:side",
+    options.authenticate,
+    requireAnyPermission(
+      Permissions.CREDIT_RATING_CONFIRM,
+      Permissions.CREDIT_BLOCK,
+      Permissions.KYC_REVIEW,
+      Permissions.KYC_VIEW,
+      Permissions.STAFF_MANAGE
+    ),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      const side = req.params.side === "back" ? "back" : req.params.side === "front" ? "front" : null;
+      if (!side) return res.status(400).json({ error: "invalid_photo_side" });
+      try {
+        const photo = await service.getAadhaarPhoto({
+          proposalId: req.params.id,
+          side,
+          scopeStaffIds: null,
+        });
+        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+        res.setHeader("Cache-Control", "private, max-age=300");
+        res.setHeader("Content-Type", photo.contentType);
+        res.send(photo.buffer);
+      } catch (error) {
+        sendError(error, res, next);
+      }
+    })
+  );
+
+  router.post(
+    "/credit/new-retailer-reviews/:id/verify",
+    options.authenticate,
+    requireAnyPermission(
+      Permissions.CREDIT_RATING_CONFIRM,
+      Permissions.CREDIT_BLOCK,
+      Permissions.KYC_REVIEW,
+      Permissions.STAFF_MANAGE
+    ),
+    asyncRoute(async (req: StaffAuthedRequest, res, next) => {
+      const parsed = z
+        .object({
+          status: z.enum(["pending", "verified", "flagged"]),
+          notes: z.string().trim().max(500).optional(),
+        })
+        .safeParse(req.body ?? {});
+      if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+      try {
+        const proposal = await service.verifyCreditReferences({
+          proposalId: req.params.id,
+          actorStaffId: req.staffAuth!.staffId,
+          status: parsed.data.status,
+          notes: parsed.data.notes,
+        });
+        res.json({ proposal });
+      } catch (error) {
+        sendError(error, res, next);
+      }
+    })
+  );
 
   router.get(
     "/retailer-proposals",

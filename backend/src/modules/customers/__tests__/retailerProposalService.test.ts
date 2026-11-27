@@ -15,7 +15,12 @@ function fakePrisma(overrides: Record<string, any> = {}) {
     staffUser: {
       findUnique: vi.fn().mockResolvedValue({ status: "active", salesRepId: "rep-1" }),
     },
-    retailer: { findFirst: vi.fn().mockResolvedValue(null), create: vi.fn() },
+    retailer: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+      count: vi.fn().mockResolvedValue(0),
+      create: vi.fn(),
+    },
     commercialStatusEvent: {
       findUnique: vi.fn().mockResolvedValue(null),
       create: vi.fn().mockImplementation(async ({ data }: any) => ({ id: "commercial-event-1", ...data })),
@@ -27,6 +32,9 @@ function fakePrisma(overrides: Record<string, any> = {}) {
       findMany: vi.fn().mockResolvedValue([]),
       create: vi.fn().mockImplementation(async ({ data }: any) => ({ id: "proposal-1", ...data })),
       update: vi.fn().mockImplementation(async ({ data }: any) => ({ id: "proposal-1", ...data })),
+    },
+    retailerProposalReference: {
+      createMany: vi.fn().mockResolvedValue({ count: 3 }),
     },
     retailerProposalOrderIntent: {
       findMany: vi.fn().mockResolvedValue([]),
@@ -57,15 +65,32 @@ const submission = {
   ownerName: "Ramesh Sharma",
   phone: "9812345699",
   transporter: "Gagan Logistics",
+  broker: "Malwa Brokers",
   shopAddress: "18 Market Road, Pune",
+  addressLine2: "Near Main Chowk",
+  beatName: "Central Beat",
   pinCode: "411001",
+  tehsil: "Pune City",
+  district: "Pune",
+  state: "Maharashtra",
   gstin: "27ABCDE1234F1Z5",
   upiId: "sharma.stores@upi",
   deliveryCity: "Pune",
   shopDurationYears: 5,
   paymentTerms: "30 days credit",
+  proposedCreditLimit: 50000,
+  grade: "A",
+  buyerCategory: "Kirana / General Store",
+  buyerSubCategory: "Retail Kirana",
+  remark: "Known reliable party",
   aadhaarNumber: "123456789012",
   aadhaarPhoto: { contentType: "image/jpeg", bodyBase64: "YWJjZA==" },
+  aadhaarPhotoBack: { contentType: "image/jpeg", bodyBase64: "YWJjZA==" },
+  references: [
+    { retailerName: "Ref Store 1", phone: "9811111101", city: "Pune", isExistingCustomer: false },
+    { retailerName: "Ref Store 2", phone: "9811111102", city: "Pune", isExistingCustomer: false },
+    { retailerName: "Ref Store 3", phone: "9811111103", city: "Pune", isExistingCustomer: false },
+  ],
   latitude: 18.5167,
   longitude: 73.8562,
   accuracyMeters: 14,
@@ -399,6 +424,21 @@ describe("submitting a proposal", () => {
     await expect(service.submit({ ...submission, pinCode: "4110" })).rejects.toMatchObject({ code: "pin_code_invalid" });
     await expect(service.submit({ ...submission, gstin: "27BAD" })).rejects.toMatchObject({ code: "gstin_invalid" });
     await expect(service.submit({ ...submission, upiId: "not-an-upi" })).rejects.toMatchObject({ code: "upi_id_invalid" });
+    await expect(service.submit({ ...submission, references: submission.references.slice(0, 2) })).rejects.toMatchObject({
+      code: "references_minimum_three",
+    });
+  });
+
+  it("auto-populates Hindi fields and preserves manual Hindi overrides", async () => {
+    const prisma = fakePrisma();
+    const proposal = await serviceFor(prisma).submit({
+      ...submission,
+      businessNameHi: "शर्मा स्टोर्स कस्टम",
+    });
+    expect(proposal.businessNameHi).toBe("शर्मा स्टोर्स कस्टम");
+    expect(proposal.deliveryCityHi).toBe("पुणे");
+    expect(proposal.stateHi).toBe("महाराष्ट्र");
+    expect(proposal.hindiSnapshot?.paymentTermsHi).toBe("30 दिन क्रेडिट");
   });
 
   it("looks for an existing store under every form of the number", async () => {

@@ -47,6 +47,20 @@ export default function Retailers() {
     creditLimit: "50000",
     tierId: "",
     salesRepId: "",
+    groupName: "",
+    telephone: "",
+    transporter: "",
+    broker: "",
+    addressLine2: "",
+    beatName: "",
+    tehsil: "",
+    district: "",
+    state: "",
+    upiId: "",
+    grade: "",
+    buyerCategory: "",
+    buyerSubCategory: "",
+    remark: "",
   });
 
   const [coordsForm, setCoordsForm] = useState({
@@ -80,6 +94,20 @@ export default function Retailers() {
         creditLimit: String(r.creditLimit ?? 0),
         tierId: r.tierId ?? tiers[0]?.id ?? "",
         salesRepId: r.salesRepId ?? "",
+        groupName: r.groupName ?? "",
+        telephone: r.telephone ?? "",
+        transporter: r.transporter ?? "",
+        broker: r.broker ?? "",
+        addressLine2: r.addressLine2 ?? "",
+        beatName: r.beatName ?? "",
+        tehsil: r.tehsil ?? "",
+        district: r.district ?? "",
+        state: r.state ?? "",
+        upiId: r.upiId ?? "",
+        grade: r.grade ?? "",
+        buyerCategory: r.buyerCategory ?? "",
+        buyerSubCategory: r.buyerSubCategory ?? "",
+        remark: r.remark ?? "",
       });
       setCoordsForm({
         lat: r.lat != null ? String(r.lat) : "",
@@ -112,6 +140,20 @@ export default function Retailers() {
         creditLimit: parseFloat(profileForm.creditLimit) || 0,
         tierId: profileForm.tierId || undefined,
         salesRepId: profileForm.salesRepId || undefined,
+        groupName: profileForm.groupName.trim() || undefined,
+        telephone: profileForm.telephone.trim() || undefined,
+        transporter: profileForm.transporter.trim() || undefined,
+        broker: profileForm.broker.trim() || undefined,
+        addressLine2: profileForm.addressLine2.trim() || undefined,
+        beatName: profileForm.beatName.trim() || undefined,
+        tehsil: profileForm.tehsil.trim() || undefined,
+        district: profileForm.district.trim() || undefined,
+        state: profileForm.state.trim() || undefined,
+        upiId: profileForm.upiId.trim() || undefined,
+        grade: profileForm.grade.trim() || undefined,
+        buyerCategory: profileForm.buyerCategory.trim() || undefined,
+        buyerSubCategory: profileForm.buyerSubCategory.trim() || undefined,
+        remark: profileForm.remark.trim() || undefined,
       });
       setNotice(res.message ?? "Retailer master profile updated");
       await load();
@@ -934,6 +976,170 @@ export default function Retailers() {
                         </select>
                       </div>
                     </div>
+
+                    <h4 style={{ margin: "16px 0 8px", borderBottom: "1px solid var(--border)", paddingBottom: 6 }}>
+                      Business Details, Address Extensions & Category
+                    </h4>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                      <div className="field">
+                        <label>Group Name</label>
+                        <input
+                          value={profileForm.groupName}
+                          onChange={(e) => setProfileForm({ ...profileForm, groupName: e.target.value })}
+                        />
+                      </div>
+                      <div className="field">
+                        <label>Telephone</label>
+                        <input
+                          value={profileForm.telephone}
+                          onChange={(e) => setProfileForm({ ...profileForm, telephone: e.target.value })}
+                        />
+                      </div>
+                      <div className="field">
+                        <label>Transporter</label>
+                        <input
+                          value={profileForm.transporter}
+                          onChange={(e) => setProfileForm({ ...profileForm, transporter: e.target.value })}
+                        />
+                      </div>
+                      <div className="field">
+                        <label>Broker</label>
+                        <input
+                          value={profileForm.broker}
+                          onChange={(e) => setProfileForm({ ...profileForm, broker: e.target.value })}
+                        />
+                      </div>
+                      <div className="field">
+                        <label>Address - 2 / Locality</label>
+                        <input
+                          value={profileForm.addressLine2}
+                          onChange={(e) => setProfileForm({ ...profileForm, addressLine2: e.target.value })}
+                        />
+                      </div>
+                      <div className="field">
+                        <label>Beat Name</label>
+                        <input
+                          value={profileForm.beatName}
+                          onChange={(e) => setProfileForm({ ...profileForm, beatName: e.target.value })}
+                        />
+                      </div>
+                      <div className="field">
+                        <label>Tehsil</label>
+                        <input
+                          value={profileForm.tehsil}
+                          onChange={(e) => setProfileForm({ ...profileForm, tehsil: e.target.value })}
+                        />
+                      </div>
+                      <div className="field">
+                        <label>District</label>
+                        <input
+                          value={profileForm.district}
+                          onChange={(e) => setProfileForm({ ...profileForm, district: e.target.value })}
+                        />
+                      </div>
+                      <div className="field">
+                        <label>State</label>
+                        <input
+                          value={profileForm.state}
+                          onChange={(e) => setProfileForm({ ...profileForm, state: e.target.value })}
+                        />
+                      </div>
+                      <div className="field">
+                        <label>UPI ID</label>
+                        <input
+                          value={profileForm.upiId}
+                          onChange={(e) => setProfileForm({ ...profileForm, upiId: e.target.value })}
+                        />
+                      </div>
+                      <div className="field">
+                        <label>Grade</label>
+                        <select
+                          value={profileForm.grade}
+                          onChange={(e) => setProfileForm({ ...profileForm, grade: e.target.value })}
+                        >
+                          <option value="">Not set</option>
+                          <option value="A">A</option>
+                          <option value="B">B</option>
+                          <option value="C">C</option>
+                          <option value="D">D</option>
+                        </select>
+                      </div>
+                      <div className="field">
+                        <label>Buyer Category</label>
+                        <input
+                          value={profileForm.buyerCategory}
+                          onChange={(e) => setProfileForm({ ...profileForm, buyerCategory: e.target.value })}
+                        />
+                      </div>
+                      <div className="field">
+                        <label>Buyer Sub Category</label>
+                        <input
+                          value={profileForm.buyerSubCategory}
+                          onChange={(e) => setProfileForm({ ...profileForm, buyerSubCategory: e.target.value })}
+                        />
+                      </div>
+                      <div className="field">
+                        <label>Remark</label>
+                        <input
+                          value={profileForm.remark}
+                          onChange={(e) => setProfileForm({ ...profileForm, remark: e.target.value })}
+                        />
+                      </div>
+                    </div>
+
+                    {fullProfileData?.retailer?.businessNameHi ? (
+                      <div
+                        style={{
+                          marginBottom: 14,
+                          padding: "10px 12px",
+                          background: "#f8fafc",
+                          borderRadius: 6,
+                          border: "1px solid #e2e8f0",
+                          fontSize: 12,
+                        }}
+                      >
+                        <div className="section-kicker" style={{ marginBottom: 4 }}>
+                          Hindi Profile / हिंदी विवरण
+                        </div>
+                        <div>
+                          <strong>पार्टी:</strong> {fullProfileData.retailer.businessNameHi} ·{" "}
+                          <strong>ट्रांसपोर्टर:</strong> {fullProfileData.retailer.transporterHi ?? "—"} ·{" "}
+                          <strong>शहर:</strong> {fullProfileData.retailer.deliveryCityHi ?? "—"}
+                        </div>
+                        <div>
+                          <strong>पता:</strong> {fullProfileData.retailer.shopAddressHi ?? "—"}{" "}
+                          {fullProfileData.retailer.addressLine2Hi ? `(${fullProfileData.retailer.addressLine2Hi})` : ""}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {fullProfileData?.retailer?.proposal?.references?.length ? (
+                      <div
+                        style={{
+                          marginBottom: 16,
+                          padding: "10px 12px",
+                          background: "#f0fdf4",
+                          borderRadius: 6,
+                          border: "1px solid #bbf7d0",
+                          fontSize: 12,
+                        }}
+                      >
+                        <div className="section-kicker" style={{ color: "#166534", marginBottom: 6 }}>
+                          Onboarding Same-City References ({fullProfileData.retailer.proposal.references.length}) ·{" "}
+                          Credit status: {fullProfileData.retailer.proposal.creditVerificationStatus ?? "pending"}
+                        </div>
+                        <ul style={{ margin: 0, paddingLeft: 18 }}>
+                          {fullProfileData.retailer.proposal.references.map((ref: any, idx: number) => (
+                            <li key={ref.id ?? idx}>
+                              <strong>{ref.referencedShopName}</strong>
+                              {ref.referencedPhone ? ` · ${ref.referencedPhone}` : ""}
+                              {ref.referencedCity ? ` · ${ref.referencedCity}` : ""}
+                              {ref.isExistingCustomer ? " (DB Customer)" : " (Market Ref)"}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
 
                     <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
                       <button

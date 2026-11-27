@@ -559,10 +559,15 @@ export const api = {
     return request(`/admin/retailer-proposals${qs ? `?${qs}` : ""}`);
   },
   retailerProposalPhoto: (path: string) => requestBlob(path),
+  retailerProposalFormMetadata: () => request("/admin/retailer-proposals/form-metadata"),
   approveRetailerProposal: (id: string, tierId?: string) =>
     post(`/admin/retailer-proposals/${id}/approve`, tierId ? { tierId } : {}),
   rejectRetailerProposal: (id: string, reason: string) =>
     post(`/admin/retailer-proposals/${id}/reject`, { reason }),
+  creditNewRetailerReviews: (status?: string) =>
+    request(`/admin/credit/new-retailer-reviews${status ? `?status=${encodeURIComponent(status)}` : ""}`),
+  verifyCreditNewRetailer: (id: string, body: { status: "pending" | "verified" | "flagged"; notes?: string }) =>
+    post(`/admin/credit/new-retailer-reviews/${id}/verify`, body),
 
   /* ----------------------------- market surveys ----------------------------- */
   surveys: (status?: string) => request(`/admin/surveys${status ? `?status=${status}` : ""}`),

@@ -4,12 +4,14 @@ import { api } from "../../api";
 import CreditReviews from "../CreditReviews";
 
 vi.mock("../../api", () => ({ api: {
-  ratingProposals: vi.fn(), shadowComparisons: vi.fn(), kycPending: vi.fn(), confirmKyc: vi.fn(), requestAdminStepUp: vi.fn(), completeAdminStepUp: vi.fn(), confirmRatingProposal: vi.fn(),
+  ratingProposals: vi.fn(), shadowComparisons: vi.fn(), kycPending: vi.fn(), confirmKyc: vi.fn(), requestAdminStepUp: vi.fn(), completeAdminStepUp: vi.fn(), confirmRatingProposal: vi.fn(), creditNewRetailerReviews: vi.fn(), verifyCreditNewRetailer: vi.fn(),
 } }));
 
 describe("credit rating reviews", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(api.creditNewRetailerReviews).mockResolvedValue({ proposals: [] });
+    vi.mocked(api.verifyCreditNewRetailer).mockResolvedValue({ proposal: null });
     vi.mocked(api.ratingProposals).mockResolvedValue({ proposals: [{
       id: "proposal-1", previousRating: "N", proposedRating: "A", trigger: "quarterly_checkpoint",
       evidence: { averageDso: 28, cleanInvoiceCount: 3 },

@@ -11,6 +11,25 @@ import { recordCommercialStatusEvent } from "../commercialStatus/statusService";
 import { createOrderForRetailer, type OrderLineInput } from "../../lib/orders";
 import { catalogueImageState, catalogueOrderingState } from "../catalog/catalogueVisibility";
 import { quoteFor } from "../commercial/service";
+import {
+  BUYER_CATEGORIES,
+  BUYER_SUB_CATEGORIES,
+  PAYMENT_TERMS_OPTIONS,
+  RETAILER_GRADES,
+  type RetailerReferenceInput,
+} from "./retailerOptions";
+import {
+  buildLocationDirectory,
+  buildSameCityRetailerWhere,
+  cityMatchVariants,
+  lookupPinCode,
+  normalizeCityName,
+  standardizeProposalLocation,
+} from "./locationDirectory";
+import {
+  buildBilingualHindiFields,
+  deterministicEnglishToHindi,
+} from "./hindiTranslator";
 
 type Db = PrismaClient | any;
 
@@ -40,11 +59,14 @@ export interface SubmitProposalInput {
   phone: string;
   telephone?: string;
   transporter: string;
+  broker?: string;
   shopAddress: string;
-  pinCode?: string;
-  tehsil?: string;
-  district?: string;
-  state?: string;
+  addressLine2?: string;
+  beatName?: string;
+  pinCode: string;
+  tehsil: string;
+  district: string;
+  state: string;
   deliveryCity: string;
   shopDurationYears: number;
   gstin?: string;
@@ -60,7 +82,23 @@ export interface SubmitProposalInput {
     checksum?: string;
   };
   paymentTerms: string;
+  proposedCreditLimit?: number;
+  grade: string;
+  buyerCategory: string;
+  buyerSubCategory?: string;
+  remark?: string;
   upiId?: string;
+  businessNameHi?: string;
+  transporterHi?: string;
+  shopAddressHi?: string;
+  addressLine2Hi?: string;
+  beatNameHi?: string;
+  deliveryCityHi?: string;
+  tehsilHi?: string;
+  districtHi?: string;
+  stateHi?: string;
+  customLocationUsed?: boolean;
+  references: RetailerReferenceInput[];
   latitude?: number;
   longitude?: number;
   accuracyMeters?: number;
@@ -119,11 +157,39 @@ function publicProposal(proposal: any, photoUrl?: string | null, photoBackUrl?: 
     aadhaarPhotoAsset,
     aadhaarPhotoAssetId: _photoAssetId,
     notes,
+    hindiSnapshot,
     ...safe
   } = proposal;
   const cleanNotes = notes ? notes.replace(/\s*\[AADHAAR_BACK_ASSET_ID:[a-zA-Z0-9_-]+\]/, "").trim() || null : null;
+  const rawSnap = (hindiSnapshot && typeof hindiSnapshot === "object" ? hindiSnapshot : {}) as Record<string, string | null>;
+  const computedHindi = {
+    businessNameHi: proposal.businessNameHi || deterministicEnglishToHindi(proposal.businessName) || null,
+    transporterHi: proposal.transporterHi || deterministicEnglishToHindi(proposal.transporter) || null,
+    shopAddressHi: proposal.shopAddressHi || deterministicEnglishToHindi(proposal.shopAddress) || null,
+    addressLine2Hi: proposal.addressLine2Hi || deterministicEnglishToHindi(proposal.addressLine2) || null,
+    beatNameHi: proposal.beatNameHi || deterministicEnglishToHindi(proposal.beatName) || null,
+    deliveryCityHi: proposal.deliveryCityHi || deterministicEnglishToHindi(proposal.deliveryCity) || null,
+    tehsilHi: proposal.tehsilHi || deterministicEnglishToHindi(proposal.tehsil) || null,
+    districtHi: proposal.districtHi || deterministicEnglishToHindi(proposal.district) || null,
+    stateHi: proposal.stateHi || deterministicEnglishToHindi(proposal.state) || null,
+  };
+  const resolvedHindiSnapshot = {
+    groupNameHi: rawSnap.groupNameHi || deterministicEnglishToHindi(proposal.groupName) || null,
+    ownerNameHi: rawSnap.ownerNameHi || deterministicEnglishToHindi(proposal.ownerName) || null,
+    brokerHi: rawSnap.brokerHi || deterministicEnglishToHindi(proposal.broker) || null,
+    paymentTermsHi: rawSnap.paymentTermsHi || deterministicEnglishToHindi(proposal.paymentTerms) || null,
+    gradeHi: rawSnap.gradeHi || proposal.grade || null,
+    buyerCategoryHi: rawSnap.buyerCategoryHi || deterministicEnglishToHindi(proposal.buyerCategory) || null,
+    buyerSubCategoryHi: rawSnap.buyerSubCategoryHi || deterministicEnglishToHindi(proposal.buyerSubCategory) || null,
+    remarkHi: rawSnap.remarkHi || deterministicEnglishToHindi(proposal.remark ?? cleanNotes) || null,
+    salesmanNameHi: rawSnap.salesmanNameHi || deterministicEnglishToHindi(proposal.submittedBy?.name) || null,
+  };
   return {
     ...safe,
+    ...computedHindi,
+    hindiSnapshot: resolvedHindiSnapshot,
+    remark: proposal.remark ?? cleanNotes,
+    proposedCreditLimit: proposal.proposedCreditLimit != null ? Number(proposal.proposedCreditLimit) : null,
     notes: cleanNotes,
     aadhaarNumberMasked: maskAadhaar(aadhaarLast4),
     aadhaarPhoto: aadhaarPhotoAsset
@@ -188,6 +254,80 @@ export class RetailerProposalService {
     return this.storage ?? getObjectStorage();
   }
 
+  async getFormMetadata() {
+    return {
+      grades: [...RETAILER_GRADES],
+      buyerCategories: [...BUYER_CATEGORIES],
+      buyerSubCategories: [...BUYER_SUB_CATEGORIES],
+      paymentTermsOptions: [...PAYMENT_TERMS_OPTIONS],
+      locations: await buildLocationDirectory(this.prisma),
+    };
+  }
+
+  async lookupPin(pinCode: string) {
+    return lookupPinCode(pinCode);
+  }
+
+  async translateHindiPreview(input: Parameters<typeof buildBilingualHindiFields>[0]) {
+    return buildBilingualHindiFields(input);
+  }
+
+  async listSameCityRetailers(input: { city: string; query?: string }) {
+    const cleanCity = normalizeCityName(input.city);
+    if (!cleanCity || cleanCity.length < 2 || !this.prisma.retailer?.findMany) {
+      return { city: cleanCity, retailers: [], cityRetailerCount: 0 };
+    }
+    const cityWhere = buildSameCityRetailerWhere(cleanCity);
+    const q = input.query?.trim();
+    const searchWhere = q
+      ? {
+          AND: [
+            cityWhere,
+            {
+              OR: [
+                { name: { contains: q, mode: "insensitive" } },
+                { ownerName: { contains: q, mode: "insensitive" } },
+                { phone: { contains: q } },
+                { shopAddress: { contains: q, mode: "insensitive" } },
+              ],
+            },
+          ],
+        }
+      : cityWhere;
+
+    const [retailers, cityRetailerCount] = await Promise.all([
+      this.prisma.retailer.findMany({
+        where: searchWhere,
+        select: {
+          id: true,
+          name: true,
+          ownerName: true,
+          phone: true,
+          shopAddress: true,
+          deliveryCity: true,
+          tehsil: true,
+          status: true,
+        },
+        orderBy: { name: "asc" },
+        take: 60,
+      }),
+      this.prisma.retailer.count ? this.prisma.retailer.count({ where: cityWhere }) : Promise.resolve(0),
+    ]);
+
+    return { city: cleanCity, retailers, cityRetailerCount };
+  }
+
+  private retailerMatchesCity(retailer: { deliveryCity?: string | null; tehsil?: string | null; shopAddress?: string | null; name?: string | null }, targetCity: string) {
+    const tokens = cityMatchVariants(targetCity).map((v) => v.toLowerCase());
+    const fields = [retailer.deliveryCity, retailer.tehsil, retailer.shopAddress, retailer.name]
+      .filter(Boolean)
+      .map((f) => String(f).toLowerCase());
+    if (retailer.deliveryCity) {
+      return tokens.some((tok) => normalizeCityName(retailer.deliveryCity!).toLowerCase() === normalizeCityName(tok).toLowerCase());
+    }
+    return tokens.some((tok) => fields.some((field) => field.includes(tok)));
+  }
+
   async submit(input: SubmitProposalInput) {
     const businessName = input.businessName.trim();
     const groupName = input.groupName.trim();
@@ -203,7 +343,27 @@ export class RetailerProposalService {
       throw new ProposalError("shop_duration_invalid", 400);
     }
     if (!input.paymentTerms.trim()) throw new ProposalError("payment_terms_required", 400);
-    const pinCode = optionalValue(input.pinCode, INDIAN_PIN_RE, "pin_code_invalid");
+    const pinCode = clean(input.pinCode);
+    if (!pinCode || !INDIAN_PIN_RE.test(pinCode)) throw new ProposalError("pin_code_invalid", 400);
+    const rawTehsil = clean(input.tehsil);
+    const rawDistrict = clean(input.district);
+    const rawState = clean(input.state);
+    if (!rawTehsil || rawTehsil.length < 2) throw new ProposalError("tehsil_required", 400);
+    if (!rawDistrict || rawDistrict.length < 2) throw new ProposalError("district_required", 400);
+    if (!rawState || rawState.length < 2) throw new ProposalError("state_required", 400);
+
+    const grade = clean(input.grade);
+    const buyerCategory = clean(input.buyerCategory);
+    if (!grade) throw new ProposalError("grade_required", 400);
+    if (!buyerCategory) throw new ProposalError("buyer_category_required", 400);
+
+    if (
+      input.proposedCreditLimit !== undefined &&
+      (!Number.isFinite(input.proposedCreditLimit) || input.proposedCreditLimit < 0)
+    ) {
+      throw new ProposalError("credit_limit_invalid", 400);
+    }
+
     const gstin = clean(input.gstin)?.toUpperCase() ?? null;
     if (gstin && !GSTIN_RE.test(gstin)) throw new ProposalError("gstin_invalid", 400);
     const upiId = optionalValue(input.upiId, UPI_ID_RE, "upi_id_invalid");
@@ -211,6 +371,17 @@ export class RetailerProposalService {
     if (!input.aadhaarPhoto?.contentType?.startsWith("image/")) {
       throw new ProposalError("aadhaar_photo_required", 400);
     }
+    if (!input.aadhaarPhotoBack?.contentType?.startsWith("image/")) {
+      throw new ProposalError("aadhaar_photo_back_required", 400);
+    }
+
+    const standardizedLocation = standardizeProposalLocation({
+      state: rawState,
+      district: rawDistrict,
+      tehsil: rawTehsil,
+      deliveryCity: input.deliveryCity,
+      customLocationUsed: input.customLocationUsed,
+    });
 
     // `normalizeIndianPhone` validates and returns the +91 form; the customer
     // master stores the bare national number, so the proposal is kept in the
@@ -224,12 +395,120 @@ export class RetailerProposalService {
       throw new ProposalError("phone_invalid", 400);
     }
 
+    const rawRefs = Array.isArray(input.references) ? input.references : [];
+    if (rawRefs.length < 3) {
+      throw new ProposalError("references_minimum_three", 400);
+    }
+
     const staff = await this.prisma.staffUser.findUnique({
       where: { id: input.submittedByStaffId },
-      select: { status: true, salesRepId: true },
+      select: { name: true, status: true, salesRepId: true },
     });
     if (!staff || staff.status !== "active" || !staff.salesRepId) {
       throw new ProposalError("salesperson_not_available", 403);
+    }
+
+    // Validate 3+ unique same-city retailer references
+    const seenRefIds = new Set<string>();
+    const seenRefNames = new Set<string>();
+    const linkedIds = rawRefs.map((r) => clean(r.existingRetailerId ?? undefined)).filter(Boolean) as string[];
+    let linkedRetailersById = new Map<string, any>();
+    let sameCityDbCount = 0;
+    if (this.prisma.retailer?.findMany) {
+      const cityWhere = buildSameCityRetailerWhere(standardizedLocation.deliveryCity);
+      const [foundLinked, dbCityCount] = await Promise.all([
+        linkedIds.length > 0
+          ? this.prisma.retailer.findMany({
+              where: { id: { in: linkedIds } },
+              select: { id: true, name: true, ownerName: true, phone: true, shopAddress: true, deliveryCity: true, tehsil: true },
+            })
+          : Promise.resolve([]),
+        this.prisma.retailer.count ? this.prisma.retailer.count({ where: cityWhere }) : Promise.resolve(0),
+      ]);
+      linkedRetailersById = new Map(foundLinked.map((r: any) => [r.id, r]));
+      sameCityDbCount = dbCityCount;
+    }
+
+    const preparedRefs: Array<{
+      existingRetailerId: string | null;
+      retailerName: string;
+      ownerName: string | null;
+      phone: string | null;
+      shopAddress: string | null;
+      city: string;
+      isExistingCustomer: boolean;
+      notes: string | null;
+    }> = [];
+
+    for (const ref of rawRefs) {
+      const existingId = clean(ref.existingRetailerId ?? undefined);
+      if (existingId) {
+        if (seenRefIds.has(existingId)) throw new ProposalError("reference_duplicate", 400);
+        seenRefIds.add(existingId);
+        const dbRet = linkedRetailersById.get(existingId);
+        if (this.prisma.retailer?.findMany && !dbRet) {
+          throw new ProposalError("reference_retailer_not_found", 400);
+        }
+        if (dbRet) {
+          if (!this.retailerMatchesCity(dbRet, standardizedLocation.deliveryCity)) {
+            throw new ProposalError("reference_city_mismatch", 400, { retailerName: dbRet.name });
+          }
+          const refPhone = String(dbRet.phone ?? "").replace(/^\+91/, "");
+          if (refPhone && refPhone === phone) {
+            throw new ProposalError("reference_self_not_allowed", 400);
+          }
+          preparedRefs.push({
+            existingRetailerId: dbRet.id,
+            retailerName: dbRet.name,
+            ownerName: dbRet.ownerName ?? clean(ref.ownerName ?? undefined),
+            phone: dbRet.phone ?? clean(ref.phone ?? undefined),
+            shopAddress: dbRet.shopAddress ?? clean(ref.shopAddress ?? undefined),
+            city: standardizedLocation.deliveryCity,
+            isExistingCustomer: true,
+            notes: clean(ref.notes ?? undefined),
+          });
+          continue;
+        }
+      }
+
+      const refName = ref.retailerName?.trim() ?? "";
+      if (refName.length < 2) throw new ProposalError("reference_name_required", 400);
+      const refCity = normalizeCityName(ref.city || standardizedLocation.deliveryCity);
+      if (refCity.toLowerCase() !== standardizedLocation.deliveryCity.toLowerCase()) {
+        throw new ProposalError("reference_city_mismatch", 400, { retailerName: refName });
+      }
+      let refPhone: string | null = null;
+      if (ref.phone?.trim()) {
+        try {
+          refPhone = normalizeIndianPhone(ref.phone).replace(/^\+91/, "");
+        } catch {
+          throw new ProposalError("reference_phone_invalid", 400, { retailerName: refName });
+        }
+        if (refPhone === phone) throw new ProposalError("reference_self_not_allowed", 400);
+      } else {
+        throw new ProposalError("reference_phone_invalid", 400, { retailerName: refName });
+      }
+      const dedupeKey = `${refName.toLowerCase()}::${refPhone ?? ""}`;
+      if (seenRefNames.has(dedupeKey)) throw new ProposalError("reference_duplicate", 400);
+      seenRefNames.add(dedupeKey);
+
+      preparedRefs.push({
+        existingRetailerId: existingId ?? null,
+        retailerName: refName,
+        ownerName: clean(ref.ownerName ?? undefined),
+        phone: refPhone,
+        shopAddress: clean(ref.shopAddress ?? undefined),
+        city: standardizedLocation.deliveryCity,
+        isExistingCustomer: false,
+        notes: clean(ref.notes ?? undefined),
+      });
+    }
+
+    if (sameCityDbCount >= 3 && preparedRefs.filter((r) => r.isExistingCustomer).length < 3) {
+      throw new ProposalError("references_must_be_existing_city_retailers", 400, {
+        city: standardizedLocation.deliveryCity,
+        availableCount: sameCityDbCount,
+      });
     }
 
     // The customer master keys on phone, so a store already on it cannot be
@@ -250,6 +529,44 @@ export class RetailerProposalService {
     }
     if (existingProposal) throw new ProposalError("proposal_already_pending", 409);
 
+    const bilingualHindi = await buildBilingualHindiFields({
+      businessName,
+      groupName,
+      ownerName,
+      transporter: input.transporter,
+      broker: input.broker,
+      shopAddress,
+      addressLine2: input.addressLine2,
+      beatName: input.beatName,
+      deliveryCity: standardizedLocation.deliveryCity,
+      tehsil: standardizedLocation.tehsil,
+      district: standardizedLocation.district,
+      state: standardizedLocation.state,
+      paymentTerms: input.paymentTerms,
+      grade,
+      buyerCategory,
+      buyerSubCategory: input.buyerSubCategory,
+      remark: input.remark ?? input.notes,
+      salesmanName: staff.name ?? null,
+      businessNameHi: input.businessNameHi,
+      transporterHi: input.transporterHi,
+      shopAddressHi: input.shopAddressHi,
+      addressLine2Hi: input.addressLine2Hi,
+      beatNameHi: input.beatNameHi,
+      deliveryCityHi: input.deliveryCityHi,
+      tehsilHi: input.tehsilHi,
+      districtHi: input.districtHi,
+      stateHi: input.stateHi,
+    });
+    if (
+      !bilingualHindi.businessNameHi ||
+      !bilingualHindi.transporterHi ||
+      !bilingualHindi.shopAddressHi ||
+      !bilingualHindi.deliveryCityHi
+    ) {
+      throw new ProposalError("hindi_fields_required", 400);
+    }
+
     const storage = this.objectStorage();
     const frontPhotoBody = decodePhoto(input.aadhaarPhoto.bodyBase64);
     const stored = await storage.put({
@@ -258,17 +575,13 @@ export class RetailerProposalService {
       body: frontPhotoBody,
       checksum: input.aadhaarPhoto.checksum,
     });
-    let backPhotoBody: Buffer | null = null;
-    let storedBack: any = null;
-    if (input.aadhaarPhotoBack) {
-      backPhotoBody = decodePhoto(input.aadhaarPhotoBack.bodyBase64);
-      storedBack = await storage.put({
-        purpose: EvidencePurpose.retailer_proposal_aadhaar,
-        contentType: input.aadhaarPhotoBack.contentType,
-        body: backPhotoBody,
-        checksum: input.aadhaarPhotoBack.checksum,
-      });
-    }
+    const backPhotoBody = decodePhoto(input.aadhaarPhotoBack.bodyBase64);
+    const storedBack = await storage.put({
+      purpose: EvidencePurpose.retailer_proposal_aadhaar,
+      contentType: input.aadhaarPhotoBack.contentType,
+      body: backPhotoBody,
+      checksum: input.aadhaarPhotoBack.checksum,
+    });
     try {
       const proposal = await this.prisma.$transaction(async (tx: Db) => {
         const asset = await tx.evidenceAsset.create({
@@ -282,21 +595,19 @@ export class RetailerProposalService {
             createdByStaffId: input.submittedByStaffId,
           },
         });
-        let assetBack: any = null;
-        if (storedBack) {
-          assetBack = await tx.evidenceAsset.create({
-            data: {
-              objectKey: storedBack.objectKey,
-              checksum: storedBack.checksum,
-              contentType: storedBack.contentType,
-              sizeBytes: storedBack.sizeBytes,
-              contentBytes: backPhotoBody,
-              purpose: EvidencePurpose.retailer_proposal_aadhaar,
-              createdByStaffId: input.submittedByStaffId,
-            },
-          });
-        }
-        return tx.retailerProposal.create({
+        const assetBack = await tx.evidenceAsset.create({
+          data: {
+            objectKey: storedBack.objectKey,
+            checksum: storedBack.checksum,
+            contentType: storedBack.contentType,
+            sizeBytes: storedBack.sizeBytes,
+            contentBytes: backPhotoBody,
+            purpose: EvidencePurpose.retailer_proposal_aadhaar,
+            createdByStaffId: input.submittedByStaffId,
+          },
+        });
+        const remarkText = clean(input.remark ?? input.notes);
+        const created = await tx.retailerProposal.create({
           data: {
             businessName,
             groupName,
@@ -304,34 +615,61 @@ export class RetailerProposalService {
             phone,
             telephone: clean(input.telephone),
             transporter: input.transporter.trim(),
+            broker: clean(input.broker),
             shopAddress,
+            addressLine2: clean(input.addressLine2),
+            beatName: clean(input.beatName),
             pinCode,
-            tehsil: clean(input.tehsil),
-            district: clean(input.district),
-            state: clean(input.state),
-            deliveryCity: input.deliveryCity.trim(),
+            tehsil: standardizedLocation.tehsil,
+            district: standardizedLocation.district,
+            state: standardizedLocation.state,
+            deliveryCity: standardizedLocation.deliveryCity,
+            locationStandardized: standardizedLocation.locationStandardized,
+            locationNeedsReview: standardizedLocation.locationNeedsReview,
             shopDurationYears: input.shopDurationYears,
             gstin,
             aadhaarEncrypted: encryptPii(aadhaar),
             aadhaarLast4: aadhaar.slice(-4),
             aadhaarPhotoAssetId: asset.id,
             paymentTerms: input.paymentTerms.trim(),
+            proposedCreditLimit: input.proposedCreditLimit ?? null,
+            grade,
+            buyerCategory,
+            buyerSubCategory: clean(input.buyerSubCategory),
+            remark: remarkText,
             upiId,
+            businessNameHi: bilingualHindi.businessNameHi,
+            transporterHi: bilingualHindi.transporterHi,
+            shopAddressHi: bilingualHindi.shopAddressHi,
+            addressLine2Hi: bilingualHindi.addressLine2Hi,
+            beatNameHi: bilingualHindi.beatNameHi,
+            deliveryCityHi: bilingualHindi.deliveryCityHi,
+            tehsilHi: bilingualHindi.tehsilHi,
+            districtHi: bilingualHindi.districtHi,
+            stateHi: bilingualHindi.stateHi,
+            hindiSnapshot: bilingualHindi.hindiSnapshot,
             latitude: input.latitude ?? null,
             longitude: input.longitude ?? null,
             accuracyMeters: input.accuracyMeters ?? null,
             proposedTierId: input.proposedTierId ?? null,
-            notes: assetBack
-              ? `${clean(input.notes) || ""}\n[AADHAAR_BACK_ASSET_ID:${assetBack.id}]`.trim()
-              : clean(input.notes),
+            notes: `${remarkText || ""}\n[AADHAAR_BACK_ASSET_ID:${assetBack.id}]`.trim(),
             submittedByStaffId: input.submittedByStaffId,
           },
         });
+        if (tx.retailerProposalReference?.createMany) {
+          await tx.retailerProposalReference.createMany({
+            data: preparedRefs.map((ref) => ({
+              proposalId: created.id,
+              ...ref,
+            })),
+          });
+        }
+        return { ...created, references: preparedRefs };
       });
       return publicProposal(proposal);
     } catch (error) {
       await storage.delete(stored.objectKey).catch(() => undefined);
-      if (storedBack) await storage.delete(storedBack.objectKey).catch(() => undefined);
+      await storage.delete(storedBack.objectKey).catch(() => undefined);
       throw error;
     }
   }
@@ -341,6 +679,13 @@ export class RetailerProposalService {
       where: { submittedByStaffId: salespersonId },
       include: {
         proposedTier: { select: { id: true, name: true } },
+        creditVerifiedBy: { select: { id: true, name: true } },
+        references: {
+          orderBy: { createdAt: "asc" },
+          include: {
+            existingRetailer: { select: { id: true, name: true, phone: true, shopAddress: true, deliveryCity: true, status: true } },
+          },
+        },
         aadhaarPhotoAsset: {
           select: { id: true, objectKey: true, contentType: true, sizeBytes: true, deletedAt: true },
         },
@@ -660,9 +1005,16 @@ export class RetailerProposalService {
         ...(filters.scopeStaffIds ? { submittedByStaffId: { in: filters.scopeStaffIds } } : {}),
       },
       include: {
-        submittedBy: { select: { id: true, name: true } },
+        submittedBy: { select: { id: true, name: true, phone: true } },
         reviewedBy: { select: { id: true, name: true } },
+        creditVerifiedBy: { select: { id: true, name: true } },
         proposedTier: { select: { id: true, name: true } },
+        references: {
+          orderBy: { createdAt: "asc" },
+          include: {
+            existingRetailer: { select: { id: true, name: true, phone: true, shopAddress: true, deliveryCity: true, status: true } },
+          },
+        },
         aadhaarPhotoAsset: {
           select: { id: true, objectKey: true, contentType: true, sizeBytes: true, deletedAt: true },
         },
@@ -921,14 +1273,41 @@ export class RetailerProposalService {
       const retailer = await tx.retailer.create({
         data: {
           name: proposal.businessName,
+          groupName: proposal.groupName ?? null,
+          ownerName: proposal.ownerName ?? null,
           shopAddress: proposal.shopAddress,
+          addressLine2: proposal.addressLine2 ?? null,
+          beatName: proposal.beatName ?? null,
+          pincode: proposal.pinCode ?? null,
+          tehsil: proposal.tehsil ?? null,
+          district: proposal.district ?? null,
+          state: proposal.state ?? null,
           deliveryCity: proposal.deliveryCity?.trim() || null,
           phone: proposal.phone,
+          telephone: proposal.telephone ?? null,
+          transporter: proposal.transporter ?? null,
+          broker: proposal.broker ?? null,
+          shopDurationYears: proposal.shopDurationYears ?? null,
+          gstin: proposal.gstin ?? null,
+          upiId: proposal.upiId ?? null,
+          grade: proposal.grade ?? null,
+          buyerCategory: proposal.buyerCategory ?? null,
+          buyerSubCategory: proposal.buyerSubCategory ?? null,
+          remark: proposal.remark ?? null,
+          businessNameHi: proposal.businessNameHi ?? null,
+          transporterHi: proposal.transporterHi ?? null,
+          shopAddressHi: proposal.shopAddressHi ?? null,
+          addressLine2Hi: proposal.addressLine2Hi ?? null,
+          beatNameHi: proposal.beatNameHi ?? null,
+          deliveryCityHi: proposal.deliveryCityHi ?? null,
+          tehsilHi: proposal.tehsilHi ?? null,
+          districtHi: proposal.districtHi ?? null,
+          stateHi: proposal.stateHi ?? null,
           tierId,
           // Approval admits the store to the master; KYC still gates credit
           // and dispatch, so the lifecycle starts where every store starts.
           status: "pending_kyc",
-          creditLimit: 0,
+          creditLimit: proposal.proposedCreditLimit ?? 0,
           currentBalance: 0,
           overdueAmount: 0,
           salesRepId: proposal.submittedBy?.salesRepId ?? null,
@@ -1226,6 +1605,38 @@ export class RetailerProposalService {
     } finally {
       this.pendingBackfillPromise = null;
     }
+  }
+
+  async verifyCreditReferences(input: {
+    proposalId: string;
+    actorStaffId: string;
+    status: "pending" | "verified" | "flagged";
+    notes?: string;
+  }) {
+    const proposal = await this.prisma.retailerProposal.findUnique({ where: { id: input.proposalId } });
+    if (!proposal) throw new ProposalError("proposal_not_found", 404);
+    const updated = await this.prisma.$transaction(async (tx: Db) => {
+      const next = await tx.retailerProposal.update({
+        where: { id: input.proposalId },
+        data: {
+          creditVerificationStatus: input.status,
+          creditVerifiedByStaffId: input.actorStaffId,
+          creditVerifiedAt: new Date(),
+          creditVerificationNotes: clean(input.notes),
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          actorStaffId: input.actorStaffId,
+          action: "retailer_proposal.credit_references_reviewed",
+          subjectType: "retailer_proposal",
+          subjectId: input.proposalId,
+          metadata: { status: input.status, notes: clean(input.notes) },
+        },
+      });
+      return next;
+    });
+    return publicProposal(updated);
   }
 
   async reject(input: {

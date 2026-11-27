@@ -43,6 +43,19 @@ export const ERROR_COPY: Record<string, string> = {
   self_review_forbidden: "A salesperson cannot review their own request.",
   rejection_reason_required: "Give the salesperson a reason before rejecting.",
   proposal_not_found: "That request no longer exists.",
+  tehsil_required: "Tehsil is required.",
+  district_required: "District is required.",
+  state_required: "State is required.",
+  grade_required: "Buyer grade is required.",
+  buyer_category_required: "Buyer category is required.",
+  references_minimum_three: "At least 3 same-city retailer references are required.",
+  reference_city_mismatch: "All retailer references must belong to the same delivery city.",
+  reference_duplicate: "Duplicate retailer references are not allowed.",
+  reference_phone_invalid: "Each manual retailer reference must include a valid 10-digit mobile number.",
+  references_must_be_existing_city_retailers:
+    "Please pick at least 3 existing retailers from this city.",
+  aadhaar_photo_back_required: "Aadhaar Card Back photo is required.",
+  hindi_fields_required: "Mandatory Hindi translation fields must be filled.",
 
   /* -------------------------------- routes ------------------------------- */
   route_plan_not_found: "That route plan no longer exists.",

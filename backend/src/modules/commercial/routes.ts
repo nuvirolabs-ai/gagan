@@ -8,6 +8,7 @@ import { requireRep, assignedRetailer, RepRequest } from "../../lib/repAuth";
 import { requireAdmin, AdminRequest, requireAdminIdentity } from "../../lib/adminAuth";
 import { Permissions } from "../identity/roleCatalog";
 import { quoteFor, setFreight, CommercialError, invoiceBalances, snapshot,quoteDelivery } from "./service";
+import { previewDynamicSchemesForBasket } from "../schemes/dynamicSchemeEngine";
 import { postInvoicePayment } from "./payment";
 import { PaymentSettlementError } from "../payments/paymentService";
 import { internalStatusForQuote } from "../commercialStatus/statusService";
@@ -66,22 +67,43 @@ router.post("/admin/commercial/orders/:id/delivery-quote", requireAdmin, async (
 
 router.post("/commercial/quotes",requireAuth,async(req:AuthedRequest,res)=>{
   const body=z.object({items}).parse(req.body);
-  res.json({quote:await quoteFor(req.retailerId!,body.items)});
+  const [quote,schemePreview]=await Promise.all([
+    quoteFor(req.retailerId!,body.items),
+    previewDynamicSchemesForBasket(prisma,req.retailerId!,body.items),
+  ]);
+  res.json({quote,schemePreview});
+});
+router.post("/commercial/scheme-preview",requireAuth,async(req:AuthedRequest,res)=>{
+  const body=z.object({items}).parse(req.body);
+  res.json({schemePreview:await previewDynamicSchemesForBasket(prisma,req.retailerId!,body.items)});
 });
 router.get("/commercial/quotes/:id",requireAuth,async(req:AuthedRequest,res)=>{
   const quote=await prisma.commercialQuote.findFirst({where:{id:req.params.id,retailerId:req.retailerId}});
   if (!quote) return res.status(404).json({error:"quote_not_found"});
-  res.json({quote});
+  const quoteLines=(snapshot(quote.snapshot)?.lines ?? []).map((l:any)=>({variantId:l.variantId,qty:Number(l.cases||0)})).filter((l:any)=>l.variantId && l.qty>0);
+  const schemePreview=await previewDynamicSchemesForBasket(prisma,req.retailerId!,quoteLines);
+  res.json({quote,schemePreview});
 });
 router.post("/rep/commercial/quotes",requireRep,async(req:RepRequest,res)=>{
   const body=z.object({retailerId:z.string(),items}).parse(req.body);
   if (!await assignedRetailer(req.repId!,body.retailerId)) return res.status(404).json({error:"retailer_not_found"});
-  res.json({quote:await quoteFor(body.retailerId,body.items)});
+  const [quote,schemePreview]=await Promise.all([
+    quoteFor(body.retailerId,body.items),
+    previewDynamicSchemesForBasket(prisma,body.retailerId,body.items),
+  ]);
+  res.json({quote,schemePreview});
+});
+router.post("/rep/commercial/scheme-preview",requireRep,async(req:RepRequest,res)=>{
+  const body=z.object({retailerId:z.string(),items}).parse(req.body);
+  if (!await assignedRetailer(req.repId!,body.retailerId)) return res.status(404).json({error:"retailer_not_found"});
+  res.json({schemePreview:await previewDynamicSchemesForBasket(prisma,body.retailerId,body.items)});
 });
 router.get("/rep/commercial/quotes/:id",requireRep,async(req:RepRequest,res)=>{
   const quote=await prisma.commercialQuote.findUnique({where:{id:req.params.id}});
   if (!quote || !await assignedRetailer(req.repId!,quote.retailerId)) return res.status(404).json({error:"quote_not_found"});
-  res.json({quote});
+  const quoteLines=(snapshot(quote.snapshot)?.lines ?? []).map((l:any)=>({variantId:l.variantId,qty:Number(l.cases||0)})).filter((l:any)=>l.variantId && l.qty>0);
+  const schemePreview=await previewDynamicSchemesForBasket(prisma,quote.retailerId,quoteLines);
+  res.json({quote,schemePreview});
 });
 router.get("/admin/commercial",requireAdminIdentity,async(req:AdminRequest,res)=>{
   if(!req.staffAuth!.permissions.some(p=>p===Permissions.STAFF_MANAGE || p===Permissions.COLLECTION_CONFIRM)) return res.status(403).json({error:"permission_required"});

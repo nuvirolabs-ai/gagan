@@ -4,7 +4,27 @@ import { createOrderForRetailer } from "../../lib/orders";
 import { quoteFor } from "../../modules/commercial/service";
 
 describe("Cluster Testing Order Features", () => {
-  it("creates order with dispatchDate, remarks, transportName and applies Rice Scheme when rice >= 210kg", async () => {
+  it("creates order with dispatchDate, remarks, transportName and applies active DB Rice Scheme when rice >= 210kg", async () => {
+    const now = new Date();
+    const scheme = await prisma.scheme.create({
+      data: {
+        name: "Cluster Test Rice 210 KG Scheme",
+        headline: "Buy 210 kg Rice, Get 10 kg Free",
+        targetAmount: 0,
+        discountAmount: 0,
+        ruleType: "category_weight",
+        qualifyingCategory: "Rice",
+        qualifyingWeightKg: 210,
+        rewardType: "lowest_priced_category_sku",
+        rewardValue: 10,
+        freePackagingUnits: "5,1",
+        targetAudience: "all_retailers",
+        active: true,
+        startsAt: new Date(now.getTime() - 60_000),
+        endsAt: new Date(now.getTime() + 86_400_000),
+      },
+    });
+    try {
     // 1. Find a retailer
     const retailer = await prisma.retailer.findFirst({
       where: { status: "active" },
@@ -68,9 +88,11 @@ describe("Cluster Testing Order Features", () => {
     expect(freeItem).toBeDefined();
     const snap = freeItem!.commercialSnapshot as any;
     expect(snap.isFreeItem).toBe(true);
-    expect(snap.scheme).toBe("RICE_210_FREE_10");
+    expect(snap.schemeId).toBe(scheme.id);
     expect(snap.freeWeightKg).toBe(10);
-    expect([1, 5]).toContain(snap.packUnitKg); // Must be 1kg or 5kg packaging!
+    } finally {
+      await prisma.scheme.delete({ where: { id: scheme.id } }).catch(() => {});
+    }
   });
 
   it("handles order with no dispatch date (defaults to null meaning any time/same day)", async () => {

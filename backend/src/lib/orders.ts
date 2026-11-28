@@ -436,12 +436,7 @@ export async function createOrderForRetailer(
     const snapshotData: Record<string, unknown> = {
       ...(couponMetadata ? { coupon: couponMetadata } : {}),
       ...(quote && accepted ? { quote: asJson(accepted) } : {}),
-      ...(dynamicSchemeResult.freeItems.length > 0 ? { schemes: dynamicSchemeResult.freeItems } : {}),
-      ...(dynamicSchemeResult.riceScheme
-        ? { riceScheme: dynamicSchemeResult.riceScheme }
-        : dynamicSchemeResult.freeItems.length > 0
-        ? { riceScheme: dynamicSchemeResult.freeItems[0] }
-        : {}),
+      ...(dynamicSchemeResult.freeItems.length > 0 ? { schemes: dynamicSchemeResult.freeItems, riceScheme: dynamicSchemeResult.freeItems[0] } : {}),
       ...(options?.remarks ? { remarks: options.remarks.trim() } : {}),
       ...(options?.transportName ? { transportName: options.transportName.trim() } : {}),
       ...(options?.dispatchDate ? { dispatchDate: options.dispatchDate } : {}),

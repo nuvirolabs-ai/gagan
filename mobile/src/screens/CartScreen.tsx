@@ -32,6 +32,7 @@ export default function CartScreen({ navigation }: any) {
   const { t, language } = useLanguage();
   const [placing, setPlacing] = useState(false);
   const [quote,setQuote]=useState<any>(null);
+  const [schemePreview,setSchemePreview]=useState<any | null>(null);
   const [quoteReady,setQuoteReady]=useState(false);
   const [quoteError,setQuoteError]=useState("");
   const [quoteAttempt,setQuoteAttempt]=useState(0);
@@ -57,36 +58,20 @@ export default function CartScreen({ navigation }: any) {
     return d.toISOString();
   };
 
-  // Rice Scheme: Buy 210 kg rice get 10 kg free (Point 1)
-  const totalRiceKg = lines.reduce((sum: number, line: any) => {
-    const name = (line.productName || "").toLowerCase();
-    const isRice = name.includes("rice") || name.includes("basmati") || name.includes("sehmat");
-    if (!isRice) return sum;
-    const quoteLine = quote?.snapshot?.lines?.find((candidate: any) => candidate.variantId === line.variantId);
-    let caseWeight = quoteLine ? Number(quoteLine.caseWeightKg) : 0;
-    if (!caseWeight && line.packSize) {
-      const match = line.packSize.match(/(\d+(?:\.\d+)?)\s*(?:kg|KG)/);
-      if (match) {
-        const unitWeight = parseFloat(match[1]);
-        const countMatch = line.packSize.match(/[x×]\s*(\d+)/i);
-        const units = countMatch ? parseInt(countMatch[1], 10) : 1;
-        caseWeight = unitWeight * units;
-      }
-    }
-    return sum + (caseWeight || 30) * line.qty;
-  }, 0);
-
-  const qualifiesForRiceScheme = totalRiceKg >= 210;
-  const riceSchemeMultiplier = Math.floor(totalRiceKg / 210);
-  const freeRiceKg = riceSchemeMultiplier * 10;
   const applyQuote=useCallback((nextQuote:any)=>{
     quoteRef.current=nextQuote;
     setQuote(nextQuote);
     setQuoteReady(true);
     setQuoteError("");
   },[]);
-  useEffect(()=>{let active=true;quoteRef.current=null;setQuoteReady(false);setQuote(null);setQuoteError("");
-    if(lines.length) api.commercialQuote(JSON.parse(basket)).then(r=>{if(active)applyQuote(r.quote);}).catch(()=>{if(active)setQuoteError("Unable to price this basket. Retry when connected.");});
+  useEffect(()=>{let active=true;quoteRef.current=null;setQuoteReady(false);setQuote(null);setSchemePreview(null);setQuoteError("");
+    const parsedBasket=JSON.parse(basket);
+    if(lines.length) api.commercialQuote(parsedBasket).then(r=>{
+      if(!active) return;
+      applyQuote(r.quote);
+      if(r?.schemePreview!==undefined) setSchemePreview(r.schemePreview);
+      else if(typeof api.schemePreview==="function") api.schemePreview(parsedBasket).then(sp=>{if(active)setSchemePreview(sp?.schemePreview??null);}).catch(()=>{});
+    }).catch(()=>{if(active)setQuoteError("Unable to price this basket. Retry when connected.");});
     return ()=>{active=false;};
   },[applyQuote,basket,lines.length,quoteAttempt]);
   const refreshQuote=useCallback(async({silent=false}:{silent?:boolean}={})=>{
@@ -112,6 +97,7 @@ export default function CartScreen({ navigation }: any) {
         return "expired";
       }
       applyQuote(r.quote);
+      if (r?.schemePreview !== undefined) setSchemePreview(r.schemePreview);
       return "updated";
     }catch{
       if(!silent) Alert.alert("Could not refresh quote","Your existing quote and cart are preserved. Retry when connected.");
@@ -316,23 +302,36 @@ export default function CartScreen({ navigation }: any) {
           </TouchableOpacity>
         )}
 
-        {qualifiesForRiceScheme ? (
+        {((schemePreview?.freeItems?.length ?? 0) > 0 || (schemePreview?.appliedDiscounts?.length ?? 0) > 0) ? (
           <View style={styles.schemeCard}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <Text style={{ fontSize: 24 }}>🎉</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.schemeTitle}>Rice Scheme Applied!</Text>
-                <Text style={styles.schemeSubtitle}>
-                  Buy 210 kg rice, get 10 kg free. Cart has {totalRiceKg} kg rice.
-                </Text>
+            {(schemePreview?.freeItems ?? []).map((fi: any, idx: number) => (
+              <View key={`${fi.schemeId}-${idx}`} style={{ gap: 4, marginTop: idx > 0 ? 8 : 0 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <Text style={{ fontSize: 22 }}>🎉</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.schemeTitle}>{fi.schemeName || "Trade Scheme Applied"}</Text>
+                    <Text style={styles.schemeSubtitle}>
+                      Free: {fi.variantName} · {fi.packDescription}
+                    </Text>
+                  </View>
+                  <View style={styles.schemeBadge}>
+                    <Text style={styles.schemeBadgeText}>FREE</Text>
+                  </View>
+                </View>
+                {fi.schemeDescription ? (
+                  <Text style={styles.schemeNote}>{fi.schemeDescription}</Text>
+                ) : null}
               </View>
-              <View style={styles.schemeBadge}>
-                <Text style={styles.schemeBadgeText}>+{freeRiceKg} KG FREE</Text>
+            ))}
+            {(schemePreview?.appliedDiscounts ?? []).map((disc: any, idx: number) => (
+              <View key={`${disc.schemeId}-disc-${idx}`} style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4 }}>
+                <Text style={{ fontSize: 20 }}>🏷️</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.schemeTitle}>{disc.schemeName}</Text>
+                  <Text style={styles.schemeSubtitle}>Eligible benefit: {inr(disc.discountAmount)} off</Text>
+                </View>
               </View>
-            </View>
-            <Text style={styles.schemeNote}>
-              10 kg free rice of the lowest-priced rice SKU will be automatically dispatched in 1 kg or 5 kg packaging.
-            </Text>
+            ))}
           </View>
         ) : null}
 

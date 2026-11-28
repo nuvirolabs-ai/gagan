@@ -2948,10 +2948,12 @@ export default function WarehouseOrders() {
                             ? Math.round((unitRate / caseWeightKg) * 100 * 100) / 100
                             : null));
 
-                      const packagingSize = item.variant?.unitSize ||
-                        (item.commercialSnapshot?.packDescription
-                          ? item.commercialSnapshot.packDescription.replace(/^\d+\s*[xX×]\s*/, "")
-                          : item.variant?.unitSize || "Standard");
+                      const packagingSize = isFree && item.commercialSnapshot?.packDescription
+                        ? item.commercialSnapshot.packDescription
+                        : (item.variant?.unitSize ||
+                          (item.commercialSnapshot?.packDescription
+                            ? item.commercialSnapshot.packDescription.replace(/^\d+\s*[xX×]\s*/, "")
+                            : "Standard"));
 
                       return (
                         <div

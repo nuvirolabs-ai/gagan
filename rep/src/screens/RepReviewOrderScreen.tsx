@@ -33,6 +33,7 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
   const [standardPrices, setStandardPrices] = useState<Record<string, number>>({});
   const [quote, setQuote] = useState<any>(null);
   const [quoteReady, setQuoteReady] = useState(false);
+  const [schemePreview, setSchemePreview] = useState<any | null>(null);
   const [quoteError, setQuoteError] = useState("");
   const [refreshingQuote, setRefreshingQuote] = useState(false);
   const [rateApprovalSubmitting, setRateApprovalSubmitting] = useState(false);
@@ -92,29 +93,6 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
     else if (dispatchDateOption === "in_3_days") d.setDate(d.getDate() + 3);
     return d.toISOString();
   };
-
-  // Rice Scheme: Buy 210 kg of any rice SKU -> get 10 kg free (Point 1)
-  const totalRiceKg = activeLines.reduce((sum: number, line: any) => {
-    const name = (line.productName || "").toLowerCase();
-    const isRice = name.includes("rice") || name.includes("basmati") || name.includes("sehmat");
-    if (!isRice) return sum;
-    const quoteLine = quote?.snapshot?.lines?.find((candidate: any) => candidate.variantId === line.variantId);
-    let caseWeight = quoteLine ? Number(quoteLine.caseWeightKg) : 0;
-    if (!caseWeight && line.packSize) {
-      const match = line.packSize.match(/(\d+(?:\.\d+)?)\s*(?:kg|KG)/);
-      if (match) {
-        const unitWeight = parseFloat(match[1]);
-        const countMatch = line.packSize.match(/[x×]\s*(\d+)/i);
-        const units = countMatch ? parseInt(countMatch[1], 10) : 1;
-        caseWeight = unitWeight * units;
-      }
-    }
-    return sum + (caseWeight || 30) * line.qty;
-  }, 0);
-
-  const qualifiesForRiceScheme = totalRiceKg >= 210;
-  const riceSchemeMultiplier = Math.floor(totalRiceKg / 210);
-  const freeRiceKg = riceSchemeMultiplier * 10;
 
   const applyCouponCode = () => {
     setCouponError("");
@@ -189,6 +167,7 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
     if (requestedItems.length === 0) return;
     quoteRef.current = null;
     setQuote(null);
+    setSchemePreview(null);
     setQuoteReady(false);
     setQuoteError("");
     try {
@@ -198,6 +177,15 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
         : await repApi.commercialQuote(retailerId, requestedItems);
       if (basketRef.current !== requestedBasket) return;
       applyQuote(result.quote);
+      if (result?.schemePreview) {
+        setSchemePreview(result.schemePreview);
+      } else if (typeof repApi.schemePreview === "function") {
+        repApi.schemePreview(retailerId, requestedItems)
+          .then((sp: any) => {
+            if (basketRef.current === requestedBasket) setSchemePreview(sp?.schemePreview ?? null);
+          })
+          .catch(() => {});
+      }
       if (proposalDemandMode && !result.quote) {
         const catalog = await repApi.catalogFor(retailerId);
         if (basketRef.current !== requestedBasket) return;
@@ -241,6 +229,7 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
         return "expired";
       }
       applyQuote(result.quote);
+      if (result?.schemePreview !== undefined) setSchemePreview(result.schemePreview);
       return "updated";
     } catch {
       if (!silent) Alert.alert("Could not refresh quote", "Your basket is preserved. Retry when connected.");
@@ -388,23 +377,36 @@ export default function RepReviewOrderScreen({ route, navigation }: any) {
             : "Check quantities and the manager-confirmed commercial quote before placing."}</Text>
         </View>
 
-        {qualifiesForRiceScheme ? (
+        {((schemePreview?.freeItems?.length ?? 0) > 0 || (schemePreview?.appliedDiscounts?.length ?? 0) > 0) ? (
           <View style={styles.schemeCard}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <Text style={{ fontSize: 24 }}>🎉</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.schemeTitle}>Rice Scheme Applied!</Text>
-                <Text style={styles.schemeSubtitle}>
-                  Buy 210 kg rice, get 10 kg free. Order has {totalRiceKg} kg rice.
-                </Text>
+            {(schemePreview?.freeItems ?? []).map((fi: any, idx: number) => (
+              <View key={`${fi.schemeId}-${idx}`} style={{ gap: 4, marginTop: idx > 0 ? 8 : 0 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <Text style={{ fontSize: 22 }}>🎉</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.schemeTitle}>{fi.schemeName || "Trade Scheme Applied"}</Text>
+                    <Text style={styles.schemeSubtitle}>
+                      Free: {fi.variantName} · {fi.packDescription}
+                    </Text>
+                  </View>
+                  <View style={styles.schemeBadge}>
+                    <Text style={styles.schemeBadgeText}>FREE</Text>
+                  </View>
+                </View>
+                {fi.schemeDescription ? (
+                  <Text style={styles.schemeNote}>{fi.schemeDescription}</Text>
+                ) : null}
               </View>
-              <View style={styles.schemeBadge}>
-                <Text style={styles.schemeBadgeText}>+{freeRiceKg} KG FREE</Text>
+            ))}
+            {(schemePreview?.appliedDiscounts ?? []).map((disc: any, idx: number) => (
+              <View key={`${disc.schemeId}-disc-${idx}`} style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4 }}>
+                <Text style={{ fontSize: 20 }}>🏷️</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.schemeTitle}>{disc.schemeName}</Text>
+                  <Text style={styles.schemeSubtitle}>Eligible benefit: {inr(disc.discountAmount)} off</Text>
+                </View>
               </View>
-            </View>
-            <Text style={styles.schemeNote}>
-              10 kg free rice of the lowest-priced rice SKU will be automatically dispatched in 1 kg or 5 kg packaging.
-            </Text>
+            ))}
           </View>
         ) : null}
 

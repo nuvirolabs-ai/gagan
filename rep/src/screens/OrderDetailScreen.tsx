@@ -160,6 +160,8 @@ export default function OrderDetailScreen({ route, navigation }: any) {
 
             const itemNodes = rawItems.map((item: any, idx: number) => {
               const name = item.variant?.product?.name ?? item.productName ?? item.name ?? "Product";
+              const snap = item.commercialSnapshot as any;
+              const isFree = Boolean(snap?.isFreeItem) || (Number(item.unitPrice ?? item.rate ?? 0) === 0 && Boolean(snap?.scheme));
               const pack = item.variant?.unitSize
                 ? `${item.variant.unitSize} × ${item.variant.unitsPerCase ?? 1}`
                 : (item.pack ?? item.packSize ?? "");
@@ -167,22 +169,35 @@ export default function OrderDetailScreen({ route, navigation }: any) {
               const unitLabel = isBox ? "Box" : "Bag";
               const qty = Number(item.qtyOrdered ?? item.cases ?? item.qty ?? 1);
               const unitPrice = Number(item.unitPrice ?? item.rate ?? 0);
-              const lineTotal = Number(item.lineTotal ?? (unitPrice * qty));
+              const lineTotal = isFree ? 0 : Number(item.lineTotal ?? (unitPrice * qty));
               computedItemsTotal += lineTotal;
 
               return (
-                <View key={item.id ?? `item-${idx}`} style={styles.itemRow}>
+                <View key={item.id ?? `item-${idx}`} style={[styles.itemRow, isFree && { backgroundColor: "#F0FDF4", paddingHorizontal: 8, borderRadius: 8 }]}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.itemName}>{name}</Text>
-                    <Text style={styles.muted}>
-                      {pack ? `${pack} · ` : ""}Qty: <Text style={{ fontWeight: "700", color: colors.ink }}>{qty} {qty > 1 ? `${unitLabel}s` : unitLabel}</Text>
+                    <Text style={[styles.itemName, isFree && { color: "#065F46" }]}>
+                      {isFree ? `🎁 FREE · ${name}` : name}
                     </Text>
+                    {isFree ? (
+                      <Text style={[styles.muted, { color: "#047857" }]}>
+                        {snap?.packDescription || `${pack ? `${pack} · ` : ""}Qty: ${qty} ${qty > 1 ? `${unitLabel}s` : unitLabel}`}
+                        {snap?.schemeName ? ` · ${snap.schemeName}` : ""}
+                      </Text>
+                    ) : (
+                      <Text style={styles.muted}>
+                        {pack ? `${pack} · ` : ""}Qty: <Text style={{ fontWeight: "700", color: colors.ink }}>{qty} {qty > 1 ? `${unitLabel}s` : unitLabel}</Text>
+                      </Text>
+                    )}
                   </View>
                   <View style={styles.itemRight}>
-                    <Text style={styles.itemPrice}>{inr(lineTotal)}</Text>
-                    <Text style={[styles.muted, { textAlign: "right" }]}>
-                      {inr(unitPrice)} / {unitLabel.toLowerCase()}
+                    <Text style={[styles.itemPrice, isFree && { color: "#047857" }]}>
+                      {isFree ? "FREE (₹0)" : inr(lineTotal)}
                     </Text>
+                    {!isFree ? (
+                      <Text style={[styles.muted, { textAlign: "right" }]}>
+                        {inr(unitPrice)} / {unitLabel.toLowerCase()}
+                      </Text>
+                    ) : null}
                   </View>
                 </View>
               );

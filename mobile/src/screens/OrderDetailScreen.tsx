@@ -141,9 +141,35 @@ export default function OrderDetailScreen({ route, navigation }: any) {
       )}
 
       <SectionTitle>{t("orders.items")}</SectionTitle>
-      {order.commercialSnapshot ? <CommercialBreakdown value={order.commercialSnapshot}/> : <View style={styles.band}>
+      {order.commercialSnapshot ? (
+        <>
+          <CommercialBreakdown value={order.commercialSnapshot}/>
+          {(order.items ?? []).filter((it: any) => Boolean(it.commercialSnapshot?.isFreeItem)).length > 0 ? (
+            <View style={[styles.band, { marginTop: spacing.sm, backgroundColor: "#ECFDF5", borderColor: "#6EE7B7", borderWidth: 1 }]}>
+              {(order.items ?? []).filter((it: any) => Boolean(it.commercialSnapshot?.isFreeItem)).map((item: any, idx: number) => (
+                <View key={item.id ?? `free-${idx}`} style={[styles.itemRow, idx > 0 && styles.itemBorder]}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.itemName, { color: "#065F46" }]}>
+                      🎁 FREE · {item.variant?.product?.name ?? item.commercialSnapshot?.productName ?? "Scheme Reward"}
+                    </Text>
+                    <Text style={[styles.itemPack, { color: "#047857" }]}>
+                      {item.commercialSnapshot?.packDescription || `${item.variant?.unitSize ?? ""} × ${item.qtyOrdered}`}
+                      {item.commercialSnapshot?.schemeName ? ` · ${item.commercialSnapshot.schemeName}` : ""}
+                    </Text>
+                  </View>
+                  <View style={{ alignItems: "flex-end", flexShrink: 0 }}>
+                    <Text style={[styles.itemTotal, { color: "#047857" }]}>FREE (₹0)</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </>
+      ) : <View style={styles.band}>
         {order.items.map((item: any, i: number) => {
+          const isFree = Boolean(item.commercialSnapshot?.isFreeItem) || (Number(item.unitPrice ?? 0) === 0 && Boolean(item.commercialSnapshot?.scheme));
           const short =
+            !isFree &&
             item.weightDelivered != null &&
             item.variant &&
             Number(item.weightDelivered) <
@@ -154,11 +180,13 @@ export default function OrderDetailScreen({ route, navigation }: any) {
               style={[styles.itemRow, i > 0 && styles.itemBorder]}
             >
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={styles.itemName} numberOfLines={1}>
-                  {item.variant?.product.name}
+                <Text style={[styles.itemName, isFree && { color: "#065F46" }]} numberOfLines={1}>
+                  {isFree ? `🎁 FREE · ${item.variant?.product.name}` : item.variant?.product.name}
                 </Text>
-                <Text style={styles.itemPack} numberOfLines={1}>
-                  {item.variant?.unitSize} × {item.variant?.unitsPerCase} · {inr(Number(item.unitPrice))}/case
+                <Text style={styles.itemPack} numberOfLines={2}>
+                  {isFree
+                    ? (item.commercialSnapshot?.packDescription || `${item.variant?.unitSize} × ${item.variant?.unitsPerCase} · Qty ${item.qtyOrdered}`)
+                    : `${item.variant?.unitSize} × ${item.variant?.unitsPerCase} · ${inr(Number(item.unitPrice))}/case`}
                 </Text>
                 {item.weightDelivered != null && (
                   <Text style={[styles.itemWeight, short && { color: colors.danger }]}>
@@ -168,8 +196,8 @@ export default function OrderDetailScreen({ route, navigation }: any) {
                 )}
               </View>
               <View style={{ alignItems: "flex-end", flexShrink: 0 }}>
-                <Text style={styles.itemQty}>× {item.qtyOrdered}</Text>
-                <Text style={styles.itemTotal}>{inr(Number(item.unitPrice) * item.qtyOrdered)}</Text>
+                <Text style={[styles.itemQty, isFree && { color: "#047857" }]}>{isFree ? "FREE" : `× ${item.qtyOrdered}`}</Text>
+                <Text style={[styles.itemTotal, isFree && { color: "#047857" }]}>{isFree ? "₹0" : inr(Number(item.unitPrice) * item.qtyOrdered)}</Text>
               </View>
             </View>
           );

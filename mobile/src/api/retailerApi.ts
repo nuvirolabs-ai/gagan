@@ -26,6 +26,7 @@ export function createRetailerApi(request: ApiRequest, store: SessionStore) {
     getCatalog: () => request("/catalog"),
     getProduct: (id: string) => request(`/products/${id}`),
     commercialQuote: (items: {variantId:string;qty:number}[]) => post("/commercial/quotes",{items}),
+    schemePreview: (items: {variantId:string;qty:number}[]) => post("/commercial/scheme-preview",{items}),
     refreshCommercialQuote: (id:string) => request(`/commercial/quotes/${id}`),
     createOrder: (
       items: { variantId: string; qty: number }[],

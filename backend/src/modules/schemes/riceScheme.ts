@@ -104,7 +104,12 @@ export async function evaluateRiceScheme(
   } | null = null;
   let packUnitKg: 5 | 1 = 5;
 
-  for (const item of riceItems) {
+  // Check only the lowest-priced purchased product (and price-tied equivalents)
+  // so we never substitute a significantly pricier SKU when the cheapest item lacks small packs.
+  const minPricePerKg = riceItems[0].pricePerKg;
+  const cheapestProducts = riceItems.filter((item) => Math.abs(item.pricePerKg - minPricePerKg) < 0.01);
+
+  for (const item of cheapestProducts) {
     // Check 5kg first for this product
     const variant5kg = await tx.variant.findFirst({
       where: {
@@ -142,52 +147,15 @@ export async function evaluateRiceScheme(
     }
   }
 
-  // If none of the purchased products have 1kg or 5kg packaging (e.g. only 30kg SKUs),
-  // fallback to the lowest priced active 5kg rice variant in the catalog, or 1kg.
+  // Fallback directly to the cheapest purchased variant itself (never jump to an expensive SKU)
   if (!selectedVariant) {
-    const fallback5kg = await tx.variant.findFirst({
-      where: {
-        catalogStatus: "active",
-        product: {
-          catalogStatus: "active",
-          OR: [
-            { category: { contains: "Rice", mode: "insensitive" } },
-            { name: { contains: "Rice", mode: "insensitive" } },
-          ],
-        },
-        OR: [
-          { unitWeightKg: 5 },
-          { unitSize: { contains: "5 KG", mode: "insensitive" } },
-        ],
-      },
-      include: { product: true, priceList: true },
-      orderBy: { priceList: { _count: "desc" } },
+    const cheapestFull = await tx.variant.findUnique({
+      where: { id: riceItems[0].variantId },
+      include: { product: true },
     });
-    if (fallback5kg) {
-      selectedVariant = fallback5kg;
-      packUnitKg = 5;
-    } else {
-      const fallback1kg = await tx.variant.findFirst({
-        where: {
-          catalogStatus: "active",
-          product: {
-            catalogStatus: "active",
-            OR: [
-              { category: { contains: "Rice", mode: "insensitive" } },
-              { name: { contains: "Rice", mode: "insensitive" } },
-            ],
-          },
-          OR: [
-            { unitWeightKg: 1 },
-            { unitSize: { contains: "1 KG", mode: "insensitive" } },
-          ],
-        },
-        include: { product: true },
-      });
-      if (fallback1kg) {
-        selectedVariant = fallback1kg;
-        packUnitKg = 1;
-      }
+    if (cheapestFull) {
+      selectedVariant = cheapestFull;
+      packUnitKg = Number(cheapestFull.unitWeightKg) === 1 ? 1 : 5;
     }
   }
 

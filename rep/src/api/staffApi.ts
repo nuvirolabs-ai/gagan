@@ -72,6 +72,7 @@ export function createStaffApi(request: ApiRequest, store: SessionStore) {
     setRecoveryPromiseStatus: (promiseId: string, status: "kept" | "missed") => post(`/rep/recovery/promises/${promiseId}/status`, { status }),
     catalogFor: (id: string) => request(`/rep/retailers/${id}/catalog`),
     commercialQuote: (retailerId:string,items:{variantId:string;qty:number}[]) => post("/rep/commercial/quotes",{retailerId,items}),
+    schemePreview: (retailerId:string,items:{variantId:string;qty:number}[]) => post("/rep/commercial/scheme-preview",{retailerId,items}),
     refreshCommercialQuote: (id:string) => request(`/rep/commercial/quotes/${id}`),
     createOrder: (
       retailerId: string,

@@ -263,7 +263,7 @@ export default function Commercial() {
     name: "",
     headline: "",
     description: "",
-    ruleType: "order_value" as "order_value" | "product_qty" | "volume_slab" | "category_weight",
+    ruleType: "order_value" as "order_value" | "product_qty" | "category_bags" | "volume_slab" | "category_weight",
     targetAmount: "20000",
     minQuantity: "10",
     qualifyingVariantId: "",
@@ -502,24 +502,29 @@ export default function Commercial() {
     setBusy(true);
     setError("");
     try {
+      const clearVal = editingScheme ? null : undefined;
+      const isBagRule = schemeForm.ruleType === "product_qty" || schemeForm.ruleType === "category_bags";
+      const isCategoryRule = schemeForm.ruleType === "category_weight" || schemeForm.ruleType === "category_bags";
       const payload = {
         name: schemeForm.name.trim(),
         headline: schemeForm.headline.trim(),
         description: schemeForm.description.trim() || undefined,
         ruleType: schemeForm.ruleType,
-        targetAmount: parseFloat(schemeForm.targetAmount) || 0,
+        targetAmount: (schemeForm.ruleType === "order_value" || schemeForm.ruleType === "volume_slab")
+          ? (parseFloat(schemeForm.targetAmount) || 0)
+          : 0,
         discountAmount: schemeForm.rewardType === "flat_discount" ? (parseFloat(schemeForm.rewardValue) || 0) : 0,
-        minQuantity: schemeForm.ruleType === "product_qty" ? (parseInt(schemeForm.minQuantity) || 1) : undefined,
-        qualifyingVariantId: schemeForm.ruleType === "product_qty" ? (schemeForm.qualifyingVariantId || undefined) : undefined,
-        qualifyingCategory: schemeForm.ruleType === "category_weight" ? (schemeForm.qualifyingCategory || undefined) : undefined,
-        qualifyingWeightKg: schemeForm.ruleType === "category_weight" ? (parseFloat(schemeForm.qualifyingWeightKg) || 0) : undefined,
+        minQuantity: isBagRule ? (parseInt(schemeForm.minQuantity, 10) || 1) : clearVal,
+        qualifyingVariantId: schemeForm.ruleType === "product_qty" ? (schemeForm.qualifyingVariantId || clearVal) : clearVal,
+        qualifyingCategory: isCategoryRule ? (schemeForm.qualifyingCategory || clearVal) : clearVal,
+        qualifyingWeightKg: schemeForm.ruleType === "category_weight" ? (parseFloat(schemeForm.qualifyingWeightKg) || 0) : clearVal,
         rewardType: schemeForm.rewardType,
         rewardValue: parseFloat(schemeForm.rewardValue) || 0,
-        freeVariantId: schemeForm.rewardType === "free_goods" ? (schemeForm.freeVariantId || undefined) : undefined,
-        freePackagingUnits: schemeForm.rewardType === "lowest_priced_category_sku" ? (schemeForm.freePackagingUnits || "5,1") : undefined,
+        freeVariantId: schemeForm.rewardType === "free_goods" ? (schemeForm.freeVariantId || clearVal) : clearVal,
+        freePackagingUnits: schemeForm.rewardType === "lowest_priced_category_sku" ? (schemeForm.freePackagingUnits || "5,1") : clearVal,
         targetAudience: schemeForm.targetAudience,
-        targetTierId: schemeForm.targetAudience === "tier" ? (schemeForm.targetTierId || undefined) : undefined,
-        targetTerritory: schemeForm.targetAudience === "territory" ? (schemeForm.targetTerritory.trim() || undefined) : undefined,
+        targetTierId: schemeForm.targetAudience === "tier" ? (schemeForm.targetTierId || clearVal) : clearVal,
+        targetTerritory: schemeForm.targetAudience === "territory" ? (schemeForm.targetTerritory.trim() || clearVal) : clearVal,
         active: schemeForm.active,
         startsAt: new Date(schemeForm.startsAt).toISOString(),
         endsAt: new Date(schemeForm.endsAt).toISOString(),
@@ -1381,7 +1386,9 @@ export default function Commercial() {
                     {schemes.map((s) => {
                       let conditionLabel = `Min Order ${inr(s.targetAmount)}`;
                       if (s.ruleType === "product_qty") {
-                        conditionLabel = `Order min ${s.minQuantity} cases of ${s.qualifyingVariantName || "Product"}`;
+                        conditionLabel = `Buy ${s.minQuantity} Bag${s.minQuantity === 1 ? "" : "s"} of ${s.qualifyingVariantName || s.qualifyingCategory || "Product"}`;
+                      } else if (s.ruleType === "category_bags") {
+                        conditionLabel = `Buy ${s.minQuantity} Bag${s.minQuantity === 1 ? "" : "s"} of ${s.qualifyingCategory || "Category"}`;
                       } else if (s.ruleType === "category_weight") {
                         conditionLabel = `Buy ${s.qualifyingWeightKg || 210} kg of ${s.qualifyingCategory || "Category"}`;
                       } else if (s.ruleType === "volume_slab") {
@@ -1396,11 +1403,14 @@ export default function Commercial() {
                         rewardColor = "#1e40af";
                         rewardBg = "#dbeafe";
                       } else if (s.rewardType === "lowest_priced_category_sku") {
-                        rewardBadge = `🎁 ${s.rewardValue || 10} KG Free (${s.qualifyingCategory || "Category"} Lowest SKU)`;
+                        const isBagReward = String(s.freePackagingUnits || "").toLowerCase() === "bags";
+                        rewardBadge = isBagReward
+                          ? `🎁 ${s.rewardValue || 1} Bag Free (${s.qualifyingCategory || "Category"} Lowest SKU)`
+                          : `🎁 ${s.rewardValue || 10} KG Free (${s.qualifyingCategory || "Category"} Lowest SKU)`;
                         rewardColor = "#065f46";
                         rewardBg = "#dcfce7";
                       } else if (s.rewardType === "free_goods") {
-                        rewardBadge = `Free: ${s.freeVariantName || "Goods FOC"}`;
+                        rewardBadge = `Free: ${s.rewardValue || 1} Bag × ${s.freeVariantName || "Goods FOC"}`;
                         rewardColor = "#92400e";
                         rewardBg = "#fef3c7";
                       }
@@ -1489,14 +1499,16 @@ export default function Commercial() {
                                     description: s.description || "",
                                     ruleType: s.ruleType || "order_value",
                                     targetAmount: String(s.targetAmount || 0),
-                                    minQuantity: String(s.minQuantity || 1),
+                                    minQuantity: String(s.minQuantity || 10),
                                     qualifyingVariantId: s.qualifyingVariantId || "",
                                     qualifyingCategory: s.qualifyingCategory || "Rice",
                                     qualifyingWeightKg: String(s.qualifyingWeightKg || 210),
                                     rewardType: s.rewardType || "flat_discount",
                                     rewardValue: String(s.rewardValue || s.discountAmount || 0),
                                     freeVariantId: s.freeVariantId || "",
-                                    freePackagingUnits: s.freePackagingUnits || "5,1",
+                                    freePackagingUnits:
+                                      s.freePackagingUnits ||
+                                      (s.ruleType === "category_bags" || s.ruleType === "product_qty" ? "bags" : "5,1"),
                                     targetAudience: s.targetAudience || "all_retailers",
                                     targetTierId: s.targetTierId || "",
                                     targetTerritory: s.targetTerritory || "",
@@ -1575,11 +1587,28 @@ export default function Commercial() {
                       <label>Rule Condition Type</label>
                       <select
                         value={schemeForm.ruleType}
-                        onChange={(e) => setSchemeForm({ ...schemeForm, ruleType: e.target.value as any })}
+                        onChange={(e) => {
+                          const nextRule = e.target.value as any;
+                          setSchemeForm((cur) => ({
+                            ...cur,
+                            ruleType: nextRule,
+                            ...(nextRule === "category_bags" || nextRule === "product_qty"
+                              ? {
+                                  freePackagingUnits:
+                                    cur.freePackagingUnits === "5,1" ? "bags" : cur.freePackagingUnits,
+                                  rewardValue:
+                                    cur.rewardType === "lowest_priced_category_sku" && cur.rewardValue === "10"
+                                      ? "1"
+                                      : cur.rewardValue,
+                                }
+                              : {}),
+                          }));
+                        }}
                       >
-                        <option value="category_weight">Category Total Weight (e.g. Rice 210 kg)</option>
+                        <option value="category_bags">Category Bag Count (Bag-wise, e.g. Buy 10 Bags)</option>
+                        <option value="category_weight">Category Total Weight (KG-wise, e.g. 210 kg)</option>
+                        <option value="product_qty">Specific SKU Bags (Buy X Bags of SKU)</option>
                         <option value="order_value">Total Order Value (₹ threshold)</option>
-                        <option value="product_qty">Product Quantity (Buy X cases)</option>
                         <option value="volume_slab">Volume Slab Rebate</option>
                       </select>
                     </div>
@@ -1596,14 +1625,15 @@ export default function Commercial() {
                           required
                         />
                       </div>
-                    ) : schemeForm.ruleType === "product_qty" ? (
+                    ) : schemeForm.ruleType === "product_qty" || schemeForm.ruleType === "category_bags" ? (
                       <div className="field">
-                        <label>Minimum Cases Required *</label>
+                        <label>Minimum Bags Required *</label>
                         <input
                           type="number"
                           min="1"
                           value={schemeForm.minQuantity}
                           onChange={(e) => setSchemeForm({ ...schemeForm, minQuantity: e.target.value })}
+                          placeholder="e.g. 10"
                           required
                         />
                       </div>
@@ -1621,7 +1651,7 @@ export default function Commercial() {
                     )}
                   </div>
 
-                  {schemeForm.ruleType === "category_weight" && (
+                  {(schemeForm.ruleType === "category_weight" || schemeForm.ruleType === "category_bags") && (
                     <div className="field" style={{ marginBottom: 12 }}>
                       <label>Qualifying Product Category *</label>
                       <select
@@ -1648,7 +1678,7 @@ export default function Commercial() {
                         <option value="">-- Any / All Product Variants --</option>
                         {schemeVariants.map((v) => (
                           <option key={v.id} value={v.id}>
-                            {v.product.name} ({v.unitSize})
+                            {v.product.name} ({v.unitSize} × {v.unitsPerCase ?? 1})
                           </option>
                         ))}
                       </select>
@@ -1662,7 +1692,7 @@ export default function Commercial() {
                         value={schemeForm.rewardType}
                         onChange={(e) => setSchemeForm({ ...schemeForm, rewardType: e.target.value as any })}
                       >
-                        <option value="lowest_priced_category_sku">Free Goods (Lowest-Priced SKU in Category)</option>
+                        <option value="lowest_priced_category_sku">Free Goods (Lowest-Priced SKU Purchased)</option>
                         <option value="free_goods">Free Goods (Specific Fixed SKU)</option>
                         <option value="flat_discount">Flat Cash Discount (₹)</option>
                         <option value="percentage_discount">Percentage Discount (%)</option>
@@ -1676,8 +1706,10 @@ export default function Commercial() {
                           : schemeForm.rewardType === "flat_discount"
                           ? "Discount Amount (₹)"
                           : schemeForm.rewardType === "lowest_priced_category_sku"
-                          ? "Free Weight (KG) Per Qualifying Slab *"
-                          : "Free Quantity (Cases/Units) *"}
+                          ? schemeForm.freePackagingUnits === "bags"
+                            ? "Free Bags Per Qualifying Slab *"
+                            : "Free Weight (KG) Per Qualifying Slab *"
+                          : "Free Quantity (Bags) *"}
                       </label>
                       <input
                         type="number"
@@ -1685,7 +1717,13 @@ export default function Commercial() {
                         min="0"
                         value={schemeForm.rewardValue}
                         onChange={(e) => setSchemeForm({ ...schemeForm, rewardValue: e.target.value })}
-                        placeholder={schemeForm.rewardType === "lowest_priced_category_sku" ? "e.g. 10" : "e.g. 750"}
+                        placeholder={
+                          schemeForm.rewardType === "lowest_priced_category_sku"
+                            ? schemeForm.freePackagingUnits === "bags"
+                              ? "e.g. 1"
+                              : "e.g. 10"
+                            : "e.g. 1"
+                        }
                         required
                       />
                     </div>
@@ -1693,18 +1731,19 @@ export default function Commercial() {
 
                   {schemeForm.rewardType === "lowest_priced_category_sku" && (
                     <div className="field" style={{ marginBottom: 12 }}>
-                      <label>Allowed Free Goods Packaging *</label>
+                      <label>Free Goods Unit / Packaging *</label>
                       <select
                         value={schemeForm.freePackagingUnits}
                         onChange={(e) => setSchemeForm({ ...schemeForm, freePackagingUnits: e.target.value })}
                       >
-                        <option value="5,1">Strictly 1 KG or 5 KG packaging (5 KG preferred)</option>
-                        <option value="5">Strictly 5 KG packaging only</option>
-                        <option value="1">Strictly 1 KG packaging only</option>
-                        <option value="any">Any standard pack size</option>
+                        <option value="bags">Full Bags / Cases (Bag-wise — cheapest purchased bag)</option>
+                        <option value="any">Exact cheapest SKU pack size (Weight-based)</option>
+                        <option value="5,1">1 KG or 5 KG packs of cheapest product (fallback cheapest SKU)</option>
+                        <option value="5">5 KG pack of cheapest product (fallback cheapest SKU)</option>
+                        <option value="1">1 KG pack of cheapest product (fallback cheapest SKU)</option>
                       </select>
                       <small style={{ color: "#6b7280", marginTop: 4, display: "block" }}>
-                        The warehouse and dispatch team will fulfill free goods in these bag sizes.
+                        System always picks the lowest-priced qualifying SKU purchased in the order.
                       </small>
                     </div>
                   )}

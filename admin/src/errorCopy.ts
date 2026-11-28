@@ -76,6 +76,16 @@ export const ERROR_COPY: Record<string, string> = {
   selling_leader_setup_required: "Use the guided Sales Leader setup to link the salesperson identity and roles together.",
   setup_conflict_retry: "Another setup changed this identity. Reload the staff record and try again.",
   invalid_input: "Invalid input. Please check the entered fields.",
+  company_dispatch_routes_required: "Choose a route for each company sales order in the Warehouse queue.",
+  company_order_line_unassigned: "A promotional line needs a confirmed selling company before this order can be packed or dispatched.",
+  sales_order_dispatch_not_authorized: "Dispatch authorization is missing or expired. Review the authorization before packing.",
+  sales_order_created_by_packing: "Pack the order to record sales-order creation.",
+  invoice_selection_required: "Select the exact billing record to download.",
+  firm_billing_snapshot_missing: "This firm billing record is missing its saved billing details.",
+  firm_freight_configuration_required: "Confirm the freight owner and GST rate before entering a delivery freight amount.",
+  firm_freight_entity_mismatch: "Delivery freight belongs to the firm assigned on the accepted quote.",
+  accounting_requires_issued_invoice: "Accounting close requires a completed delivery and an issued invoice.",
+  accepted_order_amendment_required: "This order has an accepted commercial snapshot. Quantity, pricing and freight changes require an approved amendment.",
 };
 
 /** The sentence for an error, falling back to whatever the API actually said. */

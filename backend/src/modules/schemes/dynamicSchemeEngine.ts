@@ -12,6 +12,8 @@ export interface DynamicFreeGoodsItem {
   qtyOrdered: number; // number of cases / packs
   packUnitKg?: number;
   freeWeightKg?: number;
+  qualifyingVariantIds: string[];
+  routingClass: string | null;
 }
 
 export interface DynamicSchemeEvaluationResult {
@@ -137,6 +139,7 @@ export async function evaluateDynamicSchemesForOrder(
             unitSize: string;
             unitsPerCase: number;
             unitWeightKg: Prisma.Decimal;
+            routingClass: string | null;
             product: { name: string };
           } | null = null;
           let chosenPackKg = allowedPacks[0] || 5;
@@ -200,6 +203,8 @@ export async function evaluateDynamicSchemesForOrder(
               qtyOrdered: freePacksCount,
               packUnitKg: chosenPackKg,
               freeWeightKg,
+              qualifyingVariantIds: matchingItems.map(item => item.variantId),
+              routingClass: selectedVariant.routingClass ?? null,
             });
 
             if (targetCategory.toLowerCase().includes("rice")) {
@@ -222,6 +227,9 @@ export async function evaluateDynamicSchemesForOrder(
               variantName: freeVariant.product.name,
               packDescription: `${freeCount} Cases Free Goods (FOC)`,
               qtyOrdered: freeCount,
+              packUnitKg: Number(freeVariant.unitWeightKg) * freeVariant.unitsPerCase,
+              qualifyingVariantIds: matchingItems.map(item => item.variantId),
+              routingClass: freeVariant.routingClass ?? null,
             });
           }
         }
@@ -230,12 +238,8 @@ export async function evaluateDynamicSchemesForOrder(
 
     // 2. Product Quantity Schemes (Buy X Cases -> Get Y Cases Free)
     else if (scheme.ruleType === "product_qty" && scheme.minQuantity && scheme.freeVariantId) {
-      let qualifyingCount = 0;
-      for (const item of items) {
-        if (!scheme.qualifyingVariantId || item.variantId === scheme.qualifyingVariantId) {
-          qualifyingCount += item.qty;
-        }
-      }
+      const qualifyingItems = items.filter(item => !scheme.qualifyingVariantId || item.variantId === scheme.qualifyingVariantId);
+      const qualifyingCount = qualifyingItems.reduce((sum, item) => sum + item.qty, 0);
 
       if (qualifyingCount >= scheme.minQuantity) {
         const multiplier = Math.floor(qualifyingCount / scheme.minQuantity);
@@ -255,6 +259,9 @@ export async function evaluateDynamicSchemesForOrder(
             variantName: freeVariant.product.name,
             packDescription: `${freeCount} Case(s) (FOC Scheme)`,
             qtyOrdered: freeCount,
+            packUnitKg: Number(freeVariant.unitWeightKg) * freeVariant.unitsPerCase,
+            qualifyingVariantIds: qualifyingItems.map(item => item.variantId),
+            routingClass: freeVariant.routingClass ?? null,
           });
         }
       }
@@ -277,6 +284,8 @@ export async function evaluateDynamicSchemesForOrder(
         qtyOrdered: riceEval.freePacksCount,
         packUnitKg: riceEval.packUnitKg,
         freeWeightKg: riceEval.freeWeightKg,
+        qualifyingVariantIds: riceEval.qualifyingVariantIds,
+        routingClass: riceEval.rewardRoutingClass,
       });
     }
   }

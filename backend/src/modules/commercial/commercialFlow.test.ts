@@ -39,6 +39,7 @@ async function order(q:Awaited<ReturnType<typeof quote>>,key=randomUUID()) {
  if(!result.ok)throw new Error(JSON.stringify(result.body));return result.order;
 }
 async function deliver(o:any) {
+ await prisma.companySalesOrder.updateMany({where:{orderId:o.id},data:{routeId:"TEST-ROUTE",dispatchedAt:new Date()}});
  await prisma.order.update({where:{id:o.id},data:{status:"out_for_delivery"}});
  return createInvoiceForDelivery({orderId:o.id,idempotencyKey:randomUUID(),occurredAt:new Date(),lines:o.items.map((i:any)=>({orderItemId:i.id,deliveredCases:i.qtyOrdered}))});
 }
@@ -60,9 +61,15 @@ describe("Wave 1B authoritative commercial lifecycle",()=>{
    const created=await order(ready,orderKey);
    const replayed=await order(ready,orderKey);
    expect(replayed.id).toBe(created.id);
+   expect(created.companySalesOrders.map((document: {company: string})=>document.company)).toEqual(["jain_traders","padam_international"]);
    expect(snapshot(created.commercialSnapshot)!.routing).toEqual(snapshot(ready.snapshot)!.routing);
    const invoice=await deliver(created);
-   expect(snapshot(invoice.commercialSnapshot)!.routing).toEqual(snapshot(ready.snapshot)!.routing);
+   expect(invoice.invoices).toHaveLength(2);
+   for (const document of invoice.invoices) {
+    const scoped = snapshot(document.commercialSnapshot)!;
+    const full = snapshot(ready.snapshot)!.routing!;
+    expect(scoped.routing).toEqual({ ...full, lines: full.lines.filter(line => line.entity === document.sellingEntity) });
+   }
    const acceptedRouting=snapshot(created.commercialSnapshot)!.routing;
    await prisma.retailer.update({where:{id:retailer},data:{deliveryCity:"Indore"}});
    await prisma.variant.update({where:{id:variants[1]},data:{routingClass:"OTHER",routingBagEquivalent:"1",sellingEntity:null}});
@@ -327,7 +334,8 @@ describe("Wave 1B authoritative commercial lifecycle",()=>{
 afterAll(async()=>{
  await prisma.deviceSession.deleteMany({where:{subjectId:retailer}});
  const orders=await prisma.order.findMany({where:{retailerId:retailer}}),ledger=await prisma.ledgerEntry.findMany({where:{retailerId:retailer}});
- await prisma.sapOutbox.deleteMany({where:{referenceId:{in:[...orders,...ledger].map(r=>r.id)}}});
+ const companyOrders=await prisma.companySalesOrder.findMany({where:{order:{retailerId:retailer}},select:{id:true}});
+ await prisma.sapOutbox.deleteMany({where:{referenceId:{in:[...orders,...ledger,...companyOrders].map(r=>r.id)}}});
  await prisma.financialLedgerEntry.deleteMany({where:{retailerId:retailer}});
  await prisma.collectionSubmission.deleteMany({where:{retailerId:retailer}});
  await prisma.collectionAssignment.deleteMany({where:{retailerId:retailer}});

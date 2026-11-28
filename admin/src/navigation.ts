@@ -242,10 +242,10 @@ export const ADMIN_NAV_GROUPS: { id: AdminGroupId; label: string; destinations: 
       {
         id: "financial-statements",
         group: "finance",
-        label: "P&L & Balance Sheet",
+        label: "Billing and Receivables",
         route: "/financial-statements",
-        description: "Company-wise Profit & Loss account and Balance Sheet statement",
-        keywords: ["pl", "p&l", "profit", "loss", "balance sheet", "financial statements", "accounts", "jain", "padam"],
+        description: "Issued billing, applied payments, credits, and outstanding balances by firm",
+        keywords: ["billing", "receivables", "payments", "credits", "accounts", "jain", "padam"],
         permissions: LEDGER,
         relatedTo: ["/financial-statements", "/billing-entities", "/ledger"],
       },

@@ -6,6 +6,7 @@ import { createOrderForRetailer } from "../lib/orders";
 import { createRateLimiter } from "../platform/http/rateLimit";
 import { invoiceBalances } from "../modules/commercial/service";
 import { CommercialStatusCode } from "@prisma/client";
+import { orderBillingView, orderInvoiceDetailSelect, orderInvoiceOrderBy, orderInvoiceSummarySelect } from "../modules/invoicing/orderBillingView";
 import { attributeOrders, orderAttribution } from "../modules/orders/orderAttribution";
 
 const router = Router();
@@ -34,12 +35,18 @@ export function retailerOrderView(order: any, stateOverride?: RetailerSalesOrder
     placedByRepId: _placedByRepId,
     commercialStatusEvents,
     commercialStatus: _commercialStatus,
+    companySalesOrders: _companySalesOrders,
+    invoices: _invoices,
+    invoice: _invoice,
     salesOrderState: _salesOrderState,
     ...publicOrder
   } = order;
   const salesOrderState = stateOverride ?? retailerSalesOrderState({ commercialStatusEvents });
   return {
     ...publicOrder,
+    ...(Array.isArray(publicOrder.items) ? {
+      items: (publicOrder.items as Record<string, unknown>[]).map(({ companySalesOrderId: _, ...item }) => item),
+    } : {}),
     ...orderAttribution(order),
     ...(salesOrderState ? { salesOrderState } : {}),
   };
@@ -121,15 +128,17 @@ router.get("/orders", requireAuth, async (req: AuthedRequest, res) => {
       retailer: { select: { id: true, name: true } },
       items: { include: { variant: { include: { product: true } } } },
       delivery: true,
+      invoices: { where: { retailerId: req.retailerId }, select: orderInvoiceSummarySelect, orderBy: orderInvoiceOrderBy },
       commercialStatusEvents: retailerLifecycleEvents,
     },
     orderBy: { createdAt: "desc" },
   });
   const attributed = await attributeOrders(orders);
   res.json({
-    orders: attributed.map((order, index) =>
-      retailerOrderView(order, retailerSalesOrderState(orders[index]))
-    ),
+    orders: attributed.map((order, index) => ({
+      ...retailerOrderView(order, retailerSalesOrderState(orders[index])),
+      ...orderBillingView(orders[index].invoices, orders[index].retailerId),
+    })),
   });
 });
 
@@ -142,8 +151,8 @@ router.get("/orders/:id", requireAuth, async (req: AuthedRequest, res) => {
       delivery: true,
       // The invoice is priced off delivered weight, so it can differ from the
       // ordered total. Send it alongside so the retailer can see why.
-      ledgerEntries: { where: { type: "invoice" }, take: 1 },
-      invoice: true,
+      ledgerEntries: { where: { type: "invoice", retailerId: req.retailerId }, take: 1 },
+      invoices: { where: { retailerId: req.retailerId }, select: orderInvoiceDetailSelect, orderBy: orderInvoiceOrderBy },
       commercialStatusEvents: retailerLifecycleEvents,
     },
   });
@@ -151,25 +160,37 @@ router.get("/orders/:id", requireAuth, async (req: AuthedRequest, res) => {
 
   const [attributed] = await attributeOrders([order]);
 
-  const invoice = order.ledgerEntries[0] ?? null;
-  const financialInvoice = order.invoice;
-  const entityBalances = financialInvoice?.commercialSnapshot ? await prisma.$transaction(tx=>invoiceBalances(tx,financialInvoice.id)) : null;
+  const billing = orderBillingView(order.invoices, order.retailerId);
+  const financialInvoice = billing.invoice;
+  const ledgerInvoice = order.ledgerEntries[0] ?? null;
+  const entityBalances = financialInvoice?.commercialSnapshot && !financialInvoice.sellingEntity
+    ? await prisma.$transaction(tx => invoiceBalances(tx, financialInvoice.id))
+    : null;
+  const legacyInvoice = financialInvoice
+    ? {
+        ...financialInvoice,
+        amount: Number(financialInvoice.total),
+        createdAt: financialInvoice.invoiceDate,
+        variance: Number(financialInvoice.total) - Number(order.orderTotal),
+        entityOutstanding: entityBalances
+          ? { jain: entityBalances.jain.toFixed(2), padam: entityBalances.padam.toFixed(2) }
+          : null,
+      }
+    : billing.invoices.length === 0 && ledgerInvoice
+      ? {
+          amount: Number(ledgerInvoice.amount),
+          createdAt: ledgerInvoice.createdAt,
+          variance: Number(ledgerInvoice.amount) - Number(order.orderTotal),
+          entityOutstanding: null,
+        }
+      : null;
 
   res.json({
     order: {
       ...retailerOrderView(attributed, retailerSalesOrderState(order)),
+      ...billing,
       ledgerEntries: undefined,
-      invoice: invoice
-        ? {
-            amount: Number(invoice.amount),
-            createdAt: invoice.createdAt,
-            variance: Number(invoice.amount) - Number(order.orderTotal),
-            invoiceNumber: financialInvoice?.invoiceNumber,
-            commercialSnapshot: financialInvoice?.commercialSnapshot,
-            outstandingAmount: financialInvoice?.outstandingAmount,
-            entityOutstanding: entityBalances ? {jain:entityBalances.jain.toFixed(2),padam:entityBalances.padam.toFixed(2)} : null,
-          }
-        : null,
+      invoice: legacyInvoice,
     },
   });
 });

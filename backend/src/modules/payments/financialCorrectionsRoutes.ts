@@ -10,6 +10,7 @@ import {
   type IssueCreditNoteInput,
 } from "./creditNoteService";
 import { reversePayment, type ReversePaymentInput } from "./reversalService";
+import { attributeInvoiceOutstanding } from "../finance/entityAttribution";
 
 export interface FinancialCorrectionsService {
   listTargets(): Promise<unknown[]>;
@@ -41,12 +42,18 @@ export async function listCorrectionTargets() {
       invoices: {
         where: { status: { not: "voided" } },
         orderBy: { invoiceDate: "desc" },
-        include: { creditNotes: { where: { status: "issued" } } },
+        include: {
+          creditNotes: { where: { status: "issued" } },
+          allocations: { include: { reversals: { select: { amount: true } } } },
+        },
       },
       payments: {
         where: { status: "succeeded" },
         orderBy: { settledAt: "desc" },
-        include: { reversals: true },
+        include: {
+          reversals: true,
+          scopedInvoice: { select: { id: true, invoiceNumber: true, firmInvoiceNumber: true, sellingEntity: true } },
+        },
       },
     },
   });
@@ -57,15 +64,21 @@ export async function listCorrectionTargets() {
       name: retailer.name,
       currentBalance: Number(retailer.currentBalance),
       invoices: retailer.invoices
+        .filter(invoice => invoice.sellingEntity
+          ? invoice.legacyLedgerEntryId && attributeInvoiceOutstanding(invoice).attributionStatus === "complete"
+          : invoice.commercialSnapshot === null)
         .map((invoice) => ({
           id: invoice.id,
           invoiceNumber: invoice.invoiceNumber,
+          firmInvoiceNumber: invoice.firmInvoiceNumber,
+          sellingEntity: invoice.sellingEntity,
           invoiceDate: invoice.invoiceDate,
           total: Number(invoice.total),
           outstandingAmount: Number(invoice.outstandingAmount),
           status: invoice.status,
-          creditableAmount:
-            Math.round(
+          creditableAmount: invoice.sellingEntity
+            ? Number(invoice.outstandingAmount)
+            : Math.round(
               (Number(invoice.total) -
                 invoice.creditNotes.reduce(
                   (sum, creditNote) => sum + Number(creditNote.amount),
@@ -76,12 +89,14 @@ export async function listCorrectionTargets() {
         }))
         .filter((invoice) => invoice.creditableAmount > 0),
       payments: retailer.payments
+        .filter(payment => !payment.invoiceScopeId || Boolean(payment.scopedInvoice?.sellingEntity))
         .map((payment) => ({
           id: payment.id,
           amount: Number(payment.amount),
           channel: payment.channel,
           providerRef: payment.providerRef,
           settledAt: payment.settledAt,
+          scopedInvoice: payment.scopedInvoice,
           reversibleAmount:
             Math.round(
               (Number(payment.amount) -

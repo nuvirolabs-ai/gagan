@@ -1,5 +1,7 @@
+import { isDeepStrictEqual } from "node:util";
 import { Prisma } from "@prisma/client";
-import { asJson, snapshot as commercialSnapshot, normalizedLines } from "../modules/commercial/service";
+import { asJson, CommercialError, commercialRouting, snapshot as commercialSnapshot, normalizedLines } from "../modules/commercial/service";
+import { companyOrderSummary, createCompanySalesOrders } from "../modules/orders/companySalesOrders";
 import { assessOrder, CreditDecision } from "../modules/credit/engine";
 import { ReasonCode } from "../modules/credit/reasonCodes";
 import { CreditPolicy } from "../modules/credit/policy";
@@ -12,7 +14,6 @@ import { InventoryValidationError, validateOrderInventory } from "../modules/inv
 import { recordCommercialStatusEvent } from "../modules/commercialStatus/statusService";
 import { CommercialStatusCode } from "@prisma/client";
 import { evaluateCoupon } from "../modules/promotions/couponService";
-import { evaluateRiceScheme } from "../modules/schemes/riceScheme";
 import { evaluateDynamicSchemesForOrder } from "../modules/schemes/dynamicSchemeEngine";
 
 export interface OrderLineInput {
@@ -88,7 +89,7 @@ async function replayExistingOrder(
 ): Promise<CreateOrderResult | null> {
   const order = await tx.order.findUnique({
     where: { retailerId_idempotencyKey: { retailerId, idempotencyKey } },
-    include: { items: true },
+    include: { items: true, companySalesOrders: companyOrderSummary },
   });
   if (!order) return null;
 
@@ -174,6 +175,9 @@ export async function createOrderForRetailer(
     if (accepted && JSON.stringify(normalizedLines(accepted.lines.map(l=>({variantId:l.variantId,qty:l.cases})))) !== JSON.stringify(items)) return {ok:false,status:409,body:{error:"quote_items_changed"}};
 
     const variantIds = [...new Set(items.map((item) => item.variantId))];
+    if (accepted) {
+      await tx.$queryRaw`SELECT "id" FROM "Variant" WHERE "id" IN (${Prisma.join(variantIds)}) ORDER BY "id" FOR SHARE`;
+    }
     const [priceList, overrides, policyRecord, appConfig, variants, drafts] = await Promise.all([
       tx.priceList.findMany({ where: { variantId: { in: variantIds } } }),
       tx.priceOverride.findMany({ where: { retailerId, variantId: { in: variantIds } } }),
@@ -192,6 +196,7 @@ export async function createOrderForRetailer(
           unitWeightKg: true,
           sellingEntity: true,
           routingClass: true,
+          routingBagEquivalent: true,
           gstPendingOrderAllowed: true,
           product: {
             select: {
@@ -226,6 +231,21 @@ export async function createOrderForRetailer(
     // later be invoiced safely.
     if (!accepted && variants.some(v => v.sellingEntity !== null || v.routingClass !== null || v.gstPendingOrderAllowed)) {
       return {ok:false,status:409,body:{error:"commercial_quote_required"}};
+    }
+    let routing: ReturnType<typeof commercialRouting> = undefined;
+    if (accepted) {
+      try {
+        routing = commercialRouting(retailer, items, variants);
+      } catch (error) {
+        if (!(error instanceof CommercialError)) throw error;
+        return { ok: false, status: error.status, body: { error: error.code, details: error.details } };
+      }
+      const packChanged = routing && accepted.lines.some(line =>
+        !conversionById.get(line.variantId)?.eq(line.caseWeightKg));
+      if (packChanged || !isDeepStrictEqual(accepted.routing, routing)) {
+        if (quote) await tx.commercialQuote.update({ where: { id: quote.id }, data: { expiresAt: new Date() } });
+        return { ok: false, status: 409, body: { error: "quote_changed_or_expired", reason: "routing_inputs_changed" } };
+      }
     }
     const draftsMap = new Map((drafts || []).map(d => {
       const val = (d.values as any) || {};
@@ -282,7 +302,14 @@ export async function createOrderForRetailer(
       retailer.tierId || undefined,
       retailer.deliveryCity || undefined
     );
+    const qualifyingCompanyByVariant = new Map(routing?.lines.map(line => [line.variantId, line.entity]));
     for (const freeItem of dynamicSchemeResult.freeItems) {
+      const qualifyingCompanies = new Set(freeItem.qualifyingVariantIds.map(variantId => qualifyingCompanyByVariant.get(variantId)));
+      const owner = routing?.destination === "INDORE_CITY" ? "jain_traders"
+        : qualifyingCompanies.size === 1 ? [...qualifyingCompanies][0] : undefined;
+      if (routing && (!owner || (freeItem.routingClass === "LAXMI_TOOR" && owner !== "jain_traders"))) {
+        return { ok: false, status: 409, body: { error: "promotion_firm_assignment_required", schemeId: freeItem.schemeId } };
+      }
       lineItems.push({
         variantId: freeItem.variantId,
         qtyOrdered: freeItem.qtyOrdered,
@@ -298,6 +325,7 @@ export async function createOrderForRetailer(
           packUnitKg: freeItem.packUnitKg,
           packDescription: freeItem.packDescription,
           productName: freeItem.variantName,
+          ...(owner ? { fulfillingCompany: owner } : {}),
         }),
       });
     }
@@ -311,6 +339,9 @@ export async function createOrderForRetailer(
     if (couponCode) {
       const couponResult = evaluateCoupon(couponCode, orderTotal);
       if (couponResult.valid) {
+        if (routing && couponResult.discountAmount > 0) {
+          return { ok: false, status: 409, body: { error: "company_invoice_discount_review_required" } };
+        }
         couponDiscount = couponResult.discountAmount;
         couponMetadata = {
           code: couponResult.coupon.code,
@@ -433,11 +464,13 @@ export async function createOrderForRetailer(
       },
       include: { items: true },
     });
+    const orderReference = externalReferenceFor(order.orderNo);
+    if (routing) await createCompanySalesOrders(tx, order, orderReference, routing);
     if (quote) await tx.commercialQuote.update({where:{id:quote.id},data:{acceptedAt:new Date()}});
     const orderWithIdentity = await tx.order.update({
       where: { id: order.id },
-      data: { sapExternalReference: externalReferenceFor(order.orderNo) },
-      include: { items: true },
+      data: { sapExternalReference: orderReference },
+      include: { items: true, companySalesOrders: companyOrderSummary },
     });
     await recordCommercialStatusEvent(tx, {
       code: CommercialStatusCode.SALES_ORDER_PUNCHED,
@@ -448,6 +481,7 @@ export async function createOrderForRetailer(
         placedBy,
         orderNo: orderWithIdentity.orderNo,
         capturedOrderStatus: orderWithIdentity.status,
+        companySalesOrderIds: orderWithIdentity.companySalesOrders.map(document => document.id),
       },
       idempotencyKey: `sales-order-punched:${orderWithIdentity.id}`,
     });

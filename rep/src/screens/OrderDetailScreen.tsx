@@ -11,6 +11,16 @@ import { hasOrderAmountMismatch } from "../lib/orderAmountMismatch";
 import { colors, inr, radius, spacing } from "../theme";
 import { nextOrderVisitAction, type OrderVisitAction } from "./orderVisitAction";
 
+type OrderInvoice = {
+  id?: string;
+  invoiceNumber: number;
+  firmInvoiceNumber?: string | null;
+  sellingEntity?: "jain_traders" | "padam_international" | null;
+  total: number | string;
+  outstandingAmount: number | string;
+  commercialSnapshot?: unknown;
+};
+
 function isSameDay(dateInput: string | Date | null | undefined) {
   if (!dateInput) return false;
   const d1 = new Date(dateInput);
@@ -76,6 +86,7 @@ export default function OrderDetailScreen({ route, navigation }: any) {
   }
 
   const { order, events = [] } = data;
+  const invoices: OrderInvoice[] = order.invoices ?? (order.invoice ? [order.invoice] : []);
   const eventRows = [
     { id: `placed-${order.id}`, label: "Order placed", at: order.createdAt },
     ...events.map((event: any) => ({ id: event.id, label: eventLabel(event.action), at: event.createdAt })),
@@ -205,7 +216,21 @@ export default function OrderDetailScreen({ route, navigation }: any) {
           {eventRows.map((event: any, index: number) => <View key={event.id} style={styles.eventRow}><View style={[styles.eventDot, index === eventRows.length - 1 && styles.eventDotCurrent]} /><View style={{ flex: 1 }}><Text style={styles.eventTitle}>{event.label}</Text><Text style={styles.muted}>{event.at && !isNaN(new Date(event.at).getTime()) ? new Date(event.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—"}</Text></View></View>)}
         </Surface>
 
-        {order.invoice ? <Surface><SectionHeader title="Invoice" /><View style={styles.invoiceRow}><Text style={styles.muted}>Invoice #{order.invoice.invoiceNumber}</Text><Text style={styles.totalValue}>{inr(Number(order.invoice.total))}</Text></View>{order.invoice.commercialSnapshot && <CommercialBreakdown value={order.invoice.commercialSnapshot}/>}<Text style={styles.muted}>{order.invoice.outstandingAmount > 0 ? `${inr(Number(order.invoice.outstandingAmount))} outstanding` : "Settled"}</Text></Surface> : null}
+        {invoices.map(invoice => (
+          <Surface key={invoice.id ?? invoice.invoiceNumber}>
+            <SectionHeader title={invoice.sellingEntity === "jain_traders"
+              ? "Jain Traders invoice"
+              : invoice.sellingEntity === "padam_international" ? "Padam International invoice" : "Invoice"} />
+            <View style={styles.invoiceRow}>
+              <Text style={styles.muted}>Invoice {invoice.firmInvoiceNumber ?? invoice.invoiceNumber}</Text>
+              <Text style={styles.totalValue}>{inr(Number(invoice.total))}</Text>
+            </View>
+            {invoice.commercialSnapshot ? <CommercialBreakdown value={invoice.commercialSnapshot} /> : null}
+            <Text style={styles.muted}>
+              {Number(invoice.outstandingAmount) > 0 ? `${inr(Number(invoice.outstandingAmount))} outstanding` : "Settled"}
+            </Text>
+          </Surface>
+        ))}
 
         {/* Cancellation Section */}
         {order.cancellationStatus === "pending" ? (

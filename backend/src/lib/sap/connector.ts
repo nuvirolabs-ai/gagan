@@ -81,6 +81,8 @@ export interface SapFinancialSummary {
 /** One order, flattened to what SAP SD needs to post a sales order. */
 export interface SapSalesOrderPayload {
   commercial?: import("../../modules/commercial/service").CommercialSnapshot;
+  companySalesOrderId?: string;
+  company?: import("@prisma/client").SalesOrderCompany;
   orderId: string;
   orderNo: number;
   /** Future SAP B1 UDF value used for idempotent reconciliation. */
@@ -114,6 +116,7 @@ export interface SapConnector {
   readonly name: string;
   /** False when no SAP is wired up; callers skip sync entirely. */
   readonly enabled: boolean;
+  readonly supportsCompanySalesOrders?: boolean;
 
   login(): Promise<void>;
   logout(): Promise<void>;

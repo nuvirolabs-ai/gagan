@@ -15,14 +15,18 @@ import { PaymentEvidenceError, PaymentEvidenceService } from "../modules/payment
 const router = Router();
 const paymentEvidenceService = new PaymentEvidenceService();
 
+const paymentInvoiceReference = {
+  select: { id: true, invoiceNumber: true, firmInvoiceNumber: true, sellingEntity: true, order: { select: { orderNo: true } } },
+} as const;
+
 const paymentReadbackInclude = {
-  scopedInvoice: { select: { id: true, invoiceNumber: true, order: { select: { orderNo: true } } } },
+  scopedInvoice: paymentInvoiceReference,
   allocations: {
     select: {
       amount: true,
       jainAmount: true,
       padamAmount: true,
-      invoice: { select: { id: true, invoiceNumber: true, order: { select: { orderNo: true } } } },
+      invoice: paymentInvoiceReference,
     },
   },
 } as const;
@@ -89,6 +93,7 @@ function scopedInvoiceProjection(payment: PaymentReadback) {
       ? {
           id: payment.scopedInvoice.id,
           invoiceNumber: payment.scopedInvoice.invoiceNumber,
+          ...(payment.scopedInvoice.sellingEntity && { sellingEntity: payment.scopedInvoice.sellingEntity, firmInvoiceNumber: payment.scopedInvoice.firmInvoiceNumber }),
           orderNo: payment.scopedInvoice.order?.orderNo ?? null,
         }
       : null,
@@ -98,6 +103,7 @@ function scopedInvoiceProjection(payment: PaymentReadback) {
       invoice: {
         id: allocation.invoice.id,
         invoiceNumber: allocation.invoice.invoiceNumber,
+        ...(allocation.invoice.sellingEntity && { sellingEntity: allocation.invoice.sellingEntity, firmInvoiceNumber: allocation.invoice.firmInvoiceNumber }),
         orderNo: allocation.invoice.order?.orderNo ?? null,
       },
       amount: Number(allocation.amount),
@@ -227,7 +233,12 @@ router.post("/payments/intent", requireAuth, createRateLimiter({ name: "payment-
         // The legacy FIFO path remains available only when it cannot consume an
         // entity-attributed invoice without an explicit invoice/company split.
         if (await prisma.invoice.count({
-          where: { retailerId: retailer.id, outstandingAmount: { gt: 0 }, commercialSnapshot: { not: Prisma.DbNull } },
+          where: {
+            retailerId: retailer.id,
+            status: { in: ["open", "partially_paid"] },
+            outstandingAmount: { gt: 0 },
+            OR: [{ commercialSnapshot: { not: Prisma.DbNull } }, { sellingEntity: { not: null } }],
+          },
         })) {
           return res.status(409).json({
             error: "Please ask your collecting employee to record payment against the specific invoice with Jain and Padam allocations.",

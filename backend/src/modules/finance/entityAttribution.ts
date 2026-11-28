@@ -10,6 +10,9 @@ export type EntityBreakdown = EntityAmounts & {
   attributionStatus: AttributionStatus;
 };
 
+type SellingEntity = "jain_traders" | "padam_international";
+type InvoiceIssuer = { sellingEntity?: SellingEntity | null };
+
 type InvoiceLike = {
   total?: unknown;
   outstandingAmount?: unknown;
@@ -18,9 +21,10 @@ type InvoiceLike = {
     amount?: unknown;
     jainAmount?: unknown;
     padamAmount?: unknown;
-    reversals?: unknown[];
+    reversals?: Array<{ amount?: unknown }>;
   }>;
-};
+  creditNotes?: Array<{ amount?: unknown }>;
+} & InvoiceIssuer;
 
 type LedgerEntryLike = {
   kind: string;
@@ -37,11 +41,17 @@ type LedgerEntryLike = {
       amount?: unknown;
       jainAmount?: unknown;
       padamAmount?: unknown;
+      invoice?: InvoiceIssuer | null;
     }>;
   } | null;
-  creditNote?: { amount?: unknown; invoice?: { commercialSnapshot?: unknown } | null } | null;
+  creditNote?: { amount?: unknown; invoice?: InvoiceLike | null } | null;
   paymentReversal?: {
     amount?: unknown;
+    unallocatedAmount?: unknown;
+    allocationReversals?: Array<{
+      amount?: unknown;
+      paymentAllocation?: { invoiceId?: unknown; invoice?: InvoiceIssuer | null } | null;
+    }>;
     payment?: {
       invoiceScopeId?: string | null;
       confirmedJainAmount?: unknown;
@@ -101,6 +111,22 @@ function commercialTotals(snapshot: unknown, invoiceTotalCents: number) {
   return { jain, padam };
 }
 
+function invoiceTotals(invoice: InvoiceLike, total: number) {
+  const original = commercialTotals(invoice.commercialSnapshot, total);
+  if (!original || !invoice.sellingEntity) return original;
+  const snapshot = invoice.commercialSnapshot as { entities: Array<{ entity: string }> };
+  return snapshot.entities.length === 1 && snapshot.entities[0].entity === invoice.sellingEntity
+    ? original
+    : null;
+}
+
+function issuerAmounts(entity: SellingEntity, total: number): EntityBreakdown {
+  return {
+    ...amountsFromCents(entity === "jain_traders" ? total : 0, entity === "padam_international" ? total : 0, 0),
+    attributionStatus: "complete",
+  };
+}
+
 export function emptyEntityAmounts(): EntityAmounts {
   return { jainTraders: 0, padamInternational: 0, unattributed: 0 };
 }
@@ -127,10 +153,12 @@ export function mergeAttributionStatus(
 export function attributeInvoiceOutstanding(invoice: InvoiceLike): EntityBreakdown {
   const outstanding = toCents(invoice.outstandingAmount);
   if (outstanding == null) return fallback(null, "review_required");
-  if (invoice.commercialSnapshot == null) return fallback(outstanding, "contains_unattributed");
+  if (invoice.commercialSnapshot == null) {
+    return fallback(outstanding, invoice.sellingEntity ? "review_required" : "contains_unattributed");
+  }
 
   const total = toCents(invoice.total);
-  const original = total == null ? null : commercialTotals(invoice.commercialSnapshot, total);
+  const original = total == null ? null : invoiceTotals(invoice, total);
   if (!original || !Array.isArray(invoice.allocations)) {
     return fallback(outstanding, "review_required");
   }
@@ -138,7 +166,7 @@ export function attributeInvoiceOutstanding(invoice: InvoiceLike): EntityBreakdo
   let allocatedJain = 0;
   let allocatedPadam = 0;
   for (const allocation of invoice.allocations) {
-    if (!Array.isArray(allocation.reversals) || allocation.reversals.length > 0) {
+    if (!Array.isArray(allocation.reversals) || (!invoice.sellingEntity && allocation.reversals.length > 0)) {
       return fallback(outstanding, "review_required");
     }
     const amount = toCents(allocation.amount);
@@ -147,12 +175,29 @@ export function attributeInvoiceOutstanding(invoice: InvoiceLike): EntityBreakdo
     if (amount == null || jain == null || padam == null || jain + padam !== amount) {
       return fallback(outstanding, "review_required");
     }
-    allocatedJain += jain;
-    allocatedPadam += padam;
+    if ((invoice.sellingEntity === "jain_traders" && padam !== 0) ||
+        (invoice.sellingEntity === "padam_international" && jain !== 0)) {
+      return fallback(outstanding, "review_required");
+    }
+    let reversed = 0;
+    for (const reversal of allocation.reversals) {
+      const cents = toCents(reversal.amount);
+      if (cents == null) return fallback(outstanding, "review_required");
+      reversed += cents;
+    }
+    if (reversed > amount) return fallback(outstanding, "review_required");
+    allocatedJain += jain - (invoice.sellingEntity === "jain_traders" ? reversed : 0);
+    allocatedPadam += padam - (invoice.sellingEntity === "padam_international" ? reversed : 0);
   }
 
-  const jain = original.jain - allocatedJain;
-  const padam = original.padam - allocatedPadam;
+  let credits = 0;
+  for (const credit of invoice.creditNotes ?? []) {
+    const cents = toCents(credit.amount);
+    if (cents == null || !invoice.sellingEntity) return fallback(outstanding, "review_required");
+    credits += cents;
+  }
+  const jain = original.jain - allocatedJain - (invoice.sellingEntity === "jain_traders" ? credits : 0);
+  const padam = original.padam - allocatedPadam - (invoice.sellingEntity === "padam_international" ? credits : 0);
   if (jain < 0 || padam < 0 || jain + padam !== outstanding) {
     return fallback(outstanding, "review_required");
   }
@@ -193,6 +238,10 @@ function attributePayment(amountCents: number, payment: NonNullable<LedgerEntryL
     if (allocationJain == null || allocationPadam == null || allocationJain + allocationPadam !== allocationAmount) {
       return fallback(amountCents, "review_required");
     }
+    if ((allocation.invoice?.sellingEntity === "jain_traders" && allocationPadam !== 0) ||
+        (allocation.invoice?.sellingEntity === "padam_international" && allocationJain !== 0)) {
+      return fallback(amountCents, "review_required");
+    }
     jain += allocationJain;
     padam += allocationPadam;
   }
@@ -224,9 +273,11 @@ export function attributeLedgerEntry(entry: LedgerEntryLike): EntityBreakdown {
 
   if (entry.kind === "invoice") {
     if (!entry.invoice) return fallback(amount, "review_required");
-    if (entry.invoice.commercialSnapshot == null) return fallback(amount, "contains_unattributed");
+    if (entry.invoice.commercialSnapshot == null) {
+      return fallback(amount, entry.invoice.sellingEntity ? "review_required" : "contains_unattributed");
+    }
     const invoiceTotal = toCents(entry.invoice.total);
-    const totals = invoiceTotal == null ? null : commercialTotals(entry.invoice.commercialSnapshot, invoiceTotal);
+    const totals = invoiceTotal == null ? null : invoiceTotals(entry.invoice, invoiceTotal);
     if (!totals || invoiceTotal !== amount) return fallback(amount, "review_required");
     return { ...amountsFromCents(totals.jain, totals.padam, 0), attributionStatus: "complete" };
   }
@@ -239,6 +290,13 @@ export function attributeLedgerEntry(entry: LedgerEntryLike): EntityBreakdown {
   if (entry.kind === "credit_note") {
     if (!entry.creditNote) return fallback(amount, "review_required");
     if (toCents(entry.creditNote.amount) !== amount) return fallback(amount, "review_required");
+    const invoice = entry.creditNote.invoice;
+    if (invoice?.sellingEntity) {
+      const total = toCents(invoice.total);
+      return total != null && amount <= total && invoiceTotals(invoice, total)
+        ? issuerAmounts(invoice.sellingEntity, amount)
+        : fallback(amount, "review_required");
+    }
     if (entry.creditNote.invoice?.commercialSnapshot != null) return fallback(amount, "review_required");
     return fallback(amount, "contains_unattributed");
   }
@@ -247,6 +305,18 @@ export function attributeLedgerEntry(entry: LedgerEntryLike): EntityBreakdown {
     if (!entry.paymentReversal?.payment) return fallback(amount, "review_required");
     if (toCents(entry.paymentReversal.amount) !== amount) return fallback(amount, "review_required");
     const payment = entry.paymentReversal.payment;
+    const allocations = entry.paymentReversal.allocationReversals;
+    if (payment.invoiceScopeId && toCents(entry.paymentReversal.unallocatedAmount) === 0 &&
+        allocations?.length === 1) {
+      const [reversal] = allocations;
+      const issuer = reversal.paymentAllocation?.invoice?.sellingEntity;
+      if (issuer && reversal.paymentAllocation?.invoiceId === payment.invoiceScopeId &&
+          toCents(reversal.amount) === amount &&
+          toCents(issuer === "jain_traders" ? payment.confirmedPadamAmount : payment.confirmedJainAmount) === 0) {
+        const originallyPaid = toCents(issuer === "jain_traders" ? payment.confirmedJainAmount : payment.confirmedPadamAmount);
+        if (originallyPaid != null && originallyPaid >= amount) return issuerAmounts(issuer, amount);
+      }
+    }
     if (
       payment.invoiceScopeId || payment.confirmedJainAmount != null || payment.confirmedPadamAmount != null ||
       payment.allocations?.some((allocation) => allocation.jainAmount != null || allocation.padamAmount != null)

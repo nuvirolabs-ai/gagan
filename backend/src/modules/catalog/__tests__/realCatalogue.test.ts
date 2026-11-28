@@ -45,6 +45,21 @@ function workbookBuffer() {
 }
 
 describe("real catalogue source mapping", () => {
+  it("uses the reviewed Toor Dal identity without exempting other Laxmi products", () => {
+    const workbook = XLSX.utils.book_new();
+    const sheet = XLSX.utils.aoa_to_sheet([
+      ["SKU WISE ITEM LIST"],
+      ["S.NO", "TYPE OF ITEM", "BRAND NAME", "GROUP NAME", "ITEM NAME", "SKU NAME", "PACKING SIZE", "MASTER BAG/BOX SIZE", "PRICE PER QUINTAL"],
+      [1, "TOOR DAL", "LAXMI", "LAXMI TOOR DAL", "LAXMI TOOR DAL", "LPP TOOR DAL (30KG X 1)", "30 KG", "30KG BAG", 13900],
+      [2, "RICE", "LAXMI", "LAXMI RICE", "LAXMI RICE", "LAXMI RICE (30KG X 1)", "30 KG", "30KG BAG", 9000],
+      [3, "TOOR DAL", "LAXMI", "LAXMI TOOR DAL", "LAXMI TOOR DAL", "NEW TOOR DAL (30KG X 1)", "30 KG", "30KG BAG", 13900],
+    ]);
+    XLSX.utils.book_append_sheet(workbook, sheet, "PRODUCT LIST");
+    const result = buildRealCatalogueManifest(Buffer.from(XLSX.write(workbook, { type: "buffer", bookType: "xlsx" })), "catalogue.xlsx");
+    expect(result.records.map(record => record.routingClass)).toEqual(["LAXMI_TOOR", "OTHER", null]);
+    expect(result.records[2].readinessBlockers).toContain("routing_class_requires_approval");
+  });
+
   it("normalizes the observed header, deduplicates exact rows, and preserves source rows", () => {
     const manifest = buildRealCatalogueManifest(workbookBuffer(), "catalogue.xlsx", imageIndex);
     expect(manifest.source).toMatchObject({

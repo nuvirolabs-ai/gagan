@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
 import { api, inr } from "../api";
+import { firmNames, type BillingFirm } from "../invoiceDocument";
 
 type Submission = {
-  invoiceScopeId?:string;jainAmount?:string;padamAmount?:string;
+  invoiceScopeId?: string;
+  jainAmount?: string;
+  padamAmount?: string;
+  scopedInvoice?: { invoiceNumber: number; firmInvoiceNumber?: string | null; sellingEntity?: BillingFirm | null } | null;
   id: string;
   amount: number | string;
   method: string;
@@ -71,7 +75,11 @@ export default function Collections() {
           <h2>{inr(Number(selected.amount))} · {selected.method.toUpperCase()}</h2>
           <p className="muted">Reference: {selected.reference || "Not supplied"}</p>
           <p>Notes: {selected.notes?.trim() || "Not supplied"}</p>
-          {selected.invoiceScopeId && <p>Invoice {selected.invoiceScopeId} · Jain ₹{selected.jainAmount} · Padam ₹{selected.padamAmount}. Confirmation applies only to this invoice.</p>}
+          {selected.scopedInvoice?.sellingEntity ? (
+            <p>{firmNames[selected.scopedInvoice.sellingEntity]} · Invoice {selected.scopedInvoice.firmInvoiceNumber ?? `#${selected.scopedInvoice.invoiceNumber}`}</p>
+          ) : selected.invoiceScopeId && (
+            <p>Invoice {selected.scopedInvoice ? `#${selected.scopedInvoice.invoiceNumber}` : selected.invoiceScopeId} · Jain ₹{selected.jainAmount} · Padam ₹{selected.padamAmount}. Confirmation applies only to this invoice.</p>
+          )}
           {selected.evidence?.length ? <div className="reason-list">{selected.evidence.map((e, index) => <div className="reason-card" key={`${e.contentType}-${index}`}>{e.signedUrl ? <a href={e.signedUrl} target="_blank" rel="noreferrer">Open receipt evidence</a> : <span>Receipt evidence unavailable</span>}<span className="muted small"> · {e.contentType}</span></div>)}</div> : <div className="reason-card">No uploaded evidence. Request a receipt before confirming.</div>}
           <label className="field"><span>Rejection reason (only for reject)</span><textarea rows={3} value={reason} onChange={(event) => setReason(event.target.value)} /></label>
           {!pendingAction ? <div className="approval-actions"><button className="danger-outline" onClick={() => void begin("reject")}>Reject</button><button onClick={() => void begin("confirm")}>Confirm collection</button></div> : <div className="step-up-box"><strong>Verify this sensitive action</strong><p>Enter the six-digit code sent to your registered phone.</p><label className="field"><span>Verification code</span><input inputMode="numeric" maxLength={6} value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))} /></label><button disabled={otp.length !== 6} onClick={() => void verify()}>Verify and {pendingAction}</button></div>}

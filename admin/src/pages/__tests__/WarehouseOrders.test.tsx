@@ -9,6 +9,9 @@ const mocks = vi.hoisted(() => ({
   warehouseOrders: vi.fn(),
   warehouseOrder: vi.fn(),
   packWarehouseOrder: vi.fn(),
+  dispatchWarehouseOrder: vi.fn(),
+  deliverWarehouseOrder: vi.fn(),
+  downloadWarehouseOrderInvoicePdf: vi.fn(),
 }));
 vi.mock("../../api", () => ({ api: mocks, inr: (value: number) => `₹${value}` }));
 
@@ -39,6 +42,69 @@ beforeEach(() => {
 });
 
 describe("warehouse order processing", () => {
+  it("requires and submits a matching route for each company document", async () => {
+    const split = {
+      ...order, status: "packed",
+      companySalesOrders: [
+        { id: "jt-order", company: "jain_traders", reference: "GGN-1-JT", routeId: null },
+        { id: "pi-order", company: "padam_international", reference: "GGN-1-PI", routeId: null },
+      ],
+    };
+    mocks.warehouseOrders.mockResolvedValue({ orders: [split] });
+    mocks.warehouseOrder.mockResolvedValue({ order: split });
+    mocks.dispatchWarehouseOrder.mockResolvedValue({ order: { ...split, status: "out_for_delivery" } });
+    render(<MemoryRouter><Orders mode="warehouse" /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: /North Star Retail/ }));
+    const dialog = await screen.findByRole("dialog");
+    const dispatch = await within(dialog).findByRole("button", { name: /Material Dispatched/ });
+    expect(dispatch).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText("Jain Traders dispatch route"), { target: { value: "ROUTE-JT" } });
+    expect(dispatch).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText("Padam International dispatch route"), { target: { value: "ROUTE-PI" } });
+    fireEvent.click(dispatch);
+    await waitFor(() => expect(mocks.dispatchWarehouseOrder).toHaveBeenCalledWith(order.id, [
+      { companySalesOrderId: "jt-order", routeId: "ROUTE-JT" },
+      { companySalesOrderId: "pi-order", routeId: "ROUTE-PI" },
+    ], undefined));
+  });
+
+  it("records and downloads Jain billing while the Padam route is still outstanding", async () => {
+    const jain = { id: "jt-order", company: "jain_traders", reference: "GGN-1-JT", routeId: "ROUTE-JT" };
+    const padam = { id: "pi-order", company: "padam_international", reference: "GGN-1-PI", routeId: "ROUTE-PI" };
+    const split = {
+      ...order, status: "out_for_delivery", companySalesOrders: [jain, padam],
+      items: [
+        { ...order.items[0], companySalesOrderId: jain.id },
+        { ...order.items[0], id: "line-2", companySalesOrderId: padam.id, qtyOrdered: 2 },
+      ],
+    };
+    const jainInvoice = { id: "jain-invoice", invoiceNumber: 12, firmInvoiceNumber: "JT-12", sellingEntity: jain.company, total: 450 };
+    mocks.warehouseOrders.mockResolvedValue({ orders: [split] });
+    mocks.warehouseOrder.mockResolvedValue({ order: split });
+    mocks.deliverWarehouseOrder.mockResolvedValue({ order: {
+      ...split,
+      companySalesOrders: [{ ...jain, deliveryResolvedAt: "2026-09-25T12:15:00Z" }, padam],
+      invoices: [jainInvoice],
+    } });
+    mocks.downloadWarehouseOrderInvoicePdf.mockResolvedValue(undefined);
+    render(<MemoryRouter><Orders mode="warehouse" /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: /North Star Retail/ }));
+    const dialog = within(await screen.findByRole("dialog"));
+    const selector = dialog.getByRole("combobox", { name: "Company sales order delivered" });
+    const complete = dialog.getByRole("button", { name: /Complete Delivery/ });
+    expect(complete).toBeDisabled();
+    expect(dialog.queryByRole("option", { name: "All companies on this route" })).not.toBeInTheDocument();
+    fireEvent.change(selector, { target: { value: jain.id } });
+    await waitFor(() => expect(complete).toBeEnabled());
+    fireEvent.click(complete);
+    await waitFor(() => expect(mocks.deliverWarehouseOrder).toHaveBeenCalledWith(
+      order.id, "photo", [{ orderItemId: "line-1", qtyDelivered: 3 }], undefined, undefined, jain.id,
+    ));
+    expect(selector).toHaveValue(padam.id);
+    fireEvent.click(await dialog.findByRole("button", { name: /Download Jain Traders · JT-12/ }));
+    expect(mocks.downloadWarehouseOrderInvoicePdf).toHaveBeenCalledWith(order.id, jainInvoice.id, "JT-12");
+  });
+
   it("shows only eligible order work and its line items without commercial amounts", async () => {
     render(<MemoryRouter><Orders mode="warehouse" /></MemoryRouter>);
 

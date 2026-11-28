@@ -9,6 +9,8 @@ import OrderReviewModal, { OrderActionControls } from "../components/OrderReview
 import { AgeDistribution, Icon, SectionLabel } from "../components/OperationalPrimitives";
 import { ageHours, ageLabel } from "../components/operationalUtils";
 import { orderCreatedAtLabel, orderSourceLabel } from "../orderAttribution";
+import { billingInvoiceLabel, billingInvoiceReference, type BillingInvoice } from "../invoiceDocument";
+import { explain } from "../errorCopy";
 import WarehouseOrdersPage from "./WarehouseOrders";
 import {
   NEXT_ACTION,
@@ -35,26 +37,16 @@ const TABS = [
 ] as const;
 
 export function orderBillingEntity(order: any): { label: string; code: string; bg: string; color: string } {
-  const snap = order.commercialSnapshot;
-  const entities = new Set<string>();
-
-  if (snap?.lines && Array.isArray(snap.lines)) {
-    snap.lines.forEach((l: any) => { if (l.entity) entities.add(l.entity); });
-  }
-  if (snap?.routing?.entity) entities.add(snap.routing.entity);
-  if (snap?.routing?.lines && Array.isArray(snap.routing.lines)) {
-    snap.routing.lines.forEach((l: any) => { if (l.entity) entities.add(l.entity); });
-  }
-  if (snap?.billingEntity?.name) {
-    if (snap.billingEntity.name.toLowerCase().includes("padam")) entities.add("padam_international");
-    if (snap.billingEntity.name.toLowerCase().includes("jain")) entities.add("jain_traders");
-  }
-  if (order.items && Array.isArray(order.items)) {
-    order.items.forEach((item: any) => {
-      const v = item.variant;
-      if (v?.sellingEntity === "padam_international") entities.add("padam_international");
-      if (v?.sellingEntity === "jain_traders") entities.add("jain_traders");
-    });
+  const snap = order.commercialSnapshot?.quote ?? order.commercialSnapshot;
+  const documents = order.companySalesOrders ?? [];
+  const entities = new Set<string>(documents.map((document: { company: string }) => document.company));
+  if (entities.size === 0) {
+    for (const line of snap?.routing?.lines ?? snap?.lines ?? []) {
+      if (line.entity === "jain_traders" || line.entity === "padam_international") entities.add(line.entity);
+    }
+    if (snap?.routing?.entity === "jain_traders" || snap?.routing?.entity === "padam_international") {
+      entities.add(snap.routing.entity);
+    }
   }
 
   if (entities.has("jain_traders") && entities.has("padam_international")) {
@@ -63,7 +55,42 @@ export function orderBillingEntity(order: any): { label: string; code: string; b
   if (entities.has("padam_international")) {
     return { label: "Padam International", code: "padam_international", bg: "#fef3c7", color: "#92400e" };
   }
-  return { label: "Jain Traders", code: "jain_traders", bg: "#e0f2fe", color: "#0369a1" };
+  if (entities.has("jain_traders")) {
+    return { label: "Jain Traders", code: "jain_traders", bg: "#e0f2fe", color: "#0369a1" };
+  }
+  return { label: "Company unassigned", code: "unassigned", bg: "#f1f5f9", color: "#475569" };
+}
+
+function IssuedBillingRecords({ order, onError }: { order: { id: string; invoices?: BillingInvoice[] }; onError: (message: string) => void }) {
+  const [downloading, setDownloading] = useState<string | null>(null);
+  if (!order.invoices?.length) return null;
+
+  async function download(invoice: BillingInvoice) {
+    setDownloading(invoice.id);
+    try {
+      await api.downloadOrderInvoicePdf(order.id, invoice.id, billingInvoiceReference(invoice));
+    } catch (cause) {
+      onError(explain(cause, "Could not download the billing record."));
+    } finally {
+      setDownloading(null);
+    }
+  }
+
+  return (
+    <section className="items-section" aria-label="Issued billing records">
+      <h2>Issued billing records</h2>
+      <ul>
+        {order.invoices.map(invoice => (
+          <li key={invoice.id}>
+            <span>{billingInvoiceLabel(invoice)} · {inr(Number(invoice.total))}{invoice.status === "voided" ? " · Voided" : ""}</span>{" "}
+            <button type="button" className="button secondary" disabled={downloading !== null} onClick={() => void download(invoice)}>
+              Download {billingInvoiceReference(invoice)}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }
 
 export type DuplicateMatch = {
@@ -1164,7 +1191,7 @@ function AdminOrders() {
       })}</div></section>
       <aside className="order-side-note"><SectionLabel>Queue read</SectionLabel><strong>{outsideSla > 0 ? `${outsideSla} orders have crossed the twelve-hour band.` : "No order has crossed the twelve-hour band."}</strong><p>{selected ? `${formatOrderRef(selected)} is ${ageLabel(selected.createdAt)} old. Review and act from the queue. Open the full workspace only for ledger, retailer, or SAP detail.` : "Open an order to review the next safe action without leaving this list."}</p>{selected ? <button className="text-button" onClick={() => { setSelectedId(null); setReviewId(null); setDetailId(null); }}>clear selection <Icon name="arrow" size={14} /></button> : null}</aside>
     </div>
-    {detailOrder ? <section className="order-workspace" id="order-workspace" aria-label="Selected order workspace"><div className="workspace-heading"><div><SectionLabel>Order workspace / selected object</SectionLabel><h2>{formatOrderRef(detailOrder)}</h2><p>{detailOrder.retailer?.name ?? "Retailer unavailable"} · placed {ageLabel(detailOrder.createdAt)} ago{detailOrder.retailer?.phone ? ` · ${detailOrder.retailer.phone}` : ""}</p></div><div className={`workspace-status ${toneFor(detailOrder)}`}><span className="status-dot" />{STATUS_LABEL[detailOrder.status] ?? detailOrder.status}<strong>{inr(Number(detailOrder.orderTotal ?? 0))}</strong></div></div><div className="workspace-hero"><div className="hero-value"><span>order value</span><strong>{inr(Number(detailOrder.orderTotal ?? 0))}</strong><small>{detailOrder.items?.length ?? 0} lines · {detailOrder.delivery?.routeId ? `route ${detailOrder.delivery.routeId}` : "route not assigned"}</small><div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}><span style={{ padding: "2px 8px", background: "#e0f2fe", borderRadius: 4, fontSize: 12, color: "#0369a1", fontWeight: 600 }}>👤 Salesperson: {detailOrder.salespersonName || "Direct"} ({detailOrder.punchedByLabel || "Retailer Direct"})</span><span style={{ padding: "2px 8px", background: "#f3e8ff", borderRadius: 4, fontSize: 12, color: "#6b21a8", fontWeight: 600 }}>🏢 Fulfillment Warehouse: {detailOrder.warehouseName || "Indore Central Fulfillment Hub"} ({detailOrder.warehouseCode || "WH-001"})</span><span style={{ padding: "2px 8px", background: orderBillingEntity(detailOrder).bg, borderRadius: 4, fontSize: 12, color: orderBillingEntity(detailOrder).color, fontWeight: 600 }}>📑 Billing Entity: {orderBillingEntity(detailOrder).label}</span></div></div><div className={`hero-decision ${detailOrder.status === "placed" || detailOrder.sapSyncStatus === "failed" ? "critical" : ""}`}><span className="decision-kicker"><i className="status-dot" /> next safe action</span><strong>{NEXT_ACTION[detailOrder.status] ?? "Inspect order"}</strong><p>{dependencyCopy(detailOrder)}</p>{actionControls(detailOrder, "workspace")}</div></div><div className="workspace-columns"><main><section className="diagnostic-section"><div className="section-head"><div><SectionLabel>Diagnostic instrument</SectionLabel><h2>Order health</h2></div><span className="small-note">canonical fields only</span></div><HealthMatrix order={detailOrder} /><Journey order={detailOrder} /></section><section className="items-section"><div className="section-head"><div><SectionLabel>Commercial lines</SectionLabel><h2>Items <em>{detailOrder.items?.length ?? 0} lines</em></h2></div><span className="small-note">unit prices from order</span></div>{detailOrder.commercialSnapshot ? <Breakdown value={detailOrder.commercialSnapshot}/> : null}<div className="item-ledger" hidden={!!detailOrder.commercialSnapshot}><div><span>item</span><span>ordered</span><span>unit price</span><span>line value</span></div>{(detailOrder.items ?? []).map((item: any) => {
+    {detailOrder ? <section className="order-workspace" id="order-workspace" aria-label="Selected order workspace"><div className="workspace-heading"><div><SectionLabel>Order workspace / selected object</SectionLabel><h2>{formatOrderRef(detailOrder)}</h2><p>{detailOrder.retailer?.name ?? "Retailer unavailable"} · placed {ageLabel(detailOrder.createdAt)} ago{detailOrder.retailer?.phone ? ` · ${detailOrder.retailer.phone}` : ""}</p></div><div className={`workspace-status ${toneFor(detailOrder)}`}><span className="status-dot" />{STATUS_LABEL[detailOrder.status] ?? detailOrder.status}<strong>{inr(Number(detailOrder.orderTotal ?? 0))}</strong></div></div><div className="workspace-hero"><div className="hero-value"><span>order value</span><strong>{inr(Number(detailOrder.orderTotal ?? 0))}</strong><small>{detailOrder.items?.length ?? 0} lines · {detailOrder.delivery?.routeId ? `route ${detailOrder.delivery.routeId}` : "route not assigned"}</small><div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}><span style={{ padding: "2px 8px", background: "#e0f2fe", borderRadius: 4, fontSize: 12, color: "#0369a1", fontWeight: 600 }}>👤 Salesperson: {detailOrder.salespersonName || "Direct"} ({detailOrder.punchedByLabel || "Retailer Direct"})</span><span style={{ padding: "2px 8px", background: "#f3e8ff", borderRadius: 4, fontSize: 12, color: "#6b21a8", fontWeight: 600 }}>🏢 Fulfillment Warehouse: {detailOrder.warehouseName || "Indore Central Fulfillment Hub"} ({detailOrder.warehouseCode || "WH-001"})</span><span style={{ padding: "2px 8px", background: orderBillingEntity(detailOrder).bg, borderRadius: 4, fontSize: 12, color: orderBillingEntity(detailOrder).color, fontWeight: 600 }}>📑 Billing Entity: {orderBillingEntity(detailOrder).label}</span></div></div><div className={`hero-decision ${detailOrder.status === "placed" || detailOrder.sapSyncStatus === "failed" ? "critical" : ""}`}><span className="decision-kicker"><i className="status-dot" /> next safe action</span><strong>{NEXT_ACTION[detailOrder.status] ?? "Inspect order"}</strong><p>{dependencyCopy(detailOrder)}</p>{actionControls(detailOrder, "workspace")}</div></div><div className="workspace-columns"><main><section className="diagnostic-section"><div className="section-head"><div><SectionLabel>Diagnostic instrument</SectionLabel><h2>Order health</h2></div><span className="small-note">canonical fields only</span></div><HealthMatrix order={detailOrder} /><Journey order={detailOrder} /></section><section className="items-section"><div className="section-head"><div><SectionLabel>Commercial lines</SectionLabel><h2>Items <em>{detailOrder.items?.length ?? 0} lines</em></h2></div><span className="small-note">unit prices from order</span></div>{Array.isArray((detailOrder.commercialSnapshot?.quote ?? detailOrder.commercialSnapshot)?.lines) ? <Breakdown value={detailOrder.commercialSnapshot?.quote ?? detailOrder.commercialSnapshot}/> : null}<div className="item-ledger" hidden={!!detailOrder.commercialSnapshot}><div><span>item</span><span>ordered</span><span>unit price</span><span>line value</span></div>{(detailOrder.items ?? []).map((item: any) => {
   const unitRate = Number(item.unitPrice ?? 0);
   const caseWeightKg = Number(item.caseWeightKg ?? item.caseWeightKgSnapshot ?? (item.variant?.unitWeightKg ? Number(item.variant.unitWeightKg) * (item.variant.unitsPerCase ?? 1) : 0));
   const isBox = (item.outerPack === "Box") || item.variant?.catalogIdentityMasterPack?.toUpperCase()?.includes("BOX");
@@ -1172,7 +1199,7 @@ function AdminOrders() {
   const isQuintal = item.rateBasis === "quintal" || (caseWeightKg >= 20 && !isBox);
   const quintalRate = item.ratePerQuintal != null ? item.ratePerQuintal : (isQuintal && caseWeightKg > 0 ? Math.round((unitRate / caseWeightKg) * 100 * 100) / 100 : null);
   return <div key={item.id}><b>{item.variant?.product?.name ?? "Product unavailable"}</b><span>{item.qtyOrdered ?? 0} {isBox ? "boxes" : "bags"}</span><span>{isQuintal && quintalRate != null && quintalRate > 0 ? <div><strong>{inr(quintalRate)} / quintal</strong><small style={{ color: "#64748b", display: "block" }}>{inr(unitRate)} / {unitLabel.toLowerCase()}</small></div> : inr(unitRate)}</span><strong>{inr(storedLineValue(detailOrder, item))}</strong></div>;
-})}</div></section></main><aside className="inspector-context"><div className="context-block"><SectionLabel>Dependency</SectionLabel><h3>{detailOrder.status === "placed" ? "This order cannot move yet." : detailOrder.sapSyncStatus === "failed" ? "The ERP hand-off is blocked." : "This order has a clear next step."}</h3><p>{detailOrder.status === "placed" ? "Approval is required before warehouse work can begin." : detailOrder.sapSyncStatus === "failed" ? "The order remains in its current state until synchronization succeeds." : NEXT_ACTION[detailOrder.status]}</p><dl><div><dt>owner</dt><dd>{detailOrder.delivery?.routeId ?? "Operations"}</dd></div><div><dt>waiting</dt><dd>{ageLabel(detailOrder.createdAt)}</dd></div><div><dt>state</dt><dd className={toneFor(detailOrder) === "critical" ? "red-text" : "green-text"}>{STATUS_LABEL[detailOrder.status] ?? detailOrder.status}</dd></div></dl></div><div className="context-block related"><SectionLabel>Related context</SectionLabel><a href="/retailers">Retailer account <Icon name="arrow" size={13} /></a><a href="/ledger">Financial ledger <Icon name="arrow" size={13} /></a><a href="/sap">SAP state · {sapLabel(detailOrder)} <Icon name="arrow" size={13} /></a></div><div className="context-block activity"><SectionLabel>Activity ledger</SectionLabel><p><time>{detailOrder.createdAt ? new Date(detailOrder.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</time> order received <small>{detailOrder.retailer?.name ?? "Retailer unavailable"}</small></p><p><time>now</time> current state evaluated <small>Admin read model</small></p></div></aside></div><div className="action-dock"><span><i className="pulse" /> next safe action</span><strong>{NEXT_ACTION[detailOrder.status] ?? "Inspect order"}</strong>{actionControls(detailOrder, "dock")}</div></section> : null}
+})}</div></section><IssuedBillingRecords key={detailOrder.id} order={detailOrder} onError={setError} /></main><aside className="inspector-context"><div className="context-block"><SectionLabel>Dependency</SectionLabel><h3>{detailOrder.status === "placed" ? "This order cannot move yet." : detailOrder.sapSyncStatus === "failed" ? "The ERP hand-off is blocked." : "This order has a clear next step."}</h3><p>{detailOrder.status === "placed" ? "Approval is required before warehouse work can begin." : detailOrder.sapSyncStatus === "failed" ? "The order remains in its current state until synchronization succeeds." : NEXT_ACTION[detailOrder.status]}</p><dl><div><dt>owner</dt><dd>{detailOrder.delivery?.routeId ?? "Operations"}</dd></div><div><dt>waiting</dt><dd>{ageLabel(detailOrder.createdAt)}</dd></div><div><dt>state</dt><dd className={toneFor(detailOrder) === "critical" ? "red-text" : "green-text"}>{STATUS_LABEL[detailOrder.status] ?? detailOrder.status}</dd></div></dl></div><div className="context-block related"><SectionLabel>Related context</SectionLabel><a href="/retailers">Retailer account <Icon name="arrow" size={13} /></a><a href="/ledger">Financial ledger <Icon name="arrow" size={13} /></a><a href="/sap">SAP state · {sapLabel(detailOrder)} <Icon name="arrow" size={13} /></a></div><div className="context-block activity"><SectionLabel>Activity ledger</SectionLabel><p><time>{detailOrder.createdAt ? new Date(detailOrder.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</time> order received <small>{detailOrder.retailer?.name ?? "Retailer unavailable"}</small></p><p><time>now</time> current state evaluated <small>Admin read model</small></p></div></aside></div><div className="action-dock"><span><i className="pulse" /> next safe action</span><strong>{NEXT_ACTION[detailOrder.status] ?? "Inspect order"}</strong>{actionControls(detailOrder, "dock")}</div></section> : null}
     {reviewOrder ? (
       <OrderReviewModal
         order={reviewOrder}

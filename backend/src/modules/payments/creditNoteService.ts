@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { recomputeOverdue } from "../../lib/ageing";
 import { prisma } from "../../lib/prisma";
+import { CommercialError, invoiceBalances } from "../commercial/service";
 
 export interface IssueCreditNoteInput {
   invoiceId: string;
@@ -73,10 +74,25 @@ export async function issueCreditNote(input: IssueCreditNoteInput) {
         const invoice = await tx.invoice.findUnique({ where: { id: input.invoiceId } });
         const retailer = await tx.retailer.findUnique({ where: { id: target.retailerId } });
         if (!invoice) throw new FinancialCorrectionError("invoice_not_found");
-        if (invoice.commercialSnapshot!==null) throw new FinancialCorrectionError("entity_attributed_credit_requires_explicit_correction_contract");
+        if (invoice.commercialSnapshot !== null && !invoice.sellingEntity) {
+          throw new FinancialCorrectionError("entity_attributed_credit_requires_explicit_correction_contract");
+        }
         if (!retailer) throw new FinancialCorrectionError("retailer_not_found");
         if (invoice.status === "voided") {
           throw new FinancialCorrectionError("voided_invoice_cannot_be_credited");
+        }
+
+        if (invoice.sellingEntity) {
+          try {
+            await invoiceBalances(tx, invoice.id);
+          } catch (error) {
+            if (error instanceof CommercialError) throw new FinancialCorrectionError(error.code);
+            throw error;
+          }
+          if (invoice.outstandingAmount.lt(amount)) {
+            throw new FinancialCorrectionError("firm_credit_exceeds_invoice_outstanding");
+          }
+          if (!invoice.legacyLedgerEntryId) throw new FinancialCorrectionError("legacy_invoice_missing");
         }
 
         const priorCredits = await tx.creditNote.aggregate({

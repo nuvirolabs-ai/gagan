@@ -25,6 +25,7 @@ import {
  */
 export class MockSapConnector implements SapConnector {
   readonly name = "mock";
+  readonly supportsCompanySalesOrders = true;
   readonly enabled = true;
   private readonly acceptedSalesOrders = new Map<string, SapSalesOrderResult>();
 
@@ -109,10 +110,13 @@ export class MockSapConnector implements SapConnector {
 
   async postSalesOrder(payload: SapSalesOrderPayload): Promise<SapSalesOrderResult> {
     if (!payload.sapCustomerId) throw new Error("Customer is not linked to SAP yet");
+    const companySequence = payload.company
+      ? 1_000_000 + payload.orderNo * 2 + (payload.company === "padam_international" ? 1 : 0)
+      : 900_000 + payload.orderNo;
     const result = {
-      sapSalesOrderId: `MOCK-SO-${String(payload.orderNo).padStart(6, "0")}`,
-      sapDocEntry: 900000 + payload.orderNo,
-      sapDocNum: 910000 + payload.orderNo,
+      sapSalesOrderId: payload.company ? `MOCK-SO-${payload.externalReference}` : `MOCK-SO-${String(payload.orderNo).padStart(6, "0")}`,
+      sapDocEntry: companySequence,
+      sapDocNum: companySequence + 10_000,
     };
     this.acceptedSalesOrders.set(payload.externalReference, result);
     return result;

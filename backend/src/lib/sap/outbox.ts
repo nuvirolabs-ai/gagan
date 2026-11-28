@@ -1,30 +1,40 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient, type SapOutbox } from "@prisma/client";
 import { prisma } from "../prisma";
 import { getSapConnector, SapSalesOrderPayload, SapInvoicePayload } from "./index";
 import { buildInvoice } from "../invoicing";
 import { snapshot } from "../../modules/commercial/service";
 import { CommercialStatusCode } from "@prisma/client";
 import { recordCommercialStatusEvent } from "../../modules/commercialStatus/statusService";
+import { CompanySalesOrderError } from "../../modules/orders/companySalesOrders";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
 const MAX_ATTEMPTS = 5;
 
-async function salesOrderPayload(db: Db, orderId: string): Promise<SapSalesOrderPayload | null> {
+async function salesOrderPayload(db: Db, orderId: string, companyOrder?: {
+  id: string;
+  company: NonNullable<SapSalesOrderPayload["company"]>;
+  reference: string;
+}): Promise<SapSalesOrderPayload | null> {
   const order = await db.order.findUnique({
     where: { id: orderId },
     include: {
       retailer: { select: { sapCustomerId: true } },
-      items: { include: { variant: { include: { product: true } } } },
+      items: {
+        where: companyOrder ? { companySalesOrderId: companyOrder.id } : undefined,
+        include: { variant: { include: { product: true } } },
+      },
     },
   });
   if (!order) return null;
 
   return {
     orderId: order.id,
-    ...(order.commercialSnapshot ? {commercial:snapshot(order.commercialSnapshot)!}:{}),
+    ...(companyOrder
+      ? { companySalesOrderId: companyOrder.id, company: companyOrder.company }
+      : order.commercialSnapshot ? { commercial: snapshot(order.commercialSnapshot)! } : {}),
     orderNo: order.orderNo,
-    externalReference: order.sapExternalReference ?? `GGN-${String(order.orderNo).padStart(8, "0")}`,
+    externalReference: companyOrder?.reference ?? order.sapExternalReference ?? `GGN-${String(order.orderNo).padStart(8, "0")}`,
     sapCustomerId: order.retailer.sapCustomerId ?? "",
     placedAt: order.createdAt.toISOString(),
     lines: order.items.map((i) => ({
@@ -78,16 +88,16 @@ async function invoicePayload(db: Db, ledgerEntryId: string): Promise<SapInvoice
 }
 
 /**
- * Queue an authorized order for posting to SAP. Automatically allowed orders
- * enqueue during creation; approval-held orders enqueue in the same transaction
- * as the final approval and dispatch authorization.
+ * Queue one SAP handoff per company document when packed. Historical and
+ * legacy orders retain the existing order-level handoff.
  */
 export async function enqueueSalesOrder(db: Db, orderId: string): Promise<void> {
   const order = await db.order.findUnique({
     where: { id: orderId },
-    select: { id: true, retailerId: true, orderNo: true, placedBy: true },
+    select: { id: true, retailerId: true, orderNo: true, placedBy: true, status: true, companySalesOrders: true },
   });
   if (!order) return;
+  if (order.companySalesOrders.length && order.status !== "packed") return;
 
   const authorization = await db.dispatchAuthorization.findFirst({
     where: {
@@ -98,20 +108,22 @@ export async function enqueueSalesOrder(db: Db, orderId: string): Promise<void> 
     orderBy: { version: "desc" },
     select: { id: true, assessmentId: true, issuedByStaffId: true },
   });
-  if (!authorization) throw new Error("sales_order_dispatch_not_authorized");
+  if (!authorization) throw new CompanySalesOrderError("sales_order_dispatch_not_authorized");
+  if (order.companySalesOrders.length && await db.orderItem.count({ where: { orderId, companySalesOrderId: null } })) {
+    throw new CompanySalesOrderError("company_order_line_unassigned");
+  }
 
-  const payload = await salesOrderPayload(db, orderId);
-  if (!payload) return;
-
-  await db.sapOutbox.upsert({
-    where: { kind_referenceId: { kind: "sales_order", referenceId: orderId } },
-    update: { payload: payload as unknown as Prisma.InputJsonValue },
-    create: {
-      kind: "sales_order",
-      referenceId: orderId,
-      payload: payload as unknown as Prisma.InputJsonValue,
-    },
-  });
+  for (const companyOrder of order.companySalesOrders.length ? order.companySalesOrders : [undefined]) {
+    const payload = await salesOrderPayload(db, orderId, companyOrder);
+    if (!payload || (companyOrder && !payload.lines.length)) throw new CompanySalesOrderError("company_order_lines_required");
+    const referenceId = companyOrder?.id ?? orderId;
+    const data = payload as unknown as Prisma.InputJsonValue;
+    await db.sapOutbox.upsert({
+      where: { kind_referenceId: { kind: "sales_order", referenceId } },
+      update: { payload: data },
+      create: { kind: "sales_order", referenceId, payload: data },
+    });
+  }
   await recordCommercialStatusEvent(db, {
     code: CommercialStatusCode.SALES_ORDER_CREATED,
     retailerId: order.retailerId,
@@ -122,9 +134,93 @@ export async function enqueueSalesOrder(db: Db, orderId: string): Promise<void> 
       orderNo: order.orderNo,
       dispatchAuthorizationId: authorization.id,
       assessmentId: authorization.assessmentId,
+      companySalesOrderIds: order.companySalesOrders.map(document => document.id),
     },
     idempotencyKey: `sales-order-created:${orderId}`,
   });
+}
+
+async function syncCompanyOrder(
+  item: SapOutbox,
+  companyOrder: { id: string; orderId: string; reference: string; company: NonNullable<SapSalesOrderPayload["company"]> },
+  connector: ReturnType<typeof getSapConnector>,
+) {
+  return prisma.$transaction(async tx => {
+    // Match the pack lock order and serialize acknowledgments for the same parent.
+    const [order] = await tx.$queryRaw<Array<{ status: string }>>`
+      SELECT "status" FROM "Order" WHERE "id" = ${companyOrder.orderId} FOR UPDATE
+    `;
+    const current = await tx.sapOutbox.findUniqueOrThrow({ where: { id: item.id } });
+    if (current.status !== "pending") return "skipped";
+    const attempts = current.attempts + 1;
+    let result;
+    let payload;
+    try {
+      if (!order || order.status === "rejected") throw new Error("company_order_cancelled");
+      if (!connector.supportsCompanySalesOrders) throw new Error("entity_specific_sap_contract_required");
+      payload = await salesOrderPayload(tx, companyOrder.orderId, companyOrder);
+      if (!payload?.sapCustomerId || !payload.lines.length || payload.lines.some(line => !line.sapMaterialId)) {
+        throw new Error("Order is not fully linked to SAP yet");
+      }
+      result = (await connector.findSalesOrderByExternalReference(payload.externalReference))
+        ?? (await connector.postSalesOrder(payload));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      const terminal = attempts >= MAX_ATTEMPTS || message === "company_order_cancelled";
+      await tx.sapOutbox.update({
+        where: { id: current.id },
+        data: { attempts, lastError: message, status: terminal ? "failed" : "pending" },
+      });
+      await tx.companySalesOrder.update({
+        where: { id: companyOrder.id },
+        data: { sapSyncStatus: terminal ? "failed" : "reconciliation_required", sapErrorMessage: message },
+      });
+      const hasFailedCompany = terminal || await tx.companySalesOrder.count({
+        where: { orderId: companyOrder.orderId, sapSyncStatus: "failed" },
+      }) > 0;
+      await tx.order.update({
+        where: { id: companyOrder.orderId },
+        data: {
+          sapSyncStatus: hasFailedCompany ? "failed" : "reconciliation_required",
+          sapErrorCode: "sap_outbox_delivery_failed",
+          sapErrorMessage: message,
+        },
+      });
+      return "failed";
+    }
+    const syncedAt = new Date();
+    await tx.companySalesOrder.update({
+      where: { id: companyOrder.id },
+      data: {
+        sapSalesOrderId: result.sapSalesOrderId,
+        sapDocEntry: result.sapDocEntry ?? null,
+        sapDocNum: result.sapDocNum ?? null,
+        sapSyncStatus: "sent",
+        sapErrorMessage: null,
+        sapLastSyncedAt: syncedAt,
+      },
+    });
+    await tx.sapOutbox.update({
+      where: { id: current.id },
+      data: {
+        status: "sent", sapId: result.sapSalesOrderId, payload: payload as unknown as Prisma.InputJsonValue,
+        sentAt: syncedAt, attempts, lastError: null,
+      },
+    });
+    if (!await tx.companySalesOrder.count({ where: { orderId: companyOrder.orderId, sapSyncStatus: { not: "sent" } } })) {
+      await tx.order.update({
+        where: { id: companyOrder.orderId },
+        data: { sapSyncStatus: "sent", sapLastSyncedAt: syncedAt, sapErrorCode: null, sapErrorMessage: null },
+      });
+    }
+    await tx.auditEvent.create({
+      data: {
+        action: "sap.sales_order_synced", subjectType: "company_sales_order", subjectId: companyOrder.id,
+        metadata: { orderId: companyOrder.orderId, company: companyOrder.company, externalReference: companyOrder.reference },
+      },
+    });
+    return "sent";
+  }, { timeout: 30_000 });
 }
 
 /** Queue a delivered-weight invoice for posting back into SAP FI/SD. */
@@ -165,8 +261,14 @@ export async function drainOutbox(
   const connector = connectorOverride ?? getSapConnector();
   if (!connector.enabled) return { attempted: 0, sent: 0, failed: 0, skipped: true };
 
+  const companyReferences = onlyReferenceId
+    ? await prisma.companySalesOrder.findMany({ where: { orderId: onlyReferenceId }, select: { id: true } })
+    : [];
   const queued = await prisma.sapOutbox.findMany({
-    where: { status: "pending", ...(onlyReferenceId ? { referenceId: onlyReferenceId } : {}) },
+    where: {
+      status: "pending",
+      ...(onlyReferenceId ? { referenceId: { in: [onlyReferenceId, ...companyReferences.map(order => order.id)] } } : {}),
+    },
     orderBy: { createdAt: "asc" },
     take: limit,
   });
@@ -177,6 +279,13 @@ export async function drainOutbox(
   for (const item of queued) {
     try {
       if (item.kind === "sales_order") {
+        const companyOrder = await prisma.companySalesOrder.findUnique({ where: { id: item.referenceId } });
+        if (companyOrder) {
+          const result = await syncCompanyOrder(item, companyOrder, connector);
+          if (result === "sent") sent++;
+          if (result === "failed") failed++;
+          continue;
+        }
         // Rebuild from current mappings. An order can be queued before the
         // SAP sync links its CardCode/ItemCodes; retrying the original JSON
         // would permanently preserve empty mappings.

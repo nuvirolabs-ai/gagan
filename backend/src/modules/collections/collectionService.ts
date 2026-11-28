@@ -68,6 +68,7 @@ export interface CollectionConfirmationResult {
 const submissionInclude = {
   evidence: { orderBy: { createdAt: "asc" as const } },
   retailer: { select: { id: true, name: true, phone: true } },
+  scopedInvoice: { select: { id: true, invoiceNumber: true, firmInvoiceNumber: true, sellingEntity: true } },
 } as const;
 
 export interface CollectionServiceOptions {
@@ -76,6 +77,18 @@ export interface CollectionServiceOptions {
 
 function hasPermission(permissions: string[], permission: CollectionPermission) {
   return permissions.includes(permission);
+}
+
+async function requiresInvoiceScope(db: Pick<Prisma.TransactionClient, "invoice">, retailerId: string) {
+  return Boolean(await db.invoice.findFirst({
+    where: {
+      retailerId,
+      status: { in: ["open", "partially_paid"] },
+      outstandingAmount: { gt: 0 },
+      OR: [{ sellingEntity: { not: null } }, { commercialSnapshot: { not: Prisma.DbNull } }],
+    },
+    select: { id: true },
+  }));
 }
 
 export class CollectionService {
@@ -132,7 +145,13 @@ export class CollectionService {
       if(!/^\d+(\.\d{1,2})?$/.test(input.jainAmount ?? "") || !/^\d+(\.\d{1,2})?$/.test(input.padamAmount ?? "")) throw new CollectionServiceError("explicit_invoice_allocation_required",400);
       const b=await prisma.$transaction(tx=>invoiceBalances(tx,input.invoiceScopeId!));
       const jain=new Prisma.Decimal(input.jainAmount!),padam=new Prisma.Decimal(input.padamAmount!);
-      if(b.invoice.retailerId!==input.retailerId || !jain.plus(padam).eq(input.amount) || jain.gt(b.jain) || padam.gt(b.padam)) throw new CollectionServiceError("invoice_entity_allocation_invalid",409);
+      if (b.invoice.retailerId !== input.retailerId ||
+          !["open", "partially_paid"].includes(b.invoice.status) ||
+          !jain.plus(padam).eq(input.amount) || jain.gt(b.jain) || padam.gt(b.padam)) {
+        throw new CollectionServiceError("invoice_entity_allocation_invalid", 409);
+      }
+    } else if (await requiresInvoiceScope(prisma, input.retailerId)) {
+      throw new CollectionServiceError("invoice_entity_allocation_required", 409);
     }
 
     let stored: StoredCollectionEvidence | undefined;
@@ -321,6 +340,9 @@ export class CollectionService {
       // atomic settlement below, never against a retailer-wide reporting total.
       if (!submission.invoiceScopeId && Number(submission.amount) > Number(retailer.currentBalance)) {
         throw new CollectionServiceError("amount_exceeds_outstanding", 409);
+      }
+      if (!submission.invoiceScopeId && await requiresInvoiceScope(tx, submission.retailerId)) {
+        throw new CollectionServiceError("invoice_entity_allocation_required", 409);
       }
 
       const payment = await tx.payment.create({

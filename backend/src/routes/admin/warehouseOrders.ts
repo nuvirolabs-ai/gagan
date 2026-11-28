@@ -5,9 +5,10 @@ import { requireAnyAdminPermission, AdminRequest } from "../../lib/adminAuth";
 import { prisma } from "../../lib/prisma";
 import { Permissions } from "../../modules/identity/roleCatalog";
 import { transitionOrder } from "./orders";
+import { assignCompanyDispatch, companyOrderSummary, CompanySalesOrderError, dispatchAssignmentSchema } from "../../modules/orders/companySalesOrders";
 import { ensureKycApprovedForDispatch, KycGateError } from "../../modules/kyc/kycGate";
 import { createInvoiceForDelivery, InvoiceCreationError } from "../../modules/invoicing/invoiceService";
-import { renderInvoicePdf } from "../../modules/invoicing/invoicePdf";
+import { orderInvoiceSummary, sendOrderInvoicePdf } from "../../modules/invoicing/orderInvoicePdf";
 import { DEFAULT_WAREHOUSE_CODE } from "../../modules/inventory/inventoryService";
 import { deriveCurrentCommercialStatus } from "../../modules/commercialStatus/statusService";
 import {
@@ -23,6 +24,7 @@ const defaultStatuses: OrderStatus[] = ["confirmed", "packed"];
 const allEligibleStatuses: OrderStatus[] = ["confirmed", "packed", "out_for_delivery", "delivered"];
 
 const warehouseOrderSelect = {
+  companySalesOrders: companyOrderSummary,
   id: true,
   orderNo: true,
   status: true,
@@ -100,6 +102,7 @@ const warehouseOrderSelect = {
     select: {
       id: true,
       qtyOrdered: true,
+      companySalesOrderId: true,
       unitPrice: true,
       caseWeightKgSnapshot: true,
       commercialSnapshot: true,
@@ -119,17 +122,10 @@ const warehouseOrderSelect = {
       },
     },
   },
-  invoice: {
+  invoices: {
+    orderBy: { invoiceNumber: "asc" },
     select: {
-      id: true,
-      invoiceNumber: true,
-      invoiceDate: true,
-      dueDate: true,
-      currency: true,
-      subtotal: true,
-      taxTotal: true,
-      total: true,
-      outstandingAmount: true,
+      ...orderInvoiceSummary,
       lines: {
         select: {
           id: true,
@@ -202,6 +198,29 @@ function projectWarehouseOrder(
   const wh = resolveWarehouse(order, warehouses, routings);
   const isNewRetailer = computeIsNewRetailer(order);
 
+  const invoices = (order.invoices ?? []).map((invoice: any) => ({
+      id: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      firmInvoiceNumber: invoice.firmInvoiceNumber,
+      sellingEntity: invoice.sellingEntity,
+      companySalesOrderId: invoice.companySalesOrderId,
+      status: invoice.status,
+      invoiceDate: invoice.invoiceDate,
+      dueDate: invoice.dueDate,
+      currency: invoice.currency ?? "INR",
+      subtotal: Number(invoice.subtotal),
+      taxTotal: Number(invoice.taxTotal),
+      total: Number(invoice.total),
+      outstandingAmount: Number(invoice.outstandingAmount),
+      lines: (invoice.lines ?? []).map((l: any) => ({
+        id: l.id,
+        description: l.descriptionSnapshot,
+        cases: l.deliveredCases,
+        unitPrice: Number(l.unitPrice),
+        lineTotal: Number(l.lineTotal),
+      })),
+    }));
+
   return {
     id: order.id,
     orderNo: order.orderNo,
@@ -216,6 +235,7 @@ function projectWarehouseOrder(
     remarks: order.remarks,
     transportName: order.transportName,
     commercialSnapshot: order.commercialSnapshot,
+    companySalesOrders: order.companySalesOrders ?? [],
     placedBy: order.placedBy,
     placedByRepId: order.placedByRepId,
     cancellationRequestedAt: order.cancellationRequestedAt,
@@ -263,24 +283,8 @@ function projectWarehouseOrder(
       deliverySlot: order.delivery.deliverySlot,
     } : null,
     items: enrichOrderItems(order.items ?? [], order),
-    invoice: order.invoice ? {
-      id: order.invoice.id,
-      invoiceNumber: order.invoice.invoiceNumber,
-      invoiceDate: order.invoice.invoiceDate,
-      dueDate: order.invoice.dueDate,
-      currency: order.invoice.currency ?? "INR",
-      subtotal: Number(order.invoice.subtotal),
-      taxTotal: Number(order.invoice.taxTotal),
-      total: Number(order.invoice.total),
-      outstandingAmount: Number(order.invoice.outstandingAmount),
-      lines: (order.invoice.lines ?? []).map((l: any) => ({
-        id: l.id,
-        description: l.descriptionSnapshot,
-        cases: l.deliveredCases,
-        unitPrice: Number(l.unitPrice),
-        lineTotal: Number(l.lineTotal),
-      })),
-    } : null,
+    invoices,
+    invoice: invoices.length === 1 ? invoices[0] : null,
   };
 }
 
@@ -503,18 +507,13 @@ router.post("/warehouse-orders/:id/reject", async (req: AdminRequest, res) => {
   });
 });
 
-const dispatchSchema = z.object({
-  routeId: z.string().min(1),
-  deliverySlot: z.string().datetime().optional(),
-});
-
 router.post("/warehouse-orders/:id/dispatch", async (req: AdminRequest, res) => {
-  const parsed = dispatchSchema.safeParse(req.body);
+  const parsed = dispatchAssignmentSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
 
   const order = await prisma.order.findUnique({
     where: { id: req.params.id },
-    select: { id: true, status: true, retailerId: true, expectedDeliveryAt: true },
+    select: { id: true, status: true, retailerId: true, expectedDeliveryAt: true, companySalesOrders: { select: { id: true } } },
   });
   if (!order) return res.status(404).json({ error: "Order not found" });
   if (order.status !== "packed") {
@@ -531,28 +530,32 @@ router.post("/warehouse-orders/:id/dispatch", async (req: AdminRequest, res) => 
   const slot = parsed.data.deliverySlot ? new Date(parsed.data.deliverySlot) : null;
 
   const authorization = await prisma.dispatchAuthorization.findFirst({
-    where: { orderId: order.id, status: "active" },
+    where: { orderId: order.id, status: "active", OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
     select: { id: true },
   });
+  if (order.companySalesOrders.length && !authorization) {
+    return res.status(409).json({ error: "dispatch_authorization_required" });
+  }
 
   const updated = await prisma.$transaction(async (tx) => {
-    if (authorization) {
-      await tx.dispatchAuthorization.updateMany({
-        where: { id: authorization.id, status: "active" },
-        data: { status: "used", usedAt: new Date() },
-      });
-    }
-
+    const now = new Date();
     const claimed = await tx.order.updateMany({
       where: { id: order.id, status: "packed" },
       data: { status: "out_for_delivery", expectedDeliveryAt: slot ?? order.expectedDeliveryAt },
     });
     if (claimed.count !== 1) return null;
-
+    if (authorization) {
+      const consumed = await tx.dispatchAuthorization.updateMany({
+        where: { id: authorization.id, status: "active", OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+        data: { status: "used", usedAt: now },
+      });
+      if (consumed.count !== 1 && order.companySalesOrders.length) throw new CompanySalesOrderError("dispatch_authorization_expired");
+    }
+    const routeId = await assignCompanyDispatch(tx, order.id, parsed.data, now);
     await tx.delivery.upsert({
       where: { orderId: order.id },
-      update: { routeId: parsed.data.routeId, deliverySlot: slot },
-      create: { orderId: order.id, routeId: parsed.data.routeId, deliverySlot: slot },
+      update: { routeId, deliverySlot: slot },
+      create: { orderId: order.id, routeId, deliverySlot: slot },
     });
 
     await tx.auditEvent.create({
@@ -561,7 +564,7 @@ router.post("/warehouse-orders/:id/dispatch", async (req: AdminRequest, res) => 
         action: "dispatch.assigned",
         subjectType: "order",
         subjectId: order.id,
-        metadata: { from: "packed", to: "out_for_delivery", routeId: parsed.data.routeId },
+        metadata: { from: "packed", to: "out_for_delivery", routeId, companyRoutes: parsed.data.companyRoutes ?? [] },
       },
     });
 
@@ -569,8 +572,12 @@ router.post("/warehouse-orders/:id/dispatch", async (req: AdminRequest, res) => 
       where: { id: order.id },
       select: warehouseOrderSelect,
     });
+  }).catch(error => {
+    if (error instanceof CompanySalesOrderError) return error;
+    throw error;
   });
 
+  if (updated instanceof CompanySalesOrderError) return res.status(409).json({ error: updated.code });
   if (!updated) return res.status(409).json({ error: "order_transition_conflict" });
   res.json({ order: projectWarehouseOrder(updated) });
 });
@@ -578,6 +585,8 @@ router.post("/warehouse-orders/:id/dispatch", async (req: AdminRequest, res) => 
 const podSchema = z.object({
   podType: z.enum(["photo", "otp", "signature"]),
   transportationAmount: z.number().min(0).optional(),
+  transportationEntity: z.enum(["jain_traders", "padam_international"]).optional(),
+  companySalesOrderId: z.string().trim().min(1).max(100).optional(),
   items: z
     .array(
       z.object({
@@ -610,8 +619,10 @@ router.post("/warehouse-orders/:id/deliver", async (req: AdminRequest, res) => {
     const invoice = await createInvoiceForDelivery({
       orderId: order.id,
       occurredAt,
-      idempotencyKey: `delivery:${order.id}`,
+      idempotencyKey: parsed.data.companySalesOrderId ? `delivery:${order.id}:${parsed.data.companySalesOrderId}` : `delivery:${order.id}`,
+      companySalesOrderId: parsed.data.companySalesOrderId,
       transportationAmount: parsed.data.transportationAmount,
+      transportationEntity: parsed.data.transportationEntity,
       lines: parsed.data.items.map((item) => ({
         orderItemId: item.orderItemId,
         deliveredCases: item.qtyDelivered,
@@ -626,9 +637,12 @@ router.post("/warehouse-orders/:id/deliver", async (req: AdminRequest, res) => {
       select: warehouseOrderSelect,
     });
 
+    const projected = projectWarehouseOrder(updated);
     res.json({
-      order: projectWarehouseOrder(updated),
-      invoiceId: invoice.id,
+      order: projected,
+      invoices: projected.invoices,
+      invoiceIds: invoice.invoices.map(document => document.id),
+      invoiceId: invoice.invoices.length === 1 ? invoice.invoices[0].id : null,
     });
   } catch (error) {
     if (error instanceof InvoiceCreationError) {
@@ -638,59 +652,6 @@ router.post("/warehouse-orders/:id/deliver", async (req: AdminRequest, res) => {
   }
 });
 
-router.get("/warehouse-orders/:id/invoice-pdf", async (req, res) => {
-  const order = await prisma.order.findUnique({
-    where: { id: req.params.id },
-    include: {
-      retailer: true,
-      invoice: {
-        include: {
-          lines: true,
-        },
-      },
-    },
-  });
-
-  if (!order || !order.invoice) {
-    return res.status(404).json({ error: "Invoice not found for this order" });
-  }
-
-  const freightLine = order.invoice.lines.find(
-    (l) => l.descriptionSnapshot.toLowerCase().includes("freight") || l.descriptionSnapshot.toLowerCase().includes("transport")
-  );
-
-  const pdfBuffer = renderInvoicePdf({
-    invoiceNumber: order.invoice.invoiceNumber,
-    orderNo: order.orderNo,
-    invoiceDate: order.invoice.invoiceDate,
-    dueDate: order.invoice.dueDate,
-    currency: order.invoice.currency,
-    subtotal: Number(order.invoice.subtotal),
-    taxTotal: Number(order.invoice.taxTotal),
-    total: Number(order.invoice.total),
-    transportationAmount: freightLine ? Number(freightLine.lineTotal) : undefined,
-    retailer: {
-      name: order.retailer.name,
-      shopAddress: order.retailer.shopAddress,
-      deliveryCity: order.retailer.deliveryCity,
-      phone: order.retailer.phone,
-    },
-    lines: order.invoice.lines.map((l) => ({
-      description: l.descriptionSnapshot,
-      cases: l.deliveredCases,
-      weightKg: l.deliveredWeightKg ? Number(l.deliveredWeightKg) : undefined,
-      unitPrice: Number(l.unitPrice),
-      lineTotal: Number(l.lineTotal),
-      sellingEntity: l.sellingEntity,
-    })),
-  });
-
-  res.setHeader("Content-Type", "application/pdf");
-  res.setHeader(
-    "Content-Disposition",
-    `attachment; filename="Invoice-INV-${order.invoice.invoiceNumber}.pdf"`
-  );
-  res.send(pdfBuffer);
-});
+router.get("/warehouse-orders/:id/invoice-pdf", sendOrderInvoicePdf);
 
 export default router;

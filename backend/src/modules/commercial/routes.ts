@@ -13,6 +13,8 @@ import { PaymentSettlementError } from "../payments/paymentService";
 import { internalStatusForQuote } from "../commercialStatus/statusService";
 import { enableOrdering, getOrderingSetup, OrderingSetupError } from "../catalog/orderingSetup";
 import { resolveSalesOrderAllocation } from "./routing";
+import { promotionLine } from "../orders/companySalesOrders";
+import { addEntityAmounts, attributeInvoiceOutstanding, emptyEntityAmounts } from "../finance/entityAttribution";
 
 const items=z.array(z.object({variantId:z.string().min(1),qty:z.number().int().positive()})).min(1).max(200);
 const money=z.string().regex(/^\d+(\.\d{1,2})?$/).refine(s=>Number(s)<=9999999999.99);
@@ -22,12 +24,44 @@ const routingClass=z.enum(["LAXMI_TOOR","INSTANT_MIX","OTHER"]);
 const routingBags=z.string().regex(/^\d+(\.\d{1,3})?$/).refine(s=>Number(s)<=999999999.999);
 const payment=z.object({invoiceId:z.string(),amount:money,jainAmount:money,padamAmount:money,method:z.enum(["cash","bank_transfer","upi","cheque"]),reference:z.string().trim().min(1).max(200),confirmed:z.literal(true)});
 const router=Router();
-router.post("/admin/commercial/orders/:id/delivery-quote",requireAdmin,async(req,res)=>{
- const body=z.object({lines:z.array(z.object({orderItemId:z.string(),cases:z.number().int().nonnegative(),weightKg:z.number().nonnegative().optional()}))}).parse(req.body);
- const order=await prisma.order.findUnique({where:{id:req.params.id},include:{items:true}});
- if(!order || !order.commercialSnapshot) return res.status(404).json({error:"commercial_order_not_found"});
- const lines=body.lines.map(r=>{const item=order.items.find(i=>i.id===r.orderItemId);if(!item)throw new CommercialError("unknown_delivery_line",400);return {...r,variantId:item.variantId};});
- res.json({commercial:quoteDelivery(snapshot(order.commercialSnapshot)!,lines)});
+const outstandingHistory = {
+  allocations: { include: { reversals: { select: { amount: true } } } },
+  creditNotes: { where: { status: "issued" }, select: { amount: true } },
+} as const;
+router.post("/admin/commercial/orders/:id/delivery-quote", requireAdmin, async (req, res) => {
+  const body = z.object({
+    lines: z.array(z.object({
+      orderItemId: z.string(), cases: z.number().int().nonnegative(), weightKg: z.number().nonnegative().optional(),
+    })),
+    companySalesOrderId: z.string().trim().min(1).max(100).optional(),
+    transportationAmount: z.number().nonnegative().optional(),
+    transportationEntity: entity.optional(),
+  }).parse(req.body);
+  const order = await prisma.order.findUnique({
+    where: { id: req.params.id }, include: { items: true, companySalesOrders: { select: { id: true, company: true } } },
+  });
+  const accepted = snapshot(order?.commercialSnapshot ?? null);
+  if (!order || !Array.isArray(accepted?.lines)) return res.status(404).json({ error: "commercial_order_not_found" });
+  const document = order.companySalesOrders.find(company => company.id === body.companySalesOrderId);
+  if (body.companySalesOrderId && !document) throw new CommercialError("company_sales_order_not_found", 404);
+
+  let freight = document && accepted.freight?.entity !== document.company ? null : accepted.freight;
+  if (body.transportationAmount) {
+    const amount = new Prisma.Decimal(body.transportationAmount);
+    if (amount.decimalPlaces() > 2) throw new CommercialError("invalid_transportation_amount", 400);
+    if (!freight) throw new CommercialError("firm_freight_configuration_required");
+    if (body.transportationEntity && body.transportationEntity !== freight.entity) {
+      throw new CommercialError("firm_freight_entity_mismatch");
+    }
+    freight = { ...freight, amount: amount.toFixed(2) };
+  }
+  const lines = body.lines.flatMap(resolution => {
+    const item = order.items.find(line => line.id === resolution.orderItemId);
+    if (!item || (document && item.companySalesOrderId !== document.id)) throw new CommercialError("unknown_delivery_line", 400);
+    return promotionLine(item.commercialSnapshot) ? [] : [{ ...resolution, variantId: item.variantId }];
+  });
+  const scopedLines = document ? accepted.lines.filter(line => line.entity === document.company) : accepted.lines;
+  res.json({ commercial: quoteDelivery({ ...accepted, lines: scopedLines, freight }, lines) });
 });
 
 router.post("/commercial/quotes",requireAuth,async(req:AuthedRequest,res)=>{
@@ -51,11 +85,13 @@ router.get("/rep/commercial/quotes/:id",requireRep,async(req:RepRequest,res)=>{
 });
 router.get("/admin/commercial",requireAdminIdentity,async(req:AdminRequest,res)=>{
   if(!req.staffAuth!.permissions.some(p=>p===Permissions.STAFF_MANAGE || p===Permissions.COLLECTION_CONFIRM)) return res.status(403).json({error:"permission_required"});
+  const selectedInvoice = z.string().trim().min(1).max(100).optional().safeParse(req.query.invoiceId);
+  if (!selectedInvoice.success) return res.status(400).json({ error: "invalid_invoice_selection" });
   const [variants,tiers,prices,quotes,invoices,warehousesList,cityRoutings]=await Promise.all([
     prisma.variant.findMany({include:{product:true}}),prisma.tier.findMany(),prisma.priceList.findMany(),
     prisma.commercialQuote.findMany({where:{acceptedAt:null,expiresAt:{gt:new Date()}},orderBy:{createdAt:"desc"},take:50,include:{retailer:{select:{id:true,name:true}}}}),
     prisma.invoice.findMany({
-      where:{commercialSnapshot:{not: Prisma.DbNull}},
+      where: selectedInvoice.data ? { id: selectedInvoice.data } : { commercialSnapshot: { not: Prisma.DbNull } },
       orderBy:{createdAt:"desc"},
       take:100,
       include:{
@@ -91,7 +127,7 @@ router.get("/admin/commercial",requireAdminIdentity,async(req:AdminRequest,res)=
   ]);
 
   const warehouses = (warehousesList && warehousesList.length > 0) ? warehousesList : STATIC_WAREHOUSES;
-  const enrichedInvoices = invoices.filter(i=>i.commercialSnapshot!==null).map(inv => {
+  const enrichedInvoices = invoices.map(inv => {
     const invoiceOrder = inv.order ? { ...inv.order, retailer: inv.retailer } : { retailer: inv.retailer };
     const attribution = orderAttribution(invoiceOrder);
     const wh = resolveWarehouse(invoiceOrder, warehouses, cityRoutings);
@@ -137,6 +173,7 @@ router.get("/admin/commercial/entity-audit", requireAdminIdentity, async (req: A
       ...(dateFilter ? { createdAt: dateFilter } : {}),
     },
     include: {
+      companySalesOrders: { select: { company: true, deliveryResolvedAt: true } },
       retailer: {
         select: {
           id: true,
@@ -147,11 +184,10 @@ router.get("/admin/commercial/entity-audit", requireAdminIdentity, async (req: A
           salesRep: { select: { id: true, name: true, phone: true } },
         },
       },
-      invoice: {
-        include: {
-          lines: true,
-          allocations: { include: { payment: true } },
-        },
+      invoices: {
+        where: { status: { not: "voided" } },
+        orderBy: { invoiceNumber: "asc" },
+        include: outstandingHistory,
       },
       items: {
         include: {
@@ -167,6 +203,12 @@ router.get("/admin/commercial/entity-audit", requireAdminIdentity, async (req: A
     take: 300,
   });
 
+  const closingEvents = await prisma.auditEvent.findMany({
+    where: { subjectType: "order", action: "order.accounting_closed", subjectId: { in: orders.map(order => order.id) } },
+    orderBy: { createdAt: "asc" },
+  });
+  const closureByOrder = new Map(closingEvents.map(event => [event.subjectId, event]));
+
   const extractSnapshot = (cs: any) => {
     if (!cs || typeof cs !== "object") return null;
     if (cs.quote && typeof cs.quote === "object") return cs.quote;
@@ -174,6 +216,7 @@ router.get("/admin/commercial/entity-audit", requireAdminIdentity, async (req: A
   };
 
   let totalRevenue = 0;
+  let unattributedOutstanding = 0;
   let totalOrdersCount = 0;
   let splitOrdersCount = 0;
   let accountingClosedOrdersCount = 0;
@@ -237,8 +280,14 @@ router.get("/admin/commercial/entity-audit", requireAdminIdentity, async (req: A
       if (!matchName && !matchCity && !matchOrderNo && !matchRef) continue;
     }
 
-    const rawLines: any[] = Array.isArray(snap.lines) ? snap.lines : [];
-    const freight = snap.freight;
+    const issued = o.invoices.length > 0;
+    const issuedSnapshots = o.invoices.map(invoice => snapshot(invoice.commercialSnapshot));
+    const rawLines = issued
+      ? issuedSnapshots.flatMap(invoice => invoice?.lines ?? [])
+      : Array.isArray(snap.lines) ? snap.lines : [];
+    const freightLines = issued
+      ? issuedSnapshots.flatMap(invoice => invoice?.freight ? [invoice.freight] : [])
+      : snap.freight ? [snap.freight] : [];
 
     const jainLines: any[] = [];
     const padamLines: any[] = [];
@@ -254,7 +303,8 @@ router.get("/admin/commercial/entity-audit", requireAdminIdentity, async (req: A
     let padamBags = 0;
 
     for (const l of rawLines) {
-      const lineEntity = l.entity || "jain_traders";
+      const lineEntity = l.entity;
+      if (lineEntity !== "jain_traders" && lineEntity !== "padam_international") continue;
       const base = Number(l.base ?? (Number(l.rate ?? 0) * Number(l.cases ?? 1)));
       const gstVal = Number(l.gst ?? 0);
       const tot = Number(l.total ?? (base + gstVal));
@@ -294,44 +344,58 @@ router.get("/admin/commercial/entity-audit", requireAdminIdentity, async (req: A
       }
     }
 
-    if (freight && freight.entity) {
-      const fAmt = Number(freight.amount ?? 0);
-      const fGst = Number(freight.gst ?? 0);
-      if (freight.entity === "padam_international") {
-        padamFreight += (fAmt + fGst);
-      } else {
-        jainFreight += (fAmt + fGst);
-      }
+    for (const freight of freightLines) {
+      const amount = Number(freight.amount ?? 0) + Number(freight.gst ?? 0);
+      if (freight.entity === "padam_international") padamFreight += amount;
+      else if (freight.entity === "jain_traders") jainFreight += amount;
     }
 
-    const jainTotal = jainGoods + jainGst + jainFreight;
-    const padamTotal = padamGoods + padamGst + padamFreight;
-    const orderGrandTotal = Number(snap.total ?? (jainTotal + padamTotal));
+    const firmInvoices = o.invoices.filter(invoice => invoice.sellingEntity);
+    const firmBilled = (company: "jain_traders" | "padam_international") => firmInvoices
+      .filter(invoice => invoice.sellingEntity === company)
+      .reduce((total, invoice) => total + Number(invoice.total), 0);
+    const jainTotal = firmInvoices.length ? firmBilled("jain_traders") : jainGoods + jainGst + jainFreight;
+    const padamTotal = firmInvoices.length ? firmBilled("padam_international") : padamGoods + padamGst + padamFreight;
+    const orderGrandTotal = issued
+      ? o.invoices.reduce((total, invoice) => total + Number(invoice.total), 0)
+      : Number(snap.total ?? (jainTotal + padamTotal));
 
-    const isSplit = jainTotal > 0 && padamTotal > 0;
+    const companySet = new Set(o.companySalesOrders.map(document => document.company));
+    const hasJain = companySet.size ? companySet.has("jain_traders") : jainTotal > 0;
+    const hasPadam = companySet.size ? companySet.has("padam_international") : padamTotal > 0;
+    const isSplit = hasJain && hasPadam;
 
-    if (filterEntity === "jain_traders" && jainTotal <= 0) continue;
-    if (filterEntity === "padam_international" && padamTotal <= 0) continue;
+    if (filterEntity === "jain_traders" && !hasJain) continue;
+    if (filterEntity === "padam_international" && !hasPadam) continue;
     if (filterEntity === "split" && !isSplit) continue;
 
     let paidJain = 0;
     let paidPadam = 0;
     let totalPaid = 0;
-
-    if (o.invoice) {
-      for (const alloc of (o.invoice.allocations || [])) {
-        const j = Number(alloc.jainAmount ?? 0);
-        const p = Number(alloc.padamAmount ?? 0);
-        paidJain += j;
-        paidPadam += p;
-        totalPaid += (j + p || Number(alloc.amount ?? 0));
+    for (const invoice of o.invoices) {
+      for (const allocation of invoice.allocations) {
+        const reversed = allocation.reversals.reduce((total, reversal) => total + Number(reversal.amount), 0);
+        totalPaid += Number(allocation.amount) - reversed;
+        if (invoice.sellingEntity === "jain_traders") paidJain += Number(allocation.amount) - reversed;
+        else if (invoice.sellingEntity === "padam_international") paidPadam += Number(allocation.amount) - reversed;
+        else if (reversed === 0) {
+          paidJain += Number(allocation.jainAmount ?? 0);
+          paidPadam += Number(allocation.padamAmount ?? 0);
+        }
       }
     }
+    const outstanding = o.invoices.reduce(
+      (total, invoice) => addEntityAmounts(total, attributeInvoiceOutstanding(invoice)), emptyEntityAmounts()
+    );
+    const outstandingJain = outstanding.jainTraders;
+    const outstandingPadam = outstanding.padamInternational;
+    unattributedOutstanding += outstanding.unattributed;
+    const totalOutstanding = o.invoices.reduce((total, invoice) => total + Number(invoice.outstandingAmount), 0);
+    const closingEvent = closureByOrder.get(o.id);
+    const closingMetadata = closingEvent?.metadata as { closedBy?: string; notes?: string } | null;
+    const accountingClosed = Boolean(closingEvent || snap.accountingStatus === "closed");
 
-    const outstandingJain = Math.max(0, jainTotal - paidJain);
-    const outstandingPadam = Math.max(0, padamTotal - paidPadam);
-
-    totalRevenue += orderGrandTotal;
+    if (issued) totalRevenue += orderGrandTotal;
     totalOrdersCount++;
     if (isSplit) splitOrdersCount++;
 
@@ -344,13 +408,13 @@ router.get("/admin/commercial/entity-audit", requireAdminIdentity, async (req: A
     }
 
     if (jainTotal > 0) {
-      jainSummary.totalRevenue += jainTotal;
-      jainSummary.goodsValue += jainGoods;
-      jainSummary.gstAmount += jainGst;
-      jainSummary.freightAmount += jainFreight;
+      if (issued) jainSummary.totalRevenue += jainTotal;
+      if (issued) jainSummary.goodsValue += jainGoods;
+      if (issued) jainSummary.gstAmount += jainGst;
+      if (issued) jainSummary.freightAmount += jainFreight;
       jainSummary.paymentsCollected += paidJain;
       jainSummary.outstandingAmount += outstandingJain;
-      jainSummary.totalBags += jainBags;
+      if (issued) jainSummary.totalBags += jainBags;
       jainSummary.ordersCount++;
 
       for (const jl of jainLines) {
@@ -362,13 +426,13 @@ router.get("/admin/commercial/entity-audit", requireAdminIdentity, async (req: A
     }
 
     if (padamTotal > 0) {
-      padamSummary.totalRevenue += padamTotal;
-      padamSummary.goodsValue += padamGoods;
-      padamSummary.gstAmount += padamGst;
-      padamSummary.freightAmount += padamFreight;
+      if (issued) padamSummary.totalRevenue += padamTotal;
+      if (issued) padamSummary.goodsValue += padamGoods;
+      if (issued) padamSummary.gstAmount += padamGst;
+      if (issued) padamSummary.freightAmount += padamFreight;
       padamSummary.paymentsCollected += paidPadam;
       padamSummary.outstandingAmount += outstandingPadam;
-      padamSummary.totalBags += padamBags;
+      if (issued) padamSummary.totalBags += padamBags;
       padamSummary.ordersCount++;
 
       for (const pl of padamLines) {
@@ -388,6 +452,7 @@ router.get("/admin/commercial/entity-audit", requireAdminIdentity, async (req: A
       deliveryCity,
       destination,
       isSplit,
+      pendingCompanyCount: o.status === "out_for_delivery" ? o.companySalesOrders.filter(document => !document.deliveryResolvedAt).length : 0,
       explanation: snap.routing?.explanation ?? (destination === "INDORE_CITY" ? "Indore City destination routes to Jain Traders." : "Standard billing allocation."),
       eligibleContributionBags: Number(snap.routing?.eligibleContributionBags ?? 0),
       jain: {
@@ -412,17 +477,21 @@ router.get("/admin/commercial/entity-audit", requireAdminIdentity, async (req: A
         paid: Math.round(paidPadam * 100) / 100,
         outstanding: Math.round(outstandingPadam * 100) / 100,
       },
-      accountingStatus: ((snap as any)?.accountingStatus === "closed") ? "closed" : "open",
-      accountingClosedAt: (snap as any)?.accountingClosedAt ?? null,
-      accountingClosedBy: (snap as any)?.accountingClosedBy ?? null,
-      accountingNotes: (snap as any)?.accountingNotes ?? null,
+      accountingStatus: accountingClosed ? "closed" : "open",
+      accountingClosedAt: closingEvent?.createdAt ?? snap.accountingClosedAt ?? null,
+      accountingClosedBy: closingMetadata?.closedBy ?? snap.accountingClosedBy ?? null,
+      accountingNotes: closingMetadata?.notes ?? snap.accountingNotes ?? null,
       grandTotal: Math.round(orderGrandTotal * 100) / 100,
-      invoiceNumber: o.invoice?.invoiceNumber ?? null,
-      invoiceStatus: o.invoice?.status ?? null,
+      invoices: o.invoices.map(invoice => ({
+        id: invoice.id, invoiceNumber: invoice.invoiceNumber, firmInvoiceNumber: invoice.firmInvoiceNumber,
+        sellingEntity: invoice.sellingEntity, total: Number(invoice.total), status: invoice.status,
+        outstandingAmount: Number(invoice.outstandingAmount),
+      })),
       totalPaid: Math.round(totalPaid * 100) / 100,
-      totalOutstanding: Math.round(Math.max(0, orderGrandTotal - totalPaid) * 100) / 100,
+      totalOutstanding: Math.round(totalOutstanding * 100) / 100,
+      unattributedOutstanding: outstanding.unattributed,
     });
-    if ((snap as any)?.accountingStatus === "closed") {
+    if (accountingClosed) {
       accountingClosedOrdersCount++;
     } else {
       accountingOpenOrdersCount++;
@@ -432,6 +501,7 @@ router.get("/admin/commercial/entity-audit", requireAdminIdentity, async (req: A
   res.json({
     summary: {
       totalRevenue: Math.round(totalRevenue * 100) / 100,
+      unattributedOutstanding: Math.round(unattributedOutstanding * 100) / 100,
       totalOrders: totalOrdersCount,
       splitOrdersCount,
       accountingClosedOrdersCount,
@@ -469,257 +539,67 @@ router.get("/admin/commercial/entity-audit", requireAdminIdentity, async (req: A
   });
 });
 
+const statementQuery = z.object({
+  from: z.string().date().optional(),
+  to: z.string().date().optional(),
+  period: z.string().max(30).default("all"),
+}).refine(query => !query.from || !query.to || query.from <= query.to);
+
+function startOfBillingDay(day: string) {
+  return new Date(`${day}T00:00:00+05:30`);
+}
+
 router.get("/admin/commercial/financial-statements", requireAdminIdentity, async (req: AdminRequest, res) => {
-  if (!req.staffAuth!.permissions.some((p) => p === Permissions.STAFF_MANAGE || p === Permissions.COLLECTION_CONFIRM || p === Permissions.FINANCIAL_CORRECT || p === Permissions.RECOVERY_VIEW)) {
+  if (!req.staffAuth!.permissions.some(p => p === Permissions.STAFF_MANAGE || p === Permissions.COLLECTION_CONFIRM || p === Permissions.FINANCIAL_CORRECT || p === Permissions.RECOVERY_VIEW)) {
     return res.status(403).json({ error: "permission_required" });
   }
+  const parsed = statementQuery.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ error: "invalid_statement_period" });
 
-  const { from, to, period = "all" } = req.query as Record<string, string | undefined>;
-
-  const dateFilter: Prisma.DateTimeFilter | undefined = (from || to) ? {
-    ...(from ? { gte: new Date(from) } : {}),
-    ...(to ? { lte: new Date(new Date(to).setHours(23, 59, 59, 999)) } : {}),
-  } : undefined;
-
-  const [orders, retailers, payments] = await Promise.all([
-    prisma.order.findMany({
-      where: {
-        commercialSnapshot: { not: Prisma.DbNull },
-        ...(dateFilter ? { createdAt: dateFilter } : {}),
+  const { from, to, period } = parsed.data;
+  const invoices = await prisma.invoice.findMany({
+    where: {
+      status: { not: "voided" },
+      invoiceDate: {
+        gte: from ? startOfBillingDay(from) : undefined,
+        lt: to ? new Date(startOfBillingDay(to).getTime() + 24 * 60 * 60 * 1000) : undefined,
       },
-      include: {
-        invoice: {
-          include: {
-            allocations: { include: { payment: true } },
-          },
-        },
-      },
-    }),
-    prisma.retailer.findMany({
-      select: {
-        id: true,
-        currentBalance: true,
-        overdueAmount: true,
-      },
-    }),
-    prisma.payment.findMany({
-      where: {
-        status: "succeeded",
-        ...(dateFilter ? { createdAt: dateFilter } : {}),
-      },
-    }),
-  ]);
+    },
+    select: {
+      sellingEntity: true, subtotal: true, taxTotal: true, total: true, outstandingAmount: true,
+      allocations: { select: { amount: true, reversals: { select: { amount: true } } } },
+      creditNotes: { where: { status: "issued" }, select: { amount: true } },
+    },
+  });
 
-  let grossJainRevenue = 0;
-  let grossPadamRevenue = 0;
-  let jainGoodsValue = 0;
-  let padamGoodsValue = 0;
-  let jainGstValue = 0;
-  let padamGstValue = 0;
-  let jainFreightValue = 0;
-  let padamFreightValue = 0;
-  let totalBagsSold = 0;
-
-  for (const o of orders) {
-    const cs: any = o.commercialSnapshot;
-    const snap = cs?.quote || cs;
-    if (!snap) continue;
-    const rawLines: any[] = Array.isArray(snap.lines) ? snap.lines : [];
-    for (const l of rawLines) {
-      const lineEntity = l.entity || "jain_traders";
-      const base = Number(l.base ?? (Number(l.rate ?? 0) * Number(l.cases ?? 1)));
-      const gst = Number(l.gst ?? 0);
-      const bags = Number(l.cases ?? l.qty ?? 1);
-      totalBagsSold += bags;
-
-      if (lineEntity === "padam_international") {
-        padamGoodsValue += base;
-        padamGstValue += gst;
-      } else {
-        jainGoodsValue += base;
-        jainGstValue += gst;
-      }
+  const groups = {
+    jain_traders: { invoiceCount: 0, subtotal: 0, tax: 0, billed: 0, paid: 0, credited: 0, outstanding: 0 },
+    padam_international: { invoiceCount: 0, subtotal: 0, tax: 0, billed: 0, paid: 0, credited: 0, outstanding: 0 },
+    historical: { invoiceCount: 0, subtotal: 0, tax: 0, billed: 0, paid: 0, credited: 0, outstanding: 0 },
+  };
+  const cents = (amount: Prisma.Decimal) => amount.mul(100).toNumber();
+  for (const invoice of invoices) {
+    const row = groups[invoice.sellingEntity ?? "historical"];
+    row.invoiceCount++;
+    row.subtotal += cents(invoice.subtotal);
+    row.tax += cents(invoice.taxTotal);
+    row.billed += cents(invoice.total);
+    row.outstanding += cents(invoice.outstandingAmount);
+    for (const allocation of invoice.allocations) {
+      row.paid += cents(allocation.amount);
+      for (const reversal of allocation.reversals) row.paid -= cents(reversal.amount);
     }
-    const freight = snap.freight;
-    if (freight && freight.entity) {
-      const fAmt = Number(freight.amount ?? 0) + Number(freight.gst ?? 0);
-      if (freight.entity === "padam_international") {
-        padamFreightValue += fAmt;
-      } else {
-        jainFreightValue += fAmt;
-      }
-    }
+    for (const credit of invoice.creditNotes) row.credited += cents(credit.amount);
   }
 
-  grossJainRevenue = jainGoodsValue + jainGstValue + jainFreightValue;
-  grossPadamRevenue = padamGoodsValue + padamGstValue + padamFreightValue;
-  const totalRevenue = grossJainRevenue + grossPadamRevenue;
-  const totalGoodsValue = jainGoodsValue + padamGoodsValue;
-  const totalGst = jainGstValue + padamGstValue;
-  const totalFreight = jainFreightValue + padamFreightValue;
-
-  const jainCogs = Math.round(jainGoodsValue * 0.80 * 100) / 100;
-  const padamCogs = Math.round(padamGoodsValue * 0.80 * 100) / 100;
-  const totalCogs = jainCogs + padamCogs;
-
-  const jainGrossProfit = Math.round((jainGoodsValue - jainCogs) * 100) / 100;
-  const padamGrossProfit = Math.round((padamGoodsValue - padamCogs) * 100) / 100;
-  const totalGrossProfit = jainGrossProfit + padamGrossProfit;
-
-  const jainLogisticsExpense = Math.round(jainFreightValue * 0.90 * 100) / 100;
-  const padamLogisticsExpense = Math.round(padamFreightValue * 0.90 * 100) / 100;
-  const totalLogisticsExpense = jainLogisticsExpense + padamLogisticsExpense;
-
-  const salesAllowances = Math.round(totalGoodsValue * 0.035 * 100) / 100;
-  const jainSalesAllowance = Math.round(jainGoodsValue * 0.035 * 100) / 100;
-  const padamSalesAllowance = Math.round(padamGoodsValue * 0.035 * 100) / 100;
-
-  const warehouseOverhead = Math.round(totalGoodsValue * 0.025 * 100) / 100;
-  const jainWarehouseOverhead = Math.round(jainGoodsValue * 0.025 * 100) / 100;
-  const padamWarehouseOverhead = Math.round(padamGoodsValue * 0.025 * 100) / 100;
-
-  const bankCharges = Math.round(totalRevenue * 0.004 * 100) / 100;
-  const jainBankCharges = Math.round(grossJainRevenue * 0.004 * 100) / 100;
-  const padamBankCharges = Math.round(grossPadamRevenue * 0.004 * 100) / 100;
-
-  const totalOperatingExpenses = totalLogisticsExpense + salesAllowances + warehouseOverhead + bankCharges;
-  const jainTotalOpex = jainLogisticsExpense + jainSalesAllowance + jainWarehouseOverhead + jainBankCharges;
-  const padamTotalOpex = padamLogisticsExpense + padamSalesAllowance + padamWarehouseOverhead + padamBankCharges;
-
-  const totalNetProfit = Math.round((totalGrossProfit - totalOperatingExpenses) * 100) / 100;
-  const jainNetProfit = Math.round((jainGrossProfit - jainTotalOpex) * 100) / 100;
-  const padamNetProfit = Math.round((padamGrossProfit - padamTotalOpex) * 100) / 100;
-
-  const totalDebtors = retailers.reduce((sum, r) => sum + Number(r.currentBalance || 0), 0);
-  const jainDebtors = Math.round(totalDebtors * (totalRevenue > 0 ? (grossJainRevenue / totalRevenue) : 1) * 100) / 100;
-  const padamDebtors = Math.round(totalDebtors * (totalRevenue > 0 ? (grossPadamRevenue / totalRevenue) : 0) * 100) / 100;
-
-  let hdfcBalance = 850000;
-  let iciciBalance = 450000;
-  let cashInHand = 65000;
-
-  for (const p of payments) {
-    const amt = Number(p.amount);
-    if (p.confirmedMethod?.toLowerCase().includes("cash") || p.confirmedReference?.toLowerCase().includes("cash")) {
-      cashInHand += amt;
-    } else if (p.confirmedReference?.toLowerCase().includes("icici") || p.confirmedReference?.toLowerCase().includes("padam")) {
-      iciciBalance += amt;
-    } else {
-      hdfcBalance += amt;
-    }
-  }
-
-  const warehouseInventoryValuation = 1450000;
-  const jainInventory = 950000;
-  const padamInventory = 500000;
-
-  const plantMachinery = 1850000;
-  const deliveryVehicles = 950000;
-  const totalNonCurrentAssets = plantMachinery + deliveryVehicles;
-
-  const totalCurrentAssets = hdfcBalance + iciciBalance + cashInHand + totalDebtors + warehouseInventoryValuation;
-  const totalAssets = totalCurrentAssets + totalNonCurrentAssets;
-
-  const tradePayables = Math.round(totalCogs * 0.45 * 100) / 100 + 420000;
-  const gstOutputPayable = Math.round(totalGst * 0.85 * 100) / 100;
-  const customerAdvances = 75000;
-  const totalCurrentLiabilities = Math.round((tradePayables + gstOutputPayable + customerAdvances) * 100) / 100;
-
-  const retainedEarnings = 1200000;
-  const partnersCapital = Math.round((totalAssets - totalCurrentLiabilities - totalNetProfit - retainedEarnings) * 100) / 100;
-  const totalEquity = Math.round((partnersCapital + retainedEarnings + totalNetProfit) * 100) / 100;
-  const totalLiabilitiesAndEquity = Math.round((totalCurrentLiabilities + totalEquity) * 100) / 100;
-
+  const rows = Object.entries(groups).map(([company, values]) => ({
+    company, invoiceCount: values.invoiceCount, subtotal: values.subtotal / 100, tax: values.tax / 100,
+    billed: values.billed / 100, paid: values.paid / 100, credited: values.credited / 100,
+    outstanding: values.outstanding / 100,
+  }));
   res.json({
-    period: {
-      from: from || null,
-      to: to || null,
-      preset: period,
-      asOfDate: new Date().toISOString(),
-    },
-    pnl: {
-      revenue: {
-        jainRevenue: Math.round(grossJainRevenue * 100) / 100,
-        padamRevenue: Math.round(grossPadamRevenue * 100) / 100,
-        totalRevenue: Math.round(totalRevenue * 100) / 100,
-        goodsValue: Math.round(totalGoodsValue * 100) / 100,
-        gstTotal: Math.round(totalGst * 100) / 100,
-        freightTotal: Math.round(totalFreight * 100) / 100,
-        totalBagsSold,
-      },
-      cogs: {
-        jainCogs,
-        padamCogs,
-        totalCogs,
-        procurementRatePct: 80,
-      },
-      grossProfit: {
-        jainGrossProfit,
-        padamGrossProfit,
-        totalGrossProfit,
-        grossMarginPct: totalGoodsValue > 0 ? Math.round((totalGrossProfit / totalGoodsValue) * 1000) / 10 : 20.0,
-      },
-      operatingExpenses: {
-        logisticsFreight: totalLogisticsExpense,
-        salesAllowances,
-        warehouseOverhead,
-        bankCharges,
-        totalOperatingExpenses,
-        jainTotalOpex,
-        padamTotalOpex,
-      },
-      netProfit: {
-        jainNetProfit,
-        padamNetProfit,
-        totalNetProfit,
-        netMarginPct: totalRevenue > 0 ? Math.round((totalNetProfit / totalRevenue) * 1000) / 10 : 12.5,
-      },
-    },
-    balanceSheet: {
-      assets: {
-        currentAssets: {
-          hdfcBankJain: hdfcBalance,
-          iciciBankPadam: iciciBalance,
-          cashInHand,
-          totalBankAndCash: hdfcBalance + iciciBalance + cashInHand,
-          sundryDebtors: Math.round(totalDebtors * 100) / 100,
-          jainDebtors,
-          padamDebtors,
-          inventoryValuation: warehouseInventoryValuation,
-          jainInventory,
-          padamInventory,
-          totalCurrentAssets: Math.round(totalCurrentAssets * 100) / 100,
-        },
-        nonCurrentAssets: {
-          plantMachinery,
-          deliveryVehicles,
-          totalNonCurrentAssets,
-        },
-        totalAssets: Math.round(totalAssets * 100) / 100,
-      },
-      liabilitiesAndEquity: {
-        currentLiabilities: {
-          tradeCreditors: tradePayables,
-          gstPayable: gstOutputPayable,
-          customerAdvances,
-          totalCurrentLiabilities,
-        },
-        equity: {
-          partnersCapital,
-          retainedEarnings,
-          currentPeriodNetProfit: totalNetProfit,
-          totalEquity,
-        },
-        totalLiabilitiesAndEquity,
-      },
-      isBalanced: true,
-    },
-    ratios: {
-      grossProfitMarginPct: totalGoodsValue > 0 ? Math.round((totalGrossProfit / totalGoodsValue) * 1000) / 10 : 20.0,
-      netProfitMarginPct: totalRevenue > 0 ? Math.round((totalNetProfit / totalRevenue) * 1000) / 10 : 12.5,
-      currentRatio: totalCurrentLiabilities > 0 ? Math.round((totalCurrentAssets / totalCurrentLiabilities) * 100) / 100 : 2.4,
-      debtorDaysDSO: totalRevenue > 0 ? Math.round((totalDebtors / (totalRevenue / 30))) : 21,
-    },
+    period: { from: from ?? null, to: to ?? null, preset: period, asOfDate: new Date().toISOString() },
+    rows,
   });
 });
 
@@ -752,15 +632,29 @@ router.post("/admin/commercial/entity-audit/simulate", requireAdminIdentity, asy
   res.json({ plan });
 });
 
-router.get("/admin/commercial/retailers/:id/outstanding",requireAdminIdentity,async(req:AdminRequest,res)=>{
-  if(!req.staffAuth!.permissions.some(p=>p===Permissions.STAFF_MANAGE || p===Permissions.COLLECTION_CONFIRM)) return res.status(403).json({error:"permission_required"});
-  const totals=await prisma.$transaction(async tx=>{
-    const invoices=await tx.invoice.findMany({where:{retailerId:req.params.id,outstandingAmount:{gt:0}}});
-    let jain=new Prisma.Decimal(0),padam=new Prisma.Decimal(0),legacy=new Prisma.Decimal(0);
-    for(const i of invoices){if(i.commercialSnapshot===null){legacy=legacy.plus(i.outstandingAmount);continue;}const b=await invoiceBalances(tx,i.id);jain=jain.plus(b.jain);padam=padam.plus(b.padam);}
-    return {jain:jain.toFixed(2),padam:padam.toFixed(2),legacyUnattributed:legacy.toFixed(2),combined:jain.plus(padam).plus(legacy).toFixed(2)};
-  },{isolationLevel:Prisma.TransactionIsolationLevel.RepeatableRead});
-  res.json({retailerId:req.params.id,...totals,usage:"reporting_only"});
+router.get("/admin/commercial/retailers/:id/outstanding", requireAdminIdentity, async (req: AdminRequest, res) => {
+  if (!req.staffAuth!.permissions.some(p => p === Permissions.STAFF_MANAGE || p === Permissions.COLLECTION_CONFIRM)) {
+    return res.status(403).json({ error: "permission_required" });
+  }
+  const retailerId = req.params.id;
+  const totals = await prisma.$transaction(async tx => {
+    const invoices = await tx.invoice.findMany({
+      where: { retailerId, outstandingAmount: { gt: 0 }, status: { not: "voided" } },
+      include: outstandingHistory,
+    });
+    const outstanding = invoices.reduce(
+      (total, invoice) => addEntityAmounts(total, attributeInvoiceOutstanding(invoice)), emptyEntityAmounts()
+    );
+    const combined = invoices.reduce((total, invoice) => total.plus(invoice.outstandingAmount), new Prisma.Decimal(0));
+    return {
+      jain: outstanding.jainTraders.toFixed(2),
+      padam: outstanding.padamInternational.toFixed(2),
+      unattributed: outstanding.unattributed.toFixed(2),
+      legacyUnattributed: outstanding.unattributed.toFixed(2),
+      combined: combined.toFixed(2),
+    };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+  return res.json({ retailerId, ...totals, usage: "reporting_only" });
 });
 router.put("/admin/commercial/skus/:id",requireAdmin,async(req:AdminRequest,res)=>{
   const body=z.object({

@@ -18,6 +18,7 @@ export interface CommercialQuoteLine {
   /** Delivery-only accepted weight. Absent for checkout. */
   deliveredWeightKg?: string;
   discount?: DecimalInput;
+  unitDiscount?: DecimalInput;
 }
 
 export interface ManagerFreight {
@@ -84,7 +85,8 @@ export function calculateCommercialQuote(input: { lines: CommercialQuoteLine[]; 
     const quintals = kilograms.div(100);
     const basisQuantity = line.rateBasis === "case" ? kilograms.div(caseWeight) : quintals;
     const base = rounded(money(line.rate, "rate").mul(basisQuantity));
-    const discountAmount = line.discount ? rounded(money(line.discount, "discount").mul(basisQuantity)) : new Prisma.Decimal(0);
+    const unitDiscount = money(line.unitDiscount ?? line.discount ?? "0", "discount");
+    const discountAmount = rounded(unitDiscount.mul(basisQuantity));
     const gstPending = line.gstPercent === null;
     const gst = gstPending ? new Prisma.Decimal(0) : rounded(base.mul(taxRate(line.gstPercent!)).div(100));
     const group = bucket(line.entity);
@@ -96,6 +98,7 @@ export function calculateCommercialQuote(input: { lines: CommercialQuoteLine[]; 
       weightKg: kilograms.toString(),
       quintals: quintals.toString(),
       discount: serialized(discountAmount),
+      ...(unitDiscount.gt(0) ? { unitDiscount: serialized(unitDiscount) } : {}),
       base: serialized(base),
       // Pending GST is intentionally represented as unknown rather than a
       // fabricated 0% tax amount. The pre-tax total remains quoteable, while

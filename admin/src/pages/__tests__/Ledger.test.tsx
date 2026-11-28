@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import Ledger from "../Ledger";
 
@@ -147,5 +147,35 @@ describe("Admin financial entity attribution", () => {
 
     expect(await screen.findByText("Company-wise balance")).toBeTruthy();
     expect(screen.queryByText(/overdue$/)).toBeNull();
+  });
+
+  it("requires a specific firm invoice and posts only to its company", async () => {
+    mocks.ledger.mockResolvedValueOnce({
+      currentBalance: 75,
+      creditLimit: 1000,
+      overdueAmount: 0,
+      invoiceAllocationRequired: true,
+      openInvoices: [{
+        id: "padam-bill", invoiceNumber: 42, firmInvoiceNumber: "PI/26/000042",
+        sellingEntity: "padam_international", invoiceDate: "2026-08-01T00:00:00Z",
+        total: 75, outstandingAmount: 75, paymentEligible: true, attributionStatus: "complete",
+        entityBalances: { jainTraders: 0, padamInternational: 75, unattributed: 0 },
+      }],
+      entries: [],
+    });
+    mocks.recordPayment.mockResolvedValue({});
+    showLedger();
+
+    const submit = await screen.findByRole("button", { name: /Confirm & Post Payment/ });
+    expect((submit as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("option", { name: /PI\/26\/000042.*Padam International/ })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Invoice"), { target: { value: "padam-bill" } });
+    fireEvent.change(screen.getByLabelText(/Amount Received/), { target: { value: "20.50" } });
+    fireEvent.click(submit);
+
+    await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledWith(
+      "retailer-1", 20.5, expect.any(String),
+      expect.objectContaining({ invoiceScopeId: "padam-bill", jainAmount: 0, padamAmount: 20.5 }),
+    ));
   });
 });

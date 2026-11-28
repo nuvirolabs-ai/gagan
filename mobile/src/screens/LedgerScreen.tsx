@@ -147,7 +147,9 @@ export default function LedgerScreen() {
             <View style={styles.entry}>
               <View>
                 <Text style={styles.entryType} numberOfLines={1}>
-                  {label}
+                  {item.type === "invoice" && item.invoice
+                    ? t("pay.invoiceRef", { number: item.invoice.firmInvoiceNumber ?? item.invoice.invoiceNumber })
+                    : label}
                 </Text>
                 <Text style={styles.entryDate}>
                   {new Date(item.createdAt).toLocaleDateString("en-IN", {
@@ -158,7 +160,7 @@ export default function LedgerScreen() {
                 </Text>
                 {item.paymentAllocations?.map((allocation, index) => (
                   <Text key={`${allocation.invoice.id}-${index}`} style={styles.entryAssociation} numberOfLines={2}>
-                    {t("pay.invoiceRef", { number: allocation.invoice.invoiceNumber })}
+                    {t("pay.invoiceRef", { number: allocation.invoice.firmInvoiceNumber ?? allocation.invoice.invoiceNumber })}
                     {allocation.invoice.orderNo != null ? ` · ${t("pay.orderRef", { order: allocation.invoice.orderNo })}` : ""}
                   </Text>
                 ))}

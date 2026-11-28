@@ -416,11 +416,14 @@ function deriveRecord(source: RealCatalogueRecord["source"], sourceRows: number[
   }).catalogKey;
   const type = identity(source.typeOfItem);
   const brand = identity(source.brandName);
-  const routingClass = brand === "LAXMI"
-    ? "LAXMI_TOOR" as const
-    : type === "INSTANT MIX" || identity(source.groupName).includes("INSTANT MIX")
-      ? "INSTANT_MIX" as const
-      : "OTHER" as const;
+  // The owner-reviewed Laxmi LPP Toor Dal packs share this product identity.
+  // Other Laxmi Toor identities require a reviewed routing class.
+  const reviewedLaxmiToor = productKey === "real-catalogue:product:c6b7706f00f9c8bf7346168c19b37fd0b778ac5c85e8deb007e11a07f76a3f27";
+  const possibleLaxmiToor = brand === "LAXMI" && /\bTOOR\b/.test(identity(`${source.groupName} ${label}`));
+  let routingClass: RealCatalogueRecord["routingClass"] = "OTHER";
+  if (reviewedLaxmiToor) routingClass = "LAXMI_TOOR";
+  else if (possibleLaxmiToor) routingClass = null;
+  else if (type === "INSTANT MIX" || identity(source.groupName).includes("INSTANT MIX")) routingClass = "INSTANT_MIX";
   const routingBagEquivalent = routingClass === "OTHER" && master?.container === "BAG" && parsed ? "1.000" : null;
   const candidates = imageCandidates(source, imageIndex);
   const imageStatus = candidates.length === 1 ? "matched" : candidates.length > 1 ? "ambiguous" : "missing";

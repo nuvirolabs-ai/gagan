@@ -13,6 +13,8 @@ export interface RiceSchemeEvaluation {
   schemeCode: string;
   schemeName: string;
   schemeDescription: string;
+  qualifyingVariantIds: string[];
+  rewardRoutingClass: string | null;
 }
 
 export function isRiceCategoryOrName(name: string, category: string): boolean {
@@ -97,6 +99,7 @@ export async function evaluateRiceScheme(
     unitSize: string;
     unitsPerCase: number;
     unitWeightKg: Prisma.Decimal;
+    routingClass: string | null;
     product: { name: string };
   } | null = null;
   let packUnitKg: 5 | 1 = 5;
@@ -208,5 +211,7 @@ export async function evaluateRiceScheme(
     schemeCode: "RICE_210_FREE_10",
     schemeName: "Rice Scheme (Buy 210kg Get 10kg Free)",
     schemeDescription: `Buy 210 kg rice, get 10 kg free. Order contains ${totalRiceWeightKg} kg rice -> Qualified for ${packDescription}.`,
+    qualifyingVariantIds: riceItems.map(item => item.variantId),
+    rewardRoutingClass: selectedVariant.routingClass ?? null,
   };
 }

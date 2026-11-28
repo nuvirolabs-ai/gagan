@@ -55,9 +55,14 @@ export interface EntityBalances {
   attributionStatus: FinancialAttributionStatus;
 }
 
-export interface PaymentInvoiceOption {
+export interface InvoiceIdentity {
   id: string;
   invoiceNumber: number;
+  firmInvoiceNumber?: string | null;
+  sellingEntity?: "jain_traders" | "padam_international" | null;
+}
+
+export interface PaymentInvoiceOption extends InvoiceIdentity {
   orderNo: number | null;
   invoiceDate: string;
   dueDate: string;
@@ -69,10 +74,16 @@ export interface PaymentInvoiceOption {
 }
 
 export interface PaymentAllocationReadback {
-  invoice: { id: string; invoiceNumber: number; orderNo: number | null };
+  invoice: InvoiceIdentity & { orderNo: number | null };
   amount: number;
   jainAmount: number | null;
   padamAmount: number | null;
+}
+
+export interface OrderInvoiceSummary extends InvoiceIdentity {
+  total: string;
+  outstandingAmount: string;
+  commercialSnapshot?: unknown;
 }
 
 export interface Order {
@@ -93,5 +104,6 @@ export interface LedgerEntry {
   balanceAfter: string | number;
   createdAt: string;
   entityBreakdown?: EntityBreakdown;
+  invoice?: InvoiceIdentity | null;
   paymentAllocations?: PaymentAllocationReadback[];
 }

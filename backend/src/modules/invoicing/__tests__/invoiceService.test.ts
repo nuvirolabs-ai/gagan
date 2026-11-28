@@ -183,7 +183,7 @@ describe("createInvoiceForDelivery", () => {
   });
 
   it("does not replay another order's invoice when an idempotency key is reused", async () => {
-    const invoice = await prisma.invoice.findUniqueOrThrow({ where: { orderId: ids.order } });
+    const invoice = await prisma.invoice.findFirstOrThrow({ where: { orderId: ids.order } });
     await expect(createInvoiceForDelivery({ orderId: ids.validationOrder,
       lines: [{ orderItemId: ids.validationFirstItem, deliveredCases: 1 }, { orderItemId: ids.validationSecondItem, deliveredCases: 1 }],
       occurredAt: new Date(), idempotencyKey: invoice.idempotencyKey,
@@ -204,7 +204,7 @@ describe("createInvoiceForDelivery", () => {
     [{ orderItemId: ids.firstItem, deliveredCases: 1 }, { orderItemId: ids.secondItem, deliveredCases: 1 }],
     [{ orderItemId: ids.firstItem, deliveredCases: 2, deliveredWeightKg: 19 }, { orderItemId: ids.secondItem, deliveredCases: 1 }],
   ])("rejects a retry that changes accepted delivery quantities %j", async (...lines) => {
-    const invoice = await prisma.invoice.findUniqueOrThrow({ where: { orderId: ids.order } });
+    const invoice = await prisma.invoice.findFirstOrThrow({ where: { orderId: ids.order } });
     await expect(createInvoiceForDelivery({ orderId: ids.order, lines,
       occurredAt: new Date(), idempotencyKey: invoice.idempotencyKey,
     })).rejects.toMatchObject({ code: "invoice_replay_conflict" });

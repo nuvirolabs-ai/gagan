@@ -47,6 +47,8 @@ export async function financialInvoiceProjectionFor(
       outstandingAmount: true,
       dueDate: true,
       commercialSnapshot: true,
+      sellingEntity: true,
+      creditNotes: { where: { status: "issued" }, select: { amount: true } },
       allocations: {
         select: {
           amount: true,
@@ -137,11 +139,14 @@ export async function retailerPaymentInvoicesFor(db: Db, retailerId: string) {
     select: {
       id: true,
       invoiceNumber: true,
+      firmInvoiceNumber: true,
+      sellingEntity: true,
       total: true,
       outstandingAmount: true,
       invoiceDate: true,
       dueDate: true,
       commercialSnapshot: true,
+      creditNotes: { where: { status: "issued" }, select: { amount: true } },
       order: { select: { orderNo: true } },
       allocations: {
         select: {
@@ -155,12 +160,13 @@ export async function retailerPaymentInvoicesFor(db: Db, retailerId: string) {
   });
 
   return {
-    invoiceAllocationRequired: invoices.some((invoice) => invoice.commercialSnapshot !== null),
+    invoiceAllocationRequired: invoices.some((invoice) => Boolean(invoice.sellingEntity) || invoice.commercialSnapshot !== null),
     paymentInvoices: invoices.map((invoice) => {
       const entityBreakdown = attributeInvoiceOutstanding(invoice);
       return {
         id: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
+        ...(invoice.sellingEntity && { sellingEntity: invoice.sellingEntity, firmInvoiceNumber: invoice.firmInvoiceNumber }),
         orderNo: invoice.order?.orderNo ?? null,
         invoiceDate: invoice.invoiceDate.toISOString(),
         dueDate: invoice.dueDate.toISOString(),
@@ -201,6 +207,8 @@ export async function financialLedgerFor(
         select: {
           id: true,
           invoiceNumber: true,
+          firmInvoiceNumber: true,
+          sellingEntity: true,
           status: true,
           total: true,
           outstandingAmount: true,
@@ -227,6 +235,8 @@ export async function financialLedgerFor(
                 select: {
                   id: true,
                   invoiceNumber: true,
+                  firmInvoiceNumber: true,
+                  sellingEntity: true,
                   order: { select: { orderNo: true } },
                 },
               },
@@ -235,13 +245,23 @@ export async function financialLedgerFor(
         },
       },
       creditNote: {
-        select: { id: true, reason: true, amount: true, invoice: { select: { commercialSnapshot: true } } },
+        select: {
+          id: true, reason: true, amount: true,
+          invoice: { select: { commercialSnapshot: true, sellingEntity: true, total: true, firmInvoiceNumber: true } },
+        },
       },
       paymentReversal: {
         select: {
           id: true,
           reason: true,
           amount: true,
+          unallocatedAmount: true,
+          allocationReversals: {
+            select: {
+              amount: true,
+              paymentAllocation: { select: { invoiceId: true, invoice: { select: { sellingEntity: true } } } },
+            },
+          },
           payment: {
             select: {
               invoiceScopeId: true,
@@ -281,6 +301,7 @@ export async function financialLedgerFor(
       ? {
           id: entry.invoice.id,
           invoiceNumber: entry.invoice.invoiceNumber,
+          ...(entry.invoice.sellingEntity && { sellingEntity: entry.invoice.sellingEntity, firmInvoiceNumber: entry.invoice.firmInvoiceNumber }),
           status: entry.invoice.status,
         }
       : null,
@@ -291,13 +312,17 @@ export async function financialLedgerFor(
       invoice: {
         id: allocation.invoice.id,
         invoiceNumber: allocation.invoice.invoiceNumber,
+        ...(allocation.invoice.sellingEntity && { sellingEntity: allocation.invoice.sellingEntity, firmInvoiceNumber: allocation.invoice.firmInvoiceNumber }),
         orderNo: allocation.invoice.order?.orderNo ?? null,
       },
       amount: Number(allocation.amount),
       jainAmount: allocation.jainAmount == null ? null : Number(allocation.jainAmount),
       padamAmount: allocation.padamAmount == null ? null : Number(allocation.padamAmount),
     })) ?? [],
-    creditNote: entry.creditNote ? { id: entry.creditNote.id, reason: entry.creditNote.reason } : null,
+    creditNote: entry.creditNote ? {
+      id: entry.creditNote.id, reason: entry.creditNote.reason,
+      ...(entry.creditNote.invoice?.sellingEntity && { sellingEntity: entry.creditNote.invoice.sellingEntity, firmInvoiceNumber: entry.creditNote.invoice.firmInvoiceNumber }),
+    } : null,
     paymentReversal: entry.paymentReversal
       ? { id: entry.paymentReversal.id, reason: entry.paymentReversal.reason }
       : null,

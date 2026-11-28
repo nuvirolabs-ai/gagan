@@ -39,10 +39,10 @@ type LedgerEntry = {
   amount: number;
   balanceAfter: number;
   createdAt: string;
-  invoice?: { invoiceNumber: number } | null;
+  invoice?: { invoiceNumber: number; firmInvoiceNumber?: string | null } | null;
   order?: { orderNo: number } | null;
   paymentAllocations?: Array<{
-    invoice: { invoiceNumber: number; orderNo: number | null };
+    invoice: { invoiceNumber: number; firmInvoiceNumber?: string | null; orderNo: number | null };
   }>;
   entityBreakdown?: EntityAmounts & { attributionStatus: AttributionStatus };
   reason?: string | null;
@@ -182,13 +182,13 @@ export default function RepRetailerOutstandingScreen({ route }: any) {
                   </Text>
                   {entry.invoice ? (
                     <Text style={styles.entryMeta}>
-                      {t("retailer.invoiceRef", { number: entry.invoice.invoiceNumber })}
+                      {t("retailer.invoiceRef", { number: entry.invoice.firmInvoiceNumber ?? entry.invoice.invoiceNumber })}
                       {entry.order ? ` · ${t("retailer.orderRef", { number: entry.order.orderNo })}` : ""}
                     </Text>
                   ) : null}
                   {entry.paymentAllocations?.map((allocation, index) => (
                     <Text key={`${entry.id}-${index}`} style={styles.entryMeta}>
-                      {t("retailer.invoiceRef", { number: allocation.invoice.invoiceNumber })}
+                      {t("retailer.invoiceRef", { number: allocation.invoice.firmInvoiceNumber ?? allocation.invoice.invoiceNumber })}
                       {allocation.invoice.orderNo != null ? ` · ${t("retailer.orderRef", { number: allocation.invoice.orderNo })}` : ""}
                     </Text>
                   ))}

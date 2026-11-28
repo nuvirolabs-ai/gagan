@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, inr } from "../api";
+import { firmNames, type BillingFirm } from "../invoiceDocument";
 
 const LEDGER_LABELS: Record<string, string> = {
   invoice: "Invoice",
@@ -13,6 +14,28 @@ type EntityKey = "jainTraders" | "padamInternational" | "unattributed";
 type EntityAmounts = Record<EntityKey, number>;
 type AttributionStatus = "complete" | "contains_unattributed" | "review_required";
 type EntityBalance = EntityAmounts & { attributionStatus?: AttributionStatus };
+type OpenInvoice = {
+  id: string;
+  invoiceNumber: number;
+  firmInvoiceNumber?: string | null;
+  sellingEntity?: BillingFirm | null;
+  invoiceDate: string;
+  total: number;
+  outstandingAmount: number;
+  entityBalances: EntityAmounts;
+  attributionStatus: AttributionStatus;
+  paymentEligible: boolean;
+};
+
+function invoiceReference(invoice: Pick<OpenInvoice, "firmInvoiceNumber" | "invoiceNumber">) {
+  return invoice.firmInvoiceNumber ?? `#${invoice.invoiceNumber}`;
+}
+
+function invoiceEntityLabel(invoice: OpenInvoice) {
+  if (invoice.sellingEntity) return firmNames[invoice.sellingEntity];
+  if (invoice.attributionStatus === "review_required") return "Review required";
+  return invoice.paymentEligible ? "Legacy commercial invoice" : "Unattributed / legacy";
+}
 
 const ENTITY_LABELS: Record<EntityKey, string> = {
   jainTraders: "Jain Traders",
@@ -121,10 +144,12 @@ export default function Ledger() {
   const [notice, setNotice] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
   const [paymentMode, setPaymentMode] = useState("NEFT / RTGS");
-  const [bankAccount, setBankAccount] = useState("Jain Traders - HDFC Bank A/C 50200012345678");
+  const [bankAccount, setBankAccount] = useState("");
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
   const [invoiceScopeId, setInvoiceScopeId] = useState("");
+  const [jainAmount, setJainAmount] = useState("");
+  const [padamAmount, setPadamAmount] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [busy, setBusy] = useState(false);
@@ -154,6 +179,16 @@ export default function Ledger() {
     load();
   }, [load]);
 
+  const openInvoices: OpenInvoice[] = data?.openInvoices ?? [];
+  const selectedInvoice = openInvoices.find(invoice => invoice.id === invoiceScopeId && invoice.paymentEligible);
+  const allocationRequired = Boolean(data?.invoiceAllocationRequired);
+
+  function selectInvoice(id: string) {
+    setInvoiceScopeId(id);
+    setJainAmount("");
+    setPadamAmount("");
+  }
+
   const recordPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (data?.financialSummary?.reconciliationRequired) {
@@ -165,20 +200,37 @@ export default function Ledger() {
       setError("Enter a payment amount greater than zero");
       return;
     }
+    if ((allocationRequired || invoiceScopeId) && !selectedInvoice) {
+      setError("Select a payable invoice before recording the payment.");
+      return;
+    }
+    let allocation;
+    if (selectedInvoice) {
+      const jain = selectedInvoice.sellingEntity === "jain_traders" ? value : selectedInvoice.sellingEntity ? 0 : Number(jainAmount);
+      const padam = selectedInvoice.sellingEntity === "padam_international" ? value : selectedInvoice.sellingEntity ? 0 : Number(padamAmount);
+      if (!Number.isFinite(jain) || !Number.isFinite(padam) || jain < 0 || padam < 0 ||
+          Math.round(jain * 100) + Math.round(padam * 100) !== Math.round(value * 100) ||
+          jain > selectedInvoice.entityBalances.jainTraders || padam > selectedInvoice.entityBalances.padamInternational) {
+        setError("The payment must match the invoice company amounts and remaining balance.");
+        return;
+      }
+      allocation = { invoiceScopeId: selectedInvoice.id, jainAmount: jain, padamAmount: padam };
+    }
     setBusy(true);
     try {
       await api.recordPayment(selected!, value, crypto.randomUUID(), {
         paymentMode,
-        bankAccount,
+        bankAccount: bankAccount.trim() || undefined,
         reference: reference.trim() || undefined,
         notes: notes.trim() || undefined,
-        invoiceScopeId: invoiceScopeId || undefined,
+        ...allocation,
       });
       setNotice(`Payment of ${inr(value)} recorded via ${paymentMode}${reference ? ` (Ref: ${reference})` : ""}`);
       setAmount("");
       setReference("");
       setNotes("");
-      setInvoiceScopeId("");
+      setBankAccount("");
+      selectInvoice("");
       setError(null);
       await load();
     } catch (err) {
@@ -224,7 +276,7 @@ export default function Ledger() {
       const amt = Number(e.amount);
       const jainAmt = e.entityBreakdown?.jainTraders ?? "";
       const padamAmt = e.entityBreakdown?.padamInternational ?? "";
-      const ref = e.invoice ? `Invoice #${e.invoice.invoiceNumber}` : (e.payment?.id || e.idempotencyKey || "—");
+      const ref = e.invoice ? `Invoice ${invoiceReference(e.invoice)}` : (e.payment?.id || e.idempotencyKey || "—");
       const d = new Date(e.createdAt).toLocaleDateString("en-IN", {
         day: "2-digit",
         month: "2-digit",
@@ -265,7 +317,11 @@ export default function Ledger() {
       <div className="card">
         <div className="field" style={{ marginBottom: 0, maxWidth: 320 }}>
           <label>Retailer</label>
-          <select value={selected ?? ""} onChange={(e) => setSelected(e.target.value)}>
+          <select value={selected ?? ""} onChange={(e) => {
+            setSelected(e.target.value);
+            setData(null);
+            selectInvoice("");
+          }}>
             {retailers.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name}
@@ -329,10 +385,11 @@ export default function Ledger() {
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 12 }}>
                 <div className="field" style={{ margin: 0 }}>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>Amount Received (₹) *</label>
+                  <label htmlFor="ledger-payment-amount" style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>Amount Received (₹) *</label>
                   <input
+                    id="ledger-payment-amount"
                     type="number"
-                    min={1}
+                    min={0.01}
                     step="0.01"
                     placeholder="e.g. 50000"
                     value={amount}
@@ -353,12 +410,8 @@ export default function Ledger() {
                 </div>
 
                 <div className="field" style={{ margin: 0 }}>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>Deposited To Bank Account</label>
-                  <select value={bankAccount} onChange={(e) => setBankAccount(e.target.value)}>
-                    <option value="Jain Traders - HDFC Bank A/C 50200012345678">Jain Traders - HDFC Bank (Indore Branch)</option>
-                    <option value="Padam International - ICICI Bank A/C 001105001234">Padam International - ICICI Bank (Indore Branch)</option>
-                    <option value="Cash Counter">Cash Counter / Petty Cash</option>
-                  </select>
+                  <label htmlFor="ledger-received-account" style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>Received Into</label>
+                  <input id="ledger-received-account" value={bankAccount} onChange={e => setBankAccount(e.target.value)} />
                 </div>
 
                 <div className="field" style={{ margin: 0 }}>
@@ -374,17 +427,17 @@ export default function Ledger() {
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
                 <div className="field" style={{ margin: 0 }}>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>
-                    Bill-by-Bill Allocation (Optional)
-                  </label>
-                  <select value={invoiceScopeId} onChange={(e) => setInvoiceScopeId(e.target.value)}>
-                    <option value="">Auto-allocate across oldest invoices (FIFO)</option>
-                    {(data.openInvoices ?? []).map((inv: any) => (
-                      <option key={inv.id} value={inv.id}>
-                        Invoice #{inv.invoiceNumber} · {inv.billingEntity} · Due: {inr(inv.outstandingAmount)}
+                  <label htmlFor="ledger-payment-invoice" style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>Invoice</label>
+                  <select id="ledger-payment-invoice" value={invoiceScopeId} onChange={e => selectInvoice(e.target.value)} required={allocationRequired}>
+                    <option value="">{allocationRequired ? "Select an invoice" : "Allocate across oldest legacy invoices"}</option>
+                    {openInvoices.filter(invoice => invoice.paymentEligible).map(invoice => (
+                      <option key={invoice.id} value={invoice.id}>
+                        {invoiceReference(invoice)} · {invoiceEntityLabel(invoice)} · Due {inr(invoice.outstandingAmount)}
                       </option>
                     ))}
                   </select>
+                  {allocationRequired && !openInvoices.some(invoice => invoice.paymentEligible) &&
+                    <small>Review invoice balances before recording a payment.</small>}
                 </div>
 
                 <div className="field" style={{ margin: 0 }}>
@@ -398,22 +451,37 @@ export default function Ledger() {
                 </div>
               </div>
 
+              {selectedInvoice && !selectedInvoice.sellingEntity && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+                  <div className="field">
+                    <label htmlFor="ledger-payment-jain">Jain Traders amount</label>
+                    <input id="ledger-payment-jain" type="number" min="0" step="0.01" max={selectedInvoice.entityBalances.jainTraders}
+                      value={jainAmount} onChange={e => setJainAmount(e.target.value)} required />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="ledger-payment-padam">Padam International amount</label>
+                    <input id="ledger-payment-padam" type="number" min="0" step="0.01" max={selectedInvoice.entityBalances.padamInternational}
+                      value={padamAmount} onChange={e => setPadamAmount(e.target.value)} required />
+                  </div>
+                </div>
+              )}
+
               <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                <button type="submit" disabled={busy || !current} className="primary" style={{ padding: "8px 20px" }}>
+                <button type="submit" disabled={busy || !current || (allocationRequired && !selectedInvoice)} className="primary" style={{ padding: "8px 20px" }}>
                   {busy ? "Recording & Settling…" : "✓ Confirm & Post Payment"}
                 </button>
               </div>
             </form>
           )}
 
-          {data.openInvoices && data.openInvoices.length > 0 && (
+          {openInvoices.length > 0 && (
             <div className="card" style={{ padding: 14, marginBottom: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                 <strong style={{ fontSize: 14, color: "#0f172a", display: "flex", alignItems: "center", gap: 6 }}>
-                  📑 Open / Unsettled Invoices ({data.openInvoices.length})
+                  📑 Open / Unsettled Invoices ({openInvoices.length})
                 </strong>
                 <span style={{ fontSize: 12, color: "#64748b" }}>
-                  Total Outstanding: <strong>{inr(data.openInvoices.reduce((s: number, i: any) => s + i.outstandingAmount, 0))}</strong>
+                  Total Outstanding: <strong>{inr(openInvoices.reduce((sum, invoice) => sum + invoice.outstandingAmount, 0))}</strong>
                 </span>
               </div>
               <table style={{ width: "100%", fontSize: 13 }}>
@@ -428,45 +496,40 @@ export default function Ledger() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.openInvoices.map((inv: any) => (
+                  {openInvoices.map(inv => (
                     <tr key={inv.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                      <td style={{ padding: "8px 10px", fontWeight: 600 }}>#{inv.invoiceNumber}</td>
+                      <td style={{ padding: "8px 10px", fontWeight: 600 }}>{invoiceReference(inv)}</td>
                       <td style={{ padding: "8px 10px" }}>
                         <span style={{
                           padding: "2px 6px",
                           borderRadius: 4,
                           fontSize: 11,
                           fontWeight: 700,
-                          background: inv.billingEntity === "Padam International" ? "#fef3c7" : "#e0f2fe",
-                          color: inv.billingEntity === "Padam International" ? "#92400e" : "#0369a1",
+                          background: inv.sellingEntity === "padam_international" ? "#fef3c7" : "#e0f2fe",
+                          color: inv.sellingEntity === "padam_international" ? "#92400e" : "#0369a1",
                         }}>
-                          {inv.billingEntity}
+                          {invoiceEntityLabel(inv)}
                         </span>
                       </td>
                       <td style={{ padding: "8px 10px", color: "#64748b", fontSize: 12 }}>
-                        {new Date(inv.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                        {new Date(inv.invoiceDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                       </td>
                       <td style={{ padding: "8px 10px", textAlign: "right" }}>{inr(inv.total)}</td>
                       <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 700, color: "#b91c1c" }}>
                         {inr(inv.outstandingAmount)}
                       </td>
                       <td style={{ padding: "8px 10px", textAlign: "center" }}>
-                        <button
+                        {inv.paymentEligible && <button
                           type="button"
                           className="button compact ghost"
                           style={{ fontSize: 11, padding: "3px 8px", height: "auto" }}
                           onClick={() => {
-                            setInvoiceScopeId(inv.id);
+                            selectInvoice(inv.id);
                             setAmount(String(inv.outstandingAmount));
-                            if (inv.billingEntity === "Padam International") {
-                              setBankAccount("Padam International - ICICI Bank A/C 001105001234");
-                            } else {
-                              setBankAccount("Jain Traders - HDFC Bank A/C 50200012345678");
-                            }
                           }}
                         >
                           Select Bill
-                        </button>
+                        </button>}
                       </td>
                     </tr>
                   ))}
@@ -554,7 +617,7 @@ export default function Ledger() {
                       </td>
                       <td className="muted small">
                         {e.invoice
-                          ? `Invoice #${e.invoice.invoiceNumber}`
+                          ? `Invoice ${invoiceReference(e.invoice)}`
                           : e.payment?.id ?? "—"}
                         <EntityAttribution value={e.entityBreakdown} expectedTotal={Number(e.amount)} compact />
                       </td>

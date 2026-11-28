@@ -1,6 +1,7 @@
 import {beforeEach,describe,it,expect,vi} from "vitest";
 import {render,screen,fireEvent,waitFor} from "@testing-library/react";
 import Commercial from "../Commercial";
+import { MemoryRouter } from "react-router-dom";
 
 const mocks=vi.hoisted(()=>({commercial:vi.fn(),commercialBalances:vi.fn(),commercialPayment:vi.fn(),permissions:["collection.confirm"]}));
 vi.mock("../../useAuth",()=>({useAuth:()=>({permissions:mocks.permissions})}));
@@ -12,7 +13,7 @@ beforeEach(()=>{
  mocks.commercialBalances.mockResolvedValue({invoiceId:invoice.id,jain:"3168.00",padam:"2040.00",total:"5208.00"});
  mocks.commercialPayment.mockResolvedValue({});
 });
-async function openInvoice(){render(<Commercial/>);fireEvent.click(await screen.findByText(/Invoice #42/));fireEvent.click(screen.getByText("Load this invoice’s balances"));await screen.findByText("Jain ₹3168.00 · Padam ₹2040.00");}
+async function openInvoice(){render(<MemoryRouter><Commercial/></MemoryRouter>);fireEvent.click(await screen.findByText(/Invoice #42/));fireEvent.click(screen.getByText("Load this invoice’s balances"));await screen.findByText("Jain ₹3168.00 · Padam ₹2040.00");}
 describe("Invoice-specific company allocation",()=>{
  it("keeps Accounts out of SKU/freight configuration and loads only the selected invoice",async()=>{
   await openInvoice();expect(screen.queryByText("Configure SKU")).toBeNull();expect(mocks.commercialBalances).toHaveBeenCalledWith(invoice.id);
@@ -35,5 +36,24 @@ describe("Invoice-specific company allocation",()=>{
   fireEvent.change(screen.getByLabelText("Reference"),{target:{value:"UAT-RECEIPT"}});
   fireEvent.click(screen.getByRole("checkbox"));fireEvent.click(screen.getByText("Confirm payment"));
   await waitFor(()=>expect(mocks.commercialPayment).toHaveBeenCalledWith(invoice.id,expect.any(String),expect.objectContaining({amount:"300",jainAmount:"100",padamAmount:"200",reference:"UAT-RECEIPT",confirmed:true})));
+ });
+ it("records the full payment on the selected firm with a zero opposite-firm allocation",async()=>{
+  const firmInvoice = { ...invoice, invoiceNumber: 43, firmInvoiceNumber: "PI-43", sellingEntity: "padam_international" };
+  mocks.commercial.mockResolvedValue({ variants: [], tiers: [], quotes: [], invoices: [firmInvoice] });
+  mocks.commercialBalances.mockResolvedValue({ invoiceId:invoice.id, jain:"0.00", padam:"5208.00", total:"5208.00" });
+  render(<MemoryRouter initialEntries={[`/commercial?invoiceId=${invoice.id}`]}><Commercial/></MemoryRouter>);
+  expect(await screen.findByText(/Padam International · PI-43/)).toBeInTheDocument();
+  expect(mocks.commercial).toHaveBeenCalledWith(invoice.id);
+  fireEvent.click(screen.getByText("Load this invoice’s balances"));
+  await screen.findByText("Padam International · Outstanding ₹5208.00");
+  expect(screen.queryByLabelText("Jain allocation")).toBeNull();
+  expect(screen.queryByLabelText("Padam allocation")).toBeNull();
+  fireEvent.change(screen.getByLabelText("Payment received"),{target:{value:"300"}});
+  fireEvent.change(screen.getByLabelText("Reference"),{target:{value:"PI-RECEIPT"}});
+  fireEvent.click(screen.getByRole("checkbox"));
+  fireEvent.click(screen.getByText("Confirm payment"));
+  await waitFor(()=>expect(mocks.commercialPayment).toHaveBeenCalledWith(
+   invoice.id, expect.any(String), expect.objectContaining({amount:"300",jainAmount:"0.00",padamAmount:"300"}),
+  ));
  });
 });

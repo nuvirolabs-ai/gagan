@@ -1,8 +1,17 @@
 import { useContext, useEffect, useMemo, useState } from "react";
 import { api, inr } from "../api";
 import { AuthContext } from "../auth-context";
+import { billingInvoiceLabel, type BillingInvoice } from "../invoiceDocument";
 
-type RecoveryCase = any;
+type RecoveryCase = {
+  id: string;
+  retailer: { name: string };
+  invoice: Pick<BillingInvoice, "invoiceNumber" | "firmInvoiceNumber" | "sellingEntity" | "outstandingAmount">;
+};
+
+function caseInvoiceLabel(invoice: RecoveryCase["invoice"]) {
+  return invoice.sellingEntity ? billingInvoiceLabel(invoice) : `Invoice #${invoice.invoiceNumber}`;
+}
 
 export default function Legal() {
   const [cases, setCases] = useState<RecoveryCase[]>([]);
@@ -77,11 +86,11 @@ export default function Legal() {
     {notice && <div className="alert success">{notice}</div>}
     <div className="approval-layout">
       <section className="card approval-list">
-        {cases.length === 0 ? <div className="empty-state">No open recovery cases.</div> : cases.map((item) => <button className={`approval-row ${selected?.id === item.id ? "selected" : ""}`} key={item.id} onClick={() => void choose(item)}><span><strong>{item.retailer.name}</strong><small>Invoice #{item.invoice.invoiceNumber} · {inr(Number(item.invoice.outstandingAmount))} open</small></span></button>)}
+        {cases.length === 0 ? <div className="empty-state">No open recovery cases.</div> : cases.map((item) => <button className={`approval-row ${selected?.id === item.id ? "selected" : ""}`} key={item.id} onClick={() => void choose(item)}><span><strong>{item.retailer.name}</strong><small>{caseInvoiceLabel(item.invoice)} · {inr(Number(item.invoice.outstandingAmount))} open</small></span></button>)}
       </section>
       <section className="card approval-detail">
         {!selected ? <div className="empty-state">Select a recovery case.</div> : <>
-          <h2>{selected.retailer.name}</h2><p className="muted">Invoice #{selected.invoice.invoiceNumber} · {inr(outstanding)} outstanding</p>
+          <h2>{selected.retailer.name}</h2><p className="muted">{caseInvoiceLabel(selected.invoice)} · {inr(outstanding)} outstanding</p>
           {!letter ? <button onClick={() => void generateLetter()}>Generate recovery letter</button> : <>
             <div className="reason-card"><strong>Recovery letter</strong><div className="muted small">Private PDF · <a href={letter.signedUrl} target="_blank" rel="noreferrer">Open signed copy</a></div></div>
             <button onClick={() => void deliverLetter()}>Record manual delivery</button>

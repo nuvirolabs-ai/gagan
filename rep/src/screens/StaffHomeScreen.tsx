@@ -16,6 +16,15 @@ import { toCollectionReceipt } from "./collectionEvidence";
 import { filterCollectionRetailers, type CollectionRetailer } from "./collectionRetailerSearch";
 
 type CollectionSubmission = { id: string; amount: number | string; method: string; status: string; retailer: { id: string; name: string; phone: string } };
+type CollectionInvoice = {
+  id: string;
+  invoiceNumber: number;
+  firmInvoiceNumber?: string | null;
+  sellingEntity?: "jain_traders" | "padam_international" | null;
+  jain: string;
+  padam: string;
+  total: string;
+};
 const methods = ["cash", "cheque", "neft", "upi"] as const;
 
 export default function StaffHomeScreen() {
@@ -31,7 +40,7 @@ export default function StaffHomeScreen() {
   const [retailerQuery, setRetailerQuery] = useState("");
   const [retailerPickerOpen, setRetailerPickerOpen] = useState(false);
   const [amount, setAmount] = useState("");
-  const [invoices,setInvoices]=useState<any[]>([]);
+  const [invoices,setInvoices]=useState<CollectionInvoice[]>([]);
   const [invoiceId,setInvoiceId]=useState("");
   const [jain,setJain]=useState("");const [padam,setPadam]=useState("");
   const [allocationConfirmed,setAllocationConfirmed]=useState(false);
@@ -80,6 +89,8 @@ export default function StaffHomeScreen() {
   useEffect(() => { void load(); }, [load]);
 
   const selectedRetailer = retailers.find((retailer) => retailer.id === selectedRetailerId);
+  const selectedInvoice = invoices.find(invoice => invoice.id === invoiceId);
+  const sellingEntity = selectedInvoice?.sellingEntity;
   const visibleRetailers = filterCollectionRetailers(retailers, retailerQuery);
   const chooseRetailer = (retailer: CollectionRetailer) => {
     if (saving) return;
@@ -91,10 +102,17 @@ export default function StaffHomeScreen() {
 
   const submit = async () => {
     if(submitting.current || !invoicesReady)return;
-    if(invoices.length && (!invoiceId || !allocationConfirmed)){Alert.alert("Confirm invoice allocation","Select the invoice and explicitly confirm its Jain and Padam amounts.");return;}
+    if (invoices.length && (!selectedInvoice || !allocationConfirmed)) {
+      Alert.alert("Confirm invoice allocation", "Select and confirm the invoice and collection amount.");
+      return;
+    }
     const parsedAmount = Number(amount);
     if (!selectedRetailerId || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       Alert.alert("Add collection details", "Choose a retailer and enter a valid amount.");
+      return;
+    }
+    if (sellingEntity && (!/^\d+(?:\.\d{1,2})?$/.test(amount.trim()) || parsedAmount > Number(selectedInvoice!.total))) {
+      Alert.alert("Amount outside invoice balance", "Enter an amount within the selected invoice balance, using up to two decimal places.");
       return;
     }
     if (reference.trim().length < 3 && !receipt) {
@@ -104,7 +122,20 @@ export default function StaffHomeScreen() {
     submitting.current=true;setSaving(true);
     try {
       collectionKey.current ??= `mobile-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      await repApi.submitCollection({ retailerId: selectedRetailerId, amount: parsedAmount, method, reference: reference.trim() || undefined, notes: notes.trim() || undefined, evidence: receipt ? { contentType: receipt.contentType, bodyBase64: receipt.bodyBase64 } : undefined, idempotencyKey: collectionKey.current,...(invoiceId?{invoiceScopeId:invoiceId,jainAmount:jain,padamAmount:padam}:{}) });
+      await repApi.submitCollection({
+        retailerId: selectedRetailerId,
+        amount: parsedAmount,
+        method,
+        reference: reference.trim() || undefined,
+        notes: notes.trim() || undefined,
+        evidence: receipt ? { contentType: receipt.contentType, bodyBase64: receipt.bodyBase64 } : undefined,
+        idempotencyKey: collectionKey.current,
+        ...(selectedInvoice && {
+          invoiceScopeId: selectedInvoice.id,
+          jainAmount: sellingEntity ? (sellingEntity === "jain_traders" ? parsedAmount.toFixed(2) : "0.00") : jain,
+          padamAmount: sellingEntity ? (sellingEntity === "padam_international" ? parsedAmount.toFixed(2) : "0.00") : padam,
+        }),
+      });
       collectionKey.current=null;setAllocationConfirmed(false);
       setAmount(""); setReference(""); setNotes(""); setReceipt(null);
       Alert.alert("Submitted", "Accounts will verify this collection before it affects the ledger.");
@@ -190,11 +221,36 @@ export default function StaffHomeScreen() {
             </ScrollView>
           </View> : null}
           <Text style={styles.label}>Amount (₹)</Text>
-          {invoices.map(i=><TouchableOpacity key={i.id} disabled={saving} style={styles.attachment} onPress={()=>{setInvoiceId(i.id);setJain("");setPadam("");setAllocationConfirmed(false);}}><Text>Invoice #{i.invoiceNumber} {invoiceId===i.id?"· Selected":""} · Jain ₹{i.jain} · Padam ₹{i.padam}</Text></TouchableOpacity>)}
-          {invoiceId ? <>
-            <Text style={styles.label}>Jain allocation (this invoice)</Text><TextInput editable={!saving} value={jain} onChangeText={v=>{setJain(v);setAllocationConfirmed(false);}} keyboardType="decimal-pad" style={styles.input}/>
-            <Text style={styles.label}>Padam allocation (this invoice)</Text><TextInput editable={!saving} value={padam} onChangeText={v=>{setPadam(v);setAllocationConfirmed(false);}} keyboardType="decimal-pad" style={styles.input}/>
-            <TouchableOpacity disabled={saving} style={styles.attachment} onPress={()=>{const i=invoices.find(i=>i.id===invoiceId);setAmount(i.total);setJain(i.jain);setPadam(i.padam);setAllocationConfirmed(false);}}><Text>Prefill full invoice payment</Text></TouchableOpacity>
+          {invoices.map(invoice => (
+            <TouchableOpacity key={invoice.id} disabled={saving} style={styles.attachment} onPress={() => {
+              setInvoiceId(invoice.id);
+              setAmount("");
+              setJain("");
+              setPadam("");
+              setAllocationConfirmed(false);
+            }}>
+              <Text>
+                Invoice {invoice.firmInvoiceNumber ?? invoice.invoiceNumber}
+                {invoiceId === invoice.id ? " · Selected" : ""}
+                {invoice.sellingEntity === "jain_traders"
+                  ? ` · ${t("finance.jainTraders")} ₹${invoice.jain}`
+                  : invoice.sellingEntity === "padam_international"
+                    ? ` · ${t("finance.padamInternational")} ₹${invoice.padam}`
+                    : ` · Jain ₹${invoice.jain} · Padam ₹${invoice.padam}`}
+              </Text>
+            </TouchableOpacity>
+          ))}
+          {selectedInvoice ? <>
+            {!sellingEntity ? <>
+              <Text style={styles.label}>Jain allocation (this invoice)</Text><TextInput editable={!saving} value={jain} onChangeText={v=>{setJain(v);setAllocationConfirmed(false);}} keyboardType="decimal-pad" style={styles.input}/>
+              <Text style={styles.label}>Padam allocation (this invoice)</Text><TextInput editable={!saving} value={padam} onChangeText={v=>{setPadam(v);setAllocationConfirmed(false);}} keyboardType="decimal-pad" style={styles.input}/>
+            </> : null}
+            <TouchableOpacity disabled={saving} style={styles.attachment} onPress={() => {
+              setAmount(selectedInvoice.total);
+              setJain(selectedInvoice.jain);
+              setPadam(selectedInvoice.padam);
+              setAllocationConfirmed(false);
+            }}><Text>Prefill full invoice payment</Text></TouchableOpacity>
             <TouchableOpacity disabled={saving} accessibilityRole="checkbox" accessibilityState={{checked:allocationConfirmed}} style={styles.attachment} onPress={()=>setAllocationConfirmed(!allocationConfirmed)}><Text>{allocationConfirmed?"Confirmed":"Tap to confirm"}: invoice and company allocation</Text></TouchableOpacity>
           </> : null}
           <TextInput value={amount} onChangeText={value=>{setAmount(value);setAllocationConfirmed(false);}} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={colors.inkFaint} style={styles.input} />

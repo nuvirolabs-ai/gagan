@@ -160,6 +160,9 @@ router.post("/admin/commercial-status/orders/:id/toggle-code", requireAdminIdent
   if (!order) return res.status(404).json({ error: "order_not_found" });
 
   const { code, active, reason } = body.data;
+  if (code === CommercialStatusCode.SALES_ORDER_CREATED) {
+    return res.status(409).json({ error: "sales_order_created_by_packing" });
+  }
 
   try {
     if (code === CommercialStatusCode.SALES_ORDER_ON_HOLD) {

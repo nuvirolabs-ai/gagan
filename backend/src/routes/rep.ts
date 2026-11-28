@@ -27,6 +27,7 @@ import { evaluateCoupon } from "../modules/promotions/couponService";
 import { Msg91Error, verifyMsg91AccessToken } from "../modules/identity/msg91Service";
 import { Permissions } from "../modules/identity/roleCatalog";
 import { calendarDateInZone } from "../modules/founder/period";
+import { orderBillingView, orderInvoiceDetailSelect, orderInvoiceOrderBy, orderInvoiceSummarySelect } from "../modules/invoicing/orderBillingView";
 
 const router = Router();
 const maxLedgerSequence = 9_223_372_036_854_775_807n;
@@ -820,7 +821,7 @@ router.get("/orders/:id", requireRep, async (req: RepRequest, res) => {
       retailer: { select: { id: true, name: true, phone: true, shopAddress: true } },
       items: { include: { variant: { include: { product: true } } } },
       delivery: true,
-      invoice: { select: { invoiceNumber: true, invoiceDate: true, dueDate: true, total: true, outstandingAmount: true, commercialSnapshot:true } },
+      invoices: { select: orderInvoiceDetailSelect, orderBy: orderInvoiceOrderBy },
       commercialStatusEvents: {
         orderBy: { createdAt: "desc" as const },
         take: 10,
@@ -841,6 +842,7 @@ router.get("/orders/:id", requireRep, async (req: RepRequest, res) => {
   res.json({
     order: {
       ...attributedOrder,
+      ...orderBillingView(order.invoices, order.retailerId),
       isOnHold: Boolean(order.isOnHold),
       commercialStatus: currentCode,
     },
@@ -864,7 +866,7 @@ router.get("/orders", requireRep, async (req: RepRequest, res) => {
       retailer: { select: { id: true, name: true, phone: true, shopAddress: true, deliveryCity: true } },
       items: { include: { variant: { include: { product: true } } } },
       delivery: true,
-      invoice: { select: { id: true, invoiceNumber: true, invoiceDate: true, total: true } },
+      invoices: { select: orderInvoiceSummarySelect, orderBy: orderInvoiceOrderBy },
       commercialStatusEvents: {
         orderBy: { createdAt: "desc" as const },
         take: 5,
@@ -878,6 +880,7 @@ router.get("/orders", requireRep, async (req: RepRequest, res) => {
   const attributed = await attributeOrders(orders);
   const enriched = attributed.map((order, index) => ({
     ...order,
+    ...orderBillingView(orders[index].invoices, orders[index].retailerId),
     isOnHold: Boolean(orders[index].isOnHold),
     commercialStatus: deriveCurrentCommercialStatus(orders[index].commercialStatusEvents ?? [], Boolean(orders[index].isOnHold), orders[index].status),
   }));
@@ -1005,7 +1008,7 @@ router.post("/orders/:id/request-cancellation", requireRep, async (req: RepReque
       retailer: { select: { id: true, name: true, phone: true, shopAddress: true, deliveryCity: true } },
       items: { include: { variant: { include: { product: true } } } },
       delivery: true,
-      invoice: { select: { id: true, invoiceNumber: true, invoiceDate: true, total: true } },
+      invoices: { select: orderInvoiceSummarySelect, orderBy: orderInvoiceOrderBy },
     },
   });
 
@@ -1024,7 +1027,7 @@ router.post("/orders/:id/request-cancellation", requireRep, async (req: RepReque
   });
 
   const [attributed] = await attributeOrders([updated]);
-  res.json({ ok: true, order: attributed });
+  res.json({ ok: true, order: { ...attributed, ...orderBillingView(updated.invoices, updated.retailerId) } });
 });
 
 const repOrderSchema = z.object({

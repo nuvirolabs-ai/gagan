@@ -1,6 +1,8 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api, inr } from "../api";
 import { useAuth } from "../useAuth";
+import { billingInvoiceLabel, firmNames, type BillingFirm, type BillingInvoice } from "../invoiceDocument";
 
 type Row = Record<string, any>;
 const entityName = (id: string) => id === "jain_traders" ? "Jain Traders" : "Padam International";
@@ -78,7 +80,17 @@ function Freight({ quote, reload }: { quote: Row; reload: () => Promise<void> })
   );
 }
 
-function Invoice({ invoice, reload }: { invoice: Row; reload: () => Promise<void> }) {
+function Invoice({
+  invoice, reload, selected, canRecordPayment,
+}: {
+  invoice: BillingInvoice & Row;
+  reload: () => Promise<void>;
+  selected: boolean;
+  canRecordPayment: boolean;
+}) {
+  const firm = invoice.sellingEntity as BillingFirm | null | undefined;
+  const firmName = firm ? firmNames[firm] : null;
+  const canPay = canRecordPayment && invoice.status !== "voided" && Number(invoice.outstandingAmount) > 0;
   const [confirmed, setConfirmed] = useState(false);
   const [challenge, setChallenge] = useState("");
   const [otp, setOtp] = useState("");
@@ -91,9 +103,9 @@ function Invoice({ invoice, reload }: { invoice: Row; reload: () => Promise<void
   const [amount, setAmount] = useState("");
 
   return (
-    <details>
+    <details open={selected || undefined}>
       <summary style={{ cursor: "pointer", fontWeight: 600 }}>
-        Invoice #{invoice.invoiceNumber} · {invoice.retailer?.name ?? "Retailer"} · 👤 Salesperson: {invoice.salespersonName || invoice.retailer?.salesRep?.name || "Direct"} · 🏢 {invoice.warehouseName || (invoice.warehouseCode === "WH-002" ? "Bhopal Regional Hub" : "Indore Central Hub")} ({invoice.warehouseCode || "WH-001"}) · ₹{invoice.total} · Outstanding ₹{invoice.outstandingAmount}
+        {firmName ? billingInvoiceLabel(invoice) : `Invoice #${invoice.invoiceNumber}`} · {invoice.retailer?.name ?? "Retailer"} · 👤 Salesperson: {invoice.salespersonName || invoice.retailer?.salesRep?.name || "Direct"} · 🏢 {invoice.warehouseName || (invoice.warehouseCode === "WH-002" ? "Bhopal Regional Hub" : "Indore Central Hub")} ({invoice.warehouseCode || "WH-001"}) · ₹{invoice.total} · Outstanding ₹{invoice.outstandingAmount}
       </summary>
       <div style={{ display: "flex", gap: 10, margin: "8px 0 12px", flexWrap: "wrap" }}>
         <span style={{ padding: "3px 8px", background: "#e0f2fe", borderRadius: 4, fontSize: 12, color: "#0369a1", fontWeight: 600 }}>
@@ -103,10 +115,12 @@ function Invoice({ invoice, reload }: { invoice: Row; reload: () => Promise<void
           🏢 Origin Warehouse: {invoice.warehouseName || "Indore Central Fulfillment Hub"} ({invoice.warehouseCode || "WH-001"})
         </span>
       </div>
-      <Breakdown value={invoice.commercialSnapshot} />
-      <button onClick={() => api.requestAdminStepUp().then((r: any) => setChallenge(r.challengeId)).catch((e: any) => setError(String(e)))}>
-        Verify payment permission
-      </button>
+      {Array.isArray(invoice.commercialSnapshot?.lines) && <Breakdown value={invoice.commercialSnapshot} />}
+      {canPay && (
+        <>
+          <button onClick={() => api.requestAdminStepUp().then((r: any) => setChallenge(r.challengeId)).catch((e: any) => setError(String(e)))}>
+            Verify payment permission
+          </button>
       {challenge && (
         <div>
           <label>Verification code<input value={otp} onChange={(e) => setOtp(e.target.value)} inputMode="numeric" maxLength={6} /></label>
@@ -120,7 +134,7 @@ function Invoice({ invoice, reload }: { invoice: Row; reload: () => Promise<void
       </button>
       {balances && (
         <>
-          <p>Jain ₹{balances.jain} · Padam ₹{balances.padam}</p>
+          <p>{firmName ? `${firmName} · Outstanding ₹${balances.total}` : `Jain ₹${balances.jain} · Padam ₹${balances.padam}`}</p>
           <button disabled={busy} onClick={() => { setJain(balances.jain); setPadam(balances.padam); setAmount(balances.total); setConfirmed(false); }}>
             Prefill full payment (confirmation still required)
           </button>
@@ -131,7 +145,13 @@ function Invoice({ invoice, reload }: { invoice: Row; reload: () => Promise<void
             setError("");
             const data = Object.fromEntries(new FormData(e.currentTarget));
             try {
-              await api.commercialPayment(invoice.id, key.current, { ...data, amount, jainAmount: jain, padamAmount: padam, confirmed: true });
+              await api.commercialPayment(invoice.id, key.current, {
+                ...data,
+                amount,
+                jainAmount: firm ? (firm === "jain_traders" ? amount : "0.00") : jain,
+                padamAmount: firm ? (firm === "padam_international" ? amount : "0.00") : padam,
+                confirmed: true,
+              });
               key.current = crypto.randomUUID();
               setBalances(await api.commercialBalances(invoice.id));
               setAmount("");
@@ -145,8 +165,12 @@ function Invoice({ invoice, reload }: { invoice: Row; reload: () => Promise<void
             }
           }}>
             <label>Payment received<input type="number" min="0.01" step="0.01" value={amount} onChange={(e) => { setAmount(e.target.value); setConfirmed(false); }} required /></label>
-            <label>Jain allocation<input type="number" min="0.01" step="0.01" value={jain} onChange={(e) => { setJain(e.target.value); setConfirmed(false); }} required /></label>
-            <label>Padam allocation<input type="number" min="0.01" step="0.01" value={padam} onChange={(e) => { setPadam(e.target.value); setConfirmed(false); }} required /></label>
+            {!firm && (
+              <>
+                <label>Jain allocation<input type="number" min="0" step="0.01" value={jain} onChange={(e) => { setJain(e.target.value); setConfirmed(false); }} required /></label>
+                <label>Padam allocation<input type="number" min="0" step="0.01" value={padam} onChange={(e) => { setPadam(e.target.value); setConfirmed(false); }} required /></label>
+              </>
+            )}
             <label>Method
               <select name="method">
                 <option value="cash">Cash</option>
@@ -157,14 +181,16 @@ function Invoice({ invoice, reload }: { invoice: Row; reload: () => Promise<void
             </label>
             <label>Reference<input name="reference" required /></label>
             <label>
-              <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} required /> I confirm receipt and this invoice’s company allocations.
+              <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} required /> {firmName ? `I confirm receipt for ${firmName} and this billing record.` : "I confirm receipt and this invoice’s company allocations."}
             </label>
             <button disabled={busy || !confirmed}>Confirm payment</button>
           </form>
         </>
       )}
+        </>
+      )}
       <p role="alert">{error}</p>
-      {invoice.allocations.map((a: Row) => (
+      {(invoice.allocations ?? []).map((a: Row) => (
         <p key={a.id}>
           Payment {a.paymentId} · Jain ₹{a.jainAmount} · Padam ₹{a.padamAmount} · {a.payment.confirmedMethod} · {a.payment.confirmedReference} · {a.createdAt}
         </p>
@@ -176,6 +202,9 @@ function Invoice({ invoice, reload }: { invoice: Row; reload: () => Promise<void
 export default function Commercial() {
   const { permissions } = useAuth();
   const canConfigure = permissions.includes("staff.manage");
+  const canRecordPayment = permissions.includes("collection.confirm");
+  const [searchParams] = useSearchParams();
+  const selectedInvoiceId = searchParams.get("invoiceId") || undefined;
   const [tab, setTab] = useState<"invoices" | "tiers" | "tax" | "schemes">("invoices");
 
   // Invoices & SKUs data
@@ -252,9 +281,9 @@ export default function Commercial() {
     endsAt: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
   });
 
-  const reloadCommercial = async () => {
-    setData(await api.commercial());
-  };
+  const reloadCommercial = useCallback(async () => {
+    setData(await (selectedInvoiceId ? api.commercial(selectedInvoiceId) : api.commercial()));
+  }, [selectedInvoiceId]);
 
   const loadTiers = async () => {
     setTiersLoading(true);
@@ -301,8 +330,16 @@ export default function Commercial() {
   };
 
   useEffect(() => {
-    void reloadCommercial().catch((e) => setError(String(e)));
-  }, []);
+    let active = true;
+    const request = selectedInvoiceId ? api.commercial(selectedInvoiceId) : api.commercial();
+    setData(null);
+    void request.then(result => {
+      if (active) setData(result);
+    }).catch(cause => {
+      if (active) setError(String(cause));
+    });
+    return () => { active = false; };
+  }, [selectedInvoiceId]);
 
   useEffect(() => {
     if (tab === "tiers") {
@@ -645,8 +682,17 @@ export default function Commercial() {
               {data.quotes.map((q: Row) => <Freight key={q.id} quote={q} reload={reloadCommercial} />)}
             </>
           )}
-          <h2>Combined invoices & payments</h2>
-          {data.invoices.map((i: Row) => <Invoice key={i.id} invoice={i} reload={reloadCommercial} />)}
+          <h2>Invoices and payments</h2>
+          {selectedInvoiceId && data.invoices.length === 0 && <p>The selected invoice is unavailable.</p>}
+          {data.invoices.map((invoice: BillingInvoice & Row) => (
+            <Invoice
+              key={invoice.id}
+              invoice={invoice}
+              reload={reloadCommercial}
+              selected={invoice.id === selectedInvoiceId}
+              canRecordPayment={canRecordPayment}
+            />
+          ))}
         </>
       )}
 

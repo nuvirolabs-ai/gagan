@@ -3,6 +3,8 @@ import { api, inr } from "../api";
 import { Icon, SectionLabel } from "../components/OperationalPrimitives";
 import { formatOrderRef } from "../orderRef";
 import { detectDuplicateOrders, orderBillingEntity } from "./Orders";
+import { explain } from "../errorCopy";
+import { acceptedFreight, billingInvoiceLabel, billingInvoiceReference, deliveryScope, firmNames, type BillingInvoice } from "../invoiceDocument";
 
 type QueueFilter = "all" | "confirmed" | "packed" | "out_for_delivery" | "delivered";
 
@@ -25,6 +27,18 @@ type WarehouseOrder = {
   remarks?: string | null;
   transportName?: string | null;
   commercialSnapshot?: any;
+  companySalesOrders?: Array<{
+    id: string;
+    company: "jain_traders" | "padam_international";
+    reference: string;
+    deliveryCity: string;
+    deliveryAddress: string;
+    routeId: string | null;
+    deliveredAt: string | null;
+    deliveryResolvedAt?: string | null;
+    sapSalesOrderId: string | null;
+    sapSyncStatus: string;
+  }>;
   isNewRetailer?: boolean;
   placedBy?: string | null;
   commercialStatusEvents?: Array<{ code: string; createdAt: string }>;
@@ -47,6 +61,7 @@ type WarehouseOrder = {
   } | null;
   items: Array<{
     id: string;
+    companySalesOrderId?: string | null;
     qtyOrdered: number;
     unitPrice?: number;
     caseWeightKg?: number;
@@ -67,23 +82,8 @@ type WarehouseOrder = {
       product: { name: string; category?: string } | null;
     } | null;
   }>;
-  invoice?: {
-    id: string;
-    invoiceNumber: number;
-    invoiceDate: string;
-    dueDate: string;
-    subtotal: number;
-    taxTotal: number;
-    total: number;
-    outstandingAmount: number;
-    lines: Array<{
-      id: string;
-      description: string;
-      cases?: number | null;
-      unitPrice: number;
-      lineTotal: number;
-    }>;
-  } | null;
+  invoice?: BillingInvoice | null;
+  invoices?: BillingInvoice[];
   placedByRepId?: string | null;
   creatorName?: string | null;
   salespersonName?: string | null;
@@ -95,6 +95,12 @@ type WarehouseOrder = {
   warehouseName?: string;
   warehouseCity?: string;
 };
+
+const companyNames = firmNames;
+
+function issuedInvoices(order: WarehouseOrder) {
+  return order.invoices ?? (order.invoice ? [order.invoice] : []);
+}
 
 type FleetVehicle = {
   id: string;
@@ -401,6 +407,7 @@ export default function WarehouseOrders() {
   const [routePresets, setRoutePresets] = useState<string[]>(DEFAULT_ROUTE_PRESETS);
   const [warehouseCity, setWarehouseCity] = useState("Indore");
   const [dispatchRouteId, setDispatchRouteId] = useState("ROUTE-INDORE-CENTRAL");
+  const [companyRoutes, setCompanyRoutes] = useState<Record<string, string>>({});
   const [dispatchSlot, setDispatchSlot] = useState("");
 
   useEffect(() => {
@@ -420,12 +427,11 @@ export default function WarehouseOrders() {
   }, []);
 
   // POD Delivery fields inside modal
+  const [podCompanyId, setPodCompanyId] = useState("");
   const [podType, setPodType] = useState<"photo" | "otp" | "signature">("photo");
   const [deliveredLines, setDeliveredLines] = useState<Array<{ orderItemId: string; cases: number }>>([]);
   const [transportationAmount, setTransportationAmount] = useState<number>(0);
   const [downloadingInvoice, setDownloadingInvoice] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [uploadedInvoiceName, setUploadedInvoiceName] = useState<string | null>(null);
   const inFlightRef = useRef(false);
   const requestSeqRef = useRef(0);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date>(new Date());
@@ -723,7 +729,7 @@ export default function WarehouseOrders() {
           o.creatorName,
           o.transportName,
           o.remarks,
-          o.invoice?.invoiceNumber ? String(o.invoice.invoiceNumber) : "",
+          ...issuedInvoices(o).map(invoice => billingInvoiceLabel(invoice)),
           ...(o.items ?? []).map((it: any) => it.variant?.product?.name || ""),
         ].filter(Boolean).join(" ").toLowerCase();
 
@@ -733,8 +739,8 @@ export default function WarehouseOrders() {
 
     // Sorting by value or date
     return [...result].sort((a, b) => {
-      const valA = Number(a.orderTotal ?? a.invoice?.total ?? 0);
-      const valB = Number(b.orderTotal ?? b.invoice?.total ?? 0);
+      const valA = Number(a.orderTotal ?? 0);
+      const valB = Number(b.orderTotal ?? 0);
       const dateA = new Date(a.createdAt).getTime();
       const dateB = new Date(b.createdAt).getTime();
 
@@ -750,11 +756,12 @@ export default function WarehouseOrders() {
     setModalOrder(order);
     const initialRoute = order.delivery?.routeId || suggestRouteForRetailer(order.retailer, routePresets);
     setDispatchRouteId(initialRoute);
+    setCompanyRoutes(Object.fromEntries((order.companySalesOrders ?? []).map(document => [document.id, document.routeId ?? ""])));
     setDispatchSlot("");
     setPodType("photo");
+    setPodCompanyId("");
     setTransportationAmount(0);
     setDownloadingInvoice(false);
-    setUploadedInvoiceName(null);
     setDeliveredLines(order.items.map((i) => ({ orderItemId: i.id, cases: i.qtyOrdered })));
     setShowRejectModal(false);
     setRejectReason("");
@@ -782,36 +789,27 @@ export default function WarehouseOrders() {
     setModalOrder(null);
   }, [busy]);
 
-  const deliveredTotalCases = useMemo(() => {
-    if (!modalOrder) return 0;
-    return modalOrder.items.reduce((sum, item) => {
-      const lineVal = deliveredLines.find((l) => l.orderItemId === item.id)?.cases ?? item.qtyOrdered;
-      return sum + lineVal;
-    }, 0);
-  }, [modalOrder, deliveredLines]);
-
-  const goodsSubtotal = useMemo(() => {
-    if (!modalOrder) return 0;
-    return modalOrder.items.reduce((sum, item) => {
-      const lineVal = deliveredLines.find((l) => l.orderItemId === item.id)?.cases ?? item.qtyOrdered;
-      return sum + lineVal * (item.unitPrice || 0);
-    }, 0);
-  }, [modalOrder, deliveredLines]);
-
-  const calculatedInvoiceTotal = useMemo(() => {
-    return Math.max(0, goodsSubtotal + (Number(transportationAmount) || 0));
-  }, [goodsSubtotal, transportationAmount]);
-
+  const freight = acceptedFreight(modalOrder?.commercialSnapshot);
+  const deliveryCompanies = modalOrder?.companySalesOrders ?? [];
+  const companyBilling = deliveryCompanies.length > 0;
+  const {
+    pending: unresolvedCompanies, company: selectedPodCompany,
+    canDeliverTogether: allowCombinedDelivery, chosen: hasPodScope,
+  } = deliveryScope(deliveryCompanies, podCompanyId);
+  const podItems = hasPodScope ? (modalOrder?.items ?? []).filter(item =>
+    !selectedPodCompany || item.companySalesOrderId === selectedPodCompany.id
+  ) : [];
+  const allowTransportEntry = hasPodScope && (!modalOrder?.commercialSnapshot || (Boolean(freight)
+    && (!selectedPodCompany || freight?.entity === selectedPodCompany.company)));
   void warehouseCity;
-  void deliveredTotalCases;
-  void calculatedInvoiceTotal;
 
-  const handleDownloadInvoice = async (orderId: string, invoiceNumber?: number) => {
+  const handleDownloadInvoice = async (orderId: string, invoice: BillingInvoice) => {
     setDownloadingInvoice(true);
+    setError(null);
     try {
-      await api.downloadWarehouseOrderInvoicePdf(orderId, invoiceNumber);
+      await api.downloadWarehouseOrderInvoicePdf(orderId, invoice.id, billingInvoiceReference(invoice));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to download invoice PDF");
+      setError(explain(err, "Failed to download billing record"));
     } finally {
       setDownloadingInvoice(false);
     }
@@ -868,14 +866,13 @@ export default function WarehouseOrders() {
     setError(null);
     setNotice(null);
     try {
-      await api.toggleCommercialStatus(modalOrder.id, "SALES_ORDER_CREATED", true).catch(() => null);
       const result = await api.packWarehouseOrder(modalOrder.id);
       const packedOrder = (result.order as WarehouseOrder) || { ...modalOrder, status: "packed", commercialStatus: "SALES_ORDER_CREATED" };
       setModalOrder(packedOrder);
       setNotice("✓ Sales Order Created & Marked as Packed");
       await load(warehouseFilter, false);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not create sales order");
+      setError(explain(cause, "Could not create sales order"));
     } finally {
       setBusy(false);
     }
@@ -912,9 +909,13 @@ export default function WarehouseOrders() {
     setNotice(null);
     try {
       const routeToUse = dispatchRouteId.trim() || modalOrder.transportName || routePresets[0] || "Standard Delivery Route";
+      const documents = modalOrder.companySalesOrders ?? [];
+      const assignment = documents.length
+        ? documents.map(document => ({ companySalesOrderId: document.id, routeId: companyRoutes[document.id]?.trim() ?? "" }))
+        : routeToUse;
       const result = await api.dispatchWarehouseOrder(
         modalOrder.id,
-        routeToUse,
+        assignment,
         dispatchSlot ? new Date(dispatchSlot).toISOString() : undefined
       );
       const dispatchedOrder = (result.order as WarehouseOrder) || {
@@ -926,7 +927,7 @@ export default function WarehouseOrders() {
       setNotice(`🚚 ${formatOrderRef(modalOrder)} sent out for delivery!`);
       await load();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not dispatch order");
+      setError(explain(cause, "Could not dispatch order"));
     } finally {
       setBusy(false);
     }
@@ -934,23 +935,32 @@ export default function WarehouseOrders() {
 
   // Action: Confirm Delivery inside modal
   const handleConfirmDelivery = async () => {
-    if (!modalOrder || modalOrder.status !== "out_for_delivery") return;
+    if (!modalOrder || modalOrder.status !== "out_for_delivery" || !hasPodScope || !podItems.length) return;
     setBusy(true);
     setError(null);
     setNotice(null);
     try {
-      const itemsPayload = deliveredLines.map((line) => ({
+      const podItemIds = new Set(podItems.map(item => item.id));
+      const itemsPayload = deliveredLines.filter(line => podItemIds.has(line.orderItemId)).map((line) => ({
         orderItemId: line.orderItemId,
         qtyDelivered: line.cases,
       }));
-      const transportAmt = Number(transportationAmount) || 0;
-      const result = await api.deliverWarehouseOrder(modalOrder.id, podType, itemsPayload, transportAmt);
+      const transportAmt = allowTransportEntry && transportationAmount > 0 ? transportationAmount : undefined;
+      const result = await api.deliverWarehouseOrder(
+        modalOrder.id, podType, itemsPayload, transportAmt,
+        transportAmt && companyBilling ? freight?.entity : undefined,
+        selectedPodCompany?.id,
+      );
       const deliveredOrder = (result.order as WarehouseOrder) || { ...modalOrder, status: "delivered" };
       setModalOrder(deliveredOrder);
-      setNotice(`✅ Delivery confirmed & invoice generated for ${formatOrderRef(modalOrder)}!`);
+      setPodCompanyId("");
+      setTransportationAmount(0);
+      setNotice(selectedPodCompany
+        ? `Delivery recorded for ${selectedPodCompany.reference} · ${firmNames[selectedPodCompany.company]}.`
+        : `Delivery confirmed for ${formatOrderRef(modalOrder)}.`);
       await load();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not record delivery");
+      setError(explain(cause, "Could not record delivery"));
     } finally {
       setBusy(false);
     }
@@ -1920,11 +1930,11 @@ export default function WarehouseOrders() {
                   >
                     <span className="td-ref">
                       <strong>{formatOrderRef(order)}</strong>
-                      {order.invoice?.invoiceNumber ? (
-                        <div style={{ fontSize: 11, fontWeight: 700, color: "#15803d", marginTop: 2 }}>
-                          🧾 INV-{order.invoice.invoiceNumber}
+                      {issuedInvoices(order).map(invoice => (
+                        <div key={invoice.id} style={{ fontSize: 11, fontWeight: 700, color: "#15803d", marginTop: 2 }}>
+                          {billingInvoiceLabel(invoice)}
                         </div>
-                      ) : null}
+                      ))}
                       {ent.code !== "jain_traders" && (
                         <div style={{ marginTop: 4 }}>
                           <span
@@ -2024,7 +2034,7 @@ export default function WarehouseOrders() {
                         {order.items.length} {order.items.length === 1 ? "product" : "products"} · {totalCases} cases
                       </strong>
                       <div style={{ color: "#15803d", fontWeight: 700, fontSize: 13, marginTop: 2 }}>
-                        {inr(order.orderTotal || order.invoice?.total || order.items.reduce((sum, item) => sum + (item.qtyOrdered * (item.unitPrice || 0)), 0))}
+                        {inr((issuedInvoices(order).length ? issuedInvoices(order).reduce((sum, invoice) => sum + Number(invoice.total), 0) : order.orderTotal) || order.items.reduce((sum, item) => sum + (item.qtyOrdered * (item.unitPrice || 0)), 0))}
                       </div>
                     </span>
                     <span className="td-time">
@@ -2040,31 +2050,6 @@ export default function WarehouseOrders() {
                     </span>
                     <span className="td-action">
                       <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "flex-end" }}>
-                        {order.status === "delivered" && (
-                          <span
-                            role="button"
-                            tabIndex={0}
-                            className="button secondary compact"
-                            style={{
-                              fontSize: 11,
-                              padding: "4px 8px",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 4,
-                              background: "#ecfdf5",
-                              borderColor: "#a7f3d0",
-                              color: "#065f46",
-                              fontWeight: 600,
-                            }}
-                            title="Download Invoice PDF"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void handleDownloadInvoice(order.id, order.invoice?.invoiceNumber);
-                            }}
-                          >
-                            📄 Invoice
-                          </span>
-                        )}
                         <span className="warehouse-view-cta">
                           Open <Icon name="arrow" size={13} />
                         </span>
@@ -2711,11 +2696,11 @@ export default function WarehouseOrders() {
                           fontWeight: 700,
                         }}
                       >
-                        City : {modalOrder.retailer?.deliveryCity || (modalOrder.retailer as any)?.city || "Indore MP"}
+                        City : {modalOrder.companySalesOrders?.[0]?.deliveryCity || modalOrder.retailer?.deliveryCity || (modalOrder.retailer as any)?.city || "City unconfirmed"}
                       </span>
                     </div>
                     <div style={{ fontSize: 13, color: "#4b5563", marginBottom: 2 }}>
-                      📍 {modalOrder.retailer?.shopAddress ?? "Shop address not provided"}
+                      📍 {modalOrder.companySalesOrders?.[0]?.deliveryAddress ?? modalOrder.retailer?.shopAddress ?? "Shop address not provided"}
                     </div>
                     {modalOrder.retailer?.phone ? (
                       <div style={{ fontSize: 13, color: "#4b5563" }}>
@@ -2932,6 +2917,7 @@ export default function WarehouseOrders() {
                   </div>
                   <div className="warehouse-modal-items-body">
                     {modalOrder.items.map((item) => {
+                      const companyOrder = modalOrder.companySalesOrders?.find(document => document.id === item.companySalesOrderId);
                       const isFree = item.commercialSnapshot?.isFreeItem || (item.unitPrice === 0 && item.commercialSnapshot?.scheme);
                       const unitRate = item.unitPrice ?? 0;
                       const lineTotal = isFree ? 0 : item.qtyOrdered * unitRate;
@@ -2976,6 +2962,7 @@ export default function WarehouseOrders() {
                           <strong className="item-product-name" style={isFree ? { color: "#065f46" } : undefined}>
                             {isFree ? "🎁 [FREE SCHEME] " : ""}
                             {item.variant?.product?.name ?? "Product unavailable"}
+                            {companyOrder && <small className="muted" style={{ display: "block" }}>{companyNames[companyOrder.company]}</small>}
                           </strong>
                           <span className="item-presentation" style={{ fontWeight: 600 }}>
                             {packagingSize}
@@ -3292,6 +3279,23 @@ export default function WarehouseOrders() {
                   </div>
                 )}
 
+                {Boolean(modalOrder.companySalesOrders?.length) && (
+                  <section aria-label="Company sales orders">
+                    <h3>Company sales orders</h3>
+                    <ul>
+                      {modalOrder.companySalesOrders?.map(document => (
+                        <li key={document.id}>
+                          <strong>{companyNames[document.company]}</strong> · {document.reference}
+                          {" · "}{modalOrder.items.filter(item => item.companySalesOrderId === document.id).length} lines
+                          {document.routeId ? ` · Route ${document.routeId}` : ""}
+                          {document.sapSalesOrderId ? ` · SAP ${document.sapSalesOrderId}` : ""}
+                          {document.sapSyncStatus === "failed" || document.sapSyncStatus === "reconciliation_required" ? " · SAP needs review" : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+
                 {/* 2. Packed -> Step 2: Material Dispatched */}
                 {modalOrder.status === "packed" && (
                   <div
@@ -3308,6 +3312,21 @@ export default function WarehouseOrders() {
                       </strong>
                     </div>
 
+                    {modalOrder.companySalesOrders?.map(document => (
+                      <label key={document.id} style={{ display: "block", marginBottom: 12 }}>
+                        <span>{companyNames[document.company]} dispatch route</span>
+                        <input
+                          className="input"
+                          value={companyRoutes[document.id] ?? ""}
+                          list="company-dispatch-route-options"
+                          onChange={event => setCompanyRoutes({ ...companyRoutes, [document.id]: event.target.value })}
+                          required
+                        />
+                      </label>
+                    ))}
+                    <datalist id="company-dispatch-route-options">
+                      {routePresets.map(route => <option key={route} value={route} />)}
+                    </datalist>
                     <button
                       type="button"
                       style={{
@@ -3327,7 +3346,7 @@ export default function WarehouseOrders() {
                         boxShadow: "0 2px 4px rgba(29, 78, 216, 0.25)",
                       }}
                       onClick={() => void handleConfirmDispatch()}
-                      disabled={busy || modalDetailLoading}
+                      disabled={busy || modalDetailLoading || modalOrder.companySalesOrders?.some(document => !companyRoutes[document.id]?.trim())}
                     >
                       <span style={{ fontSize: 16 }}>➔ 🚚 Material Dispatched</span>
                     </button>
@@ -3353,6 +3372,27 @@ export default function WarehouseOrders() {
                       </p>
                     </div>
 
+                    {companyBilling && (
+                      <label className="field" style={{ display: "block", marginBottom: 14 }}>
+                        Company sales order delivered
+                        <select
+                          className="input"
+                          value={selectedPodCompany?.id ?? podCompanyId}
+                          onChange={event => {
+                            setPodCompanyId(event.target.value);
+                            setTransportationAmount(0);
+                          }}
+                        >
+                          <option value="">Select a company sales order</option>
+                          {allowCombinedDelivery && <option value="all">All companies on this route</option>}
+                          {unresolvedCompanies.map(company => (
+                            <option key={company.id} value={company.id}>
+                              {firmNames[company.company]} · {company.reference}{company.routeId ? ` · Route ${company.routeId}` : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
                     <div style={{ marginBottom: 14 }}>
                       <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
                         POD Verification Method
@@ -3386,7 +3426,7 @@ export default function WarehouseOrders() {
                         Delivered Cases Checklist
                       </label>
                       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                        {modalOrder.items.map((item) => {
+                        {podItems.map((item) => {
                           const lineVal = deliveredLines.find((l) => l.orderItemId === item.id)?.cases ?? item.qtyOrdered;
                           const isBox = (item.outerPack === "Box") || (item.variant as any)?.catalogIdentityMasterPack?.toUpperCase()?.includes("BOX");
                           const unitLabel = isBox ? "Box" : "Bag";
@@ -3435,46 +3475,21 @@ export default function WarehouseOrders() {
                       </div>
                     </div>
 
-                    {/* Hidden file input for Upload Invoice */}
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      style={{ display: "none" }}
-                      accept="image/*,application/pdf"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          setUploadedInvoiceName(file.name);
-                          setNotice(`📄 Invoice "${file.name}" attached successfully!`);
-                        }
-                      }}
-                    />
-
-                    {/* Two Stacked Action Buttons */}
+                    {allowTransportEntry && (
+                      <label className="field" style={{ display: "block", marginBottom: 12 }}>
+                        {companyBilling ? `${freight ? firmNames[freight.entity] : ""} freight before GST` : "Transport charge"}
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          className="input"
+                          value={transportationAmount || ""}
+                          onChange={event => setTransportationAmount(Number(event.target.value))}
+                        />
+                        {freight && companyBilling && <small>Leave blank to keep the accepted freight. GST {freight.gstPercent}%.</small>}
+                      </label>
+                    )}
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      <button
-                        type="button"
-                        style={{
-                          background: "#8c4d1d",
-                          border: "none",
-                          color: "#ffffff",
-                          padding: "11px 20px",
-                          fontSize: 14,
-                          fontWeight: 700,
-                          width: "100%",
-                          borderRadius: 6,
-                          cursor: "pointer",
-                          display: "flex",
-                          justifyContent: "center",
-                          alignItems: "center",
-                          gap: 6,
-                          boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
-                        }}
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        <span>{uploadedInvoiceName ? `✓ Invoice Attached: ${uploadedInvoiceName}` : "Upload Invoice"}</span>
-                      </button>
-
                       <button
                         type="button"
                         style={{
@@ -3494,7 +3509,7 @@ export default function WarehouseOrders() {
                           boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
                         }}
                         onClick={() => void handleConfirmDelivery()}
-                        disabled={busy || modalDetailLoading}
+                        disabled={busy || modalDetailLoading || !hasPodScope || !podItems.length}
                       >
                         <span style={{ fontSize: 16 }}>✓</span>
                         <span>{busy ? "Completing…" : "Complete Delivery"}</span>
@@ -3503,8 +3518,7 @@ export default function WarehouseOrders() {
                   </div>
                 )}
 
-                {/* 4. Delivered -> Step 4: Fulfillment Completed & Invoiced */}
-                {modalOrder.status === "delivered" && (
+                {(modalOrder.status === "delivered" || issuedInvoices(modalOrder).length > 0) && (
                   <div
                     style={{
                       background: "#ecfdf5",
@@ -3515,37 +3529,25 @@ export default function WarehouseOrders() {
                     }}
                   >
                     <div style={{ fontSize: 16, fontWeight: 700, color: "#065f46", marginBottom: 6 }}>
-                      ✅ Fulfillment Completed & Invoiced
+                      {modalOrder.status === "delivered" ? "Fulfillment complete" : "Issued billing records"}
                     </div>
-                    <p style={{ margin: "0 auto 18px", fontSize: 12.5, color: "#047857", maxWidth: 440 }}>
-                      This order has been verified, delivered to the retailer, and the tax invoice has been generated.
-                    </p>
-
-                    <div style={{ display: "flex", justifyContent: "center" }}>
-                      <button
-                        type="button"
-                        style={{
-                          background: "#165a31",
-                          border: "none",
-                          color: "#ffffff",
-                          padding: "10px 22px",
-                          fontSize: 13.5,
-                          fontWeight: 700,
-                          borderRadius: 6,
-                          cursor: "pointer",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 8,
-                          boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
-                        }}
-                        onClick={() => void handleDownloadInvoice(modalOrder.id, modalOrder.invoice?.invoiceNumber)}
-                        disabled={downloadingInvoice}
-                      >
-                        <span style={{ fontSize: 14 }}>➔</span>
-                        <span>📄 Download Invoice (PDF)</span>
-                      </button>
-                    </div>
+                    {issuedInvoices(modalOrder).length === 0 ? (
+                      <p>No invoice is recorded for this delivery.</p>
+                    ) : (
+                      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 10 }}>
+                        {issuedInvoices(modalOrder).map(invoice => (
+                          <button
+                            key={invoice.id}
+                            type="button"
+                            className="button secondary"
+                            onClick={() => void handleDownloadInvoice(modalOrder.id, invoice)}
+                            disabled={downloadingInvoice}
+                          >
+                            Download {billingInvoiceLabel(invoice)} · {inr(Number(invoice.total))}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -3860,7 +3862,7 @@ export default function WarehouseOrders() {
                         style={{ fontSize: 11 }}
                         onClick={() => {
                           const candidateIds = allOrders
-                            .filter((o) => o.status === "packed" || o.status === "confirmed")
+                            .filter(order => !order.companySalesOrders?.length && (order.status === "packed" || order.status === "confirmed"))
                             .map((o) => o.id);
                           const allSelected = candidateIds.every((id) => newRun.orderIds.includes(id));
                           setNewRun({
@@ -3889,7 +3891,7 @@ export default function WarehouseOrders() {
                     }}
                   >
                     {allOrders
-                      .filter((o) => o.status === "packed" || o.status === "confirmed")
+                      .filter(order => !order.companySalesOrders?.length && (order.status === "packed" || order.status === "confirmed"))
                       .map((o) => {
                         const isChecked = newRun.orderIds.includes(o.id);
                         const orderCases = o.items.reduce((sum, item) => sum + (item.qtyOrdered || 0), 0);
@@ -3946,7 +3948,7 @@ export default function WarehouseOrders() {
                           </label>
                         );
                       })}
-                    {allOrders.filter((o) => o.status === "packed" || o.status === "confirmed").length === 0 && (
+                    {allOrders.filter(order => !order.companySalesOrders?.length && (order.status === "packed" || order.status === "confirmed")).length === 0 && (
                       <div style={{ padding: 12, textAlign: "center", color: "#6b7280", fontSize: 12 }}>
                         No orders in packed or confirmed status. Pack orders from the Queue tab first!
                       </div>

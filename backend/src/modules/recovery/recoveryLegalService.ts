@@ -4,6 +4,7 @@ import { ObjectStorageError, type ObjectStorage } from "../../platform/storage/o
 import { getObjectStorage } from "../../platform/storage/storageRuntime";
 import { renderRecoveryLetterPdf } from "./recoveryLetterPdf";
 import { RecoveryServiceError } from "./recoveryService";
+import { firmSeller } from "../invoicing/firmInvoiceIdentity";
 
 const VIEW = "recovery.view";
 const MANAGE = "staff.manage";
@@ -40,7 +41,10 @@ export class RecoveryLegalService {
     }
     const recoveryCase = await prisma.recoveryCase.findUnique({
       where: { id: input.caseId },
-      include: { invoice: { select: { id: true, invoiceNumber: true, outstandingAmount: true, currency: true } }, retailer: { select: { name: true, shopAddress: true } } },
+      include: {
+        invoice: { select: { id: true, invoiceNumber: true, firmInvoiceNumber: true, sellingEntity: true, outstandingAmount: true, currency: true } },
+        retailer: { select: { name: true, shopAddress: true } },
+      },
     });
     if (!recoveryCase) throw new RecoveryServiceError("recovery_case_not_found", 404);
     if (recoveryCase.status !== "open") throw new RecoveryServiceError("recovery_case_closed", 409);
@@ -50,7 +54,8 @@ export class RecoveryLegalService {
     const body = renderRecoveryLetterPdf({
       retailerName: recoveryCase.retailer.name,
       retailerAddress: recoveryCase.retailer.shopAddress,
-      invoiceNumber: recoveryCase.invoice.invoiceNumber,
+      invoiceNumber: recoveryCase.invoice.firmInvoiceNumber ?? recoveryCase.invoice.invoiceNumber,
+      sellerName: recoveryCase.invoice.sellingEntity ? firmSeller(recoveryCase.invoice.sellingEntity).name : undefined,
       outstandingAmount: amount,
       currency: recoveryCase.invoice.currency,
       sentAt,

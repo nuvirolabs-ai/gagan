@@ -2,8 +2,11 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { calculateCommercialQuote, CommercialQuoteLine, ManagerFreight } from "../../lib/commercialQuote";
 import { resolveSalesOrderAllocation, RoutingPolicyError, SalesOrderRoutingPlan } from "./routing";
+import { attributeInvoiceOutstanding } from "../finance/entityAttribution";
 
-export type CommercialSnapshot = ReturnType<typeof calculateCommercialQuote> & { routing?: SalesOrderRoutingPlan };
+export type CommercialSnapshot = ReturnType<typeof calculateCommercialQuote> & {
+  routing?: SalesOrderRoutingPlan & { deliveryAddress?: string };
+};
 export class CommercialError extends Error { constructor(public code: string, public status = 409, public details?: unknown) { super(code); } }
 export const asJson = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 export function snapshot(value: Prisma.JsonValue | null): CommercialSnapshot | null {
@@ -14,7 +17,7 @@ export function snapshot(value: Prisma.JsonValue | null): CommercialSnapshot | n
   }
   return value as unknown as CommercialSnapshot;
 }
-export function quoteDelivery(accepted:CommercialSnapshot, resolutions:{variantId:string;cases:number;weightKg?:number}[]) {
+export function quoteDelivery(accepted:CommercialSnapshot, resolutions:{variantId:string;cases:number;weightKg?:number}[]): CommercialSnapshot {
   if(resolutions.length!==accepted.lines.length || new Set(resolutions.map(l=>l.variantId)).size!==resolutions.length) throw new CommercialError("incomplete_delivery_resolution",400);
   const next = calculateCommercialQuote({lines:accepted.lines.map(line=>{
     const resolution=resolutions.find(r=>r.variantId===line.variantId);
@@ -35,6 +38,40 @@ export function normalizedLines(items: {variantId: string; qty: number}[]) {
   return [...map].sort(([a],[b])=>a.localeCompare(b)).map(([variantId,qty])=>({variantId,qty}));
 }
 
+export function commercialRouting(
+  retailer: { deliveryCity: string | null; shopAddress: string; addressLine2: string | null; pincode: string | null },
+  items: { variantId: string; qty: number }[],
+  variants: { id: string; routingClass: string | null; routingBagEquivalent: Prisma.Decimal | null; unitWeightKg: Prisma.Decimal; unitsPerCase: number }[],
+) {
+  if (variants.every(variant => variant.routingClass === null)) return undefined;
+
+  const byId = new Map(variants.map(variant => [variant.id, variant]));
+  try {
+    const plan = resolveSalesOrderAllocation({
+      destinationCity: retailer.deliveryCity,
+      lines: items.map(item => {
+        const variant = byId.get(item.variantId)!;
+        return {
+          variantId: variant.id,
+          quantity: item.qty,
+          routingClass: variant.routingClass,
+          routingBagEquivalent: variant.routingBagEquivalent,
+          caseWeightKg: variant.unitWeightKg.mul(variant.unitsPerCase),
+        };
+      }),
+    });
+    const deliveryAddress = [retailer.shopAddress, retailer.addressLine2, retailer.pincode]
+      .map(part => part?.trim())
+      .filter(Boolean)
+      .join(", ");
+    if (!deliveryAddress) throw new CommercialError("ROUTING_DESTINATION_REQUIRED", 422);
+    return { ...plan, deliveryAddress };
+  } catch (error) {
+    if (error instanceof RoutingPolicyError) throw new CommercialError(error.code, 422, error.details);
+    throw error;
+  }
+}
+
 export async function quoteFor(retailerId: string, input: {variantId:string;qty:number}[]) {
   const items = normalizedLines(input);
   return prisma.$transaction(async tx => {
@@ -50,39 +87,8 @@ export async function quoteFor(retailerId: string, input: {variantId:string;qty:
       tx.catalogOrderingDraft.findMany({where:{variantId:{in:ids}}}),
     ]);
     if (variants.length !== ids.length) throw new CommercialError("catalog_item_not_orderable",409);
-    // Unconfigured legacy carts retain their established case-price contract.
-    // A routed SKU explicitly opts the cart into the new policy. A stored
-    // proposal delivery city alone must not break an older static commercial
-    // catalog; the router still fails closed if routed SKUs lack a city.
-    const routingRequested = variants.some(v => v.routingClass !== null);
-    if (variants.every(v=>v.sellingEntity === null) && !routingRequested) return null;
-    let routing: SalesOrderRoutingPlan | undefined;
-    if (routingRequested) {
-      try {
-        routing = resolveSalesOrderAllocation({
-          destinationCity: retailer.deliveryCity?.trim() || "Indore",
-          lines: items.map(item => {
-            const variant = variants.find(v => v.id === item.variantId)!;
-            const fallbackBagEquiv = Math.max(
-              0.01,
-              Math.round(((variant.unitsPerCase * Number(variant.unitWeightKg)) / 30) * 1000) / 1000
-            ).toFixed(3);
-            return {
-              variantId: variant.id,
-              quantity: item.qty,
-              routingClass: variant.routingClass || "OTHER",
-              routingBagEquivalent: variant.routingClass === "INSTANT_MIX"
-                ? null
-                : (variant.routingBagEquivalent ?? fallbackBagEquiv),
-              caseWeightKg: variant.unitWeightKg.mul(variant.unitsPerCase),
-            };
-          }),
-        });
-      } catch (error) {
-        if (error instanceof RoutingPolicyError) throw new CommercialError(error.code, 422, error.details);
-        throw error;
-      }
-    }
+    const routing = commercialRouting(retailer, items, variants);
+    if (variants.every(v=>v.sellingEntity === null) && !routing) return null;
     const routedEntity = new Map(routing?.lines.map(line => [line.variantId, line.entity]));
     const draftsMap = new Map((drafts || []).map(d => {
       const val = (d.values as any) || {};
@@ -93,7 +99,7 @@ export async function quoteFor(retailerId: string, input: {variantId:string;qty:
     }));
     const lines: CommercialQuoteLine[] = items.map(item=>{
       const v = variants.find(v=>v.id===item.variantId)!;
-      const selectedEntity = routedEntity.get(v.id) ?? v.sellingEntity ?? "jain_traders";
+      const selectedEntity = routedEntity.get(v.id) ?? v.sellingEntity;
       if (!selectedEntity) throw new CommercialError("sku_commercial_configuration_required");
       const override = overrides.find(p=>p.variantId===v.id);
       const price = override ?? prices.find(p=>p.variantId===v.id);
@@ -115,8 +121,9 @@ export async function quoteFor(retailerId: string, input: {variantId:string;qty:
       }
       return {variantId:v.id, productName:v.product.name, pack:`${v.unitSize} × ${v.unitsPerCase}`, itemCode:v.product.sapMaterialId,
         entity:selectedEntity as CommercialQuoteLine["entity"], cases:item.qty,
-        caseWeightKg:v.unitWeightKg.mul(v.unitsPerCase).toString(),rate:effectiveRate.toFixed(2),
-        rateBasis,gstPercent:v.gstPercent?.toString() ?? "5",
+        caseWeightKg:v.unitWeightKg.mul(v.unitsPerCase).toString(),
+        rate:unitDiscount > 0 ? effectiveRate.toFixed(2) : price.price.toString(),
+        rateBasis,gstPercent:v.gstPercent?.toString() ?? null,
         discount: unitDiscount > 0 ? unitDiscount.toFixed(2) : undefined};
     });
     const commercial = calculateCommercialQuote({lines});
@@ -141,14 +148,28 @@ export async function setFreight(id:string, revision:number, freight:ManagerFrei
 }
 
 /** Invoice-specific balances only. Never use retailer totals to allocate cash. */
-export async function invoiceBalances(tx:Prisma.TransactionClient, invoiceId:string) {
-  const invoice = await tx.invoice.findUnique({where:{id:invoiceId},include:{allocations:true}});
-  if (!invoice) throw new CommercialError("invoice_not_found",404);
-  const saved=snapshot(invoice.commercialSnapshot);
-  if (!saved) throw new CommercialError("legacy_invoice_has_no_entity_attribution");
-  const original=(entity:string)=>new Prisma.Decimal(saved.entities.find(e=>e.entity===entity)?.total ?? 0);
-  const jain=invoice.allocations.reduce((n,a)=>n.minus(a.jainAmount ?? 0),original("jain_traders"));
-  const padam=invoice.allocations.reduce((n,a)=>n.minus(a.padamAmount ?? 0),original("padam_international"));
-  if (jain.isNegative() || padam.isNegative() || !jain.plus(padam).eq(invoice.outstandingAmount)) throw new CommercialError("invoice_entity_balance_review_required");
-  return {invoice,jain,padam};
+export async function invoiceBalances(tx: Prisma.TransactionClient, invoiceId: string) {
+  const invoice = await tx.invoice.findUnique({
+    where: { id: invoiceId },
+    include: {
+      allocations: { include: { reversals: { select: { amount: true } } } },
+      creditNotes: { where: { status: "issued" }, select: { amount: true } },
+    },
+  });
+  if (!invoice) throw new CommercialError("invoice_not_found", 404);
+  const balances = attributeInvoiceOutstanding({
+    ...invoice,
+    commercialSnapshot: snapshot(invoice.commercialSnapshot),
+  });
+  if (balances.attributionStatus === "contains_unattributed") {
+    throw new CommercialError("legacy_invoice_has_no_entity_attribution");
+  }
+  if (balances.attributionStatus === "review_required") {
+    throw new CommercialError("invoice_entity_balance_review_required");
+  }
+  return {
+    invoice,
+    jain: new Prisma.Decimal(balances.jainTraders),
+    padam: new Prisma.Decimal(balances.padamInternational),
+  };
 }

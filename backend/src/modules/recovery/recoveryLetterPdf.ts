@@ -1,7 +1,8 @@
 export interface RecoveryLetterPdfInput {
   retailerName: string;
   retailerAddress: string;
-  invoiceNumber: number;
+  invoiceNumber: number | string;
+  sellerName?: string;
   outstandingAmount: number;
   currency: string;
   sentAt: Date;
@@ -35,6 +36,7 @@ export function renderRecoveryLetterPdf(input: RecoveryLetterPdfInput) {
     "GAGAN RECOVERY NOTICE",
     `To: ${input.retailerName}`,
     `Address: ${input.retailerAddress}`,
+    ...(input.sellerName ? [`Creditor: ${input.sellerName}`] : []),
     `Invoice ${input.invoiceNumber}`,
     `Outstanding amount: ${amountLabel(input.currency, input.outstandingAmount)}`,
     `Notice date: ${dateLabel(input.sentAt)}`,
@@ -45,7 +47,7 @@ export function renderRecoveryLetterPdf(input: RecoveryLetterPdfInput) {
     `2. ${input.signatories[1]}`,
     `3. ${input.signatories[2]}`,
   ];
-  const content = ["BT", ...lines.map((line, index) => `/F1 ${index === 0 ? 16 : 11} Tf 72 ${730 - index * 42} Td (${pdfText(line)}) Tj`), "ET", ""].join("\n");
+  const content = ["BT", ...lines.map((line, index) => `/F1 ${index === 0 ? 16 : 11} Tf 1 0 0 1 72 ${730 - index * 42} Tm (${pdfText(line)}) Tj`), "ET", ""].join("\n");
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
     "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",

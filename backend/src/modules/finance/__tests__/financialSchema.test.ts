@@ -44,8 +44,11 @@ describe("immutable financial schema", () => {
     expect(field("ReconciliationIssue", "ownerRole").type).toBe("String");
   });
 
-  it("enforces one invoice per order and one settlement ledger event per payment", () => {
-    expect(field("Invoice", "orderId").isUnique).toBe(true);
+  it("binds each firm invoice to its company order and keeps one settlement event per payment", () => {
+    expect(field("Order", "invoices").isList).toBe(true);
+    expect(field("Invoice", "orderId").isUnique).toBe(false);
+    expect(field("Invoice", "companySalesOrderId").isUnique).toBe(true);
+    expect(field("Invoice", "firmInvoiceNumber").isUnique).toBe(true);
     expect(field("Invoice", "orderId").isRequired).toBe(false);
     expect(field("Invoice", "legacyLedgerEntryId").isUnique).toBe(true);
     expect(field("Invoice", "idempotencyKey").isUnique).toBe(true);

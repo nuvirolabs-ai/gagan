@@ -1610,8 +1610,9 @@ model Order {
   cancellationDecidedByStaffId  String?
   cancellationDecidedByStaff    StaffUser?                   @relation("OrderCancellationDecisions", fields: [cancellationDecidedByStaffId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   items                     OrderItem[]
+  companySalesOrders        CompanySalesOrder[]
   delivery                  Delivery?
-  invoice                   Invoice?
+  invoices                  Invoice[]
   ledgerEntries             LedgerEntry[]
   creditAssessments         CreditAssessment[]
   approvalRequests          ApprovalRequest[]
@@ -1660,6 +1661,8 @@ model OrderItem {
   id                   String        @id @default(uuid())
   orderId              String
   order                Order         @relation(fields: [orderId], references: [id])
+  companySalesOrderId  String?
+  companySalesOrder    CompanySalesOrder? @relation(fields: [companySalesOrderId, orderId], references: [id, orderId], onDelete: Restrict, onUpdate: NoAction)
   variantId            String
   variant              Variant       @relation(fields: [variantId], references: [id])
   qtyOrdered           Int
@@ -1672,6 +1675,40 @@ model OrderItem {
 
   @@index([orderId])
   @@index([variantId])
+  @@index([companySalesOrderId])
+}
+
+enum SalesOrderCompany {
+  jain_traders
+  padam_international
+}
+
+model CompanySalesOrder {
+  id               String            @id @default(uuid())
+  orderId          String
+  order            Order             @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  company          SalesOrderCompany
+  reference        String            @unique
+  deliveryCity     String
+  deliveryAddress  String
+  createdAt        DateTime          @default(now())
+  routeId          String?
+  dispatchedAt     DateTime?
+  deliveredAt      DateTime?
+  deliveryResolvedAt DateTime?
+  podType          PodType?
+  podCapturedAt    DateTime?
+  sapSalesOrderId  String?
+  sapDocEntry      Int?
+  sapDocNum        Int?
+  sapSyncStatus    SapOrderSyncStatus @default(pending)
+  sapErrorMessage  String?
+  sapLastSyncedAt  DateTime?
+  items            OrderItem[]
+  invoice          Invoice?
+
+  @@unique([orderId, company])
+  @@unique([id, orderId])
 }
 
 model Delivery {
@@ -1715,8 +1752,13 @@ model Invoice {
   invoiceNumber       Int                    @unique @default(autoincrement())
   retailerId          String
   retailer            Retailer               @relation(fields: [retailerId], references: [id])
-  orderId             String?                @unique
+  orderId             String?
   order               Order?                 @relation(fields: [orderId], references: [id])
+  companySalesOrderId String?                @unique
+  companySalesOrder   CompanySalesOrder?     @relation(fields: [companySalesOrderId, orderId], references: [id, orderId], onDelete: Restrict, onUpdate: NoAction)
+  sellingEntity       SalesOrderCompany?
+  firmInvoiceNumber   String?                @unique
+  billingSnapshot     Json?
   legacyLedgerEntryId String?                @unique
   legacyLedgerEntry   LedgerEntry?           @relation(fields: [legacyLedgerEntryId], references: [id], onDelete: Restrict)
   invoiceDate         DateTime
@@ -1741,6 +1783,16 @@ model Invoice {
   @@index([retailerId, status, dueDate])
   @@index([retailerId, updatedAt])
   @@index([retailerId, outstandingAmount])
+  @@index([orderId])
+  @@unique([companySalesOrderId, orderId])
+}
+
+model CompanyInvoiceSequence {
+  company      SalesOrderCompany
+  financialYear Int
+  lastNumber   Int
+
+  @@id([company, financialYear])
 }
 
 /// One operational recovery timeline per overdue invoice. Actions are immutable

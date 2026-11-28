@@ -281,6 +281,9 @@ export function createFleetRunsRouter() {
 
     try {
       const { warehouseCode, vehicleId, driverName, driverPhone, orderIds, notes } = parsed.data;
+      if (orderIds.length && await prisma.companySalesOrder.count({ where: { orderId: { in: orderIds } } })) {
+        return res.status(409).json({ error: "company_dispatch_routes_required" });
+      }
 
       const runCount = await prisma.deliveryRun.count();
       const runNumber = parsed.data.runNumber || `RUN-${warehouseCode}-${String(runCount + 1).padStart(3, "0")}`;
@@ -321,6 +324,11 @@ export function createFleetRunsRouter() {
       if (!run) return res.status(404).json({ error: "Delivery run not found" });
 
       const newStatus = parsed.data.status;
+      const orderIds = Array.isArray(run.orderIds) ? (run.orderIds as string[]) : [];
+      if ((newStatus === "out_for_delivery" || newStatus === "completed")
+        && orderIds.length && await prisma.companySalesOrder.count({ where: { orderId: { in: orderIds } } })) {
+        return res.status(409).json({ error: "company_dispatch_routes_required" });
+      }
       const departureTime = newStatus === "out_for_delivery" ? new Date() : run.departureTime;
       const completedTime = newStatus === "completed" ? new Date() : run.completedTime;
 
@@ -334,7 +342,6 @@ export function createFleetRunsRouter() {
       });
 
       // Advance assigned order statuses
-      const orderIds = Array.isArray(run.orderIds) ? (run.orderIds as string[]) : [];
       if (orderIds.length > 0) {
         if (newStatus === "out_for_delivery") {
           await prisma.order.updateMany({

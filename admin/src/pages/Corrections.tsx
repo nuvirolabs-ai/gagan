@@ -1,9 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, inr } from "../api";
+import { firmNames, type BillingFirm } from "../invoiceDocument";
 
-interface InvoiceTarget {
-  id: string;
+interface InvoiceReference {
   invoiceNumber: number;
+  firmInvoiceNumber?: string | null;
+  sellingEntity?: BillingFirm | null;
+}
+
+function invoiceLabel(invoice: InvoiceReference) {
+  const reference = invoice.firmInvoiceNumber ?? `#${invoice.invoiceNumber}`;
+  return invoice.sellingEntity ? `${firmNames[invoice.sellingEntity]} · ${reference}` : `Invoice ${reference}`;
+}
+
+interface InvoiceTarget extends InvoiceReference {
+  id: string;
   total: number;
   outstandingAmount: number;
   creditableAmount: number;
@@ -15,6 +26,7 @@ interface PaymentTarget {
   reversibleAmount: number;
   channel: string;
   providerRef: string | null;
+  scopedInvoice?: InvoiceReference | null;
 }
 
 interface RetailerTarget {
@@ -190,7 +202,7 @@ export default function Corrections() {
                 >
                   {retailer?.invoices.map((candidate) => (
                     <option key={candidate.id} value={candidate.id}>
-                      Invoice #{candidate.invoiceNumber} · up to {inr(candidate.creditableAmount)}
+                      {invoiceLabel(candidate)} · up to {inr(candidate.creditableAmount)}
                     </option>
                   ))}
                 </select>
@@ -225,7 +237,7 @@ export default function Corrections() {
               {reviewing === "credit" && invoice && credit !== null ? (
                 <div className="confirmation-box">
                   <strong>
-                    Issue a {inr(credit)} credit note for Invoice #{invoice.invoiceNumber}?
+                    Issue a {inr(credit)} credit note for {invoiceLabel(invoice)}?
                   </strong>
                   <p>{creditReason.trim()}</p>
                   <div className="row">
@@ -270,7 +282,7 @@ export default function Corrections() {
                 >
                   {retailer?.payments.map((candidate) => (
                     <option key={candidate.id} value={candidate.id}>
-                      {inr(candidate.amount)} · {candidate.providerRef ?? candidate.channel}
+                      {inr(candidate.amount)} · {candidate.providerRef ?? candidate.channel}{candidate.scopedInvoice && ` · ${invoiceLabel(candidate.scopedInvoice)}`}
                     </option>
                   ))}
                 </select>

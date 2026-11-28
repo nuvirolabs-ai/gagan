@@ -124,11 +124,19 @@ async function settleOnce(
         await tx.$queryRaw`SELECT "id" FROM "Invoice" WHERE "id"=${payment.invoiceScopeId} FOR UPDATE`;
         const {invoice,jain,padam} = await invoiceBalances(tx,payment.invoiceScopeId);
         const a=payment.confirmedJainAmount, b=payment.confirmedPadamAmount;
-        if (invoice.retailerId!==payment.retailerId || !a || !b || a.isNegative() || b.isNegative() || !a.plus(b).eq(payment.amount) || a.gt(jain) || b.gt(padam)) throw new PaymentSettlementError("invoice_entity_allocation_invalid");
+        if (
+          invoice.retailerId !== payment.retailerId ||
+          !["open", "partially_paid"].includes(invoice.status) ||
+          (invoice.sellingEntity && !invoice.legacyLedgerEntryId) ||
+          !a || !b || a.isNegative() || b.isNegative() ||
+          !a.plus(b).eq(payment.amount) || a.gt(jain) || b.gt(padam)
+        ) throw new PaymentSettlementError("invoice_entity_allocation_invalid");
         allocationResult={allocations:[{invoiceId:invoice.id,orderId:invoice.orderId,legacyLedgerEntryId:invoice.legacyLedgerEntryId,amount:Number(payment.amount),outstandingAfter:invoice.outstandingAmount.minus(payment.amount).toNumber()}],unallocated:0};
       } else {
         // Legacy settlement cannot consume any newly entity-attributed invoice.
-        if (invoices.some(i=>i.commercialSnapshot!==null)) throw new PaymentSettlementError("invoice_entity_allocation_required");
+        if (invoices.some(invoice => invoice.sellingEntity !== null || invoice.commercialSnapshot !== null)) {
+          throw new PaymentSettlementError("invoice_entity_allocation_required");
+        }
         allocationResult=buildFifoAllocations(invoices,Number(payment.amount));
       }
       const {allocations,unallocated}=allocationResult;

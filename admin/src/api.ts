@@ -118,6 +118,19 @@ const remove = (path: string) => request(path, { method: "DELETE" });
 const put = (path: string, body: unknown) =>
   request(path, { method: "PUT", body: JSON.stringify(body) });
 
+async function downloadInvoicePdf(path: string, invoiceId: string, reference: string) {
+  const query = new URLSearchParams({ invoiceId });
+  const blob = await requestBlob(`${path}?${query}`);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `Invoice-${reference.replace(/[^\w-]/g, "-")}.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 export const api = {
   exportServiceIssues: (filters?: { status?: string; retailerId?: string; salespersonId?: string; from?: string; through?: string }) => {
     const query = new URLSearchParams();
@@ -128,7 +141,7 @@ export const api = {
     if (filters?.through) query.set("through", filters.through);
     return requestBlob(`/admin/exports/service-issues.xlsx${query.size ? `?${query}` : ""}`);
   },
-  commercial:()=>request("/admin/commercial"),
+  commercial:(invoiceId?:string)=>request(`/admin/commercial${invoiceId ? `?${new URLSearchParams({invoiceId})}` : ""}`),
   entityBillingAudit: (params?: { from?: string; to?: string; city?: string; entity?: string; q?: string }) => {
     const query = new URLSearchParams();
     if (params?.from) query.set("from", params.from);
@@ -140,7 +153,11 @@ export const api = {
     return request(`/admin/commercial/entity-audit${qs ? `?${qs}` : ""}`);
   },
   simulateEntityRouting: (body: any) => post("/admin/commercial/entity-audit/simulate", body),
-  deliveryQuote:(id:string,lines:unknown)=>post(`/admin/commercial/orders/${id}/delivery-quote`,{lines}),
+  deliveryQuote: (id: string, lines: unknown, options?: {
+    companySalesOrderId?: string;
+    transportationAmount?: number;
+    transportationEntity?: "jain_traders" | "padam_international";
+  }) => post(`/admin/commercial/orders/${id}/delivery-quote`, { lines, ...options }),
   saveCommercialSku:(id:string,body:unknown)=>request(`/admin/commercial/skus/${id}`,{method:"PUT",body:JSON.stringify(body)}),
   saveCommercialFreight:(id:string,body:unknown)=>request(`/admin/commercial/quotes/${id}/freight`,{method:"PUT",body:JSON.stringify(body)}),
   commercialBalances:(id:string)=>request(`/admin/commercial/invoices/${id}/balances`),
@@ -269,36 +286,23 @@ export const api = {
   packWarehouseOrder: (id: string) => post(`/admin/warehouse-orders/${id}/pack`),
   rejectWarehouseOrder: (id: string, reason: string) =>
     post(`/admin/warehouse-orders/${id}/reject`, { reason }),
-  dispatchWarehouseOrder: (id: string, routeId: string, deliverySlot?: string) =>
-    post(`/admin/warehouse-orders/${id}/dispatch`, { routeId, deliverySlot }),
+  dispatchWarehouseOrder: (id: string, route: string | { companySalesOrderId: string; routeId: string }[], deliverySlot?: string) =>
+    post(`/admin/warehouse-orders/${id}/dispatch`, {
+      ...(typeof route === "string" ? { routeId: route } : { companyRoutes: route }),
+      deliverySlot,
+    }),
   deliverWarehouseOrder: (
     id: string,
     podType: string,
     items: { orderItemId: string; qtyDelivered: number; weightDeliveredKg?: number }[],
-    transportationAmount?: number
-  ) => post(`/admin/warehouse-orders/${id}/deliver`, { podType, items, transportationAmount }),
-  downloadWarehouseOrderInvoicePdf: async (orderId: string, invoiceNumber?: number | string) => {
-    const blob = await requestBlob(`/admin/warehouse-orders/${orderId}/invoice-pdf`);
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `Invoice-INV-${invoiceNumber || orderId}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(url);
-  },
-  downloadOrderInvoicePdf: async (orderId: string, invoiceNumber?: number | string) => {
-    const blob = await requestBlob(`/admin/orders/${orderId}/invoice-pdf`);
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `Invoice-INV-${invoiceNumber || orderId}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(url);
-  },
+    transportationAmount?: number,
+    transportationEntity?: "jain_traders" | "padam_international",
+    companySalesOrderId?: string
+  ) => post(`/admin/warehouse-orders/${id}/deliver`, { podType, items, transportationAmount, transportationEntity, companySalesOrderId }),
+  downloadWarehouseOrderInvoicePdf: (orderId: string, invoiceId: string, reference: string) =>
+    downloadInvoicePdf(`/admin/warehouse-orders/${encodeURIComponent(orderId)}/invoice-pdf`, invoiceId, reference),
+  downloadOrderInvoicePdf: (orderId: string, invoiceId: string, reference: string) =>
+    downloadInvoicePdf(`/admin/orders/${encodeURIComponent(orderId)}/invoice-pdf`, invoiceId, reference),
   approve: (id: string) => post(`/admin/orders/${id}/approve`),
   reject: (id: string, reason?: string) => post(`/admin/orders/${id}/reject`, { reason }),
   editOrder: (id: string, body: { remarks?: string; freightAmount?: number; items?: Array<{ orderItemId?: string; variantId?: string; qtyOrdered: number; unitPrice?: number }> }) =>
@@ -330,8 +334,10 @@ export const api = {
     id: string,
     podType: string,
     items: { orderItemId: string; qtyDelivered: number; weightDeliveredKg?: number }[],
-    transportationAmount?: number
-  ) => post(`/admin/dispatch/${id}/pod`, { podType, items, transportationAmount }),
+    transportationAmount?: number,
+    transportationEntity?: "jain_traders" | "padam_international",
+    companySalesOrderId?: string
+  ) => post(`/admin/dispatch/${id}/pod`, { podType, items, transportationAmount, transportationEntity, companySalesOrderId }),
 
   retailers: () => request("/admin/retailers"),
   fieldRetailerMarketingHistory: (retailerId: string) =>
@@ -357,6 +363,8 @@ export const api = {
       reference?: string;
       bankAccount?: string;
       invoiceScopeId?: string;
+      jainAmount?: number;
+      padamAmount?: number;
       notes?: string;
     }
   ) =>

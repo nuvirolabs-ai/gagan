@@ -2,6 +2,8 @@ import React, { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { api, inr } from "../api";
 import { formatOrderRef } from "../orderRef";
+import { billingInvoiceLabel, type BillingInvoice } from "../invoiceDocument";
+import { useAuth } from "../useAuth";
 
 type AuditedLine = {
   orderItemId?: string;
@@ -30,6 +32,7 @@ type AuditedOrder = {
   deliveryCity: string;
   destination: "INDORE_CITY" | "OUTSIDE_INDORE";
   isSplit: boolean;
+  pendingCompanyCount: number;
   explanation: string;
   eligibleContributionBags: number;
   jain: {
@@ -55,10 +58,10 @@ type AuditedOrder = {
     outstanding: number;
   };
   grandTotal: number;
-  invoiceNumber: number | null;
-  invoiceStatus: string | null;
+  invoices: BillingInvoice[];
   totalPaid: number;
   totalOutstanding: number;
+  unattributedOutstanding: number;
   accountingStatus?: "open" | "closed";
   accountingClosedAt?: string | null;
   accountingClosedBy?: string | null;
@@ -67,6 +70,7 @@ type AuditedOrder = {
 
 type AuditSummary = {
   totalRevenue: number;
+  unattributedOutstanding: number;
   totalOrders: number;
   splitOrdersCount: number;
   accountingClosedOrdersCount?: number;
@@ -107,7 +111,13 @@ type AuditSummary = {
   };
 };
 
+function canClose(order: AuditedOrder) {
+  return order.status === "delivered" && order.invoices.length > 0 && order.accountingStatus !== "closed";
+}
+
 export default function BillingEntitiesAudit() {
+  const { permissions } = useAuth();
+  const canOpenInvoices = permissions.includes("staff.manage") || permissions.includes("collection.confirm");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
@@ -148,31 +158,6 @@ export default function BillingEntitiesAudit() {
   const [simResult, setSimResult] = useState<any | null>(null);
   const [simLoading, setSimLoading] = useState(false);
 
-  // Payment Recording Modal State
-  const [paymentModalOrder, setPaymentModalOrder] = useState<AuditedOrder | null>(null);
-  const [paymentAmount, setPaymentAmount] = useState<number>(0);
-  const [paymentBankAccount, setPaymentBankAccount] = useState<string>("HDFC_JAIN");
-  const [paymentMode, setPaymentMode] = useState<string>("NEFT_RTGS");
-  const [paymentReference, setPaymentReference] = useState<string>("");
-  const [paymentNotes, setPaymentNotes] = useState<string>("");
-  const [paymentSubmitting, setPaymentSubmitting] = useState(false);
-
-  // Edit Order Modal State
-  const [editModalOrder, setEditModalOrder] = useState<AuditedOrder | null>(null);
-  const [editLines, setEditLines] = useState<Array<{
-    orderItemId?: string;
-    variantId: string;
-    productName: string;
-    pack: string;
-    cases: number;
-    unitPrice: number;
-    total: number;
-  }>>([]);
-  const [editFreight, setEditFreight] = useState<number>(0);
-  const [editRemarks, setEditRemarks] = useState<string>("");
-  const [editSubmitting, setEditSubmitting] = useState(false);
-
-  // Calculate actual date boundaries based on preset
   const dateParams = useMemo(() => {
     const now = new Date();
     if (datePreset === "today") {
@@ -308,124 +293,23 @@ export default function BillingEntitiesAudit() {
     }
   };
 
-  // Payment Recording Handlers
-  const openPaymentModal = (order: AuditedOrder) => {
-    setPaymentModalOrder(order);
-    setPaymentAmount(order.totalOutstanding > 0 ? order.totalOutstanding : order.grandTotal);
-    setPaymentBankAccount(order.destination === "INDORE_CITY" || order.jain.total >= order.padam.total ? "HDFC_JAIN" : "ICICI_PADAM");
-    setPaymentReference(`UTR-${Math.floor(100000 + Math.random() * 900000)}`);
-    setPaymentNotes(`Payment for Order ${formatOrderRef(order)}`);
-  };
-
-  const handleRecordPaymentSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!paymentModalOrder || !paymentModalOrder.retailerId) return;
-    if (paymentAmount <= 0) {
-      alert("Please enter a valid payment amount.");
-      return;
-    }
-    setPaymentSubmitting(true);
-    try {
-      const idempotencyKey = `pay-${paymentModalOrder.id}-${Date.now()}`;
-      await api.recordPayment(
-        paymentModalOrder.retailerId,
-        paymentAmount,
-        idempotencyKey,
-        {
-          paymentMode,
-          reference: paymentReference,
-          bankAccount: paymentBankAccount,
-          notes: paymentNotes,
-          invoiceScopeId: paymentModalOrder.invoiceNumber ? String(paymentModalOrder.invoiceNumber) : undefined,
-        }
-      );
-      setActionMessage(`Recorded ₹${paymentAmount} payment for ${paymentModalOrder.retailerName} successfully.`);
-      setTimeout(() => setActionMessage(""), 5000);
-      setPaymentModalOrder(null);
-      void loadData();
-    } catch (err: any) {
-      alert("Payment recording failed: " + (err?.message || String(err)));
-    } finally {
-      setPaymentSubmitting(false);
-    }
-  };
-
-  // Order Editing Handlers
-  const openEditModal = (order: AuditedOrder) => {
-    setEditModalOrder(order);
-    const combinedLines = [...order.jain.lines, ...order.padam.lines].map((l) => ({
-      orderItemId: l.orderItemId,
-      variantId: l.variantId,
-      productName: l.productName,
-      pack: l.pack,
-      cases: l.cases,
-      unitPrice: l.rate,
-      total: l.total,
-    }));
-    setEditLines(combinedLines);
-    setEditFreight(order.jain.freight + order.padam.freight);
-    setEditRemarks(order.accountingNotes || "");
-  };
-
-  const handleLineQtyChange = (idx: number, qty: number) => {
-    const updated = [...editLines];
-    updated[idx].cases = qty;
-    updated[idx].total = Math.round(qty * updated[idx].unitPrice * 100) / 100;
-    setEditLines(updated);
-  };
-
-  const handleLinePriceChange = (idx: number, price: number) => {
-    const updated = [...editLines];
-    updated[idx].unitPrice = price;
-    updated[idx].total = Math.round(updated[idx].cases * price * 100) / 100;
-    setEditLines(updated);
-  };
-
-  const computedEditSubtotal = editLines.reduce((sum, l) => sum + (l.cases * l.unitPrice), 0);
-  const computedEditGst = Math.round(computedEditSubtotal * 0.05 * 100) / 100;
-  const computedEditGrandTotal = Math.round((computedEditSubtotal + computedEditGst + Number(editFreight || 0)) * 100) / 100;
-
-  const handleSaveEditSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editModalOrder) return;
-    setEditSubmitting(true);
-    try {
-      await api.editOrder(editModalOrder.id, {
-        freightAmount: Number(editFreight),
-        remarks: editRemarks,
-        items: editLines.map((l) => ({
-          orderItemId: l.orderItemId,
-          variantId: l.variantId,
-          qtyOrdered: l.cases,
-          unitPrice: l.unitPrice,
-        })),
-      });
-      setActionMessage(`Order ${formatOrderRef(editModalOrder)} successfully updated with new commercial rates and totals.`);
-      setTimeout(() => setActionMessage(""), 5000);
-      setEditModalOrder(null);
-      void loadData();
-    } catch (err: any) {
-      alert("Failed to update order: " + (err?.message || String(err)));
-    } finally {
-      setEditSubmitting(false);
-    }
-  };
-
   // Filter orders based on accounting status filter
   const filteredOrders = useMemo(() => {
     return orders.filter((o) => {
       if (accountingFilter === "open") return o.accountingStatus !== "closed";
       if (accountingFilter === "closed") return o.accountingStatus === "closed";
       if (accountingFilter === "payment_pending") return o.totalOutstanding > 0;
-      if (accountingFilter === "ready_to_close") return o.totalOutstanding === 0 && o.accountingStatus !== "closed";
+      if (accountingFilter === "ready_to_close") return o.totalOutstanding === 0 && canClose(o);
       return true;
     });
   }, [orders, accountingFilter]);
 
+  const selectableOrders = filteredOrders.filter(canClose);
+
   // Selection handlers
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
-      setSelectedOrderIds(filteredOrders.map((o) => o.id));
+      setSelectedOrderIds(selectableOrders.map((o) => o.id));
     } else {
       setSelectedOrderIds([]);
     }
@@ -512,7 +396,7 @@ export default function BillingEntitiesAudit() {
             </span>
           </div>
           <p style={{ margin: "6px 0 0", color: "var(--ink-muted)", fontSize: 13.5 }}>
-            Full accounting suite: order review, rate edit, payment checking &amp; recording, one-click closure for books, and P&amp;L balance sheet generation.
+            Review firm billing, invoice balances, and accounting close.
           </p>
         </div>
 
@@ -533,7 +417,7 @@ export default function BillingEntitiesAudit() {
               boxShadow: "0 2px 4px rgba(2, 132, 199, 0.2)",
             }}
           >
-            <span>📊</span> P&amp;L &amp; Balance Sheet
+            <span>📊</span> Billing and Receivables
           </Link>
           <button
             type="button"
@@ -587,22 +471,25 @@ export default function BillingEntitiesAudit() {
         }}>
           <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
             <div>
-              <span style={{ fontSize: 11, color: "var(--ink-muted)", fontWeight: 600, textTransform: "uppercase" }}>Total Commercial Flow</span>
+              <span style={{ fontSize: 11, color: "var(--ink-muted)", fontWeight: 600, textTransform: "uppercase" }}>Issued Billing</span>
               <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)" }}>{inr(summary.totalRevenue)}</div>
             </div>
             <div style={{ width: 1, height: 28, background: "#e2e8f0" }}></div>
             <div>
-              <span style={{ fontSize: 11, color: "#166534", fontWeight: 600, textTransform: "uppercase" }}>Total Collected Inflow</span>
+              <span style={{ fontSize: 11, color: "#166534", fontWeight: 600, textTransform: "uppercase" }}>Payments Applied</span>
               <div style={{ fontSize: 18, fontWeight: 800, color: "#15803d" }}>
-                {inr(summary.jain.paymentsCollected + summary.padam.paymentsCollected)}
+                {inr(orders.reduce((total, order) => total + order.totalPaid, 0))}
               </div>
             </div>
             <div style={{ width: 1, height: 28, background: "#e2e8f0" }}></div>
             <div>
               <span style={{ fontSize: 11, color: "#9a3412", fontWeight: 600, textTransform: "uppercase" }}>Total Outstanding Dues</span>
               <div style={{ fontSize: 18, fontWeight: 800, color: "#c2410c" }}>
-                {inr(summary.jain.outstandingAmount + summary.padam.outstandingAmount)}
+                {inr(orders.reduce((total, order) => total + order.totalOutstanding, 0))}
               </div>
+              {summary.unattributedOutstanding > 0 && (
+                <small>Firm attribution pending for {inr(summary.unattributedOutstanding)}</small>
+              )}
             </div>
           </div>
 
@@ -1135,7 +1022,7 @@ export default function BillingEntitiesAudit() {
           {[
             { id: "all", label: `All Orders (${orders.length})` },
             { id: "payment_pending", label: `⏳ Payment Pending (${orders.filter((o) => o.totalOutstanding > 0).length})` },
-            { id: "ready_to_close", label: `🟢 Settled & Ready (${orders.filter((o) => o.totalOutstanding === 0 && o.accountingStatus !== "closed").length})` },
+            { id: "ready_to_close", label: `🟢 Settled & Ready (${orders.filter((o) => o.totalOutstanding === 0 && canClose(o)).length})` },
             { id: "closed", label: `🔒 Closed for Books (${orders.filter((o) => o.accountingStatus === "closed").length})` },
             { id: "open", label: `📝 Open Audit (${orders.filter((o) => o.accountingStatus !== "closed").length})` },
           ].map((tab) => (
@@ -1221,7 +1108,7 @@ export default function BillingEntitiesAudit() {
                 <th style={{ width: "3.5%", padding: "10px 8px", textAlign: "center" }}>
                   <input
                     type="checkbox"
-                    checked={selectedOrderIds.length === filteredOrders.length && filteredOrders.length > 0}
+                    checked={selectableOrders.length > 0 && selectableOrders.every(o => selectedOrderIds.includes(o.id))}
                     onChange={handleSelectAll}
                     title="Select / Deselect All Visible"
                   />
@@ -1246,7 +1133,8 @@ export default function BillingEntitiesAudit() {
                 const isClosed = o.accountingStatus === "closed";
                 const isPlaced = o.status === "placed";
 
-                const isPaidFull = o.totalOutstanding === 0;
+                const hasInvoice = o.invoices.length > 0;
+                const isPaidFull = hasInvoice && o.totalOutstanding === 0;
                 const isPartial = o.totalPaid > 0 && o.totalOutstanding > 0;
 
                 return (
@@ -1260,6 +1148,7 @@ export default function BillingEntitiesAudit() {
                         <input
                           type="checkbox"
                           checked={isSelected}
+                          disabled={!canClose(o)}
                           onChange={() => handleToggleSelectOrder(o.id)}
                         />
                       </td>
@@ -1271,8 +1160,13 @@ export default function BillingEntitiesAudit() {
                         </div>
                         <div style={{ color: "var(--ink-muted)", fontSize: 11, marginTop: 1 }}>
                           {new Date(o.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-                          {o.invoiceNumber ? ` · Inv #${o.invoiceNumber}` : ""}
+
                         </div>
+                        {o.invoices.map(invoice => (
+                          <div key={invoice.id} style={{ color: "var(--ink-muted)", fontSize: 11 }}>
+                            {billingInvoiceLabel(invoice)} · {inr(Number(invoice.total))}
+                          </div>
+                        ))}
                         <div style={{ marginTop: 2 }}>
                           <span style={{
                             fontSize: 10,
@@ -1351,7 +1245,7 @@ export default function BillingEntitiesAudit() {
                       {/* Payment Status & Quick Record */}
                       <td style={{ padding: "10px 10px", textAlign: "center" }}>
                         <div style={{ marginBottom: 4 }}>
-                          {isPaidFull ? (
+                          {!hasInvoice ? "Awaiting invoice" : isPaidFull ? (
                             <span style={{
                               display: "inline-block",
                               fontSize: 11,
@@ -1362,7 +1256,7 @@ export default function BillingEntitiesAudit() {
                               color: "#15803d",
                               border: "1px solid #bbf7d0",
                             }}>
-                              🟢 Paid in Full
+                              🟢 Settled
                             </span>
                           ) : isPartial ? (
                             <div>
@@ -1397,32 +1291,21 @@ export default function BillingEntitiesAudit() {
                                 🔴 Unpaid
                               </span>
                               <div style={{ fontSize: 10, color: "#991b1b", fontWeight: 600, marginTop: 1 }}>
-                                Due: {inr(o.grandTotal)}
+                                Due: {inr(o.totalOutstanding)}
                               </div>
                             </div>
                           )}
                         </div>
 
-                        {/* Quick Record Payment Button */}
-                        <button
-                          type="button"
-                          onClick={() => openPaymentModal(o)}
-                          style={{
-                            fontSize: 10.5,
-                            padding: "2px 6px",
-                            borderRadius: 4,
-                            border: "1px solid #cbd5e1",
-                            background: "#ffffff",
-                            color: "#0369a1",
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 3,
-                          }}
-                        >
-                          <span>💳</span> Record Pay
-                        </button>
+                        {o.pendingCompanyCount > 0 && <div><small>Awaiting {o.pendingCompanyCount} company {o.pendingCompanyCount === 1 ? "delivery" : "deliveries"}</small></div>}
+                        {o.unattributedOutstanding > 0 && <small>Firm attribution pending</small>}
+                        {canOpenInvoices && o.invoices.filter(invoice => Number(invoice.outstandingAmount) > 0).map(invoice => (
+                          <div key={invoice.id} style={{ marginTop: 4 }}>
+                            <Link to={`/commercial?invoiceId=${encodeURIComponent(invoice.id)}`}>
+                              {invoice.sellingEntity ? "Review balance" : "Review invoice"} · {billingInvoiceLabel(invoice)}
+                            </Link>
+                          </div>
+                        ))}
                       </td>
 
                       {/* Accounting Audit Status */}
@@ -1461,10 +1344,11 @@ export default function BillingEntitiesAudit() {
                             }}>
                               📝 Open Audit
                             </span>
-                            <div style={{ marginTop: 4 }}>
-                              <button
-                                type="button"
-                                onClick={() => handleCloseSingleAccounting(o)}
+                            {canClose(o) && (
+                              <div style={{ marginTop: 4 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCloseSingleAccounting(o)}
                                 style={{
                                   fontSize: 10.5,
                                   padding: "2px 8px",
@@ -1477,9 +1361,10 @@ export default function BillingEntitiesAudit() {
                                 }}
                                 title="Close and finalize for accounting"
                               >
-                                🔒 Close
-                              </button>
-                            </div>
+                                  🔒 Close
+                                </button>
+                              </div>
+                            )}
                           </div>
                         )}
                       </td>
@@ -1526,23 +1411,7 @@ export default function BillingEntitiesAudit() {
                             </>
                           )}
 
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(o)}
-                            style={{
-                              fontSize: 10.5,
-                              padding: "2px 6px",
-                              borderRadius: 3,
-                              border: "1px solid #cbd5e1",
-                              background: "#ffffff",
-                              color: "#334155",
-                              fontWeight: 600,
-                              cursor: "pointer",
-                            }}
-                            title="Edit lines, rates or freight"
-                          >
-                            ✏️ Edit
-                          </button>
+
 
                           <button
                             type="button"
@@ -1633,313 +1502,6 @@ export default function BillingEntitiesAudit() {
         )}
       </div>
 
-      {/* MODAL 1: Record Payment Modal */}
-      {paymentModalOrder && (
-        <div style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "rgba(15, 23, 42, 0.6)",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          zIndex: 1000,
-          padding: 20,
-        }}>
-          <div style={{
-            background: "#ffffff",
-            borderRadius: 12,
-            width: "100%",
-            maxWidth: 500,
-            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
-            overflow: "hidden",
-          }}>
-            <div style={{ padding: "16px 20px", background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)", color: "#ffffff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>💳 Record Payment Receipt</h3>
-                <span style={{ fontSize: 12, opacity: 0.9 }}>Order {formatOrderRef(paymentModalOrder)} · {paymentModalOrder.retailerName}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPaymentModalOrder(null)}
-                style={{ background: "transparent", border: "none", color: "#ffffff", fontSize: 18, cursor: "pointer" }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleRecordPaymentSubmit} style={{ padding: 20 }}>
-              <div style={{ background: "#f8fafc", padding: "10px 14px", borderRadius: 8, border: "1px solid #e2e8f0", marginBottom: 16 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                  <span style={{ color: "#64748b" }}>Order Grand Total:</span>
-                  <strong style={{ color: "#1e293b" }}>{inr(paymentModalOrder.grandTotal)}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                  <span style={{ color: "#64748b" }}>Currently Paid:</span>
-                  <span style={{ color: "#15803d", fontWeight: 600 }}>{inr(paymentModalOrder.totalPaid)}</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, borderTop: "1px dashed #cbd5e1", paddingTop: 4 }}>
-                  <span style={{ color: "#9a3412", fontWeight: 700 }}>Outstanding Balance Due:</span>
-                  <strong style={{ color: "#c2410c", fontSize: 14 }}>{inr(paymentModalOrder.totalOutstanding)}</strong>
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: 12, fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>
-                  Amount Received (₹):
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(Number(e.target.value))}
-                  style={{ width: "100%", padding: "8px 12px", fontSize: 14, fontWeight: 700 }}
-                />
-              </div>
-
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: 12, fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>
-                  Deposited To Bank Account:
-                </label>
-                <select
-                  value={paymentBankAccount}
-                  onChange={(e) => setPaymentBankAccount(e.target.value)}
-                  style={{ width: "100%", padding: "8px 10px", fontSize: 13 }}
-                >
-                  <option value="HDFC_JAIN">🏢 Jain Traders - HDFC Bank (A/c #50200049281729)</option>
-                  <option value="ICICI_PADAM">🌐 Padam International - ICICI Bank (A/c #003505019283)</option>
-                  <option value="CASH_IN_HAND">💵 Cash in Hand / Counter Collection</option>
-                </select>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>
-                    Payment Mode:
-                  </label>
-                  <select
-                    value={paymentMode}
-                    onChange={(e) => setPaymentMode(e.target.value)}
-                    style={{ width: "100%", padding: "8px 10px", fontSize: 13 }}
-                  >
-                    <option value="NEFT_RTGS">NEFT / RTGS / IMPS</option>
-                    <option value="UPI">UPI / QR Transfer</option>
-                    <option value="CHEQUE">Bank Cheque</option>
-                    <option value="CASH">Cash</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>
-                    Reference / UTR No:
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={paymentReference}
-                    onChange={(e) => setPaymentReference(e.target.value)}
-                    placeholder="e.g. UTR-982319"
-                    style={{ width: "100%", padding: "8px 10px", fontSize: 13 }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 18 }}>
-                <label style={{ fontSize: 12, fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>
-                  Notes / Accounting Narration:
-                </label>
-                <input
-                  type="text"
-                  value={paymentNotes}
-                  onChange={(e) => setPaymentNotes(e.target.value)}
-                  placeholder="e.g. Full settlement against Invoice"
-                  style={{ width: "100%", padding: "8px 10px", fontSize: 13 }}
-                />
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => setPaymentModalOrder(null)}
-                  disabled={paymentSubmitting}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={paymentSubmitting}
-                  style={{ background: "#16a34a", color: "#ffffff", fontWeight: 700, padding: "8px 18px", border: "none", borderRadius: 6 }}
-                >
-                  {paymentSubmitting ? "Posting..." : "Confirm & Post Payment Receipt"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 2: Edit Order Modal */}
-      {editModalOrder && (
-        <div style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "rgba(15, 23, 42, 0.6)",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          zIndex: 1000,
-          padding: 20,
-        }}>
-          <div style={{
-            background: "#ffffff",
-            borderRadius: 12,
-            width: "100%",
-            maxWidth: 750,
-            maxHeight: "90vh",
-            display: "flex",
-            flexDirection: "column",
-            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
-            overflow: "hidden",
-          }}>
-            <div style={{ padding: "16px 20px", background: "#1e293b", color: "#ffffff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>✏️ Edit Commercial Order &amp; Rates</h3>
-                <span style={{ fontSize: 12, opacity: 0.9 }}>Order {formatOrderRef(editModalOrder)} · {editModalOrder.retailerName}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEditModalOrder(null)}
-                style={{ background: "transparent", border: "none", color: "#ffffff", fontSize: 18, cursor: "pointer" }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveEditSubmit} style={{ padding: 20, overflowY: "auto", flex: 1 }}>
-              <div style={{ marginBottom: 14 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "#334155", display: "block", marginBottom: 6 }}>
-                  Order Line Items:
-                </span>
-                <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ background: "#f1f5f9", textAlign: "left" }}>
-                      <th style={{ padding: "6px 10px" }}>Product &amp; Pack</th>
-                      <th style={{ padding: "6px 10px", width: 110 }}>Qty (Cases)</th>
-                      <th style={{ padding: "6px 10px", width: 130 }}>Unit Price (₹)</th>
-                      <th style={{ padding: "6px 10px", textAlign: "right", width: 120 }}>Line Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {editLines.map((line, idx) => (
-                      <tr key={idx} style={{ borderBottom: "1px solid #e2e8f0" }}>
-                        <td style={{ padding: "8px 10px" }}>
-                          <strong>{line.productName}</strong>
-                          <div style={{ fontSize: 11, color: "#64748b" }}>{line.pack}</div>
-                        </td>
-                        <td style={{ padding: "8px 10px" }}>
-                          <input
-                            type="number"
-                            min="1"
-                            value={line.cases}
-                            onChange={(e) => handleLineQtyChange(idx, Number(e.target.value))}
-                            style={{ width: "100%", padding: "4px 8px", fontSize: 12 }}
-                          />
-                        </td>
-                        <td style={{ padding: "8px 10px" }}>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={line.unitPrice}
-                            onChange={(e) => handleLinePriceChange(idx, Number(e.target.value))}
-                            style={{ width: "100%", padding: "4px 8px", fontSize: 12 }}
-                          />
-                        </td>
-                        <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 700 }}>
-                          {inr(line.cases * line.unitPrice)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>
-                    Freight Amount (₹):
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={editFreight}
-                    onChange={(e) => setEditFreight(Number(e.target.value))}
-                    style={{ width: "100%", padding: "6px 10px", fontSize: 13 }}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>
-                    Accounting Remarks:
-                  </label>
-                  <input
-                    type="text"
-                    value={editRemarks}
-                    onChange={(e) => setEditRemarks(e.target.value)}
-                    placeholder="e.g. Revised rate per commercial agreement"
-                    style={{ width: "100%", padding: "6px 10px", fontSize: 13 }}
-                  />
-                </div>
-              </div>
-
-              {/* Live Recalculated Order Summary */}
-              <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", padding: "12px 16px", borderRadius: 8, marginBottom: 16 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                  <span>Goods Subtotal:</span>
-                  <strong>{inr(computedEditSubtotal)}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                  <span>Freight Amount:</span>
-                  <strong>{inr(Number(editFreight || 0))}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                  <span>Estimated GST (5%):</span>
-                  <strong>{inr(computedEditGst)}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, borderTop: "1px dashed #86efac", paddingTop: 4 }}>
-                  <strong style={{ color: "#166534" }}>New Grand Total:</strong>
-                  <strong style={{ color: "#166534", fontSize: 16 }}>{inr(computedEditGrandTotal)}</strong>
-                </div>
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => setEditModalOrder(null)}
-                  disabled={editSubmitting}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={editSubmitting}
-                  style={{ background: "#0284c7", color: "#ffffff", fontWeight: 700, padding: "8px 18px", border: "none", borderRadius: 6 }}
-                >
-                  {editSubmitting ? "Saving..." : "Save Changes & Recalculate"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

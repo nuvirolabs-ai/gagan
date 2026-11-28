@@ -17,6 +17,10 @@ export async function postInvoicePayment(retailerId:string,actorStaffId:string,k
   if (!input.invoiceId || !key || key.length>120 || !input.confirmed || !total.isPositive() || !jain.plus(padam).eq(total) || !input.method.trim() || !input.reference.trim()) throw new CommercialError("explicit_invoice_allocation_required",400);
   const target=await prisma.invoice.findFirst({where:{id:input.invoiceId,retailerId}});
   if (!target) throw new CommercialError("invoice_not_found",404);
+  if ((target.sellingEntity === "jain_traders" && !padam.isZero()) ||
+      (target.sellingEntity === "padam_international" && !jain.isZero())) {
+    throw new CommercialError("invoice_entity_allocation_invalid");
+  }
   const fingerprint=createHash("sha256").update(JSON.stringify({retailerId,actorStaffId,invoiceId:input.invoiceId,amount:total.toFixed(2),jain:jain.toFixed(2),padam:padam.toFixed(2),method:input.method.trim(),reference:input.reference.trim()})).digest("hex");
   // Persist the confirmed intent before settlement. A failed/timeout settlement
   // is safely resumable with this exact intent, never a different allocation.

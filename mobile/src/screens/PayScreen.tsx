@@ -117,8 +117,10 @@ export default function PayScreen({ navigation }: any) {
   const reconciliationRequired = Boolean(dues.financialSummary?.reconciliationRequired);
   const invoiceAllocationRequired = Boolean(dues.invoiceAllocationRequired);
   const selectedInvoice = paymentInvoices.find((invoice) => invoice.id === selectedInvoiceId) ?? null;
-  const jainValue = parseMoneyInput(jainAmount);
-  const padamValue = parseMoneyInput(padamAmount);
+  const showJainAmount = selectedInvoice?.sellingEntity !== "padam_international";
+  const showPadamAmount = selectedInvoice?.sellingEntity !== "jain_traders";
+  const jainValue = showJainAmount ? parseMoneyInput(jainAmount) : 0;
+  const padamValue = showPadamAmount ? parseMoneyInput(padamAmount) : 0;
   const genericValue = parseMoneyInput(amount);
   const value = selectedInvoice && jainValue !== null && padamValue !== null
     ? (cents(jainValue) + cents(padamValue)) / 100
@@ -332,8 +334,13 @@ export default function PayScreen({ navigation }: any) {
                   />
                   <View style={styles.invoiceInfo}>
                     <Text style={styles.invoiceNumber} numberOfLines={1}>
-                      {t("pay.invoiceRef", { number: invoice.invoiceNumber })}
+                      {t("pay.invoiceRef", { number: invoice.firmInvoiceNumber ?? invoice.invoiceNumber })}
                     </Text>
+                    {invoice.sellingEntity ? (
+                      <Text style={styles.invoiceMeta}>
+                        {t(invoice.sellingEntity === "jain_traders" ? "finance.jainTraders" : "finance.padamInternational")}
+                      </Text>
+                    ) : null}
                     {invoice.orderNo != null ? (
                       <Text style={styles.invoiceMeta}>{t("pay.orderRef", { order: invoice.orderNo })}</Text>
                     ) : null}
@@ -360,7 +367,7 @@ export default function PayScreen({ navigation }: any) {
             {selectedInvoice ? (
               <>
                 <Text style={styles.noteText}>{t("pay.invoiceAllocationNote")}</Text>
-                <View style={styles.entityInputRow}>
+                {showJainAmount && <View style={styles.entityInputRow}>
                   <View style={styles.entityInputLabel}>
                     <Text style={styles.rowLabel}>{t("pay.amountForEntity", { entity: t("finance.jainTraders") })}</Text>
                     <Text style={styles.rowValue}>{inr(selectedInvoice.entityBalances.jainTraders)}</Text>
@@ -374,8 +381,8 @@ export default function PayScreen({ navigation }: any) {
                     placeholder="0.00"
                     placeholderTextColor={colors.inkFaint}
                   />
-                </View>
-                <View style={[styles.entityInputRow, styles.rowBorder]}>
+                </View>}
+                {showPadamAmount && <View style={[styles.entityInputRow, showJainAmount && styles.rowBorder]}>
                   <View style={styles.entityInputLabel}>
                     <Text style={styles.rowLabel}>{t("pay.amountForEntity", { entity: t("finance.padamInternational") })}</Text>
                     <Text style={styles.rowValue}>{inr(selectedInvoice.entityBalances.padamInternational)}</Text>
@@ -389,7 +396,7 @@ export default function PayScreen({ navigation }: any) {
                     placeholder="0.00"
                     placeholderTextColor={colors.inkFaint}
                   />
-                </View>
+                </View>}
                 <View style={[styles.row, styles.totalRow]}>
                   <Text style={styles.rowLabel}>{t("pay.allocationTotal")}</Text>
                   <Text style={styles.rowValue}>{inr(value)}</Text>
@@ -499,14 +506,14 @@ export default function PayScreen({ navigation }: any) {
               {allocations.map((allocation: any, index: number) => (
                 <View key={`${allocation.invoice.id}-${index}`} style={styles.paymentAllocation}>
                   <Text style={styles.historyMeta}>
-                    {t("pay.invoiceRef", { number: allocation.invoice.invoiceNumber })}
+                    {t("pay.invoiceRef", { number: allocation.invoice.firmInvoiceNumber ?? allocation.invoice.invoiceNumber })}
                     {allocation.invoice.orderNo != null ? ` · ${t("pay.orderRef", { order: allocation.invoice.orderNo })}` : ""}
                   </Text>
                   <View style={styles.allocationHistorySplit}>
-                    {allocation.jainAmount != null ? (
+                    {allocation.jainAmount != null && allocation.invoice.sellingEntity !== "padam_international" ? (
                       <Text style={styles.historyMeta}>{t("finance.jainTraders")} {inr(Number(allocation.jainAmount))}</Text>
                     ) : null}
-                    {allocation.padamAmount != null ? (
+                    {allocation.padamAmount != null && allocation.invoice.sellingEntity !== "jain_traders" ? (
                       <Text style={styles.historyMeta}>{t("finance.padamInternational")} {inr(Number(allocation.padamAmount))}</Text>
                     ) : null}
                   </View>

@@ -4,14 +4,14 @@ import { prisma } from "../../lib/prisma";
 import { AdminRequest, requireAdmin, requireAdminPermission, requireAnyAdminPermission } from "../../lib/adminAuth";
 import { Permissions } from "../../modules/identity/roleCatalog";
 import { ageAllRetailers } from "../../lib/ageing";
-import { financialLedgerFor } from "../../modules/finance/financialQueries";
+import { financialLedgerFor, retailerPaymentInvoicesFor } from "../../modules/finance/financialQueries";
 import { financialSummaryFor, financialSummariesForRetailers } from "../../modules/finance/financialSummary";
 import {
   PaymentSettlementError,
   settleSucceededPayment,
 } from "../../modules/payments/paymentService";
 import { nextQuarterlyCheckpoint } from "../../modules/credit/reviewSchedule";
-import { CommercialStatusCode } from "@prisma/client";
+import { CommercialStatusCode, Prisma } from "@prisma/client";
 import { internalStatusForRetailer, internalStatusesForRetailers, recordCommercialStatusEvent } from "../../modules/commercialStatus/statusService";
 
 const router = Router();
@@ -219,27 +219,11 @@ router.delete("/retailers/:id/price-override/:variantId", async (req, res) => {
 });
 
 router.get("/retailers/:id/ledger", async (req, res) => {
-  const [retailer, entries, financialSummary, openInvoices] = await Promise.all([
+  const [retailer, entries, financialSummary, paymentOptions] = await Promise.all([
     prisma.retailer.findUnique({ where: { id: req.params.id } }),
     financialLedgerFor(prisma, req.params.id),
     financialSummaryFor(prisma, req.params.id),
-    prisma.invoice.findMany({
-      where: {
-        retailerId: req.params.id,
-        status: { in: ["open", "partially_paid"] },
-        outstandingAmount: { gt: 0 },
-      },
-      select: {
-        id: true,
-        invoiceNumber: true,
-        total: true,
-        outstandingAmount: true,
-        dueDate: true,
-        createdAt: true,
-        commercialSnapshot: true,
-      },
-      orderBy: { createdAt: "asc" },
-    }),
+    retailerPaymentInvoicesFor(prisma, req.params.id),
   ]);
   if (!retailer) return res.status(404).json({ error: "Retailer not found" });
 
@@ -250,16 +234,10 @@ router.get("/retailers/:id/ledger", async (req, res) => {
     ageing: financialSummary?.invoiceAgeing ?? null,
     financialSummary,
     entries,
-    openInvoices: openInvoices.map((inv) => ({
-      id: inv.id,
-      invoiceNumber: inv.invoiceNumber,
-      total: Number(inv.total),
-      outstandingAmount: Number(inv.outstandingAmount),
-      dueDate: inv.dueDate,
-      createdAt: inv.createdAt,
-      billingEntity: ((inv.commercialSnapshot as any)?.routing?.entity === "padam_international" || (inv.commercialSnapshot as any)?.billingEntity?.name === "Padam International")
-        ? "Padam International"
-        : "Jain Traders",
+    invoiceAllocationRequired: paymentOptions.invoiceAllocationRequired,
+    openInvoices: paymentOptions.paymentInvoices.map(invoice => ({
+      ...invoice,
+      outstandingAmount: invoice.outstanding,
     })),
   });
 });
@@ -278,7 +256,16 @@ const paymentSchema = z.object({
   bankAccount: z.string().trim().optional(),
   reference: z.string().trim().optional(),
   notes: z.string().trim().optional(),
-  invoiceScopeId: z.string().trim().optional(),
+  invoiceScopeId: z.string().trim().min(1).optional(),
+  jainAmount: z.number().nonnegative().optional(),
+  padamAmount: z.number().nonnegative().optional(),
+}).refine(data => {
+  if (new Prisma.Decimal(data.amount).decimalPlaces() > 2) return false;
+  if (!data.invoiceScopeId) return data.jainAmount === undefined && data.padamAmount === undefined;
+  if (data.jainAmount === undefined || data.padamAmount === undefined) return false;
+  const jain = new Prisma.Decimal(data.jainAmount);
+  const padam = new Prisma.Decimal(data.padamAmount);
+  return jain.decimalPlaces() <= 2 && padam.decimalPlaces() <= 2 && jain.plus(padam).eq(data.amount);
 });
 
 /**
@@ -307,6 +294,17 @@ router.post(
     if (summary?.reconciliationRequired) {
       return res.status(409).json({ error: "financial_reconciliation_required" });
     }
+    const options = await retailerPaymentInvoicesFor(prisma, retailer.id);
+    if (parsed.data.invoiceScopeId) {
+      const invoice = options.paymentInvoices.find(row => row.id === parsed.data.invoiceScopeId);
+      if (!invoice?.paymentEligible ||
+          parsed.data.jainAmount! > invoice.entityBalances.jainTraders ||
+          parsed.data.padamAmount! > invoice.entityBalances.padamInternational) {
+        return res.status(409).json({ error: "invoice_entity_allocation_invalid" });
+      }
+    } else if (options.invoiceAllocationRequired) {
+      return res.status(409).json({ error: "invoice_entity_allocation_required" });
+    }
   }
   const staffId = (req as AdminRequest).staffAuth?.staffId;
   const paymentRef = [
@@ -328,12 +326,17 @@ router.post(
       confirmedMethod: parsed.data.paymentMode || "OFFLINE_RECORDED",
       confirmedReference: paymentRef,
       confirmedByStaffId: staffId || null,
-      invoiceScopeId: parsed.data.invoiceScopeId || null,
+      invoiceScopeId: parsed.data.invoiceScopeId ?? null,
+      confirmedJainAmount: parsed.data.jainAmount,
+      confirmedPadamAmount: parsed.data.padamAmount,
     },
   });
   if (
     payment.retailerId !== retailer.id ||
-    Number(payment.amount) !== parsed.data.amount
+    Number(payment.amount) !== parsed.data.amount ||
+    (payment.invoiceScopeId ?? null) !== (parsed.data.invoiceScopeId ?? null) ||
+    (payment.confirmedJainAmount == null ? null : Number(payment.confirmedJainAmount)) !== (parsed.data.jainAmount ?? null) ||
+    (payment.confirmedPadamAmount == null ? null : Number(payment.confirmedPadamAmount)) !== (parsed.data.padamAmount ?? null)
   ) {
     return res.status(409).json({ error: "idempotency_key_conflict" });
   }

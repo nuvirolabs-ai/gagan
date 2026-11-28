@@ -3,14 +3,12 @@ import type { InvoiceResult } from "./types";
 
 export type FinancialDb = PrismaClient | Prisma.TransactionClient;
 
-export function findExistingInvoice(
-  db: FinancialDb,
-  input: { orderId: string; idempotencyKey: string }
-): Promise<InvoiceResult | null> {
-  return db.invoice.findFirst({
-    where: {
-      OR: [{ orderId: input.orderId }, { idempotencyKey: input.idempotencyKey }],
-    },
-    include: { lines: true, ledgerEntry: true, legacyLedgerEntry: true },
+export const invoiceDetails = { lines: true, ledgerEntry: true, legacyLedgerEntry: true } as const;
+
+export function findOrderInvoices(db: FinancialDb, orderId: string): Promise<InvoiceResult[]> {
+  return db.invoice.findMany({
+    where: { orderId },
+    orderBy: { invoiceNumber: "asc" },
+    include: invoiceDetails,
   });
 }

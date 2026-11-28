@@ -12,6 +12,7 @@ import { useLanguage } from "../i18n/LanguageContext";
 import { formatOrderRef } from "../lib/orderRef";
 import { orderAttributionLabel } from "../lib/orderAttribution";
 import { hasOrderAmountMismatch } from "../lib/orderAmountMismatch";
+import type { OrderInvoiceSummary } from "../types";
 
 const POD_LABEL: Record<string, string> = {
   photo: "Photo",
@@ -80,6 +81,10 @@ export default function OrderDetailScreen({ route, navigation }: any) {
 
   const isActive = ["placed", "confirmed", "packed", "out_for_delivery"].includes(order.status);
   const invoice = order.invoice;
+  const invoices: OrderInvoiceSummary[] = order.invoices ?? [];
+  const showInvoiceDocuments = invoices.length > 1 || invoices.some(document => document.sellingEntity);
+  const totalBilled = order.billingSummary?.total ?? invoice?.amount;
+  const variance = totalBilled == null ? null : Number(totalBilled) - Number(order.orderTotal);
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }}>
@@ -178,25 +183,48 @@ export default function OrderDetailScreen({ route, navigation }: any) {
           <Text style={styles.sumValue}>{inr(Number(order.orderTotal))}</Text>
         </View>
         {hasOrderAmountMismatch(order) && <Text style={styles.amountWarning}>{t("orders.amountMismatch")}</Text>}
-        {invoice?.commercialSnapshot && <CommercialBreakdown value={invoice.commercialSnapshot}/>}
-        {invoice?.entityOutstanding && <Text style={styles.sumLabel}>This invoice outstanding · Jain ₹{invoice.entityOutstanding.jain} · Padam ₹{invoice.entityOutstanding.padam}</Text>}
-        {invoice ? (
+        {showInvoiceDocuments ? invoices.map(document => (
+          <View key={document.id} style={styles.invoiceSection}>
+            <View style={styles.sumRow}>
+              <View style={{ flex: 1 }}>
+                {document.sellingEntity ? (
+                  <Text style={styles.sumValue}>
+                    {t(document.sellingEntity === "jain_traders" ? "finance.jainTraders" : "finance.padamInternational")}
+                  </Text>
+                ) : null}
+                <Text style={styles.sumLabel}>{t("pay.invoiceRef", { number: document.firmInvoiceNumber ?? document.invoiceNumber })}</Text>
+              </View>
+              <Text style={styles.sumValue}>{inr(Number(document.total))}</Text>
+            </View>
+            <View style={styles.sumRow}>
+              <Text style={styles.sumLabel}>{t("pay.totalOutstanding")}</Text>
+              <Text style={styles.sumValue}>{inr(Number(document.outstandingAmount))}</Text>
+            </View>
+            {document.commercialSnapshot ? <CommercialBreakdown value={document.commercialSnapshot} /> : null}
+          </View>
+        )) : (
+          <>
+            {invoice?.commercialSnapshot && <CommercialBreakdown value={invoice.commercialSnapshot} />}
+            {invoice?.entityOutstanding && <Text style={styles.sumLabel}>This invoice outstanding · Jain ₹{invoice.entityOutstanding.jain} · Padam ₹{invoice.entityOutstanding.padam}</Text>}
+          </>
+        )}
+        {totalBilled != null ? (
           <>
             <View style={styles.sumRow}>
-              <Text style={styles.sumLabel}>{t("orders.invoicedWeight")}</Text>
-              <Text style={[styles.sumValue, { fontWeight: "700" }]}>{inr(invoice.amount)}</Text>
+              <Text style={styles.sumLabel}>{t(showInvoiceDocuments ? "orders.totalInvoiced" : "orders.invoicedWeight")}</Text>
+              <Text style={[styles.sumValue, { fontWeight: "700" }]}>{inr(Number(totalBilled))}</Text>
             </View>
-            {Math.abs(invoice.variance) >= 1 && (
+            {variance != null && Math.abs(variance) >= 1 && (
               <View style={styles.sumRow}>
                 <Text style={styles.sumLabel}>{t("orders.variance")}</Text>
                 <Text
                   style={[
                     styles.sumValue,
-                    { color: invoice.variance < 0 ? colors.green : colors.danger },
+                    { color: variance < 0 ? colors.green : colors.danger },
                   ]}
                 >
-                  {invoice.variance < 0 ? "−" : "+"}
-                  {inr(Math.abs(invoice.variance))}
+                  {variance < 0 ? "−" : "+"}
+                  {inr(Math.abs(variance))}
                 </Text>
               </View>
             )}
@@ -283,6 +311,7 @@ const styles = StyleSheet.create({
   itemTotal: { fontSize: 14.5, fontWeight: "700", color: colors.ink, marginTop: 3 },
 
   sumRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm, gap: spacing.md },
+  invoiceSection: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingVertical: spacing.sm, marginBottom: spacing.sm },
   sumLabel: { fontSize: 13, color: colors.inkMuted, flex: 1 },
   sumValue: { fontSize: 13.5, fontWeight: "600", color: colors.ink, flexShrink: 0 },
 

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { CommercialStatusCode, OrderStatus } from "@prisma/client";
+import { CommercialStatusCode, OrderStatus, Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AdminRequest, requireAdmin, requireAnyAdminPermission } from "../../lib/adminAuth";
 import { Permissions } from "../../modules/identity/roleCatalog";
@@ -9,13 +9,12 @@ import {
   InvoiceCreationError,
 } from "../../modules/invoicing/invoiceService";
 import { enqueueSalesOrder } from "../../lib/sap/outbox";
-import { renderInvoicePdf } from "../../modules/invoicing/invoicePdf";
+import { orderInvoiceSummary, sendOrderInvoicePdf } from "../../modules/invoicing/orderInvoicePdf";
 import { ensureKycApprovedForDispatch, KycGateError } from "../../modules/kyc/kycGate";
+import { assignCompanyDispatch, companyOrderSummary, CompanySalesOrderError, dispatchAssignmentSchema } from "../../modules/orders/companySalesOrders";
 import {
   attributeOrders,
   attributeOrdersWithWarehouses,
-  orderAttribution,
-  resolveWarehouse,
 } from "../../modules/orders/orderAttribution";
 
 const router = Router();
@@ -48,6 +47,7 @@ function assertTransition(from: OrderStatus, to: OrderStatus): string | null {
 }
 
 const orderInclude = {
+  companySalesOrders: companyOrderSummary,
   retailer: {
     select: {
       id: true,
@@ -61,18 +61,9 @@ const orderInclude = {
   },
   items: { include: { variant: { include: { product: true, priceList: true } } } },
   delivery: true,
-  invoice: {
-    select: {
-      id: true,
-      invoiceNumber: true,
-      invoiceDate: true,
-      dueDate: true,
-      currency: true,
-      subtotal: true,
-      taxTotal: true,
-      total: true,
-      outstandingAmount: true,
-    },
+  invoices: {
+    orderBy: { invoiceNumber: "asc" },
+    select: orderInvoiceSummary,
   },
   commercialStatusEvents: {
     where: { code: CommercialStatusCode.SALES_ORDER_PUNCHED },
@@ -221,17 +212,8 @@ export async function transitionOrder(
       },
     });
     if(claimed.count!==1) return null;
-    const next=await tx.order.findUniqueOrThrow({where:{id:orderId},include:orderInclude});
     if (to === "packed") {
-      await enqueueSalesOrder(tx, orderId).catch((err) => console.warn("enqueueSalesOrder error:", err));
-      await tx.commercialStatusEvent.create({
-        data: {
-          code: "SALES_ORDER_CREATED",
-          orderId,
-          retailerId: order.retailerId,
-          actorStaffId,
-        },
-      }).catch(() => null);
+      await enqueueSalesOrder(tx, orderId);
     }
     await tx.auditEvent.create({
       data: {
@@ -242,8 +224,12 @@ export async function transitionOrder(
         metadata: { from: order.status, to },
       },
     });
-    return next;
+    return tx.order.findUniqueOrThrow({ where: { id: orderId }, include: orderInclude });
+  }).catch(error => {
+    if (error instanceof CompanySalesOrderError) return error;
+    throw error;
   });
+  if (updated instanceof CompanySalesOrderError) return res.status(409).json({ error: updated.code });
   if(!updated) return res.status(409).json({error:"order_transition_conflict"});
   const [attributedOrder] = await attributeOrders([updated]);
   res.json({ order: projectOrder(attributedOrder) });
@@ -278,186 +264,167 @@ router.put(
     const parsed = orderEditSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error });
     const orderId = req.params.id;
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      include: orderInclude,
-    });
-    if (!order) return res.status(404).json({ error: "Order not found" });
+    const result = await prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT "id" FROM "Order" WHERE "id" = ${orderId} FOR UPDATE`;
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        include: orderInclude,
+      });
+      if (!order) return { status: 404, error: "Order not found" } as const;
 
-    let newOrderTotal = Number(order.orderTotal);
-    const snap = ((order.commercialSnapshot as any) || {}) as Record<string, any>;
-
-    if (parsed.data.items && parsed.data.items.length > 0) {
-      let subtotal = 0;
-
-      for (const item of parsed.data.items) {
-        const existingItem = item.orderItemId
-          ? order.items.find((it) => it.id === item.orderItemId)
-          : item.variantId
-          ? order.items.find((it) => it.variantId === item.variantId)
-          : undefined;
-
-        if (existingItem) {
-          const price = item.unitPrice ?? Number(existingItem.unitPrice);
-          const lineTotal = item.qtyOrdered * price;
-          await prisma.orderItem.update({
-            where: { id: existingItem.id },
-            data: {
-              qtyOrdered: item.qtyOrdered,
-              unitPrice: price,
-            },
-          });
-          subtotal += lineTotal;
-        }
+      const hasFinancialChanges = Boolean(parsed.data.items?.length) || parsed.data.freightAmount !== undefined;
+      if (hasFinancialChanges && (order.commercialSnapshot !== null || order.invoices.length > 0)) {
+        return { status: 409, error: "accepted_order_amendment_required" } as const;
+      }
+      if (!hasFinancialChanges) {
+        const orderWithRemarks = parsed.data.remarks === undefined ? order : await tx.order.update({
+          where: { id: order.id },
+          data: { remarks: parsed.data.remarks },
+          include: orderInclude,
+        });
+        return { order: orderWithRemarks } as const;
       }
 
-      const freightAmt = parsed.data.freightAmount !== undefined
-        ? parsed.data.freightAmount
-        : Number(snap.freight?.amount ?? 0);
+      let newOrderTotal = Number(order.orderTotal);
+      const snap = ((order.commercialSnapshot as any) || {}) as Record<string, any>;
 
-      const prevSubtotal = Number(snap.subtotal ?? (Number(order.orderTotal) - Number(snap.freight?.amount ?? 0)));
-      const gstRatio = prevSubtotal > 0 ? Number(snap.gstTotal ?? 0) / prevSubtotal : 0.05;
-      const totalGst = Math.round(subtotal * gstRatio * 100) / 100;
+      if (parsed.data.items && parsed.data.items.length > 0) {
+        let subtotal = 0;
 
-      newOrderTotal = Math.round((subtotal + totalGst + freightAmt) * 100) / 100;
+        for (const item of parsed.data.items) {
+          const existingItem = item.orderItemId
+            ? order.items.find((it) => it.id === item.orderItemId)
+            : item.variantId
+            ? order.items.find((it) => it.variantId === item.variantId)
+            : undefined;
 
-      if (snap.lines && Array.isArray(snap.lines)) {
-        for (const snapLine of snap.lines) {
-          const matchingEdit = parsed.data.items.find(
-            (it) => it.variantId === snapLine.variantId || (it.orderItemId && order.items.find((oi) => oi.id === it.orderItemId)?.variantId === snapLine.variantId)
-          );
-          if (matchingEdit) {
-            snapLine.cases = matchingEdit.qtyOrdered;
-            if (matchingEdit.unitPrice) snapLine.rate = matchingEdit.unitPrice;
-            snapLine.base = Math.round(matchingEdit.qtyOrdered * (snapLine.rate || 0) * 100) / 100;
-            snapLine.total = Math.round((snapLine.base + (snapLine.gst || 0)) * 100) / 100;
+          if (existingItem) {
+            const price = item.unitPrice ?? Number(existingItem.unitPrice);
+            const lineTotal = item.qtyOrdered * price;
+            await tx.orderItem.update({
+              where: { id: existingItem.id },
+              data: {
+                qtyOrdered: item.qtyOrdered,
+                unitPrice: price,
+              },
+            });
+            subtotal += lineTotal;
           }
         }
+
+        const freightAmt = parsed.data.freightAmount !== undefined
+          ? parsed.data.freightAmount
+          : Number(snap.freight?.amount ?? 0);
+
+        const prevSubtotal = Number(snap.subtotal ?? (Number(order.orderTotal) - Number(snap.freight?.amount ?? 0)));
+        const gstRatio = prevSubtotal > 0 ? Number(snap.gstTotal ?? 0) / prevSubtotal : 0.05;
+        const totalGst = Math.round(subtotal * gstRatio * 100) / 100;
+
+        newOrderTotal = Math.round((subtotal + totalGst + freightAmt) * 100) / 100;
+
+        if (snap.lines && Array.isArray(snap.lines)) {
+          for (const snapLine of snap.lines) {
+            const matchingEdit = parsed.data.items.find(
+              (it) => it.variantId === snapLine.variantId || (it.orderItemId && order.items.find((oi) => oi.id === it.orderItemId)?.variantId === snapLine.variantId)
+            );
+            if (matchingEdit) {
+              snapLine.cases = matchingEdit.qtyOrdered;
+              if (matchingEdit.unitPrice) snapLine.rate = matchingEdit.unitPrice;
+              snapLine.base = Math.round(matchingEdit.qtyOrdered * (snapLine.rate || 0) * 100) / 100;
+              snapLine.total = Math.round((snapLine.base + (snapLine.gst || 0)) * 100) / 100;
+            }
+          }
+        }
+        snap.subtotal = subtotal;
+        snap.gstTotal = totalGst;
+        if (snap.freight) snap.freight.amount = freightAmt;
+        snap.total = newOrderTotal;
+      } else if (parsed.data.freightAmount !== undefined) {
+        const prevFreight = Number(snap.freight?.amount ?? 0);
+        newOrderTotal = Math.round((newOrderTotal - prevFreight + parsed.data.freightAmount) * 100) / 100;
+        if (snap.freight) snap.freight.amount = parsed.data.freightAmount;
+        snap.total = newOrderTotal;
       }
-      snap.subtotal = subtotal;
-      snap.gstTotal = totalGst;
-      if (snap.freight) snap.freight.amount = freightAmt;
-      snap.total = newOrderTotal;
-    } else if (parsed.data.freightAmount !== undefined) {
-      const prevFreight = Number(snap.freight?.amount ?? 0);
-      newOrderTotal = Math.round((newOrderTotal - prevFreight + parsed.data.freightAmount) * 100) / 100;
-      if (snap.freight) snap.freight.amount = parsed.data.freightAmount;
-      snap.total = newOrderTotal;
-    }
 
-    if (parsed.data.remarks !== undefined) {
-      snap.accountingRemarks = parsed.data.remarks;
-    }
+      if (parsed.data.remarks !== undefined) {
+        snap.accountingRemarks = parsed.data.remarks;
+      }
 
-    const updated = await prisma.order.update({
-      where: { id: orderId },
-      data: {
-        orderTotal: newOrderTotal,
-        ...(parsed.data.remarks !== undefined ? { remarks: parsed.data.remarks } : {}),
-        commercialSnapshot: snap,
-      },
-      include: orderInclude,
-    });
-
-    if (order.invoice) {
-      const currentPaid = Number(order.invoice.total) - Number(order.invoice.outstandingAmount);
-      await prisma.invoice.update({
-        where: { id: order.invoice.id },
+      const updated = await tx.order.update({
+        where: { id: orderId },
         data: {
-          total: newOrderTotal,
-          outstandingAmount: Math.max(0, newOrderTotal - currentPaid),
-        },
-      });
-    }
-
-    const { attributed } = await attributeOrdersWithWarehouses([updated]);
-    res.json({ success: true, order: attributed[0] });
-  }
-);
-
-router.post(
-  "/orders/:id/close-accounting",
-  requireAnyAdminPermission(
-    Permissions.STAFF_MANAGE,
-    Permissions.COLLECTION_CONFIRM,
-    Permissions.FINANCIAL_CORRECT
-  ),
-  async (req: AdminRequest, res) => {
-    const orderId = req.params.id;
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      include: orderInclude,
-    });
-    if (!order) return res.status(404).json({ error: "Order not found" });
-
-    const staffUser = req.staffAuth?.staffId
-      ? await prisma.staffUser.findUnique({ where: { id: req.staffAuth.staffId }, select: { name: true } })
-      : null;
-    const closedBy = staffUser?.name || "Accounts Team";
-
-    const snap = ((order.commercialSnapshot as any) || {}) as Record<string, any>;
-    snap.accountingStatus = "closed";
-    snap.accountingClosedAt = new Date().toISOString();
-    snap.accountingClosedBy = closedBy;
-    snap.accountingClosedByStaffId = req.staffAuth?.staffId || null;
-    if (req.body?.notes) snap.accountingNotes = req.body.notes;
-
-    const updated = await prisma.order.update({
-      where: { id: orderId },
-      data: {
-        commercialSnapshot: snap,
-        ...(order.status === "placed" ? { status: "confirmed" } : {}),
-      },
-      include: orderInclude,
-    });
-
-    const { attributed } = await attributeOrdersWithWarehouses([updated]);
-    res.json({ success: true, order: attributed[0] });
-  }
-);
-
-router.post(
-  "/orders/bulk-close-accounting",
-  requireAnyAdminPermission(
-    Permissions.STAFF_MANAGE,
-    Permissions.COLLECTION_CONFIRM,
-    Permissions.FINANCIAL_CORRECT
-  ),
-  async (req: AdminRequest, res) => {
-    const { orderIds, notes } = req.body as { orderIds: string[]; notes?: string };
-    if (!Array.isArray(orderIds) || orderIds.length === 0) {
-      return res.status(400).json({ error: "orderIds must be a non-empty array" });
-    }
-
-    const orders = await prisma.order.findMany({
-      where: { id: { in: orderIds } },
-    });
-
-    const staffUser = req.staffAuth?.staffId
-      ? await prisma.staffUser.findUnique({ where: { id: req.staffAuth.staffId }, select: { name: true } })
-      : null;
-    const closedBy = staffUser?.name || "Accounts Team";
-    const closedAt = new Date().toISOString();
-
-    for (const ord of orders) {
-      const snap = ((ord.commercialSnapshot as any) || {}) as Record<string, any>;
-      snap.accountingStatus = "closed";
-      snap.accountingClosedAt = closedAt;
-      snap.accountingClosedBy = closedBy;
-      if (notes) snap.accountingNotes = notes;
-
-      await prisma.order.update({
-        where: { id: ord.id },
-        data: {
+          orderTotal: newOrderTotal,
+          ...(parsed.data.remarks !== undefined ? { remarks: parsed.data.remarks } : {}),
           commercialSnapshot: snap,
-          ...(ord.status === "placed" ? { status: "confirmed" } : {}),
         },
+        include: orderInclude,
       });
-    }
 
-    res.json({ success: true, count: orders.length });
+      return { order: updated } as const;
+    });
+    if ("error" in result) return res.status(result.status!).json({ error: result.error });
+    const updated = result.order;
+    const { attributed } = await attributeOrdersWithWarehouses([updated]);
+    res.json({ success: true, order: attributed[0] });
   }
 );
+
+const accountingNotes = z.string().trim().max(1000).optional();
+const accountingClosePermissions = requireAnyAdminPermission(
+  Permissions.STAFF_MANAGE,
+  Permissions.COLLECTION_CONFIRM,
+  Permissions.FINANCIAL_CORRECT
+);
+
+async function closeBilledOrders(ids: string[], actorStaffId?: string, notes?: string) {
+  return prisma.$transaction(async tx => {
+    const orderIds = [...new Set(ids)].sort();
+    const locked = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "Order" WHERE "id" IN (${Prisma.join(orderIds)}) ORDER BY "id" FOR UPDATE
+    `;
+    if (locked.length !== orderIds.length) return { error: "order_not_found", status: 404 } as const;
+
+    const billed = await tx.order.count({
+      where: { id: { in: orderIds }, status: "delivered", invoices: { some: { status: { not: "voided" } } } },
+    });
+    if (billed !== orderIds.length) return { error: "accounting_requires_issued_invoice", status: 409 } as const;
+
+    const actor = actorStaffId
+      ? await tx.staffUser.findUnique({ where: { id: actorStaffId }, select: { name: true } })
+      : null;
+    const prior = await tx.auditEvent.findMany({
+      where: { action: "order.accounting_closed", subjectType: "order", subjectId: { in: orderIds } },
+      select: { subjectId: true },
+    });
+    const alreadyClosed = new Set(prior.map(event => event.subjectId));
+    const pending = orderIds.filter(id => !alreadyClosed.has(id));
+    if (pending.length) {
+      await tx.auditEvent.createMany({
+        data: pending.map(subjectId => ({
+          action: "order.accounting_closed", subjectType: "order", subjectId, actorStaffId,
+          metadata: { closedBy: actor?.name ?? null, notes: notes ?? null },
+        })),
+      });
+    }
+    return { count: orderIds.length } as const;
+  });
+}
+
+router.post("/orders/:id/close-accounting", accountingClosePermissions, async (req: AdminRequest, res) => {
+  const parsed = z.object({ notes: accountingNotes }).safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+  const result = await closeBilledOrders([req.params.id], req.staffAuth?.staffId, parsed.data.notes);
+  if (result.error) return res.status(result.status).json({ error: result.error });
+  res.json({ success: true, count: result.count });
+});
+
+router.post("/orders/bulk-close-accounting", accountingClosePermissions, async (req: AdminRequest, res) => {
+  const parsed = z.object({ orderIds: z.array(z.string().min(1)).min(1).max(300), notes: accountingNotes }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+  const result = await closeBilledOrders(parsed.data.orderIds, req.staffAuth?.staffId, parsed.data.notes);
+  if (result.error) return res.status(result.status).json({ error: result.error });
+  res.json({ success: true, count: result.count });
+});
 
 const cancellationReviewSchema = z.object({
   note: z.string().trim().max(500).optional(),
@@ -585,13 +552,8 @@ router.post("/orders/:id/cancellation/reject", async (req: AdminRequest, res) =>
   res.json({ ok: true, order: attributedOrder });
 });
 
-const assignSchema = z.object({
-  routeId: z.string().min(1),
-  deliverySlot: z.string().datetime().optional(),
-});
-
 router.post("/dispatch/:orderId/assign", async (req: AdminRequest, res) => {
-  const parsed = assignSchema.safeParse(req.body);
+  const parsed = dispatchAssignmentSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
 
   const order = await prisma.order.findUnique({ where: { id: req.params.orderId } });
@@ -606,7 +568,7 @@ router.post("/dispatch/:orderId/assign", async (req: AdminRequest, res) => {
     throw error;
   }
   const authorization = await prisma.dispatchAuthorization.findFirst({
-    where: { orderId: order.id, status: "active" },
+    where: { orderId: order.id, status: "active", OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
     select: { id: true },
   });
   if (!authorization) return res.status(409).json({ error: "dispatch_authorization_required" });
@@ -614,21 +576,22 @@ router.post("/dispatch/:orderId/assign", async (req: AdminRequest, res) => {
   const slot = parsed.data.deliverySlot ? new Date(parsed.data.deliverySlot) : null;
 
   const updated = await prisma.$transaction(async (tx) => {
-    const consumed = await tx.dispatchAuthorization.updateMany({
-      where: { id: authorization.id, status: "active" },
-      data: { status: "used", usedAt: new Date() },
-    });
-    if (consumed.count !== 1) return null;
+    const now = new Date();
     const claimed=await tx.order.updateMany({
       where:{id:order.id,status:order.status},
       data:{status:"out_for_delivery",expectedDeliveryAt:slot??order.expectedDeliveryAt},
     });
-    // Throw rather than return: failed state ownership must roll back consumed authorization.
     if(claimed.count!==1) throw new OrderTransitionConflict("order_transition_conflict");
+    const consumed = await tx.dispatchAuthorization.updateMany({
+      where: { id: authorization.id, status: "active", OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+      data: { status: "used", usedAt: now },
+    });
+    if (consumed.count !== 1) throw new OrderTransitionConflict("dispatch_authorization_expired");
+    const routeId = await assignCompanyDispatch(tx, order.id, parsed.data, now);
     await tx.delivery.upsert({
       where: { orderId: order.id },
-      update: { routeId: parsed.data.routeId, deliverySlot: slot },
-      create: { orderId: order.id, routeId: parsed.data.routeId, deliverySlot: slot },
+      update: { routeId, deliverySlot: slot },
+      create: { orderId: order.id, routeId, deliverySlot: slot },
     });
     const next = await tx.order.findUniqueOrThrow({
       where: { id: order.id },
@@ -640,12 +603,17 @@ router.post("/dispatch/:orderId/assign", async (req: AdminRequest, res) => {
         action: "dispatch.assigned",
         subjectType: "order",
         subjectId: order.id,
-        metadata: { from:order.status,to:"out_for_delivery",routeId: parsed.data.routeId, authorizationId: authorization.id },
+        metadata: { from:order.status,to:"out_for_delivery",routeId, companyRoutes: parsed.data.companyRoutes ?? [], authorizationId: authorization.id },
       },
     });
     return next;
-  }).catch(error=>{if(error instanceof OrderTransitionConflict) return null;throw error;});
+  }).catch(error => {
+    if (error instanceof CompanySalesOrderError) return error;
+    if (error instanceof OrderTransitionConflict) return null;
+    throw error;
+  });
 
+  if (updated instanceof CompanySalesOrderError) return res.status(409).json({ error: updated.code });
   if (!updated) return res.status(409).json({ error: "dispatch_authorization_expired" });
 
   const [attributedOrder] = await attributeOrders([updated]);
@@ -655,6 +623,8 @@ router.post("/dispatch/:orderId/assign", async (req: AdminRequest, res) => {
 const podSchema = z.object({
   podType: z.enum(["photo", "otp", "signature"]),
   transportationAmount: z.number().min(0).optional(),
+  transportationEntity: z.enum(["jain_traders", "padam_international"]).optional(),
+  companySalesOrderId: z.string().trim().min(1).max(100).optional(),
   items: z
     .array(
       z.object({
@@ -704,7 +674,7 @@ router.post("/dispatch/:orderId/pod", async (req: AdminRequest, res) => {
     });
   }
 
-  if (parsed.data.items.length !== order.items.length) {
+  if (!parsed.data.companySalesOrderId && parsed.data.items.length !== order.items.length) {
     return res.status(400).json({ error: "Every order line needs a delivery result" });
   }
 
@@ -713,8 +683,10 @@ router.post("/dispatch/:orderId/pod", async (req: AdminRequest, res) => {
     const invoice = await createInvoiceForDelivery({
       orderId: order.id,
       occurredAt,
-      idempotencyKey: `delivery:${order.id}`,
+      idempotencyKey: parsed.data.companySalesOrderId ? `delivery:${order.id}:${parsed.data.companySalesOrderId}` : `delivery:${order.id}`,
+      companySalesOrderId: parsed.data.companySalesOrderId,
       transportationAmount: parsed.data.transportationAmount,
+      transportationEntity: parsed.data.transportationEntity,
       lines: parsed.data.items.map((item) => ({
         orderItemId: item.orderItemId,
         deliveredCases: item.qtyDelivered,
@@ -729,9 +701,10 @@ router.post("/dispatch/:orderId/pod", async (req: AdminRequest, res) => {
     });
     res.json({
       order: updated,
-      invoice: jsonSafe(invoice),
-      ledgerEntry: jsonSafe(invoice.legacyLedgerEntry),
-      balanceAfter: Number(invoice.ledgerEntry?.balanceAfter ?? 0),
+      invoices: jsonSafe(invoice.invoices),
+      invoice: invoice.invoices.length === 1 ? jsonSafe(invoice.invoices[0]) : null,
+      ledgerEntry: invoice.invoices.length === 1 ? jsonSafe(invoice.legacyLedgerEntry) : null,
+      balanceAfter: Number(invoice.invoices.at(-1)?.ledgerEntry?.balanceAfter ?? 0),
     });
   } catch (error) {
     if (error instanceof InvoiceCreationError) {
@@ -741,72 +714,6 @@ router.post("/dispatch/:orderId/pod", async (req: AdminRequest, res) => {
   }
 });
 
-router.get("/orders/:id/invoice-pdf", async (req, res) => {
-  const order = await prisma.order.findUnique({
-    where: { id: req.params.id },
-    include: {
-      retailer: {
-        include: {
-          salesRep: true,
-        },
-      },
-      commercialStatusEvents: {
-        where: { code: CommercialStatusCode.SALES_ORDER_PUNCHED },
-        select: { code: true, actorStaff: { select: { name: true } } },
-      },
-      invoice: {
-        include: {
-          lines: true,
-        },
-      },
-    },
-  });
-
-  if (!order || !order.invoice) {
-    return res.status(404).json({ error: "Invoice not found for this order" });
-  }
-
-  const freightLine = order.invoice.lines.find(
-    (l) => l.descriptionSnapshot.toLowerCase().includes("freight") || l.descriptionSnapshot.toLowerCase().includes("transport")
-  );
-
-  const attribution = orderAttribution(order);
-  const warehouse = resolveWarehouse(order);
-
-  const pdfBuffer = renderInvoicePdf({
-    invoiceNumber: order.invoice.invoiceNumber,
-    orderNo: order.orderNo,
-    invoiceDate: order.invoice.invoiceDate,
-    dueDate: order.invoice.dueDate,
-    currency: order.invoice.currency,
-    subtotal: Number(order.invoice.subtotal),
-    taxTotal: Number(order.invoice.taxTotal),
-    total: Number(order.invoice.total),
-    transportationAmount: freightLine ? Number(freightLine.lineTotal) : undefined,
-    salespersonName: attribution.salespersonName,
-    warehouseName: `${warehouse.name} (${warehouse.code})`,
-    retailer: {
-      name: order.retailer.name,
-      shopAddress: order.retailer.shopAddress,
-      deliveryCity: order.retailer.deliveryCity,
-      phone: order.retailer.phone,
-    },
-    lines: order.invoice.lines.map((l) => ({
-      description: l.descriptionSnapshot,
-      cases: l.deliveredCases,
-      weightKg: l.deliveredWeightKg ? Number(l.deliveredWeightKg) : undefined,
-      unitPrice: Number(l.unitPrice),
-      lineTotal: Number(l.lineTotal),
-      sellingEntity: l.sellingEntity,
-    })),
-  });
-
-  res.setHeader("Content-Type", "application/pdf");
-  res.setHeader(
-    "Content-Disposition",
-    `attachment; filename="Invoice-INV-${order.invoice.invoiceNumber}.pdf"`
-  );
-  res.send(pdfBuffer);
-});
+router.get("/orders/:id/invoice-pdf", sendOrderInvoicePdf);
 
 export default router;

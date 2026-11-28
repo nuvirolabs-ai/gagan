@@ -20,6 +20,7 @@ vi.mock("../../../lib/auth", () => ({
 }));
 vi.mock("../../../lib/adminAuth", () => ({
   requireAdmin: (_req: unknown, _res: unknown, next: () => void) => next(),
+  requireAdminPermission: (..._perms: unknown[]) => (_req: unknown, _res: unknown, next: () => void) => next(),
   requireAnyAdminPermission: (..._perms: unknown[]) => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 vi.mock("../financialQueries", () => ({
@@ -69,6 +70,13 @@ describe("financial read API cutover", () => {
     mocks.financialLedger.mockResolvedValue([
       { id: "entry-1", kind: "payment_reversal", direction: "debit" },
     ]);
+    mocks.retailerPaymentInvoices.mockResolvedValue({
+      invoiceAllocationRequired: true,
+      paymentInvoices: [{
+        id: "padam-invoice", invoiceNumber: 42, firmInvoiceNumber: "PI/26/000001",
+        sellingEntity: "padam_international", outstanding: 300, paymentEligible: true,
+      }],
+    });
     const app = express();
     app.use(adminRetailerRoutes);
 
@@ -79,5 +87,11 @@ describe("financial read API cutover", () => {
     expect(response.body.entries).toEqual([
       { id: "entry-1", kind: "payment_reversal", direction: "debit" },
     ]);
+    expect(response.body).toMatchObject({
+      invoiceAllocationRequired: true,
+      openInvoices: [{
+        firmInvoiceNumber: "PI/26/000001", sellingEntity: "padam_international", outstandingAmount: 300,
+      }],
+    });
   });
 });

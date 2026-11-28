@@ -47,7 +47,7 @@ export class RecoveryService {
     return prisma.recoveryCase.findMany({
       where: { status: "open" },
       include: {
-        invoice: { select: { id: true, invoiceNumber: true, outstandingAmount: true, dueDate: true } },
+        invoice: { select: { id: true, invoiceNumber: true, firmInvoiceNumber: true, sellingEntity: true, outstandingAmount: true, dueDate: true } },
         retailer: { select: { id: true, name: true, phone: true } },
         actions: { where: { status: "pending" }, orderBy: { dueAt: "asc" }, take: 1 },
       },
@@ -61,7 +61,7 @@ export class RecoveryService {
     const recoveryCase = await prisma.recoveryCase.findUnique({
       where: { id: caseId },
       include: {
-        invoice: { select: { id: true, invoiceNumber: true, total: true, outstandingAmount: true, invoiceDate: true, dueDate: true } },
+        invoice: { select: { id: true, invoiceNumber: true, firmInvoiceNumber: true, sellingEntity: true, total: true, outstandingAmount: true, invoiceDate: true, dueDate: true } },
         retailer: { select: { id: true, name: true, phone: true } },
         actions: { orderBy: { dueAt: "asc" } },
         calls: { orderBy: { occurredAt: "asc" } },

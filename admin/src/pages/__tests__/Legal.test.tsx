@@ -18,7 +18,7 @@ vi.mock("../../api", () => ({
 const recoveryCase = {
   id: "case-1",
   retailer: { name: "Mahesh Store" },
-  invoice: { invoiceNumber: 1007, outstandingAmount: 12_500 },
+  invoice: { invoiceNumber: 1007, firmInvoiceNumber: "PI/26/001007", sellingEntity: "padam_international", outstandingAmount: 12_500 },
   actions: [],
 };
 
@@ -35,7 +35,8 @@ describe("legal recovery operations", () => {
 
   it("generates a letter and explicitly creates a legal referral", async () => {
     render(<Legal />);
-    fireEvent.click(await screen.findByRole("button", { name: /Mahesh Store/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Mahesh Store.*Padam International/ }));
+    expect(screen.getAllByText(/PI\/26\/001007/)).toHaveLength(2);
     fireEvent.click(screen.getByRole("button", { name: "Generate recovery letter" }));
     await waitFor(() => expect(api.createRecoveryLetter).toHaveBeenCalledWith("case-1", expect.objectContaining({ idempotencyKey: expect.stringMatching(/^letter-/) })));
     fireEvent.change(screen.getByLabelText("Legal referral reason"), { target: { value: "No response after notice" } });

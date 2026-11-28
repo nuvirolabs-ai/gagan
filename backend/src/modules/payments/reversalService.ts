@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { recomputeOverdue } from "../../lib/ageing";
 import { prisma } from "../../lib/prisma";
 import { FinancialCorrectionError } from "./creditNoteService";
+import { CommercialError, invoiceBalances } from "../commercial/service";
 
 export interface ReversePaymentInput {
   paymentId: string;
@@ -111,6 +112,9 @@ export async function reversePayment(input: ReversePaymentInput) {
                     orderId: true,
                     legacyLedgerEntryId: true,
                     invoiceDate: true,
+                    retailerId: true,
+                    sellingEntity: true,
+                    status: true,
                   },
                 },
               },
@@ -119,12 +123,31 @@ export async function reversePayment(input: ReversePaymentInput) {
         });
         const retailer = await tx.retailer.findUnique({ where: { id: locked[0].retailerId } });
         if (!payment) throw new FinancialCorrectionError("payment_not_found");
-        if (payment.invoiceScopeId) throw new FinancialCorrectionError("entity_attributed_reversal_requires_explicit_correction_contract");
         if (!retailer) throw new FinancialCorrectionError("retailer_not_found");
         if (payment.status !== "succeeded") {
           throw new FinancialCorrectionError(
             payment.status === "reversed" ? "payment_fully_reversed" : "payment_not_settled"
           );
+        }
+
+        if (payment.invoiceScopeId) {
+          const [allocation] = payment.allocations;
+          if (payment.allocations.length !== 1 || !allocation.invoice.sellingEntity ||
+              allocation.invoiceId !== payment.invoiceScopeId || allocation.invoice.retailerId !== payment.retailerId ||
+              !allocation.invoice.legacyLedgerEntryId || allocation.invoice.status === "voided" ||
+              !payment.unallocatedAmount.isZero() || !allocation.amount.eq(payment.amount) ||
+              !allocation.jainAmount?.eq(payment.confirmedJainAmount ?? -1) ||
+              !allocation.padamAmount?.eq(payment.confirmedPadamAmount ?? -1)) {
+            throw new FinancialCorrectionError("entity_attributed_reversal_requires_explicit_correction_contract");
+          }
+          try {
+            await invoiceBalances(tx, allocation.invoiceId);
+          } catch (error) {
+            if (error instanceof CommercialError) throw new FinancialCorrectionError(error.code);
+            throw error;
+          }
+        } else if (payment.allocations.some(allocation => allocation.invoice.sellingEntity)) {
+          throw new FinancialCorrectionError("entity_attributed_reversal_requires_explicit_correction_contract");
         }
 
         const priorReversals = await tx.paymentReversal.aggregate({

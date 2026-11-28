@@ -14,18 +14,17 @@ export async function buildCreditSnapshot(
   excludeOrderId?: string
 ): Promise<CreditSnapshot> {
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const [retailer, profile, invoices, invoiceCount, pending, pendingOrderCount, approvalCount, sapDuplicateCount] = await Promise.all([
+  const [retailer, profile, invoices, pending, pendingOrderCount, approvalCount, sapDuplicateCount] = await Promise.all([
     tx.retailer.findUniqueOrThrow({
       where: { id: retailerId },
       select: { createdAt: true, sapCustomerId: true },
     }),
     tx.creditProfile.findUnique({ where: { retailerId } }),
     tx.invoice.findMany({
-      where: { retailerId, outstandingAmount: { gt: 0 }, status: { in: ["open", "partially_paid"] } },
-      select: { id: true, total: true, outstandingAmount: true, invoiceDate: true },
-      orderBy: { invoiceDate: "asc" },
+      where: { retailerId, status: { not: "voided" } },
+      select: { id: true, orderId: true, total: true, outstandingAmount: true, invoiceDate: true },
+      orderBy: [{ invoiceDate: "asc" }, { id: "asc" }],
     }),
-    tx.invoice.count({ where: { retailerId, status: { not: "voided" } } }),
     tx.order.aggregate({
       where: {
         retailerId,
@@ -47,20 +46,29 @@ export async function buildCreditSnapshot(
     }),
   ]);
 
+  // A single buyer order may issue two firm invoices. Existing credit stages
+  // and partial-clearance checks apply to the buyer's purchase as a whole.
+  const invoiceGroups = new Map<string, CreditSnapshot["openInvoices"][number]>();
+  for (const invoice of invoices) {
+    const key = invoice.orderId ? `order:${invoice.orderId}` : `invoice:${invoice.id}`;
+    const group = invoiceGroups.get(key) ?? { id: invoice.id, total: 0, outstandingAmount: 0, ageDays: 0 };
+    group.total += Number(invoice.total);
+    group.outstandingAmount += Number(invoice.outstandingAmount);
+    if (invoice.outstandingAmount.gt(0)) {
+      group.ageDays = Math.max(group.ageDays, wholeDaysBetween(invoice.invoiceDate, now));
+    }
+    invoiceGroups.set(key, group);
+  }
+  const openInvoices = [...invoiceGroups.values()].filter(group => group.outstandingAmount > 0);
   const nextReviewAt = profile?.nextReviewAt;
   return {
     rating: profile?.rating ?? null,
     billingPattern: profile?.billingPattern ?? "unknown",
     kycVerified: profile?.kycVerifiedAt != null,
     accountAgeDays: wholeDaysBetween(profile?.accountCreatedAt ?? retailer.createdAt, now),
-    invoiceCount,
-    openInvoices: invoices.map((invoice) => ({
-      id: invoice.id,
-      total: Number(invoice.total),
-      outstandingAmount: Number(invoice.outstandingAmount),
-      ageDays: wholeDaysBetween(invoice.invoiceDate, now),
-    })),
-    outstandingAmount: invoices.reduce((sum, invoice) => sum + Number(invoice.outstandingAmount), 0),
+    invoiceCount: invoiceGroups.size,
+    openInvoices,
+    outstandingAmount: openInvoices.reduce((sum, invoice) => sum + invoice.outstandingAmount, 0),
     pendingAuthorizedExposure: Number(pending._sum.orderTotal ?? 0),
     pendingOrderCount,
     advancePaymentConfirmed: false,

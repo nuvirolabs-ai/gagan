@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Breakdown } from "../pages/Commercial";
 import { api, inr } from "../api";
 import { formatOrderRef } from "../orderRef";
+import { explain } from "../errorCopy";
+import { acceptedFreight, billingInvoiceLabel, deliveryScope, firmNames, type BillingInvoice } from "../invoiceDocument";
 
 interface Props {
   order: any;
@@ -12,6 +14,7 @@ interface Props {
 interface Line {
   orderItemId: string;
   name: string;
+  companySalesOrderId: string | null;
   qtyOrdered: number;
   casePrice: number;
   caseWeightKg: number;
@@ -25,6 +28,7 @@ interface Line {
  * the ledger is touched so ops can catch a mistyped weight.
  */
 export default function PodModal({ order, onClose, onDone }: Props) {
+  const [selection, setSelection] = useState("");
   const [podType, setPodType] = useState("photo");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,11 +36,12 @@ export default function PodModal({ order, onClose, onDone }: Props) {
   const [quotedInput,setQuotedInput]=useState("");
   const [transportationAmount, setTransportationAmount] = useState<number>(0);
 
-  const [lines, setLines] = useState<Line[]>(() =>
+  const [allLines, setLines] = useState<Line[]>(() =>
     order.items.map((i: any) => {
       const caseWeightKg = Number(i.caseWeightKgSnapshot ?? Number(i.variant.unitWeightKg) * i.variant.unitsPerCase);
       return {
         orderItemId: i.id,
+        companySalesOrderId: i.companySalesOrderId,
         name: i.variant.product.name,
         qtyOrdered: i.qtyOrdered,
         casePrice: Number(i.unitPrice),
@@ -46,8 +51,40 @@ export default function PodModal({ order, onClose, onDone }: Props) {
       };
     })
   );
-  const deliveryInput=JSON.stringify(lines.map(l=>({orderItemId:l.orderItemId,cases:Number(l.qtyDelivered),weightKg:l.weightKg===""?undefined:Number(l.weightKg)})));
-  useEffect(()=>{let active=true;if(order.commercialSnapshot){setCommercial(null);api.deliveryQuote(order.id,JSON.parse(deliveryInput)).then(r=>{if(active){setCommercial(r.commercial);setQuotedInput(deliveryInput);setError(null);}}).catch(()=>{if(active)setError("Cannot price delivery. Check cases and weight.");});}return ()=>{active=false;};},[deliveryInput,order.id,order.commercialSnapshot]);
+  const documents = order.companySalesOrders ?? [];
+  const { pending, company, canDeliverTogether, chosen } = deliveryScope(documents, selection);
+  const freight = acceptedFreight(order.commercialSnapshot);
+  const allowFreight = chosen && (!order.commercialSnapshot || (Boolean(freight) && (!company || company.company === freight?.entity)));
+  const transportation = allowFreight && transportationAmount > 0 ? transportationAmount : undefined;
+  const lines = chosen ? allLines.filter(line => !company || line.companySalesOrderId === company.id) : [];
+  const deliveryInput = JSON.stringify({
+    lines: lines.map(line => ({
+      orderItemId: line.orderItemId,
+      cases: Number(line.qtyDelivered),
+      weightKg: line.weightKg === "" ? undefined : Number(line.weightKg),
+    })),
+    companySalesOrderId: company?.id,
+    transportationAmount: transportation,
+    transportationEntity: transportation ? freight?.entity : undefined,
+  });
+  const requiresQuote = Boolean(order.commercialSnapshot);
+  useEffect(() => {
+    let active = true;
+    setCommercial(null);
+    if (requiresQuote && chosen) {
+      const { lines: resolutions, ...options } = JSON.parse(deliveryInput);
+      api.deliveryQuote(order.id, resolutions, options).then(result => {
+        if (active) {
+          setCommercial(result.commercial);
+          setQuotedInput(deliveryInput);
+          setError(null);
+        }
+      }).catch(cause => {
+        if (active) setError(explain(cause, "Could not price delivery. Check cases and weight."));
+      });
+    }
+    return () => { active = false; };
+  }, [chosen, deliveryInput, order.id, requiresQuote]);
 
   const update = (id: string, patch: Partial<Line>) =>
     setLines((prev) => prev.map((l) => (l.orderItemId === id ? { ...l, ...patch } : l)));
@@ -70,10 +107,11 @@ export default function PodModal({ order, onClose, onDone }: Props) {
   }, [lines]);
 
   const orderedTotal = Number(order.orderTotal);
-  const finalInvoiceTotal = (order.commercialSnapshot && commercial ? Number(commercial.total) : preview.total) + (Number(transportationAmount) || 0);
+  const finalInvoiceTotal = requiresQuote ? Number(commercial?.total ?? 0) : preview.total + (transportation ?? 0);
+  const ready = lines.length > 0 && (!requiresQuote || (commercial && quotedInput === deliveryInput));
 
   const submit = async () => {
-    if(order.commercialSnapshot && (!commercial || quotedInput!==deliveryInput))return;
+    if (!ready) return;
     setBusy(true);
     setError(null);
     try {
@@ -88,11 +126,15 @@ export default function PodModal({ order, onClose, onDone }: Props) {
             weightDeliveredKg: Number.isFinite(weight) ? weight : undefined,
           };
         }),
-        Number(transportationAmount) || 0
+        transportation,
+        transportation ? freight?.entity : undefined,
+        company?.id,
       );
-      onDone(`Delivery captured — invoiced ${inr(Number(result.invoice.total))}`);
+      const invoices: BillingInvoice[] = result.invoices ?? (result.invoice ? [result.invoice] : []);
+      const labels = invoices.filter(invoice => !company || invoice.sellingEntity === company.company).map(billingInvoiceLabel);
+      onDone(labels.length ? `Delivery recorded. Issued ${labels.join(", ")}.` : "Delivery recorded.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not capture delivery");
+      setError(explain(err, "Could not capture delivery"));
       setBusy(false);
     }
   };
@@ -110,6 +152,23 @@ export default function PodModal({ order, onClose, onDone }: Props) {
         {error && <div className="banner error">{error}</div>}
         {commercial && <Breakdown value={commercial}/>}
 
+        {documents.length > 0 && (
+          <label className="field">Company sales order delivered
+            <select value={company?.id ?? selection} onChange={event => {
+              setSelection(event.target.value);
+              setTransportationAmount(0);
+              setError(null);
+            }}>
+              <option value="">Select a company sales order</option>
+              {canDeliverTogether && <option value="all">All companies on this route</option>}
+              {pending.map(document => (
+                <option key={document.id} value={document.id}>
+                  {firmNames[document.company]} · {document.reference}{document.routeId ? ` · Route ${document.routeId}` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <div className="field">
           <label htmlFor="podType">Proof of delivery</label>
           <select id="podType" value={podType} onChange={(e) => setPodType(e.target.value)}>
@@ -172,18 +231,15 @@ export default function PodModal({ order, onClose, onDone }: Props) {
             <span className="muted">Ordered value</span>
             <span>{inr(orderedTotal)}</span>
           </div>
-          <div className="between" style={{ marginTop: 6 }}>
-            <span className="muted">Goods Subtotal</span>
-            <span>{order.commercialSnapshot ? (commercial?inr(Number(commercial.total)):"Pricing…"):inr(preview.total)}</span>
-          </div>
-          <div className="between" style={{ marginTop: 10, alignItems: "center" }}>
-            <label style={{ fontWeight: 600, color: "#92400e" }}>
-              🚚 Transportation Amount (₹):
+          {allowFreight && <div className="between" style={{ marginTop: 10, alignItems: "center" }}>
+            <label htmlFor="podFreight" style={{ fontWeight: 600, color: "#92400e" }}>
+              {freight ? `${firmNames[freight.entity]} freight before GST (${freight.gstPercent}% GST)` : "Transport charge"}
             </label>
             <input
               type="number"
+              id="podFreight"
               min="0"
-              step="any"
+              step="0.01"
               placeholder="0.00"
               value={transportationAmount === 0 ? "" : transportationAmount}
               onChange={(e) => {
@@ -192,10 +248,10 @@ export default function PodModal({ order, onClose, onDone }: Props) {
               }}
               style={{ width: 120, padding: "4px 8px", textAlign: "right", borderRadius: 4, border: "1px solid #d97706" }}
             />
-          </div>
+          </div>}
           <div className="between" style={{ marginTop: 10, paddingTop: 8, borderTop: "1px dashed var(--border)" }}>
-            <span style={{ fontWeight: 700, fontSize: 15 }}>Final Invoice Total</span>
-            <span style={{ fontWeight: 800, fontSize: 18, color: "var(--green)" }}>{inr(finalInvoiceTotal)}</span>
+            <span style={{ fontWeight: 700, fontSize: 15 }}>Estimated billing total</span>
+            <span style={{ fontWeight: 800, fontSize: 18, color: "var(--green)" }}>{ready ? inr(finalInvoiceTotal) : "—"}</span>
           </div>
         </div>
 
@@ -203,8 +259,8 @@ export default function PodModal({ order, onClose, onDone }: Props) {
           <button className="ghost" onClick={onClose} disabled={busy}>
             Cancel
           </button>
-          <button onClick={submit} disabled={busy || (!!order.commercialSnapshot && (!commercial || quotedInput !== deliveryInput))}>
-            {busy ? "Posting…" : `Confirm & create invoice (${inr(finalInvoiceTotal)})`}
+          <button onClick={submit} disabled={busy || !ready}>
+            {busy ? "Posting…" : "Record delivery"}
           </button>
         </div>
       </div>

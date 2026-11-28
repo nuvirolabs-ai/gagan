@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
-import { calculateRatingProposal } from "./ratingLifecycle";
+import { calculateRatingProposal, type RatingLifecycleInput } from "./ratingLifecycle";
 import { nextQuarterlyCheckpoint, shouldAdvanceMissedCheckpoint } from "./reviewSchedule";
 
 export class RatingServiceError extends Error {
@@ -112,7 +112,8 @@ export class RatingService {
     });
     let created = 0;
     for (const profile of profiles) {
-      const invoices = profile.retailer.invoices.map((invoice) => {
+      const purchaseEvidence = new Map<string, RatingLifecycleInput["invoices"][number]>();
+      for (const invoice of profile.retailer.invoices) {
         const netAllocations = invoice.allocations.map((allocation) => ({
           createdAt: allocation.createdAt,
           amount: netAllocationAmount(allocation),
@@ -123,19 +124,26 @@ export class RatingService {
         const completion = fullyPaid
           ? effectiveAllocations.at(-1)?.createdAt ?? invoice.updatedAt
           : now;
-        return {
+        const next = {
           daysToPay: daysBetween(invoice.invoiceDate, completion),
           fullyPaid,
           hadPartialPayment:
             effectiveAllocations.length > 1 ||
             (effectiveAllocations.length === 1 && effectiveAllocations[0].amount < Number(invoice.total)),
         };
-      });
+        const key = invoice.orderId ? `order:${invoice.orderId}` : `invoice:${invoice.id}`;
+        const previous = purchaseEvidence.get(key);
+        purchaseEvidence.set(key, previous ? {
+          daysToPay: Math.max(previous.daysToPay, next.daysToPay),
+          fullyPaid: previous.fullyPaid && next.fullyPaid,
+          hadPartialPayment: previous.hadPartialPayment || next.hadPartialPayment,
+        } : next);
+      }
       const proposal = calculateRatingProposal({
         currentRating: profile.rating,
         billingPattern: profile.billingPattern,
         accountAgeDays: daysBetween(profile.accountCreatedAt, now),
-        invoices,
+        invoices: [...purchaseEvidence.values()],
         checkpointDue: profile.nextReviewAt != null && profile.nextReviewAt <= now,
         hasOutstanding: profile.retailer.invoices.some(
           (invoice) => Number(invoice.outstandingAmount) > 0
